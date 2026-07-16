@@ -6,10 +6,11 @@ actual object AppUpdaterPlatform {
     actual val isSupported: Boolean = true
 
     actual val releaseSource: AppUpdateReleaseSource = AppUpdateReleaseSource(
-        owner = "NuvioMedia",
-        repo = "NuvioMobile",
-        channelBranch = "cmp-rewrite",
-        userAgent = "NuvioMobile",
+        owner = "MichaelCommitsAt3AM",
+        repo = "NuvioDesktopButBetter",
+        channelBranch = null,
+        includePrereleases = true,
+        userAgent = "NuvioDesktop",
     )
 
     actual val assetSelector: AppUpdateAssetSelector

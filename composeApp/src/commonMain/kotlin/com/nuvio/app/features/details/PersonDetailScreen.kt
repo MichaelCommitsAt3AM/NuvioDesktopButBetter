@@ -288,7 +288,10 @@ private fun PersonDetailContent(
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .verticalScroll(scrollState)
+                                .verticalScroll(
+                                    state = scrollState,
+                                    flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+                                )
                                 .windowInsetsPadding(WindowInsets.statusBars)
                                 .padding(top = 48.dp),
                         ) {
@@ -402,7 +405,10 @@ private fun WidePersonDetailContent(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(contentScrollState)
+                    .verticalScroll(
+                        state = contentScrollState,
+                        flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+                    )
                     .padding(start = 40.dp, bottom = 40.dp),
                 verticalArrangement = Arrangement.spacedBy(34.dp),
             ) {
@@ -494,7 +500,10 @@ private fun PersonIdentitySidebar(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState)
+                .verticalScroll(
+                    state = scrollState,
+                    flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+                )
                 .padding(start = 40.dp, end = 36.dp, top = 40.dp, bottom = 42.dp),
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
@@ -858,7 +867,10 @@ private fun PersonDetailSkeleton(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(
+                            state = rememberScrollState(),
+                            flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+                        )
                         .windowInsetsPadding(WindowInsets.statusBars)
                         .padding(top = 48.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -1010,7 +1022,10 @@ private fun WidePersonDetailSkeleton(
             modifier = Modifier
                 .width(PERSON_DETAIL_WIDE_SIDEBAR_WIDTH)
                 .fillMaxHeight()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(
+                    state = rememberScrollState(),
+                    flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+                )
                 .padding(start = 40.dp, end = 36.dp, top = 40.dp, bottom = 42.dp),
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
@@ -1099,7 +1114,10 @@ private fun WidePersonDetailSkeleton(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(
+                    state = rememberScrollState(),
+                    flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+                )
                 .padding(start = 40.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(34.dp),
         ) {

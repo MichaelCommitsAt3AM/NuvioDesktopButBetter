@@ -1832,6 +1832,7 @@ private fun LanguageSelectionDialog(
                         .fillMaxWidth()
                         .heightIn(max = 420.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
+                    flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
                 ) {
                     items(options) { option ->
                         val isSelected = option.value == selectedValue
@@ -2970,6 +2971,7 @@ private fun StreamAutoPlayProviderSelectionDialog(
                             .fillMaxWidth()
                             .heightIn(max = 340.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
+                        flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
                     ) {
                         items(
                             count = items.size,
@@ -3088,7 +3090,10 @@ private fun StreamAutoPlayRegexDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+                ) {
                     items(
                         count = presets.size,
                         key = { presets[it].first },

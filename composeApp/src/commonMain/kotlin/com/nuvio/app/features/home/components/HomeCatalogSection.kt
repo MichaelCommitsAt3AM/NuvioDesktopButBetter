@@ -26,6 +26,7 @@ fun HomeCatalogRowSection(
     watchedKeys: Set<String> = emptySet(),
     fullyWatchedSeriesKeys: Set<String> = emptySet(),
     sectionPadding: Dp? = null,
+    showHeaderAccent: Boolean? = null,
     onViewAllClick: (() -> Unit)? = null,
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
@@ -38,6 +39,7 @@ fun HomeCatalogRowSection(
             fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
             modifier = modifier.fillMaxWidth(),
             sectionPadding = sectionPadding,
+            showHeaderAccent = showHeaderAccent,
             onViewAllClick = onViewAllClick,
             onPosterClick = onPosterClick,
             onPosterLongClick = onPosterLongClick,
@@ -51,6 +53,7 @@ fun HomeCatalogRowSection(
                 fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
                 modifier = Modifier.fillMaxWidth(),
                 sectionPadding = homeSectionHorizontalPaddingForWidth(maxWidth.value),
+                showHeaderAccent = showHeaderAccent,
                 onViewAllClick = onViewAllClick,
                 onPosterClick = onPosterClick,
                 onPosterLongClick = onPosterLongClick,
@@ -67,15 +70,20 @@ private fun HomeCatalogRowSectionContent(
     fullyWatchedSeriesKeys: Set<String>,
     modifier: Modifier,
     sectionPadding: Dp,
+    showHeaderAccent: Boolean?,
     onViewAllClick: (() -> Unit)?,
     onPosterClick: ((MetaPreview) -> Unit)?,
     onPosterLongClick: ((MetaPreview) -> Unit)?,
 ) {
     val posterCardStyle = rememberPosterCardStyleUiState()
-    val homeCatalogSettings by remember {
-        HomeCatalogSettingsRepository.snapshot()
-        HomeCatalogSettingsRepository.uiState
-    }.collectAsStateWithLifecycle()
+    val homeCatalogSettings = if (showHeaderAccent == null) {
+        remember {
+            HomeCatalogSettingsRepository.snapshot()
+            HomeCatalogSettingsRepository.uiState
+        }.collectAsStateWithLifecycle().value
+    } else {
+        null
+    }
 
     NuvioShelfSection(
         title = section.title,
@@ -83,13 +91,14 @@ private fun HomeCatalogRowSectionContent(
         modifier = modifier,
         headerHorizontalPadding = sectionPadding,
         rowContentPadding = PaddingValues(horizontal = sectionPadding),
-        showHeaderAccent = !homeCatalogSettings.hideCatalogUnderline,
+        showHeaderAccent = showHeaderAccent ?: !homeCatalogSettings!!.hideCatalogUnderline,
         onViewAllClick = onViewAllClick,
         viewAllPillSize = NuvioViewAllPillSize.Compact,
         key = { item -> item.stableKey() },
     ) { item ->
         HomePosterCard(
             item = item,
+            posterCardStyle = posterCardStyle,
             useLandscapeBackdropMode = posterCardStyle.catalogLandscapeModeEnabled,
             isWatched = WatchingState.isPosterWatched(
                 watchedKeys = watchedKeys,

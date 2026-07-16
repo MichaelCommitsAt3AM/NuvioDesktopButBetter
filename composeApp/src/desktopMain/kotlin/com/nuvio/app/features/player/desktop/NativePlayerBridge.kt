@@ -30,6 +30,7 @@ internal object NativePlayerBridge {
         hostViewPtr: Long,
         sourceUrl: String,
         headerLines: Array<String>,
+        preferredAudioLanguages: String,
         playWhenReady: Boolean,
         initialPositionMs: Long,
         controlsPageUrl: String,
@@ -40,6 +41,7 @@ internal object NativePlayerBridge {
 
     external fun dispose(handle: Long)
     external fun updateControls(handle: Long, controlsJson: String)
+    external fun refreshLayout(handle: Long)
     external fun requestFocus(handle: Long)
     external fun setPaused(handle: Long, paused: Boolean)
     external fun seekTo(handle: Long, positionMs: Long)
@@ -130,6 +132,13 @@ internal object NativePlayerBridge {
 
         val libraryName = nativeLibraryName(platform)
         val platformDir = nativeDirectoryName(platform)
+
+        findAppResourcesLibrary(platform, libraryName)?.let { appResourceLibrary ->
+            loadNativeRuntimeDependencies(platform, appResourceLibrary.parentFile)
+            System.load(appResourceLibrary.absolutePath)
+            return
+        }
+
         findLocalBuildLibrary(platformDir, libraryName)?.let { localLibrary ->
             copyLocalRuntimeResources(platformDir, localLibrary.parentFile)
             loadNativeRuntimeDependencies(platform, localLibrary.parentFile)
@@ -138,18 +147,56 @@ internal object NativePlayerBridge {
         }
 
         val resource = "/native/$platformDir/$libraryName"
-        val input = NativePlayerBridge::class.java.getResourceAsStream(resource)
-            ?: error("Missing bundled native player bridge: $resource")
         val dir = File(System.getProperty("java.io.tmpdir"), "native-player-bridge").apply { mkdirs() }
         val suffix = libraryName.substringAfter("player_bridge", ".dylib")
-        val file = Files.createTempFile(dir.toPath(), "player-bridge-", suffix).toFile()
-        file.deleteOnExit()
         extractBundledRuntimeResources(platformDir, dir)
-        input.use { source ->
-            file.outputStream().use { target -> source.copyTo(target) }
-        }
         loadNativeRuntimeDependencies(platform, dir)
+        val file = resolveCachedNativeLibraryFile(resource, dir.resolve(libraryName), dir, suffix)
         System.load(file.absolutePath)
+    }
+
+    /**
+     * Reuses the previously extracted library file when its contents are unchanged,
+     * to avoid rewriting a large DLL (and the antivirus re-scan that follows) on every
+     * launch. A distinct temp file is still used as a fallback for the write, since a
+     * still-running previous instance can hold the shared file locked on Windows.
+     */
+    private fun resolveCachedNativeLibraryFile(resource: String, cached: File, dir: File, suffix: String): File {
+        val bytes = NativePlayerBridge::class.java.getResourceAsStream(resource)
+            ?.use { it.readBytes() }
+            ?: error("Missing bundled native player bridge: $resource")
+
+        if (cached.exists() && cached.length() == bytes.size.toLong() && cached.readBytes().contentEquals(bytes)) {
+            return cached
+        }
+
+        runCatching {
+            cached.writeBytes(bytes)
+            return cached
+        }
+
+        val fallback = Files.createTempFile(dir.toPath(), "player-bridge-", suffix).toFile()
+        fallback.deleteOnExit()
+        fallback.writeBytes(bytes)
+        return fallback
+    }
+
+    /**
+     * jpackage copies `appResourcesRootDir` content into the installed app image and
+     * exposes its path via this system property. When present, the native library
+     * already sits at a stable, installer-owned location and never needs to be written
+     * out from a jar resource — avoiding the write-then-load-at-runtime pattern that
+     * antivirus heuristics treat as dropper-like behavior. Files staged under
+     * `appResourcesRootDir/<platformDir>/...` land flattened directly in this directory
+     * (the platform subfolder is a source-side selector, not part of the output path).
+     */
+    private fun findAppResourcesLibrary(platform: DesktopHostOs, libraryName: String): File? {
+        if (platform != DesktopHostOs.WINDOWS) return null
+        val resourcesDir = System.getProperty("compose.application.resources.dir")
+            ?.takeIf(String::isNotBlank)
+            ?.let(::File)
+            ?: return null
+        return resourcesDir.resolve(libraryName).takeIf(File::exists)
     }
 
     private fun loadNativeRuntimeDependencies(platform: DesktopHostOs, directory: File) {
@@ -167,11 +214,9 @@ internal object NativePlayerBridge {
         val runtimeNames = bundledRuntimeResourceNames(platformDir)
         runtimeNames.forEach { name ->
             val resource = "/native/$platformDir/$name"
-            val input = NativePlayerBridge::class.java.getResourceAsStream(resource) ?: return@forEach
+            if (NativePlayerBridge::class.java.getResource(resource) == null) return@forEach
             val target = dir.resolve(name)
-            input.use { source ->
-                target.outputStream().use { output -> source.copyTo(output) }
-            }
+            runCatching { copyResourceIfChanged(resource, target) }
             target.deleteOnExit()
         }
     }
@@ -336,9 +381,17 @@ internal object NativePlayerBridge {
 }
 
 internal fun preloadNativePlayerBridgeAsync() {
-    if (DesktopHostOs.current == DesktopHostOs.MACOS || DesktopHostOs.current == DesktopHostOs.WINDOWS) {
-        runCatching {
-            NativePlayerBridge.preloadAsync()
-        }
+    if (DesktopHostOs.current != DesktopHostOs.MACOS && DesktopHostOs.current != DesktopHostOs.WINDOWS) return
+
+    // Merely referencing NativePlayerBridge triggers its `init` block, which extracts
+    // and loads the native player libraries from disk — expensive I/O that must not
+    // run on the caller's thread, since this is invoked from main() before the app
+    // window exists and would otherwise delay the window appearing.
+    Thread {
+        runCatching { NativePlayerBridge.preloadAsync() }
+    }.apply {
+        name = "nuvio-native-player-bridge-preload"
+        isDaemon = true
+        start()
     }
 }

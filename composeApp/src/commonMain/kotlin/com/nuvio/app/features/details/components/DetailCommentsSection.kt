@@ -88,6 +88,7 @@ fun DetailCommentsSection(
                         .fillMaxWidth()
                         .nuvioDesktopDragScroll(loadingListState),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
                 ) {
                     items(3) {
                         LoadingCommentCard()
@@ -129,6 +130,7 @@ fun DetailCommentsSection(
                         .fillMaxWidth()
                         .nuvioDesktopDragScroll(listState),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
                 ) {
                     items(
                         items = comments.withDuplicateSafeLazyKeys { it.id },

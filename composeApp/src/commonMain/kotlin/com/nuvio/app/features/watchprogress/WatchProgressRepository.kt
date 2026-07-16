@@ -48,6 +48,14 @@ private const val WATCH_PROGRESS_METADATA_RESOLUTION_CONCURRENCY = 4
 private const val WATCH_PROGRESS_METADATA_RESOLUTION_LIMIT = 64
 private const val WATCH_PROGRESS_METADATA_FETCH_ATTEMPTS = 3
 private const val WATCH_PROGRESS_METADATA_RETRY_BASE_DELAY_MS = 750L
+// When a resolution pass finishes but some continue-watching entries still lack
+// metadata (e.g. a freshly-synced item whose live meta fetch failed transiently,
+// or an item that arrived just as the pass completed), retry with backoff instead
+// of leaving it showing its raw id. Bounded so genuinely-unresolvable ids don't
+// poll forever; the budget resets whenever the set of missing items changes.
+private const val WATCH_PROGRESS_METADATA_INCOMPLETE_RETRY_LIMIT = 5
+private const val WATCH_PROGRESS_METADATA_INCOMPLETE_RETRY_BASE_DELAY_MS = 2_000L
+private const val WATCH_PROGRESS_METADATA_INCOMPLETE_RETRY_MAX_DELAY_MS = 30_000L
 private const val WATCH_PROGRESS_DELTA_PAGE_SIZE = 900
 private const val WATCH_PROGRESS_DELTA_OPERATION_UPSERT = "upsert"
 private const val WATCH_PROGRESS_DELTA_OPERATION_DELETE = "delete"
@@ -228,6 +236,9 @@ object WatchProgressRepository {
     private var dirtyProgressKeys: MutableSet<String> = mutableSetOf()
     private var metadataResolutionJob: Job? = null
     private val metadataResolutionRetryCoordinator = MetadataResolutionRetryCoordinator()
+    private val incompleteMetadataRetryLock = SynchronizedObject()
+    private var incompleteMetadataFingerprint: String? = null
+    private var incompleteMetadataRetryAttempt = 0
     private val nuvioPullMutex = Mutex()
     private var lastSuccessfulPushEpochMs = 0L
     private var deltaCursorEventId = 0L
@@ -903,6 +914,10 @@ object WatchProgressRepository {
         } else {
             metadataResolutionRetryCoordinator.invalidateActiveResolution()
         }
+        synchronized(incompleteMetadataRetryLock) {
+            incompleteMetadataFingerprint = null
+            incompleteMetadataRetryAttempt = 0
+        }
         metadataResolutionJob?.cancel()
         metadataResolutionJob = null
     }
@@ -985,10 +1000,60 @@ object WatchProgressRepository {
                 )
                 if (shouldRetry && hasLoaded && !shouldUseTraktProgress()) {
                     resolveRemoteMetadata()
+                } else {
+                    scheduleIncompleteMetadataRetryIfNeeded(
+                        profileId = targetProfileId,
+                        generation = targetGeneration,
+                    )
                 }
             }
         }
         metadataResolutionJob?.start()
+    }
+
+    /**
+     * If continue-watching entries still lack metadata after a resolution pass,
+     * schedule a bounded, backed-off retry. This covers transient meta-fetch
+     * failures and items that arrived while the pass was already in flight, so a
+     * freshly-watched title doesn't stay pinned to its raw id in the UI.
+     */
+    private fun scheduleIncompleteMetadataRetryIfNeeded(profileId: Int, generation: Long) {
+        if (!hasLoaded || shouldUseTraktProgress()) return
+        if (!isActiveOperation(profileId, generation)) return
+
+        val stillMissingKeys = localEntriesSnapshot()
+            .filter(WatchProgressEntry::needsRemoteMetadataEnrichment)
+            .continueWatchingEntries(limit = WATCH_PROGRESS_METADATA_RESOLUTION_LIMIT)
+            .map { "${it.parentMetaId}|${it.contentType}" }
+            .toSortedSet()
+
+        val delayMs = synchronized(incompleteMetadataRetryLock) {
+            if (stillMissingKeys.isEmpty()) {
+                incompleteMetadataFingerprint = null
+                incompleteMetadataRetryAttempt = 0
+                null
+            } else {
+                val fingerprint = stillMissingKeys.joinToString(separator = ";")
+                if (fingerprint != incompleteMetadataFingerprint) {
+                    incompleteMetadataFingerprint = fingerprint
+                    incompleteMetadataRetryAttempt = 0
+                }
+                if (incompleteMetadataRetryAttempt >= WATCH_PROGRESS_METADATA_INCOMPLETE_RETRY_LIMIT) {
+                    null
+                } else {
+                    incompleteMetadataRetryAttempt += 1
+                    (WATCH_PROGRESS_METADATA_INCOMPLETE_RETRY_BASE_DELAY_MS shl (incompleteMetadataRetryAttempt - 1))
+                        .coerceAtMost(WATCH_PROGRESS_METADATA_INCOMPLETE_RETRY_MAX_DELAY_MS)
+                }
+            }
+        } ?: return
+
+        syncScope.launch {
+            delay(delayMs)
+            if (!isActiveOperation(profileId, generation)) return@launch
+            if (!hasLoaded || shouldUseTraktProgress()) return@launch
+            resolveRemoteMetadata()
+        }
     }
 
     private suspend fun fetchRemoteMetadataGroup(

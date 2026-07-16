@@ -27,6 +27,7 @@ import com.nuvio.app.features.player.desktop.DesktopPlayerLaunchShield
 import com.nuvio.app.features.player.desktop.NativePlayerController
 import com.nuvio.app.features.player.desktop.NativePlayerHost
 import com.nuvio.app.features.player.desktop.desktopFullscreenChanges
+import com.nuvio.app.features.player.desktop.desktopWindowFocusEvents
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.drop
 
@@ -38,6 +39,7 @@ actual fun PlatformPlayerSurface(
     sourceResponseHeaders: Map<String, String>,
     externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle>,
     streamType: String?,
+    preferredAudioLanguages: List<String>,
     useYoutubeChunkedPlayback: Boolean,
     modifier: Modifier,
     playWhenReady: Boolean,
@@ -57,6 +59,7 @@ actual fun PlatformPlayerSurface(
         NativePlayerSurface(
             sourceUrl = sourceUrl,
             sourceHeaders = sourceHeaders,
+            preferredAudioLanguages = preferredAudioLanguages,
             modifier = modifier,
             playWhenReady = playWhenReady,
             resizeMode = resizeMode,
@@ -84,6 +87,7 @@ actual fun PlatformPlayerSurface(
 private fun NativePlayerSurface(
     sourceUrl: String,
     sourceHeaders: Map<String, String>,
+    preferredAudioLanguages: List<String>,
     modifier: Modifier,
     playWhenReady: Boolean,
     resizeMode: PlayerResizeMode,
@@ -102,7 +106,9 @@ private fun NativePlayerSurface(
     val controller = remember(host) { NativePlayerController(host) }
     val hostFirstPaintComplete = remember { mutableStateOf(false) }
     val hostFirstFullSizePaintComplete = remember { mutableStateOf(false) }
+    val nativeControlsReady = remember { mutableStateOf(false) }
     LaunchedEffect(sourceUrl) {
+        nativeControlsReady.value = false
         DesktopPlayerLaunchShield.showForActiveWindow()
     }
     val playbackHeaders = remember(sourceHeaders) { sanitizePlaybackHeaders(sourceHeaders) }
@@ -124,6 +130,7 @@ private fun NativePlayerSurface(
             if (!displayable) {
                 hostFirstPaintComplete.value = false
                 hostFirstFullSizePaintComplete.value = false
+                nativeControlsReady.value = false
             }
         }
         host.onFirstPaint = {
@@ -131,12 +138,21 @@ private fun NativePlayerSurface(
         }
         host.onFirstFullSizePaint = {
             hostFirstFullSizePaintComplete.value = true
-            DesktopPlayerLaunchShield.hideAfter()
+            if (nativeControlsReady.value) {
+                DesktopPlayerLaunchShield.hideAfter()
+            }
+        }
+        host.onNativeControlsReady = {
+            nativeControlsReady.value = true
+            if (hostFirstFullSizePaintComplete.value) {
+                DesktopPlayerLaunchShield.hideAfter()
+            }
         }
         onDispose {
             host.onDisplayableChanged = null
             host.onFirstPaint = null
             host.onFirstFullSizePaint = null
+            host.onNativeControlsReady = null
             DesktopPlayerLaunchShield.hide()
         }
     }
@@ -154,7 +170,7 @@ private fun NativePlayerSurface(
         onDispose { controller.dispose() }
     }
 
-    LaunchedEffect(controller, sourceUrl, playbackHeaders, decoderPriority, nvidiaRtxSuperResolutionEnabled, hostFirstFullSizePaintComplete.value) {
+    LaunchedEffect(controller, sourceUrl, playbackHeaders, preferredAudioLanguages, decoderPriority, nvidiaRtxSuperResolutionEnabled, hostFirstFullSizePaintComplete.value) {
         if (!hostFirstFullSizePaintComplete.value) {
             return@LaunchedEffect
         }
@@ -162,6 +178,7 @@ private fun NativePlayerSurface(
         controller.attach(
             sourceUrl = sourceUrl,
             sourceHeaders = playbackHeaders,
+            preferredAudioLanguages = preferredAudioLanguages,
             playWhenReady = playWhenReady,
             initialPositionMs = initialPositionMs,
             decoderPriority = decoderPriority,
@@ -190,6 +207,15 @@ private fun NativePlayerSurface(
     LaunchedEffect(controller) {
         desktopFullscreenChanges.drop(1).collect {
             controller.onDesktopFullscreenChanged()
+        }
+    }
+
+    LaunchedEffect(controller) {
+        // Restore keyboard focus to the embedded native player whenever the app
+        // window regains OS focus (e.g. after alt-tabbing back in), otherwise
+        // shortcuts like Space stay dead until the user clicks the video.
+        desktopWindowFocusEvents.drop(1).collect {
+            controller.requestKeyboardFocus()
         }
     }
 

@@ -101,6 +101,7 @@ fun NuvioScreen(
                 bottom = nuvioSafeBottomPadding(tokens.spacing.screenBottom),
             ),
             verticalArrangement = Arrangement.spacedBy(tokens.spacing.listGap),
+            flingBehavior = rememberNuvioFlingBehavior(),
             content = content,
         )
         NuvioDesktopVerticalScrollbar(

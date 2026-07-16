@@ -144,7 +144,10 @@ fun PlayerSourcesPanel(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState())
+                                    .horizontalScroll(
+                                        state = rememberScrollState(),
+                                        flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+                                    )
                                     .padding(horizontal = tokens.spacing.sheetPadding)
                                     .padding(bottom = tokens.spacing.listGap),
                                 horizontalArrangement = Arrangement.spacedBy(tokens.spacing.controlGap),
@@ -204,6 +207,7 @@ fun PlayerSourcesPanel(
                                     modifier = Modifier.padding(horizontal = tokens.spacing.cardPadding),
                                     verticalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = tokens.spacing.cardPadding),
+                                    flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
                                 ) {
                                     itemsIndexed(
                                         items = streams,

@@ -292,6 +292,7 @@ expect fun PlatformPlayerSurface(
     sourceResponseHeaders: Map<String, String> = emptyMap(),
     externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle> = emptyList(),
     streamType: String? = null,
+    preferredAudioLanguages: List<String> = emptyList(),
     useYoutubeChunkedPlayback: Boolean = false,
     modifier: Modifier = Modifier,
     playWhenReady: Boolean = true,

@@ -5,6 +5,7 @@ import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.auth.AuthState
 import com.nuvio.app.core.auth.isAnonymous
 import com.nuvio.app.core.network.SupabaseProvider
+import com.nuvio.app.core.sync.ProfileSettingsSync
 import com.nuvio.app.core.sync.putSyncOriginClientId
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.collection.CollectionMobileSettingsRepository
@@ -12,6 +13,7 @@ import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.details.MetaScreenSettingsRepository
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
+import com.nuvio.app.features.home.HomeCatalogSettingsSyncService
 import com.nuvio.app.features.home.HomeRepository
 import com.nuvio.app.core.ui.CardDepthStyleRepository
 import com.nuvio.app.core.ui.PosterCardStyleRepository
@@ -242,6 +244,17 @@ object ProfileRepository {
         )
 
         pushProfiles(allPayloads)
+
+        // Seed before the profile is first selected. Otherwise its profile-scoped
+        // repositories load defaults and those defaults can become the first
+        // settings blob uploaded for the new profile.
+        if (
+            !AuthRepository.state.value.isAnonymous &&
+            _state.value.profiles.any { it.profileIndex == nextIndex }
+        ) {
+            ProfileSettingsSync.seedProfileFromCurrent(nextIndex)
+            HomeCatalogSettingsSyncService.seedProfileFromCurrent(nextIndex)
+        }
     }
 
     suspend fun updateProfile(

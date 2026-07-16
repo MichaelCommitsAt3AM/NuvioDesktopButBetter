@@ -15,6 +15,7 @@ import com.nuvio.app.features.mdblist.MdbListMetadataService
 import com.nuvio.app.features.mdblist.MdbListSettingsStorage
 import com.nuvio.app.features.mdblist.MdbListSettingsRepository
 import com.nuvio.app.features.notifications.EpisodeReleaseNotificationsRepository
+import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.features.player.PlayerSettingsStorage
 import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.profiles.ProfileRepository
@@ -61,6 +62,7 @@ import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 
 private const val PUSH_DEBOUNCE_MS = 1500L
+private const val PRIMARY_PROFILE_ID = 1
 
 object ProfileSettingsSync {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -110,14 +112,14 @@ object ProfileSettingsSync {
                 if (ProfileRepository.activeProfileId != profileId) return@withLock false
                 val localSignature = buildSignature(localBlob)
 
-                val params = buildJsonObject {
-                    put("p_profile_id", profileId)
-                    put("p_platform", profileSettingsPlatform)
-                }
-                val result = SupabaseProvider.client.postgrest.rpc("sync_pull_profile_settings_blob", params)
+                val directRemoteJson = fetchRemoteSettingsJson(profileId)
                 if (ProfileRepository.activeProfileId != profileId) return@withLock false
-                val response = result.decodeList<SettingsBlobResponse>().firstOrNull()
-                val remoteJson = response?.settingsJson
+                val inheritedFromPrimary = directRemoteJson == null && profileId != PRIMARY_PROFILE_ID
+                val remoteJson = directRemoteJson ?: if (inheritedFromPrimary) {
+                    fetchRemoteSettingsJson(PRIMARY_PROFILE_ID)
+                } else {
+                    null
+                }
 
                 if (remoteJson == null) {
                     log.i { "pull(profileId=$profileId) — no remote settings blob found" }
@@ -134,6 +136,11 @@ object ProfileSettingsSync {
                     }
                     val remoteSignature = buildSignature(remoteBlob)
                     if (remoteSignature == localSignature) {
+                        if (inheritedFromPrimary) {
+                            pushToRemoteLocked(profileId, remoteBlob)
+                            log.i { "pull(profileId=$profileId) — seeded matching settings from primary profile" }
+                            return@withLock true
+                        }
                         log.d { "pull(profileId=$profileId) — remote matches local" }
                         return@withLock false
                     }
@@ -141,11 +148,20 @@ object ProfileSettingsSync {
                     if (ProfileRepository.activeProfileId != profileId) return@withLock false
                     applyRemoteBlob(remoteBlob)
                     skipNextPushSignature = currentObservedStateSignature()
+                    if (inheritedFromPrimary) {
+                        pushToRemoteLocked(profileId, remoteBlob)
+                    }
                 } finally {
                     isApplyingRemoteBlob = false
                 }
 
-                log.i { "pull(profileId=$profileId) — applied remote settings blob" }
+                log.i {
+                    if (inheritedFromPrimary) {
+                        "pull(profileId=$profileId) — inherited and saved primary profile settings"
+                    } else {
+                        "pull(profileId=$profileId) — applied remote settings blob"
+                    }
+                }
                 true
             } catch (error: Exception) {
                 log.e(error) { "pull(profileId=$profileId) — FAILED" }
@@ -171,6 +187,31 @@ object ProfileSettingsSync {
         }
     }
 
+    /**
+     * Seeds a newly-created profile with the complete settings snapshot of the
+     * profile that is currently active. The destination profile does not need
+     * to be selected, which prevents its default values from being observed and
+     * pushed before inheritance has completed.
+     */
+    suspend fun seedProfileFromCurrent(profileId: Int): Boolean {
+        ensureRepositoriesLoaded()
+        return syncMutex.withLock {
+            runCatching {
+                val sourceProfileId = ProfileRepository.activeProfileId
+                if (sourceProfileId == profileId) return@runCatching false
+
+                val blob = exportSettingsBlob()
+                if (ProfileRepository.activeProfileId != sourceProfileId) return@runCatching false
+
+                pushToRemoteLocked(profileId, blob)
+                log.i { "seedProfileFromCurrent(source=$sourceProfileId, target=$profileId) — success" }
+                true
+            }.onFailure { error ->
+                log.e(error) { "seedProfileFromCurrent(profileId=$profileId) — FAILED" }
+            }.getOrDefault(false)
+        }
+    }
+
     @OptIn(FlowPreview::class)
     private fun observeLocalChangesAndPush() {
         val signatureFlows = listOf(
@@ -181,6 +222,7 @@ object ProfileSettingsSync {
             CardDepthStyleRepository.uiState.map { "card_depth_style" },
             PlayerSettingsRepository.uiState.map { "player" },
             StreamBadgeSettingsRepository.uiState.map { "stream_badges" },
+            P2pSettingsRepository.uiState.map { "p2p" },
             DebridSettingsRepository.uiState.map { "debrid" },
             TmdbSettingsRepository.uiState.map { "tmdb" },
             MdbListSettingsRepository.uiState.map { "mdblist" },
@@ -221,6 +263,15 @@ object ProfileSettingsSync {
         log.d { "pushToRemoteLocked(profileId=$profileId) — success" }
     }
 
+    private suspend fun fetchRemoteSettingsJson(profileId: Int): JsonObject? {
+        val params = buildJsonObject {
+            put("p_profile_id", profileId)
+            put("p_platform", profileSettingsPlatform)
+        }
+        val result = SupabaseProvider.client.postgrest.rpc("sync_pull_profile_settings_blob", params)
+        return result.decodeList<SettingsBlobResponse>().firstOrNull()?.settingsJson
+    }
+
     private fun exportSettingsBlob(): MobileProfileSettingsBlob {
         ensureRepositoriesLoaded()
         return MobileProfileSettingsBlob(
@@ -230,6 +281,7 @@ object ProfileSettingsSync {
                 cardDepthStyleSettingsPayload = CardDepthStyleStorage.loadPayload().orEmpty().trim(),
                 playerSettings = PlayerSettingsStorage.exportToSyncPayload(),
                 streamBadgeSettings = StreamBadgeSettingsStorage.exportToSyncPayload(),
+                p2pSettings = P2pSettingsPayload.from(P2pSettingsRepository.uiState.value),
                 debridSettings = DebridSettingsStorage.exportToSyncPayload(),
                 tmdbSettings = TmdbSettingsStorage.exportToSyncPayload(),
                 mdbListSettings = MdbListSettingsStorage.exportToSyncPayload(),
@@ -260,6 +312,12 @@ object ProfileSettingsSync {
 
         StreamBadgeSettingsStorage.replaceFromSyncPayload(blob.features.streamBadgeSettings)
         StreamBadgeSettingsRepository.onProfileChanged()
+
+        blob.features.p2pSettings?.let { settings ->
+            P2pSettingsRepository.setP2pEnabled(settings.p2pEnabled)
+            P2pSettingsRepository.setEnableUpload(settings.enableUpload)
+            P2pSettingsRepository.setHideTorrentStats(settings.hideTorrentStats)
+        }
 
         DebridSettingsStorage.replaceFromSyncPayload(blob.features.debridSettings)
         DebridSettingsRepository.onProfileChanged()
@@ -295,6 +353,7 @@ object ProfileSettingsSync {
         CardDepthStyleRepository.ensureLoaded()
         PlayerSettingsRepository.ensureLoaded()
         StreamBadgeSettingsRepository.ensureLoaded()
+        P2pSettingsRepository.ensureLoaded()
         DebridSettingsRepository.ensureLoaded()
         TmdbSettingsRepository.ensureLoaded()
         MdbListSettingsRepository.ensureLoaded()
@@ -317,6 +376,7 @@ object ProfileSettingsSync {
         "card_depth_style=${CardDepthStyleRepository.uiState.value}",
         "player=${PlayerSettingsRepository.uiState.value}",
         "stream_badges=${StreamBadgeSettingsRepository.uiState.value}",
+        "p2p=${P2pSettingsRepository.uiState.value}",
         "debrid=${DebridSettingsRepository.uiState.value}",
         "tmdb=${TmdbSettingsRepository.uiState.value}",
         "mdblist=${MdbListSettingsRepository.uiState.value}",
@@ -332,7 +392,7 @@ object ProfileSettingsSync {
 
 @Serializable
 private data class MobileProfileSettingsBlob(
-    val version: Int = 3,
+    val version: Int = 4,
     val features: MobileProfileSettingsFeatures = MobileProfileSettingsFeatures(),
 )
 
@@ -343,6 +403,7 @@ private data class MobileProfileSettingsFeatures(
     @SerialName("card_depth_style_settings_payload") val cardDepthStyleSettingsPayload: String = "",
     @SerialName("player_settings") val playerSettings: JsonObject = JsonObject(emptyMap()),
     @SerialName("stream_badge_settings") val streamBadgeSettings: JsonObject = JsonObject(emptyMap()),
+    @SerialName("p2p_settings") val p2pSettings: P2pSettingsPayload? = null,
     @SerialName("debrid_settings") val debridSettings: JsonObject = JsonObject(emptyMap()),
     @SerialName("tmdb_settings") val tmdbSettings: JsonObject = JsonObject(emptyMap()),
     @SerialName("mdblist_settings") val mdbListSettings: JsonObject = JsonObject(emptyMap()),
@@ -353,6 +414,22 @@ private data class MobileProfileSettingsFeatures(
     @SerialName("trakt_comments_settings") val traktCommentsSettings: JsonObject = JsonObject(emptyMap()),
     @SerialName("notifications_settings") val notificationsSettings: NotificationsSettingsPayload = NotificationsSettingsPayload(),
 )
+
+@Serializable
+private data class P2pSettingsPayload(
+    @SerialName("p2p_enabled") val p2pEnabled: Boolean = false,
+    @SerialName("enable_upload") val enableUpload: Boolean = true,
+    @SerialName("hide_torrent_stats") val hideTorrentStats: Boolean = true,
+) {
+    companion object {
+        fun from(settings: com.nuvio.app.features.p2p.P2pSettingsUiState): P2pSettingsPayload =
+            P2pSettingsPayload(
+                p2pEnabled = settings.p2pEnabled,
+                enableUpload = settings.enableUpload,
+                hideTorrentStats = settings.hideTorrentStats,
+            )
+    }
+}
 
 @Serializable
 private data class NotificationsSettingsPayload(

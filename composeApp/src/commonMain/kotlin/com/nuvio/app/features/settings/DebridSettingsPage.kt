@@ -25,6 +25,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -1078,6 +1079,7 @@ private fun <T> DebridSingleChoiceDialog(
                     .fillMaxWidth()
                     .heightIn(max = 420.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
+                flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
             ) {
                 items(options) { option ->
                     DebridDialogOptionRow(
@@ -1112,6 +1114,7 @@ private fun <T> DebridMultiChoiceDialog(
                     .fillMaxWidth()
                     .heightIn(max = 420.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
+                flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
             ) {
                 items(values) { option ->
                     val selected = option in draft
@@ -1453,7 +1456,12 @@ private fun DebridDeviceAuthDialog(
 ) {
     val uriHandler = LocalUriHandler.current
     val clipboardManager = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
     val isConnected = currentValue.isNotBlank()
+    var manualKeyDraft by rememberSaveable(provider.id, isConnected) { mutableStateOf("") }
+    var isValidatingManualKey by rememberSaveable(provider.id) { mutableStateOf(false) }
+    var manualKeyError by rememberSaveable(provider.id, isConnected) { mutableStateOf<String?>(null) }
+    val invalidKeyMessage = stringResource(Res.string.settings_debrid_key_invalid)
     var restartNonce by rememberSaveable(provider.id) { mutableStateOf(0) }
     var session by remember(provider.id, restartNonce, isConnected) { mutableStateOf<DebridDeviceAuthorization?>(null) }
     var isStarting by remember(provider.id, restartNonce, isConnected) { mutableStateOf(!isConnected) }
@@ -1642,6 +1650,81 @@ private fun DebridDeviceAuthDialog(
                                 MaterialTheme.colorScheme.error
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                }
+                // Manual API-key alternative: some device-code providers (e.g. Torbox)
+                // also issue plain API keys, so let the user paste one instead of relying
+                // on the browser authorization flow. A pasted key is validated and then
+                // stored through the same onConnected path as the device-code result.
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 2.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                )
+                Text(
+                    text = stringResource(Res.string.settings_debrid_dialog_subtitle, provider.displayName),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = manualKeyDraft,
+                    onValueChange = {
+                        manualKeyDraft = it
+                        manualKeyError = null
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !isValidatingManualKey,
+                    placeholder = {
+                        Text(stringResource(Res.string.settings_debrid_dialog_placeholder, provider.displayName))
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.75f),
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        disabledContainerColor = MaterialTheme.colorScheme.surface,
+                    ),
+                )
+                manualKeyError?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                ) {
+                    Button(
+                        onClick = {
+                            val key = manualKeyDraft.trim()
+                            if (key.isBlank()) return@Button
+                            scope.launch {
+                                isValidatingManualKey = true
+                                manualKeyError = null
+                                val valid = runCatching {
+                                    DebridCredentialValidator.validateProvider(provider.id, key)
+                                }.getOrDefault(false)
+                                isValidatingManualKey = false
+                                if (valid) {
+                                    clearPendingDeviceAuthorization(provider.id)
+                                    onConnected(key)
+                                    onDismiss()
+                                } else {
+                                    manualKeyError = invalidKeyMessage
+                                }
+                            }
+                        },
+                        enabled = manualKeyDraft.isNotBlank() && !isValidatingManualKey,
+                    ) {
+                        Text(
+                            if (isValidatingManualKey) {
+                                stringResource(Res.string.action_saving)
+                            } else {
+                                stringResource(Res.string.action_save)
                             },
                         )
                     }

@@ -195,6 +195,8 @@ private val LanguageCodeAliases = mapOf(
     "br" to "pt-BR",
     "pob" to "pt-BR",
     "eng" to "en",
+    "gb" to "en",
+    "en-gb" to "en",
     "spa" to "es",
     "es-419" to "es-419",
     "es_419" to "es-419",
@@ -446,6 +448,25 @@ fun languageMatchesPreference(trackLanguage: String?, targetLanguage: String): B
     val targetPrimary = normalizedTarget.substringBefore('-')
     return trackPrimary == targetPrimary
 }
+
+internal fun expandAudioLanguageTargetsForMpv(targets: List<String>): List<String> =
+    targets.flatMap { target ->
+        val normalized = normalizeLanguageCode(target) ?: return@flatMap emptyList()
+        val iso639Aliases = LanguageCodeAliases.entries
+            .asSequence()
+            .filter { (alias, value) ->
+                alias.length == 3 &&
+                    alias.all(Char::isLetter) &&
+                    normalizeLanguageCode(value) == normalized
+            }
+            .map { it.key.lowercase() }
+            .toList()
+        val nonStandardAliases = when (normalized) {
+            "en" -> listOf("gb", "en-gb")
+            else -> emptyList()
+        }
+        listOf(normalized.lowercase()) + iso639Aliases + nonStandardAliases
+    }.distinct()
 
 private fun languageLabelResForCode(code: String?): StringResource? {
     val normalized = normalizeLanguageCode(code) ?: return null

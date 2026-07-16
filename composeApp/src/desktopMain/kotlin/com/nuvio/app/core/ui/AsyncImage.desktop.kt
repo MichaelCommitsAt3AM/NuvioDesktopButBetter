@@ -1,7 +1,10 @@
 package com.nuvio.app.core.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
@@ -24,6 +27,11 @@ import coil3.compose.AsyncImagePainter
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.request.NullRequestDataException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.FilterMipmap
 import org.jetbrains.skia.FilterMode
@@ -35,6 +43,13 @@ import kotlin.math.roundToInt
 private const val MinCustomDownscaleRatio = 1.08f
 private const val MaxDesktopSourceSizePx = 1536
 private const val MaxScaledBitmapPixels = 1_250_000L
+
+// Shared across all poster painters: the scale itself is CPU-bound Skia raster work that
+// used to run synchronously inside onDraw() (on the same thread that drives composition/
+// layout/draw on desktop), causing scroll jank the first few seconds after launch while
+// dozens of poster cards each pay that cost once. limitedParallelism keeps a couple of
+// cores free for rendering during that initial burst instead of saturating everything.
+private val PosterScaleScope = CoroutineScope(SupervisorJob() + Dispatchers.Default.limitedParallelism(2))
 
 private val IsWindowsDesktop: Boolean =
     System.getProperty("os.name")
@@ -157,7 +172,11 @@ private class ScaledBitmapPainter(
     private val image: ImageBitmap,
 ) : Painter() {
     private var cachedSize: IntSize? = null
-    private var cachedBitmap: ImageBitmap? = null
+    // Backed by Compose state (not a plain var): Painter has no invalidateDraw() hook, so
+    // redraw after the background scale completes relies on onDraw's snapshot read of this
+    // property being observed, the same mechanism other stateful Painters use to animate.
+    private var cachedBitmap: ImageBitmap? by mutableStateOf(null)
+    private var pendingSize: IntSize? = null
     private var alpha: Float = DefaultAlpha
     private var colorFilter: ColorFilter? = null
 
@@ -180,7 +199,11 @@ private class ScaledBitmapPainter(
             return
         }
 
-        val bitmap = scaledBitmap(cacheSize)
+        val bitmap = scaledBitmapOrRequestAsync(cacheSize)
+        if (bitmap == null) {
+            drawSource(drawSize)
+            return
+        }
 
         drawImage(
             image = bitmap,
@@ -204,14 +227,24 @@ private class ScaledBitmapPainter(
         return true
     }
 
-    private fun scaledBitmap(size: IntSize): ImageBitmap {
+    // Returns the cached bitmap if ready; otherwise kicks off (at most one) background
+    // scale job for this size and returns null so the caller falls back to drawSource.
+    private fun scaledBitmapOrRequestAsync(size: IntSize): ImageBitmap? {
         cachedBitmap?.let { bitmap ->
             if (cachedSize == size) return bitmap
         }
-        return image.scale(size.width, size.height).also { bitmap ->
-            cachedSize = size
-            cachedBitmap = bitmap
+        if (pendingSize == size) return null
+
+        pendingSize = size
+        PosterScaleScope.launch {
+            val scaled = image.scale(size.width, size.height)
+            withContext(Dispatchers.Main) {
+                cachedSize = size
+                if (pendingSize == size) pendingSize = null
+                cachedBitmap = scaled
+            }
         }
+        return null
     }
 
     private fun DrawScope.drawSource(drawSize: IntSize) {

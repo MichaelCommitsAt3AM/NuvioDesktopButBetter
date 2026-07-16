@@ -1,20 +1,26 @@
 package com.nuvio.app.features.player.desktop
 
+import com.nuvio.app.core.diagnostics.DesktopDiagnostics
 import java.awt.Canvas
 import java.awt.Color
 import java.awt.Cursor
 import java.awt.Graphics
 import java.awt.Point
 import java.awt.Toolkit
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.awt.event.MouseEvent
 import java.awt.event.MouseMotionAdapter
 import java.awt.image.BufferedImage
 
 internal class NativePlayerHost : Canvas() {
     var onPeerReady: (() -> Unit)? = null
+    var onPeerDisposing: (() -> Unit)? = null
+    var onBoundsChanged: (() -> Unit)? = null
     var onDisplayableChanged: ((Boolean) -> Unit)? = null
     var onFirstPaint: (() -> Unit)? = null
     var onFirstFullSizePaint: (() -> Unit)? = null
+    var onNativeControlsReady: (() -> Unit)? = null
     var onCursorActivity: (() -> Unit)? = null
     private var firstPaintNotified = false
     private var firstFullSizePaintNotified = false
@@ -38,6 +44,11 @@ internal class NativePlayerHost : Canvas() {
 
             override fun mouseDragged(event: MouseEvent) {
                 noteCursorActivity()
+            }
+        })
+        addComponentListener(object : ComponentAdapter() {
+            override fun componentResized(event: ComponentEvent?) {
+                onBoundsChanged?.invoke()
             }
         })
     }
@@ -87,13 +98,22 @@ internal class NativePlayerHost : Canvas() {
     }
 
     override fun removeNotify() {
+        DesktopDiagnostics.record("player_host_remove_notify_started", "displayable=$isDisplayable")
+        // Native mpv and WebView2 resources target this Canvas' HWND. They must
+        // be released before super.removeNotify() destroys that peer.
+        runCatching { onPeerDisposing?.invoke() }
+            .onFailure { error ->
+                DesktopDiagnostics.recordFailure("player_host_pre_remove_dispose_failed", error)
+            }
         onDisplayableChanged?.invoke(false)
         firstPaintNotified = false
         firstFullSizePaintNotified = false
         onPeerReady = null
         onFirstPaint = null
         onFirstFullSizePaint = null
+        onNativeControlsReady = null
         resetCursorVisibility()
         super.removeNotify()
+        DesktopDiagnostics.record("player_host_remove_notify_completed", "displayable=$isDisplayable")
     }
 }

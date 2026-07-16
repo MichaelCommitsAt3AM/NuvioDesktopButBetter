@@ -171,7 +171,10 @@ fun CommentDetailSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f, fill = false)
-                    .verticalScroll(scrollState),
+                    .verticalScroll(
+                        state = scrollState,
+                        flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+                    ),
             ) {
                 Text(
                     text = if (comment.hasSpoilerContent) {

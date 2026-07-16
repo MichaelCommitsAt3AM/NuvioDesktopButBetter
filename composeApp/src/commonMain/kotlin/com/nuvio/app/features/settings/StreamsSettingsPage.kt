@@ -335,6 +335,7 @@ private fun BadgeUrlManagerDialog(
                         .fillMaxWidth()
                         .heightIn(max = 300.dp),
                     verticalArrangement = Arrangement.spacedBy(tokens.spacing.controlGap),
+                    flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
                 ) {
                     items(
                         items = imports,
@@ -511,6 +512,7 @@ private fun BadgePreviewDialog(
                         .fillMaxWidth()
                         .heightIn(max = 460.dp),
                     verticalArrangement = Arrangement.spacedBy(tokens.spacing.railGap),
+                    flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
                 ) {
                     items(
                         items = sections,

@@ -285,6 +285,7 @@ private fun MetaSectionReorderableList(
             .fillMaxWidth()
             .heightIn(max = if (isTablet) 820.dp else 640.dp),
         state = lazyListState,
+        flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
     ) {
         itemsIndexed(items, key = { _, item -> item.key.name }) { index, item ->
             ReorderableItem(reorderableLazyListState, key = item.key.name) { isDragging ->

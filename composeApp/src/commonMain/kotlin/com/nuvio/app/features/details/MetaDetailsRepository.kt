@@ -22,6 +22,7 @@ import com.nuvio.app.features.watchprogress.CurrentDateProvider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,7 +46,10 @@ object MetaDetailsRepository {
     private val _uiState = MutableStateFlow(MetaDetailsUiState())
     val uiState: StateFlow<MetaDetailsUiState> = _uiState.asStateFlow()
     private var activeRequestKey: String? = null
+    private var activeLoadJob: Job? = null
     private val cachedMetaByRequestKey = mutableMapOf<String, CachedMetaEntry>()
+    private val enrichmentJobsByRequestKey = mutableMapOf<String, Job>()
+    private val enrichmentTokensByRequestKey = mutableMapOf<String, Any>()
 
     fun load(type: String, id: String) {
         log.d { "load() called — type=$type id=$id" }
@@ -53,6 +57,12 @@ object MetaDetailsRepository {
         val currentState = _uiState.value
         val mdbListSettings = MdbListSettingsRepository.snapshot()
         val metaScreenSettingsFingerprint = buildMetaScreenSettingsFingerprint(mdbListSettings)
+
+        if (activeRequestKey != requestKey) {
+            activeLoadJob?.cancel()
+            activeLoadJob = null
+            cancelEnrichmentsExcept(requestKey)
+        }
 
         cachedMetaByRequestKey[requestKey]?.let { cachedEntry ->
             cachedEntry.metaScreenMeta
@@ -64,6 +74,11 @@ object MetaDetailsRepository {
                 }
 
             val cachedBaseMeta = cachedEntry.baseMeta
+            if (enrichmentJobsByRequestKey[requestKey]?.isActive == true) {
+                _uiState.value = MetaDetailsUiState(meta = cachedBaseMeta.withUnreleasedFilter())
+                activeRequestKey = requestKey
+                return
+            }
             if (!shouldEnrichForMetaScreen(cachedBaseMeta, id, mdbListSettings)) {
                 _uiState.value = MetaDetailsUiState(meta = cachedBaseMeta.withUnreleasedFilter())
                 activeRequestKey = requestKey
@@ -112,7 +127,7 @@ object MetaDetailsRepository {
         activeRequestKey = requestKey
         _uiState.value = MetaDetailsUiState(isLoading = true)
 
-        scope.launch {
+        activeLoadJob = scope.launch {
             val metaLookupId = resolveMetaLookupId(itemId = id, itemType = type)
             val manifests = findReadyMetaManifests(type = type, id = metaLookupId)
 
@@ -140,9 +155,16 @@ object MetaDetailsRepository {
 
             for (manifest in manifests) {
                 val result = withContext(Dispatchers.Default) {
-                    tryFetchMeta(manifest, type, metaLookupId, includeMdbList = false)
+                    tryFetchMeta(
+                        manifest = manifest,
+                        type = type,
+                        id = metaLookupId,
+                        includeTmdb = false,
+                        includeMdbList = false,
+                    )
                 }
                 if (result != null) {
+                    if (activeRequestKey != requestKey) return@launch
                     publishLoadedMeta(
                         requestKey = requestKey,
                         meta = result,
@@ -157,6 +179,7 @@ object MetaDetailsRepository {
 
             val tmdbMeta = tryFetchTmdbFallbackMeta(type = type, id = id)
             if (tmdbMeta != null) {
+                if (activeRequestKey != requestKey) return@launch
                 publishLoadedMeta(
                     requestKey = requestKey,
                     meta = tmdbMeta,
@@ -168,10 +191,12 @@ object MetaDetailsRepository {
                 return@launch
             }
 
-            _uiState.value = MetaDetailsUiState(
-                errorMessage = getString(Res.string.details_load_failed_all_addons),
-            )
-            activeRequestKey = null
+            if (activeRequestKey == requestKey) {
+                _uiState.value = MetaDetailsUiState(
+                    errorMessage = getString(Res.string.details_load_failed_all_addons),
+                )
+                activeRequestKey = null
+            }
         }
     }
 
@@ -188,7 +213,12 @@ object MetaDetailsRepository {
     }
 
     fun clear() {
+        activeLoadJob?.cancel()
+        activeLoadJob = null
         activeRequestKey = null
+        enrichmentJobsByRequestKey.values.forEach(Job::cancel)
+        enrichmentJobsByRequestKey.clear()
+        enrichmentTokensByRequestKey.clear()
         cachedMetaByRequestKey.clear()
         _uiState.value = MetaDetailsUiState()
     }
@@ -202,7 +232,13 @@ object MetaDetailsRepository {
 
         for (manifest in manifests) {
             val result = withTimeoutOrNull(FETCH_TIMEOUT_MS) {
-                tryFetchMeta(manifest, type, metaLookupId, includeMdbList = false)
+                tryFetchMeta(
+                    manifest = manifest,
+                    type = type,
+                    id = metaLookupId,
+                    includeTmdb = true,
+                    includeMdbList = false,
+                )
             }
             if (result != null) {
                 cachedMetaByRequestKey[requestKey] = CachedMetaEntry(baseMeta = result)
@@ -224,6 +260,7 @@ object MetaDetailsRepository {
         manifest: AddonManifest,
         type: String,
         id: String,
+        includeTmdb: Boolean,
         includeMdbList: Boolean,
     ): MetaDetails? {
         val url = buildAddonResourceUrl(
@@ -239,13 +276,17 @@ object MetaDetailsRepository {
             val payload = httpGetText(url)
             log.d { "Raw payload length=${payload.length}, first 500 chars: ${payload.take(500)}" }
             val result = MetaDetailsParser.parse(payload)
-            val tmdbEnriched = withTimeoutOrNull(TMDB_ENRICH_TIMEOUT_MS) {
-                TmdbMetadataService.enrichMeta(
-                    meta = result,
-                    fallbackItemId = id,
-                    settings = TmdbSettingsRepository.snapshot(),
-                )
-            } ?: result
+            val tmdbEnriched = if (includeTmdb) {
+                withTimeoutOrNull(TMDB_ENRICH_TIMEOUT_MS) {
+                    TmdbMetadataService.enrichMeta(
+                        meta = result,
+                        fallbackItemId = id,
+                        settings = TmdbSettingsRepository.snapshot(),
+                    )
+                } ?: result
+            } else {
+                result
+            }
             val enriched = if (includeMdbList) {
                 MdbListSettingsRepository.ensureLoaded()
                 withTimeoutOrNull(MDBLIST_ENRICH_TIMEOUT_MS) {
@@ -337,35 +378,110 @@ object MetaDetailsRepository {
         mdbListSettings: com.nuvio.app.features.mdblist.MdbListSettings,
         metaScreenSettingsFingerprint: String,
     ) {
+        if (activeRequestKey != requestKey) return
         val cachedEntry = CachedMetaEntry(baseMeta = meta)
         cachedMetaByRequestKey[requestKey] = cachedEntry
+        activeRequestKey = requestKey
+        _uiState.value = MetaDetailsUiState(meta = meta.withUnreleasedFilter())
 
-        if (!shouldEnrichForMetaScreen(meta, fallbackItemId, mdbListSettings)) {
-            _uiState.value = MetaDetailsUiState(meta = meta.withUnreleasedFilter())
-            activeRequestKey = requestKey
-            return
-        }
-
-        _uiState.value = MetaDetailsUiState(
-            isLoading = true,
+        startBackgroundEnrichment(
+            requestKey = requestKey,
             meta = meta,
-        )
-        val enrichedMeta = withContext(Dispatchers.Default) {
-            enrichForMetaScreen(
-                requestKey = requestKey,
-                meta = meta,
-                fallbackItemId = fallbackItemId,
-                fallbackItemType = fallbackItemType,
-                settings = mdbListSettings,
-                settingsFingerprint = metaScreenSettingsFingerprint,
-            )
-        }
-        cachedMetaByRequestKey[requestKey] = cachedEntry.copy(
-            metaScreenMeta = enrichedMeta,
+            fallbackItemId = fallbackItemId,
+            fallbackItemType = fallbackItemType,
+            mdbListSettings = mdbListSettings,
             metaScreenSettingsFingerprint = metaScreenSettingsFingerprint,
         )
-        _uiState.value = MetaDetailsUiState(meta = enrichedMeta.withUnreleasedFilter())
-        activeRequestKey = requestKey
+    }
+
+    private fun startBackgroundEnrichment(
+        requestKey: String,
+        meta: MetaDetails,
+        fallbackItemId: String,
+        fallbackItemType: String,
+        mdbListSettings: com.nuvio.app.features.mdblist.MdbListSettings,
+        metaScreenSettingsFingerprint: String,
+    ) {
+        if (enrichmentJobsByRequestKey[requestKey]?.isActive == true) return
+
+        val token = Any()
+        enrichmentTokensByRequestKey[requestKey] = token
+        enrichmentJobsByRequestKey[requestKey] = scope.launch {
+            try {
+                val tmdbEnrichedMeta = withContext(Dispatchers.Default) {
+                    withTimeoutOrNull(TMDB_ENRICH_TIMEOUT_MS) {
+                        TmdbMetadataService.enrichMeta(
+                            meta = meta,
+                            fallbackItemId = fallbackItemId,
+                            settings = TmdbSettingsRepository.snapshot(),
+                            includeEpisodes = false,
+                        )
+                    } ?: meta
+                }
+                val enrichedMeta = if (shouldEnrichForMetaScreen(tmdbEnrichedMeta, fallbackItemId, mdbListSettings)) {
+                    withContext(Dispatchers.Default) {
+                        enrichForMetaScreen(
+                            requestKey = requestKey,
+                            meta = tmdbEnrichedMeta,
+                            fallbackItemId = fallbackItemId,
+                            fallbackItemType = fallbackItemType,
+                            settings = mdbListSettings,
+                            settingsFingerprint = metaScreenSettingsFingerprint,
+                        )
+                    }
+                } else {
+                    tmdbEnrichedMeta
+                }
+
+                cachedMetaByRequestKey[requestKey] = CachedMetaEntry(
+                    baseMeta = tmdbEnrichedMeta,
+                    metaScreenMeta = enrichedMeta,
+                    metaScreenSettingsFingerprint = metaScreenSettingsFingerprint,
+                )
+                if (activeRequestKey == requestKey) {
+                    _uiState.value = MetaDetailsUiState(meta = enrichedMeta.withUnreleasedFilter())
+                }
+
+                // Episode metadata can require one request per season. Run it
+                // only after the core details and related titles are visible.
+                val episodeEnrichedMeta = withContext(Dispatchers.Default) {
+                    withTimeoutOrNull(TMDB_ENRICH_TIMEOUT_MS) {
+                        TmdbMetadataService.enrichEpisodes(
+                            meta = enrichedMeta,
+                            fallbackItemId = fallbackItemId,
+                            settings = TmdbSettingsRepository.snapshot(),
+                        )
+                    } ?: enrichedMeta
+                }
+                if (episodeEnrichedMeta != enrichedMeta) {
+                    cachedMetaByRequestKey[requestKey] = CachedMetaEntry(
+                        baseMeta = episodeEnrichedMeta,
+                        metaScreenMeta = episodeEnrichedMeta,
+                        metaScreenSettingsFingerprint = metaScreenSettingsFingerprint,
+                    )
+                    if (activeRequestKey == requestKey) {
+                        _uiState.value = MetaDetailsUiState(meta = episodeEnrichedMeta.withUnreleasedFilter())
+                    }
+                }
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                log.w(error) { "Background metadata enrichment failed for $requestKey; keeping addon metadata" }
+            } finally {
+                if (enrichmentTokensByRequestKey[requestKey] === token) {
+                    enrichmentTokensByRequestKey.remove(requestKey)
+                    enrichmentJobsByRequestKey.remove(requestKey)
+                }
+            }
+        }
+    }
+
+    private fun cancelEnrichmentsExcept(requestKey: String) {
+        enrichmentJobsByRequestKey
+            .filterKeys { it != requestKey }
+            .values
+            .forEach(Job::cancel)
+        enrichmentJobsByRequestKey.keys.retainAll(setOf(requestKey))
+        enrichmentTokensByRequestKey.keys.retainAll(setOf(requestKey))
     }
 
     private suspend fun enrichForMetaScreen(
@@ -430,10 +546,19 @@ object MetaDetailsRepository {
                 log.w { "Failed to load Trakt related titles for ${meta.id}: ${error.message}" }
             }.getOrDefault(emptyList())
 
-            return meta.copy(
-                moreLikeThis = items,
-                moreLikeThisSource = MoreLikeThisSource.TRAKT.takeIf { items.isNotEmpty() },
-            )
+            if (items.isNotEmpty()) {
+                return meta.copy(
+                    moreLikeThis = items,
+                    moreLikeThisSource = MoreLikeThisSource.TRAKT,
+                )
+            }
+
+            // Trakt can legitimately return no related titles for a valid item.
+            // Keep recommendations already supplied by TMDB instead of clearing
+            // the entire section because the preferred source was empty.
+            if (meta.moreLikeThis.isNotEmpty()) {
+                return meta.copy(moreLikeThisSource = MoreLikeThisSource.TMDB)
+            }
         }
 
         val tmdbSettings = TmdbSettingsRepository.snapshot()

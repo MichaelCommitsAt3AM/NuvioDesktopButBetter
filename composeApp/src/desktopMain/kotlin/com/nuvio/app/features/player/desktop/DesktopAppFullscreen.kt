@@ -2,7 +2,6 @@ package com.nuvio.app.features.player.desktop
 
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
-import java.awt.GraphicsEnvironment
 import java.awt.KeyEventDispatcher
 import java.awt.KeyboardFocusManager
 import java.awt.Window
@@ -131,29 +130,22 @@ internal class DesktopAppFullscreenController {
     }
 
     private fun enterWindowsFullscreen(window: Window) {
-        val gc = window.graphicsConfiguration
-            ?: GraphicsEnvironment.getLocalGraphicsEnvironment().defaultScreenDevice.defaultConfiguration
-        val screenBounds = gc.bounds
-        val transform = gc.defaultTransform
-        val scaleX = transform.scaleX
-        val scaleY = transform.scaleY
-
         val hwnd = AwtNativeViewResolver.resolveNativeViewPointer(window)
+        windowsFullscreenState = WindowsFullscreenState(window = window, windowHwnd = hwnd)
         NativePlayerBridge.setWindowBorderlessFullscreen(
             windowHwnd = hwnd,
             fullscreen = true,
-            x = (screenBounds.x * scaleX).toInt(),
-            y = (screenBounds.y * scaleY).toInt(),
-            width = (screenBounds.width * scaleX).toInt(),
-            height = (screenBounds.height * scaleY).toInt(),
+            x = 0,
+            y = 0,
+            width = 0,
+            height = 0,
         )
-        windowsFullscreenState = WindowsFullscreenState(window = window, windowHwnd = hwnd)
-        window.toFront()
-        window.requestFocus()
+        if (!window.isFocused) window.requestFocus()
     }
 
     private fun exitWindowsFullscreen(window: Window) {
         val fullscreenState = windowsFullscreenState?.takeIf { it.window === window } ?: return
+        windowsFullscreenState = null
         NativePlayerBridge.setWindowBorderlessFullscreen(
             windowHwnd = fullscreenState.windowHwnd,
             fullscreen = false,
@@ -162,7 +154,6 @@ internal class DesktopAppFullscreenController {
             width = 0,
             height = 0,
         )
-        windowsFullscreenState = null
     }
 
     private data class WindowsFullscreenState(
@@ -172,7 +163,28 @@ internal class DesktopAppFullscreenController {
 }
 
 internal fun installDesktopAppFullscreenShortcuts(window: Window): () -> Unit {
+    var fullscreenEscapeConsumed = false
     val dispatcher = KeyEventDispatcher { event ->
+        if (event.keyCode == KeyEvent.VK_ESCAPE) {
+            when (event.id) {
+                KeyEvent.KEY_RELEASED -> {
+                    if (fullscreenEscapeConsumed) {
+                        fullscreenEscapeConsumed = false
+                        return@KeyEventDispatcher true
+                    }
+                }
+                KeyEvent.KEY_PRESSED -> {
+                    if (fullscreenEscapeConsumed) {
+                        return@KeyEventDispatcher true
+                    }
+                    if (isDesktopAppFullscreen(window)) {
+                        fullscreenEscapeConsumed = true
+                        toggleDesktopAppFullscreen(window)
+                        return@KeyEventDispatcher true
+                    }
+                }
+            }
+        }
         if (!event.isDesktopAppFullscreenShortcut()) return@KeyEventDispatcher false
         toggleDesktopAppFullscreen(window)
         true

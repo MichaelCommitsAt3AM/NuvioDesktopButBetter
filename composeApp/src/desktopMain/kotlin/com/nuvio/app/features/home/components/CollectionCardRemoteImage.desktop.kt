@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import com.nuvio.app.core.ui.NuvioDesktopImageScaling
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
@@ -30,5 +31,6 @@ internal actual fun CollectionCardRemoteImage(
         contentDescription = contentDescription,
         modifier = modifier,
         contentScale = contentScale,
+        desktopImageScaling = NuvioDesktopImageScaling.Disabled,
     )
 }

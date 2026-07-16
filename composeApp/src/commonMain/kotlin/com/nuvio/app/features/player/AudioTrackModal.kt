@@ -109,7 +109,10 @@ fun AudioTrackModal(
                         } else {
                             Column(
                                 modifier = Modifier
-                                    .verticalScroll(rememberScrollState())
+                                    .verticalScroll(
+                                        state = rememberScrollState(),
+                                        flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+                                    )
                                     .padding(horizontal = 20.dp)
                                     .padding(bottom = 20.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),

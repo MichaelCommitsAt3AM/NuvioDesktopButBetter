@@ -533,7 +533,10 @@ private fun CloudLibraryToolbar(
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .horizontalScroll(rememberScrollState()),
+                    .horizontalScroll(
+                        state = rememberScrollState(),
+                        flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+                    ),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 NuvioDropdownChip(

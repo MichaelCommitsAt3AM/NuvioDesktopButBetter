@@ -927,6 +927,7 @@ fun MetaDetailsScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .zIndex(1f),
+                            flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
                         ) {
                             if (useDesktopDetailLayout) {
                                 item(

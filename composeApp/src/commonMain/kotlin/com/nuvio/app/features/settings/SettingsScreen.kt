@@ -935,6 +935,7 @@ private fun TabletSettingsScreen(
                         bottom = 40.dp + bottomOverlayPadding,
                     ),
                     verticalArrangement = Arrangement.spacedBy(18.dp),
+                    flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
                 ) {
                     item {
                         val previousPage = page.previousPage()

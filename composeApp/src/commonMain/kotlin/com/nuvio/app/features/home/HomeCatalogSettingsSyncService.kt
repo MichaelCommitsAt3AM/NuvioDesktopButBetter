@@ -75,6 +75,7 @@ object HomeCatalogSettingsSyncService {
 
     private const val HIDE_UNRELEASED_CONTENT_KEY = "hide_unreleased_content"
     private const val HIDE_CATALOG_UNDERLINE_KEY = "hide_catalog_underline"
+    private const val PRIMARY_PROFILE_ID = 1
 
     @Volatile
     var isSyncingFromRemote: Boolean = false
@@ -88,7 +89,13 @@ object HomeCatalogSettingsSyncService {
         runCatching {
             val pullToken = currentPullToken(profileId) ?: return
             val localPayload = HomeCatalogSettingsRepository.exportToSyncPayload()
-            val remote = fetchBestRemotePayload(profileId, localPayload)
+            val directRemote = fetchBestRemotePayload(profileId, localPayload)
+            val inheritedFromPrimary = directRemote == null && profileId != PRIMARY_PROFILE_ID
+            val remote = directRemote ?: if (inheritedFromPrimary) {
+                fetchBestRemotePayload(PRIMARY_PROFILE_ID, localPayload)
+            } else {
+                null
+            }
 
             if (remote == null) {
                 log.i { "pullFromServer — no remote home catalog settings found; preserving local" }
@@ -101,12 +108,18 @@ object HomeCatalogSettingsSyncService {
             if (remotePayload.items.isEmpty()) {
                 log.i { "pullFromServer — remote has empty items, preserving local catalog order" }
                 applyRemotePayload(remotePayload)
+                if (inheritedFromPrimary) pushPayloadToRemote(profileId, remotePayload)
                 markInitialPullComplete(pullToken)
                 return
             }
 
             applyRemotePayload(remotePayload)
-            log.i { "pullFromServer — applied ${remotePayload.items.size} items from remote" }
+            if (inheritedFromPrimary) {
+                pushPayloadToRemote(profileId, remotePayload)
+                log.i { "pullFromServer — inherited ${remotePayload.items.size} items from primary profile" }
+            } else {
+                log.i { "pullFromServer — applied ${remotePayload.items.size} items from remote" }
+            }
             markInitialPullComplete(pullToken)
         }.onFailure { e ->
             isSyncingFromRemote = false
@@ -129,22 +142,40 @@ object HomeCatalogSettingsSyncService {
         }
     }
 
+    suspend fun seedProfileFromCurrent(profileId: Int): Boolean = runCatching {
+        val sourceProfileId = ProfileRepository.activeProfileId
+        if (sourceProfileId == profileId || currentPullToken(sourceProfileId) == null) {
+            return@runCatching false
+        }
+
+        val payload = HomeCatalogSettingsRepository.exportToSyncPayload()
+        if (ProfileRepository.activeProfileId != sourceProfileId) return@runCatching false
+        pushPayloadToRemote(profileId, payload)
+        log.i { "seedProfileFromCurrent(source=$sourceProfileId, target=$profileId) — success" }
+        true
+    }.onFailure { error ->
+        log.e(error) { "seedProfileFromCurrent(profileId=$profileId) — FAILED" }
+    }.getOrDefault(false)
+
     private suspend fun pushToRemote(profileId: Int) {
         runCatching {
             val payload = HomeCatalogSettingsRepository.exportToSyncPayload()
-            val jsonElement = mergedSharedPayloadJson(profileId, payload)
-
-            val params = buildJsonObject {
-                put("p_profile_id", profileId)
-                put("p_platform", HOME_CATALOG_SHARED_SYNC_PLATFORM)
-                put("p_settings_json", jsonElement)
-                putSyncOriginClientId()
-            }
-            SupabaseProvider.client.postgrest.rpc("sync_push_home_catalog_settings", params)
+            pushPayloadToRemote(profileId, payload)
             log.d { "pushToRemote — success" }
         }.onFailure { e ->
             log.e(e) { "pushToRemote — FAILED" }
         }
+    }
+
+    private suspend fun pushPayloadToRemote(profileId: Int, payload: SyncHomeCatalogPayload) {
+        val jsonElement = mergedSharedPayloadJson(profileId, payload)
+        val params = buildJsonObject {
+            put("p_profile_id", profileId)
+            put("p_platform", HOME_CATALOG_SHARED_SYNC_PLATFORM)
+            put("p_settings_json", jsonElement)
+            putSyncOriginClientId()
+        }
+        SupabaseProvider.client.postgrest.rpc("sync_push_home_catalog_settings", params)
     }
 
     private fun currentPullToken(profileId: Int = ProfileRepository.activeProfileId): PullToken? {

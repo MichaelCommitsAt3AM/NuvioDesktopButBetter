@@ -154,7 +154,10 @@ private fun DiscoverFilterRow(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.horizontalScroll(rememberScrollState()),
+        modifier = modifier.horizontalScroll(
+            state = rememberScrollState(),
+            flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+        ),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         NuvioDropdownChip(

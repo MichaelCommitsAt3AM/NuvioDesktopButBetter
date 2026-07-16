@@ -3,7 +3,9 @@ package com.nuvio.app.features.tmdb
 import co.touchlab.kermit.Logger
 import com.nuvio.app.features.addons.httpGetText
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -93,7 +95,9 @@ object TmdbService {
     ): T? {
         val url = buildTmdbUrl(endpoint = endpoint, apiKey = apiKey, query = query)
         return runCatching {
-            json.decodeFromString<T>(httpGetText(url))
+            TmdbRequestLimiter.run {
+                json.decodeFromString<T>(httpGetText(url))
+            }
         }.onFailure { error ->
             log.w { "TMDB request failed for $endpoint: ${error.message}" }
         }.getOrNull()
@@ -108,6 +112,12 @@ object TmdbService {
             "tv", "series", "show", "tvshow" -> "tv"
             else -> mediaType.trim().lowercase()
         }
+}
+
+internal object TmdbRequestLimiter {
+    private val semaphore = Semaphore(permits = 3)
+
+    suspend fun <T> run(block: suspend () -> T): T = semaphore.withPermit { block() }
 }
 
 internal fun buildTmdbUrl(

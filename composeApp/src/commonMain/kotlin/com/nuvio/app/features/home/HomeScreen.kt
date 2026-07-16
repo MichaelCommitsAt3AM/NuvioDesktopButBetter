@@ -3,6 +3,8 @@ package com.nuvio.app.features.home
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -99,6 +101,32 @@ import com.nuvio.app.features.home.components.rememberContinueWatchingLayout
 import kotlinx.coroutines.CancellationException
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+
+private const val HomeScrollWarmUpItemCount = 6
+
+// Compose Desktop composes/measures/lays out Lazy items only as they first scroll into
+// view, and Skia JIT-compiles shader configurations on first use — so the very first
+// scroll-down on Home pays a one-time cold-path cost for however many previously-untouched
+// shelves it reveals. Run that cost here, invisibly, while still hidden behind the launch
+// overlay (see onFirstCatalogRendered below), instead of during the user's real first scroll.
+// TODO: this is a stopgap, not a real fix — it masks the cold-path cost rather than
+// eliminating it, adds startup latency, and only warms the outer vertical list (not
+// per-shelf horizontal scrolling). Look into addressing the actual root cause instead
+// (e.g. AppCDS/class-data sharing for JVM cold-start, or a real Skia shader pre-warm).
+private suspend fun warmUpHomeScroll(listState: LazyListState) {
+    if (!isDesktop) return
+    val totalItems = listState.layoutInfo.totalItemsCount
+    if (totalItems <= 1) return
+    runCatching {
+        listState.scrollToItem((totalItems - 1).coerceAtMost(HomeScrollWarmUpItemCount))
+        val viewportHeight = listState.layoutInfo.viewportSize.height.toFloat()
+        if (viewportHeight > 0f) {
+            listState.scrollBy(viewportHeight * 0.5f)
+            listState.scrollBy(-viewportHeight * 0.5f)
+        }
+        listState.scrollToItem(0)
+    }
+}
 
 @Composable
 fun HomeScreen(
@@ -763,7 +791,11 @@ fun HomeScreen(
     LaunchedEffect(homeUiState.sections.firstOrNull()?.key, onFirstCatalogRendered) {
         if (firstCatalogReported || homeUiState.sections.isEmpty()) return@LaunchedEffect
         firstCatalogReported = true
-        onFirstCatalogRendered?.invoke()
+        try {
+            warmUpHomeScroll(homeListState)
+        } finally {
+            onFirstCatalogRendered?.invoke()
+        }
     }
 
     val visibleCollections = remember(collections) {
@@ -774,6 +806,11 @@ fun HomeScreen(
     }
     val sectionsMap = remember(homeUiState.sections) {
         homeUiState.sections.associateBy(HomeCatalogSection::key)
+    }
+    val sectionPreviewEntries = remember(sectionsMap) {
+        sectionsMap.mapValues { (_, section) ->
+            section.items.take(HOME_CATALOG_PREVIEW_LIMIT)
+        }
     }
     val enabledHomeItems = remember(homeSettingsUiState.items) {
         homeSettingsUiState.items.filter { it.enabled }
@@ -843,7 +880,7 @@ fun HomeScreen(
             listState = homeListState,
         ) {
             if (showHeroSlot) {
-                item {
+                item(key = HOME_HERO_SECTION_KEY, contentType = HOME_HERO_CONTENT_TYPE) {
                     when {
                         showHeroSkeleton -> HomeSkeletonHero(
                             modifier = Modifier,
@@ -874,7 +911,10 @@ fun HomeScreen(
             when {
                 !hasActiveAddons && !hasRenderableCollectionRows -> {
                     if (continueWatchingPreferences.isVisible && continueWatchingItems.isNotEmpty()) {
-                        item(key = HOME_CONTINUE_WATCHING_SECTION_KEY) {
+                        item(
+                            key = HOME_CONTINUE_WATCHING_SECTION_KEY,
+                            contentType = HOME_CONTINUE_WATCHING_CONTENT_TYPE,
+                        ) {
                             HomeContinueWatchingSection(
                                 items = continueWatchingItems,
                                 style = continueWatchingPreferences.style,
@@ -900,7 +940,10 @@ fun HomeScreen(
 
                 homeUiState.isLoading && homeUiState.sections.isEmpty() && !hasRenderableCollectionRows -> {
                     if (continueWatchingPreferences.isVisible && continueWatchingItems.isNotEmpty()) {
-                        item(key = HOME_CONTINUE_WATCHING_SECTION_KEY) {
+                        item(
+                            key = HOME_CONTINUE_WATCHING_SECTION_KEY,
+                            contentType = HOME_CONTINUE_WATCHING_CONTENT_TYPE,
+                        ) {
                             HomeContinueWatchingSection(
                                 items = continueWatchingItems,
                                 style = continueWatchingPreferences.style,
@@ -915,7 +958,11 @@ fun HomeScreen(
                             )
                         }
                     }
-                    items(3) {
+                    items(
+                        count = 3,
+                        key = { index -> "home_skeleton_row_$index" },
+                        contentType = { HOME_SKELETON_CONTENT_TYPE },
+                    ) {
                         HomeSkeletonRow(
                             modifier = Modifier.padding(horizontal = 16.dp),
                             showHeaderAccent = !homeSettingsUiState.hideCatalogUnderline,
@@ -949,7 +996,10 @@ fun HomeScreen(
 
                 else -> {
                     if (continueWatchingPreferences.isVisible && continueWatchingItems.isNotEmpty()) {
-                        item(key = HOME_CONTINUE_WATCHING_SECTION_KEY) {
+                        item(
+                            key = HOME_CONTINUE_WATCHING_SECTION_KEY,
+                            contentType = HOME_CONTINUE_WATCHING_CONTENT_TYPE,
+                        ) {
                             HomeContinueWatchingSection(
                                 items = continueWatchingItems,
                                 style = continueWatchingPreferences.style,
@@ -969,12 +1019,16 @@ fun HomeScreen(
                         if (settingsItem.isCollection) {
                             val collection = collectionsMap[settingsItem.key]
                             if (collection != null) {
-                                item(key = settingsItem.key) {
+                                item(
+                                    key = settingsItem.key,
+                                    contentType = HOME_COLLECTION_CONTENT_TYPE,
+                                ) {
                                     HomeCollectionRowSection(
                                         collection = collection,
                                         modifier = Modifier.padding(bottom = 12.dp),
                                         sectionPadding = homeSectionPadding,
                                         animateGifs = animateCollectionGifs,
+                                        showHeaderAccent = !homeSettingsUiState.hideCatalogUnderline,
                                         onFolderClick = onFolderClick,
                                     )
                                 }
@@ -982,12 +1036,16 @@ fun HomeScreen(
                         } else {
                             val section = sectionsMap[settingsItem.key]
                             if (section != null && section.items.isNotEmpty()) {
-                                item(key = settingsItem.key) {
+                                item(
+                                    key = settingsItem.key,
+                                    contentType = HOME_CATALOG_CONTENT_TYPE,
+                                ) {
                                     HomeCatalogRowSection(
                                         section = section,
-                                        entries = section.items.take(HOME_CATALOG_PREVIEW_LIMIT),
+                                        entries = sectionPreviewEntries[settingsItem.key].orEmpty(),
                                         modifier = Modifier.padding(bottom = 12.dp),
                                         sectionPadding = homeSectionPadding,
+                                        showHeaderAccent = !homeSettingsUiState.hideCatalogUnderline,
                                         onViewAllClick = if (section.canOpenCatalog(HOME_CATALOG_PREVIEW_LIMIT)) {
                                             onCatalogClick?.let { { it(section) } }
                                         } else {
@@ -1009,7 +1067,13 @@ fun HomeScreen(
 }
 
 private const val HOME_CATALOG_PREVIEW_LIMIT = 18
+private const val HOME_HERO_SECTION_KEY = "home_hero"
 private const val HOME_CONTINUE_WATCHING_SECTION_KEY = "home_continue_watching"
+private const val HOME_HERO_CONTENT_TYPE = "home_hero"
+private const val HOME_CONTINUE_WATCHING_CONTENT_TYPE = "home_continue_watching"
+private const val HOME_SKELETON_CONTENT_TYPE = "home_skeleton"
+private const val HOME_COLLECTION_CONTENT_TYPE = "home_collection"
+private const val HOME_CATALOG_CONTENT_TYPE = "home_catalog"
 internal const val HomeContinueWatchingMaxRecentProgressItems = 300
 internal const val HomeNextUpInitialResolutionLimit = 32
 private const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L

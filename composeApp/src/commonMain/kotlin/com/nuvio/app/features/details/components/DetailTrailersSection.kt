@@ -165,6 +165,7 @@ fun DetailTrailersSection(
                     .fillMaxWidth()
                     .nuvioDesktopDragScroll(rowState),
                 horizontalArrangement = Arrangement.spacedBy(sizing.cardSpacing),
+                flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
             ) {
                 itemsIndexed(
                     items = selectedTrailers,

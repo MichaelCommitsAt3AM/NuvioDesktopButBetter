@@ -211,7 +211,10 @@ private fun EntityBrowseContent(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .verticalScroll(scrollState)
+                            .verticalScroll(
+                                state = scrollState,
+                                flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+                            )
                             .windowInsetsPadding(WindowInsets.statusBars)
                             .padding(top = 56.dp),
                     ) {
@@ -298,7 +301,10 @@ private fun WideEntityBrowseContent(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(scrollState)
+                        .verticalScroll(
+                            state = scrollState,
+                            flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+                        )
                         .padding(start = 40.dp, bottom = 40.dp),
                     verticalArrangement = Arrangement.spacedBy(34.dp),
                 ) {
@@ -336,7 +342,10 @@ private fun EntityIdentitySidebar(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState)
+                .verticalScroll(
+                    state = scrollState,
+                    flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+                )
                 .padding(start = 40.dp, end = 36.dp, top = 40.dp, bottom = 42.dp),
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {

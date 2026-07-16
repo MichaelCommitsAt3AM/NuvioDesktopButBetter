@@ -295,6 +295,9 @@ private fun PlayerScreenRuntime.BindPlayerUiVisibilityEffects() {
         showParentalGuide,
         errorMessage,
     ) {
+        if (isDesktop) {
+            return@LaunchedEffect
+        }
         if (
             !controlsVisible ||
             isScrubbingTimeline ||
@@ -307,6 +310,22 @@ private fun PlayerScreenRuntime.BindPlayerUiVisibilityEffects() {
         }
         delay(3500)
         controlsVisible = false
+    }
+
+    LaunchedEffect(
+        playbackSnapshot.isPlaying,
+        playbackSnapshot.isLoading,
+        playbackSnapshot.isEnded,
+        playerControlsLocked,
+    ) {
+        if (
+            isDesktop &&
+            !playbackSnapshot.isPlaying &&
+            !playbackSnapshot.isLoading &&
+            !playerControlsLocked
+        ) {
+            controlsVisible = true
+        }
     }
 
     LaunchedEffect(playerControlsLocked, lockedOverlayVisible) {

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -108,6 +109,46 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         }
     }
     val playerSurfaceSourceUrl = if (isP2pPlaybackActive) p2pResolvedSourceUrl else activeSourceUrl
+    val persistedStartupTrackPreference = remember(activeSourceIdentityKey, parentMetaId) {
+        PlayerTrackPreferenceStorage.load(parentMetaId)
+    }
+    val preferredStartupAudioLanguages = remember(
+        activeSourceIdentityKey,
+        parentMetaId,
+        playerSettingsUiState.preferredAudioLanguage,
+        playerSettingsUiState.secondaryPreferredAudioLanguage,
+        args.contentLanguage,
+    ) {
+        val persistedLanguage = persistedStartupTrackPreference
+            ?.audioLanguage
+            ?.takeIf { it.isNotBlank() }
+        val cachedMeta = MetaDetailsRepository.peek(parentMetaType, parentMetaId)
+        val targets = if (persistedLanguage != null) {
+            listOf(persistedLanguage)
+        } else {
+            resolvePreferredAudioLanguageTargets(
+                preferredAudioLanguage = playerSettingsUiState.preferredAudioLanguage,
+                secondaryPreferredAudioLanguage = playerSettingsUiState.secondaryPreferredAudioLanguage,
+                deviceLanguages = DeviceLanguagePreferences.preferredLanguageCodes(),
+                contentOriginalLanguage = resolveContentLanguage(
+                    language = cachedMeta?.language,
+                    country = cachedMeta?.country,
+                ) ?: args.contentLanguage,
+            )
+        }
+        expandAudioLanguageTargetsForMpv(targets)
+    }
+    val configuredAudioLanguage = normalizeLanguageCode(playerSettingsUiState.preferredAudioLanguage)
+    val startupAudioSelectionRequired = isDesktop && (
+        !persistedStartupTrackPreference?.audioTrackId.isNullOrBlank() ||
+            !persistedStartupTrackPreference?.audioLanguage.isNullOrBlank() ||
+            !persistedStartupTrackPreference?.audioName.isNullOrBlank() ||
+            configuredAudioLanguage != AudioLanguageOption.DEFAULT ||
+            !playerSettingsUiState.secondaryPreferredAudioLanguage.isNullOrBlank()
+        )
+    val playerPlayWhenReady = shouldPlay && (
+        !startupAudioSelectionRequired || preferredAudioSelectionApplied
+        )
     val openingOverlayWanted = playerSettingsUiState.showLoadingOverlay &&
         !initialLoadCompleted &&
         errorMessage == null
@@ -254,7 +295,10 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         themeBufferingColor = themeColors.playerBuffering.toCssColorString(),
         themeBufferingTrackColor = themeColors.playerBuffering.copy(alpha = 0.28f).toCssColorString(),
         themeControlForegroundColor = themeColors.playerControlsForeground.toCssColorString(),
-        isPlaying = playbackSnapshot.isPlaying,
+        // Drive the button off the user's intent (`shouldPlay`) rather than the
+        // polled engine snapshot, which can lag up to one poll interval behind a
+        // click/keypress and makes the toggle feel unresponsive.
+        isPlaying = shouldPlay,
         isLoading = playbackSnapshot.isLoading,
         isLocked = playerControlsLocked,
         lockedOverlayVisible = lockedOverlayVisible,
@@ -371,8 +415,9 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                 sourceResponseHeaders = activeSourceResponseHeaders,
                 externalSubtitles = externalSubtitles,
                 streamType = activeStreamType,
+                preferredAudioLanguages = preferredStartupAudioLanguages,
                 modifier = Modifier.fillMaxSize(),
-                playWhenReady = shouldPlay,
+                playWhenReady = playerPlayWhenReady,
                 resizeMode = resizeMode,
                 initialPositionMs = activeInitialPositionMs.takeIf { isDesktop } ?: 0L,
                 playerControlsState = playerControlsState,

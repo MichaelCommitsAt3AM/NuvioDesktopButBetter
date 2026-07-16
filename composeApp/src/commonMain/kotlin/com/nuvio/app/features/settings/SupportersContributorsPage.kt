@@ -573,6 +573,7 @@ private fun ContributorsCard(
                     .heightIn(max = 480.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 contentPadding = PaddingValues(vertical = 2.dp),
+                flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
             ) {
                 items(
                     items = contributors,
@@ -611,6 +612,7 @@ private fun SupportersCard(
                     .heightIn(max = 480.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 contentPadding = PaddingValues(vertical = 2.dp),
+                flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
             ) {
                 items(
                     items = supporters,

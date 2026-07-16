@@ -84,6 +84,7 @@
 - (instancetype)initWithHostView:(NSView *)hostView
                        sourceUrl:(NSString *)sourceUrl
                     headerLines:(NSArray<NSString *> *)headerLines
+        preferredAudioLanguages:(NSString *)preferredAudioLanguages
                    playWhenReady:(BOOL)playWhenReady
                 initialPositionMs:(long long)initialPositionMs
                       controlsUrl:(NSString *)controlsUrl
@@ -1056,6 +1057,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 - (instancetype)initWithHostView:(NSView *)hostView
                        sourceUrl:(NSString *)sourceUrl
                     headerLines:(NSArray<NSString *> *)headerLines
+        preferredAudioLanguages:(NSString *)preferredAudioLanguages
                    playWhenReady:(BOOL)playWhenReady
                 initialPositionMs:(long long)initialPositionMs
                       controlsUrl:(NSString *)controlsUrl
@@ -1152,6 +1154,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 
     [self startMpvWithSource:sourceUrl
                  headerLines:headerLines
+     preferredAudioLanguages:preferredAudioLanguages
                 playWhenReady:playWhenReady
              initialPositionMs:initialPositionMs
               decoderPriority:decoderPriority];
@@ -1391,6 +1394,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 
 - (void)startMpvWithSource:(NSString *)sourceUrl
                headerLines:(NSArray<NSString *> *)headerLines
+   preferredAudioLanguages:(NSString *)preferredAudioLanguages
               playWhenReady:(BOOL)playWhenReady
            initialPositionMs:(long long)initialPositionMs
             decoderPriority:(int)decoderPriority {
@@ -1430,6 +1434,9 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     setMpvOptionString(_mpv, "demuxer-max-bytes", "150MiB");
     setMpvOptionString(_mpv, "cache-secs", "120");
     setMpvOptionString(_mpv, "hr-seek", "no");
+    if (preferredAudioLanguages.length > 0) {
+        setMpvOptionString(_mpv, "alang", preferredAudioLanguages.UTF8String);
+    }
 
     if (headerLines.count > 0) {
         NSMutableArray *escaped = [NSMutableArray arrayWithCapacity:headerLines.count];
@@ -2426,6 +2433,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     jlong hostViewPtr,
     jstring sourceUrl,
     jobjectArray headerLines,
+    jstring preferredAudioLanguages,
     jboolean playWhenReady,
     jlong initialPositionMs,
     jstring controlsPageUrl,
@@ -2459,6 +2467,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
 
     std::string source = jstringToString(env, sourceUrl);
     std::string controls = jstringToString(env, controlsPageUrl);
+    std::string audioLanguages = jstringToString(env, preferredAudioLanguages);
     NSArray<NSString *> *headers = jstringArrayToNSArray(env, headerLines);
     __block MpvWebPlayer *player = nil;
     __block NSString *error = nil;
@@ -2468,6 +2477,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
                 initWithHostView:hostView
                     sourceUrl:[NSString stringWithUTF8String:source.c_str()]
                     headerLines:headers
+        preferredAudioLanguages:[NSString stringWithUTF8String:audioLanguages.c_str()]
                    playWhenReady:playWhenReady == JNI_TRUE
                 initialPositionMs:initialPositionMs
                      controlsUrl:[NSString stringWithUTF8String:controls.c_str()]

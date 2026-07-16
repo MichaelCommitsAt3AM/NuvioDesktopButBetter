@@ -520,6 +520,7 @@ object TmdbMetadataService {
         meta: MetaDetails,
         fallbackItemId: String,
         settings: TmdbSettings,
+        includeEpisodes: Boolean = true,
     ): MetaDetails {
         if (!settings.enabled || !settings.hasApiKey) return meta
 
@@ -528,7 +529,9 @@ object TmdbMetadataService {
             ?: TmdbService.ensureTmdbId(fallbackItemId, tmdbType)
             ?: return meta
 
-        val needsEpisodes = (settings.useEpisodes || settings.useSeasonPosters) && tmdbType == "tv"
+        val needsEpisodes = includeEpisodes &&
+            (settings.useEpisodes || settings.useSeasonPosters) &&
+            tmdbType == "tv"
         val (enrichment, episodeMap) = coroutineScope {
             val enrichmentDeferred = async {
                 fetchEnrichment(
@@ -557,6 +560,33 @@ object TmdbMetadataService {
             meta = meta,
             enrichment = enrichment,
             episodeMap = episodeMap.orEmpty(),
+            settings = settings,
+        )
+    }
+
+    suspend fun enrichEpisodes(
+        meta: MetaDetails,
+        fallbackItemId: String,
+        settings: TmdbSettings,
+    ): MetaDetails {
+        if (!settings.enabled || !settings.hasApiKey) return meta
+        if (!settings.useEpisodes && !settings.useSeasonPosters) return meta
+
+        val tmdbType = normalizeMetaType(meta.type)
+        if (tmdbType != "tv") return meta
+        val tmdbId = TmdbService.ensureTmdbId(meta.id, tmdbType)
+            ?: TmdbService.ensureTmdbId(fallbackItemId, tmdbType)
+            ?: return meta
+        val seasons = meta.videos.mapNotNull { it.season }.distinct()
+        val episodeMap = fetchEpisodeEnrichment(
+            tmdbId = tmdbId,
+            seasonNumbers = seasons,
+            language = settings.language,
+        )
+        return applyEnrichment(
+            meta = meta,
+            enrichment = null,
+            episodeMap = episodeMap,
             settings = settings,
         )
     }
@@ -756,7 +786,12 @@ object TmdbMetadataService {
         settings: TmdbSettings,
     ): TmdbEnrichment? = withContext(Dispatchers.Default) {
         val normalizedLanguage = normalizeTmdbLanguage(language)
-        val cacheKey = "$tmdbId:$mediaType:$normalizedLanguage"
+        val cacheKey = buildString {
+            append("$tmdbId:$mediaType:$normalizedLanguage")
+            append(":related=${settings.useMoreLikeThis}")
+            append(":trailers=${settings.useTrailers}")
+            append(":collections=${settings.useCollections}")
+        }
         enrichmentCache[cacheKey]?.let { return@withContext it }
 
         val numericId = tmdbId.toIntOrNull() ?: return@withContext null
@@ -935,7 +970,9 @@ object TmdbMetadataService {
         val apiKey = TmdbSettingsRepository.snapshot().apiKey.trim().takeIf(String::isNotBlank) ?: return null
         val url = buildTmdbUrl(endpoint = endpoint, apiKey = apiKey, query = query)
         return runCatching {
-            json.decodeFromString<T>(httpGetText(url))
+            TmdbRequestLimiter.run {
+                json.decodeFromString<T>(httpGetText(url))
+            }
         }.onFailure { error ->
             log.w { "TMDB request failed for $endpoint: ${error.message}" }
         }.getOrNull()
@@ -949,13 +986,22 @@ object TmdbMetadataService {
         val cacheKey = "$tmdbId:$mediaType:$language:recommendations"
         moreLikeThisCache[cacheKey]?.let { return it }
 
-        val response = fetch<TmdbRecommendationResponse>(
+        val recommendations = fetch<TmdbRecommendationResponse>(
             endpoint = "$mediaType/$tmdbId/recommendations",
             query = mapOf("language" to language),
-        ) ?: return emptyList()
+        )?.results.orEmpty()
+        val similar = if (recommendations.size < MORE_LIKE_THIS_LIMIT) {
+            fetch<TmdbRecommendationResponse>(
+                endpoint = "$mediaType/$tmdbId/similar",
+                query = mapOf("language" to language),
+            )?.results.orEmpty()
+        } else {
+            emptyList()
+        }
 
-        val items = response.results
+        val items = (recommendations + similar)
             .filter { it.id > 0 }
+            .distinctBy { it.id }
             .mapNotNull { recommendation ->
                 val inferredType = when (recommendation.mediaType?.lowercase()) {
                     "tv" -> "series"
@@ -984,9 +1030,13 @@ object TmdbMetadataService {
                     imdbRating = recommendation.voteAverage?.formatRating(),
                 )
             }
-            .take(12)
+            .take(MORE_LIKE_THIS_LIMIT)
 
         moreLikeThisCache[cacheKey] = items
+        log.d {
+            "Loaded related titles for $mediaType/$tmdbId: " +
+                "recommendations=${recommendations.size}, similar=${similar.size}, usable=${items.size}"
+        }
         return items
     }
 
@@ -1691,6 +1741,7 @@ private data class TmdbPersonCreditCrew(
 
 // ─── Entity Browse (Company / Network) Models ───
 
+private const val MORE_LIKE_THIS_LIMIT = 12
 private const val ENTITY_RAIL_MAX_ITEMS = 20
 private const val ENTITY_TOP_RATED_VOTE_FLOOR = 200
 

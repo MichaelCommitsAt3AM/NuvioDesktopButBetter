@@ -79,6 +79,18 @@ internal object DesktopStorage {
             persist()
         }
 
+        fun putStrings(values: Map<String, String?>) = synchronized(lock) {
+            ensureLoaded()
+            values.forEach { (key, value) ->
+                if (value == null) {
+                    properties.remove(key)
+                } else {
+                    properties.setProperty(key, value)
+                }
+            }
+            persist()
+        }
+
         fun getBoolean(key: String): Boolean? =
             getString(key)?.toBooleanStrictOrNull()
 

@@ -179,6 +179,7 @@ fun CatalogScreen(
                 ),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
+                flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
             ) {
                 if (uiState.items.isEmpty() && uiState.isLoading) {
                     items(columns * 3) {

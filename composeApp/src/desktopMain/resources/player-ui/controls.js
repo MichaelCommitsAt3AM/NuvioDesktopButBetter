@@ -315,6 +315,7 @@ let state = {
   subtitleColorSwatches: [],
   closeModalsToken: 0,
 };
+let fullscreenExitPending = false;
 let isScrubbing = false;
 let scrubPositionMs = 0;
 let tapTimer = 0;
@@ -353,6 +354,7 @@ let chromeAutoHideTimer = 0;
 let chromeAutoHideKey = "";
 let chromeAutoHideActivity = 0;
 let chromeInteractionLastNotedAt = 0;
+let isPointerWithinPlayer = false;
 let isChromePointerInside = false;
 let isChromePointerDown = false;
 let isChromeFocusInside = false;
@@ -369,6 +371,7 @@ const prefersReducedMotion = window.matchMedia &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const modalTransitionMs = prefersReducedMotion ? 1 : 240;
 const chromeAutoHideDelayMs = 3500;
+const fullscreenChromeAutoHideDelayMs = 2500;
 const chromeActivityThrottleMs = 300;
 const hiddenCursorHideDelayMs = 3000;
 const cursorActivityThrottleMs = 100;
@@ -1697,6 +1700,29 @@ const renderNativePlaybackPrompts = () => {
 const isOpeningOverlayActive = () =>
   Boolean((!hasReceivedPlayerControls || state.showOpeningOverlay) && state.isLoading);
 
+const isMediaActivelyPlaying = () => Boolean(state.isPlaying && !state.isLoading);
+
+const syncChromeWithPointerPolicy = ({ notify = true, renderNow = true } = {}) => {
+  if (state.isLocked || playbackErrorText()) return false;
+  if (state.isFullscreen) {
+    // Fullscreen has no meaningful "outside the window" pointer position, so hover can't
+    // drive visibility there. Only force a show for the non-playing case; hiding while
+    // playing is left entirely to the inactivity auto-hide timer.
+    if (isMediaActivelyPlaying() || state.controlsVisible) return false;
+    state = { ...state, controlsVisible: true };
+    if (renderNow) renderChrome();
+    if (notify) send("keepChromeVisible", 0);
+    return true;
+  }
+  const shouldShow = !isMediaActivelyPlaying() || isPointerWithinPlayer;
+  if (state.controlsVisible === shouldShow) return false;
+
+  state = { ...state, controlsVisible: shouldShow };
+  if (renderNow) renderChrome();
+  if (notify) send(shouldShow ? "keepChromeVisible" : "hideChrome", 0);
+  return true;
+};
+
 const isChromeInteractionTarget = target =>
   Boolean(target && target.closest && target.closest(chromeInteractionSelector));
 
@@ -1707,6 +1733,7 @@ const canAutoHideChrome = showOpening => Boolean(
   state.controlsVisible &&
   state.isPlaying &&
   !state.isLoading &&
+  (state.isFullscreen || !isPointerWithinPlayer) &&
   !state.isLocked &&
   !activeModal &&
   !isScrubbing &&
@@ -1796,12 +1823,13 @@ const syncChromeAutoHideTimer = showOpening => {
 
   window.clearTimeout(chromeAutoHideTimer);
   chromeAutoHideKey = key;
+  const delayMs = state.isFullscreen ? fullscreenChromeAutoHideDelayMs : chromeAutoHideDelayMs;
   chromeAutoHideTimer = window.setTimeout(() => {
     chromeAutoHideTimer = 0;
     if (currentChromeAutoHideKey(isOpeningOverlayActive()) !== key) return;
     chromeAutoHideKey = "";
     hideChromeFromAutoTimer();
-  }, chromeAutoHideDelayMs);
+  }, delayMs);
 };
 
 const noteChromeActivity = (force = false) => {
@@ -2074,15 +2102,18 @@ const toggleChrome = () => {
     send("revealLockedOverlay", 0);
     return;
   }
-  const nextControlsVisible = !state.controlsVisible;
-  if (nextControlsVisible) {
+  if (state.isFullscreen) {
+    // A tap should always be able to bring hidden controls back in fullscreen, even while
+    // playing — syncChromeWithPointerPolicy() intentionally no-ops that case so the passive
+    // per-tick calls don't fight the auto-hide timer.
+    if (state.controlsVisible) return;
+    state = { ...state, controlsVisible: true };
     chromeAutoHideActivity += 1;
-  } else {
-    clearChromeAutoHideTimer();
+    renderChrome();
+    send("keepChromeVisible", 0);
+    return;
   }
-  state = { ...state, controlsVisible: nextControlsVisible };
-  renderChrome();
-  send("toggleChrome", 0);
+  syncChromeWithPointerPolicy();
 };
 
 const clearPressedButton = () => {
@@ -2112,10 +2143,14 @@ document.addEventListener("pointerdown", event => {
 }, true);
 
 document.addEventListener("pointermove", event => {
+  if (!isPointerWithinPlayer) {
+    isPointerWithinPlayer = true;
+    syncChromeWithPointerPolicy();
+  }
   noteCursorActivity();
   const inside = isChromeInteractionTarget(event.target);
   updateChromePointerInside(inside);
-  if (inside) {
+  if (inside || state.isFullscreen) {
     noteChromeActivity();
   }
 }, true);
@@ -2123,8 +2158,14 @@ document.addEventListener("pointermove", event => {
 document.addEventListener("pointerup", finishChromePointerInteraction, true);
 document.addEventListener("pointercancel", finishChromePointerInteraction, true);
 document.addEventListener("dragend", clearPressedButton, true);
+document.addEventListener("pointerenter", () => {
+  isPointerWithinPlayer = true;
+  syncChromeWithPointerPolicy();
+}, true);
 document.addEventListener("pointerleave", () => {
+  isPointerWithinPlayer = false;
   updateChromePointerInside(false);
+  syncChromeWithPointerPolicy();
 }, true);
 document.addEventListener("focusin", event => {
   isChromeFocusInside = isChromeInteractionTarget(event.target);
@@ -2143,10 +2184,12 @@ document.addEventListener("focusout", () => {
   }, 0);
 }, true);
 window.addEventListener("blur", () => {
+  isPointerWithinPlayer = false;
   isChromePointerInside = false;
   isChromePointerDown = false;
   isChromeFocusInside = false;
   clearPressedButton();
+  syncChromeWithPointerPolicy();
   syncChromeAutoHideTimer(isOpeningOverlayActive());
 });
 
@@ -2459,6 +2502,7 @@ window.playerUpdate = update => {
     audioTracks,
     subtitleTracks,
   };
+  syncChromeWithPointerPolicy({ renderNow: false });
   renderChrome();
   if ((audioTracksChanged && activeModal === "audio") ||
       (subtitleTracksChanged && activeModal === "subtitles")) {
@@ -2472,6 +2516,8 @@ window.playerControls = nextState => {
   const previousSpeedLabel = state.playbackSpeedLabel || "";
   const previousVolumeLevel = typeof state.volumeLevel === "number" ? state.volumeLevel : NaN;
   state = { ...state, ...nextState };
+  syncChromeWithPointerPolicy({ renderNow: false });
+  if (!state.isFullscreen) fullscreenExitPending = false;
   hasReceivedPlayerControls = true;
   const closeToken = Number(state.closeModalsToken) || 0;
   if (closeToken !== previousCloseToken) {
@@ -2519,15 +2565,19 @@ root.addEventListener("dblclick", event => {
 });
 
 document.addEventListener("keydown", event => {
-  if (event.key === "Escape" && playbackErrorText()) {
-    event.preventDefault();
-    send("back", 0);
-    return;
-  }
   if (event.key === "Escape" && activeModal) {
     event.preventDefault();
     closePlayerModal(true);
     focusShortcutRoot();
+    return;
+  }
+  if (event.key === "Escape" && state.isFullscreen) {
+    event.preventDefault();
+    if (!fullscreenExitPending) {
+      fullscreenExitPending = true;
+      focusShortcutRoot();
+      togglePlayerFullscreen();
+    }
     return;
   }
   if (event.key === "Escape") {

@@ -2,6 +2,7 @@ package com.nuvio.app.features.player.desktop
 
 import androidx.compose.ui.graphics.Color
 import co.touchlab.kermit.Logger
+import com.nuvio.app.core.diagnostics.DesktopDiagnostics
 import com.nuvio.app.features.player.PlayerControlAddonSubtitleItem
 import com.nuvio.app.features.player.PlayerControlEpisodeItem
 import com.nuvio.app.features.player.PlayerControlFilterItem
@@ -25,6 +26,7 @@ import com.nuvio.app.features.player.toStorageHexString
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.SwingUtilities
 import kotlin.concurrent.Volatile
 
@@ -32,6 +34,7 @@ internal class NativePlayerController(
     private val host: NativePlayerHost,
 ) : PlayerEngineController {
     private companion object {
+        const val DiagnosticHeartbeatIntervalNanos = 60L * 1_000_000_000L
         val json = Json { ignoreUnknownKeys = true }
         val log = Logger.withTag("NativePlayerControls")
 
@@ -41,6 +44,11 @@ internal class NativePlayerController(
 
     @Volatile
     private var handle: Long = 0L
+    @Volatile
+    private var lastDiagnosticHeartbeatNanos: Long = 0L
+    private val closeActionDispatched = AtomicBoolean(false)
+    private val layoutRefreshScheduled = AtomicBoolean(false)
+    private val playerHandleLock = Any()
     private var pendingSource: PendingSource? = null
     private var controlsState = PlayerControlsState()
     private var pendingSubtitleDelayMs: Int? = null
@@ -56,9 +64,17 @@ internal class NativePlayerController(
         }
     }
 
+    init {
+        host.onPeerDisposing = {
+            dispose(reason = "host_peer_removal")
+        }
+        host.onBoundsChanged = ::scheduleNativeLayoutRefresh
+    }
+
     fun attach(
         sourceUrl: String,
         sourceHeaders: Map<String, String>,
+        preferredAudioLanguages: List<String>,
         playWhenReady: Boolean,
         initialPositionMs: Long,
         decoderPriority: Int,
@@ -68,6 +84,7 @@ internal class NativePlayerController(
         val pending = PendingSource(
             sourceUrl = sourceUrl,
             headerLines = sourceHeaders.toHeaderLines(),
+            preferredAudioLanguages = preferredAudioLanguages,
             playWhenReady = playWhenReady,
             initialPositionMs = initialPositionMs.coerceAtLeast(0L),
             decoderPriority = decoderPriority,
@@ -75,9 +92,16 @@ internal class NativePlayerController(
             onError = onError,
         )
         pendingSource = pending
+        closeActionDispatched.set(false)
+        DesktopDiagnostics.record(
+            "player_attach_requested",
+            "source=${sourceUrl.toPlaybackLogKey()} initialPositionMs=$initialPositionMs decoderPriority=$decoderPriority " +
+                "audioLanguages=${preferredAudioLanguages.joinToString(",")}",
+        )
         log.d {
             "attach requested source=${sourceUrl.toPlaybackLogKey()} headers=${sourceHeaders.size} " +
-                "playWhenReady=$playWhenReady initialPositionMs=$initialPositionMs decoderPriority=$decoderPriority"
+                "playWhenReady=$playWhenReady initialPositionMs=$initialPositionMs decoderPriority=$decoderPriority " +
+                "audioLanguages=${preferredAudioLanguages.joinToString(",")}"
         }
         host.onPeerReady = { attachPending() }
         if (host.isDisplayable) {
@@ -102,10 +126,11 @@ internal class NativePlayerController(
                 } else {
                     pending.sourceUrl
                 }
-                handle = NativePlayerBridge.create(
+                val createdHandle = NativePlayerBridge.create(
                     hostViewPtr = hostViewPtr,
                     sourceUrl = resolvedSource,
                     headerLines = pending.headerLines.toTypedArray(),
+                    preferredAudioLanguages = pending.preferredAudioLanguages.joinToString(","),
                     playWhenReady = pending.playWhenReady,
                     initialPositionMs = pending.initialPositionMs,
                     controlsPageUrl = NativePlayerBridge.controlsPageUrl,
@@ -113,15 +138,20 @@ internal class NativePlayerController(
                     nvidiaRtxSuperResolutionEnabled = pending.nvidiaRtxSuperResolutionEnabled,
                     eventSink = eventSink,
                 )
-                if (handle == 0L) error("Native player did not return a handle.")
+                if (createdHandle == 0L) error("Native player did not return a handle.")
+                synchronized(playerHandleLock) {
+                    handle = createdHandle
+                }
+                DesktopDiagnostics.record("player_attach_completed", "handle=$createdHandle")
                 log.d {
-                    "attach created handle=$handle source=${resolvedSource.toPlaybackLogKey()} " +
+                    "attach created handle=$createdHandle source=${resolvedSource.toPlaybackLogKey()} " +
                         "initialPositionMs=${pending.initialPositionMs}"
                 }
                 applyRememberedVolume()
                 updateControls(controlsState)
                 applyPendingSubtitleSettings()
             }.onFailure { error ->
+                DesktopDiagnostics.recordFailure("player_attach_failed", error)
                 log.w(error) { "attach failed source=${pending.sourceUrl.toPlaybackLogKey()}" }
                 pending.onError(error.message)
             }
@@ -174,12 +204,26 @@ internal class NativePlayerController(
     }
 
     fun onDesktopFullscreenChanged() {
-        lastSentControlsStructureKey = null
-        updateControls(controlsState)
+        val isFullscreen = isDesktopAppFullscreen(SwingUtilities.getWindowAncestor(host))
+        lastSentControlsStructureKey = lastSentControlsStructureKey?.copy(isFullscreen = isFullscreen)
+        handle.takeIf { it != 0L }?.let { current ->
+            NativePlayerBridge.updateControls(current, "{\"isFullscreen\":$isFullscreen}")
+        }
+        scheduleNativeLayoutRefresh()
         requestKeyboardFocus()
     }
 
-    private fun requestKeyboardFocus() {
+    private fun scheduleNativeLayoutRefresh() {
+        if (DesktopHostOs.current != DesktopHostOs.WINDOWS) return
+        if (!layoutRefreshScheduled.compareAndSet(false, true)) return
+        SwingUtilities.invokeLater {
+            layoutRefreshScheduled.set(false)
+            if (!host.isDisplayable) return@invokeLater
+            handle.takeIf { it != 0L }?.let(NativePlayerBridge::refreshLayout)
+        }
+    }
+
+    fun requestKeyboardFocus() {
         SwingUtilities.invokeLater {
             if (!host.isDisplayable) return@invokeLater
             host.requestFocusInWindow()
@@ -207,6 +251,10 @@ internal class NativePlayerController(
             log.d { "event received handle=$handle type=$type value=$value" }
         }
         when (type) {
+            "nativeControlsReady" -> {
+                host.onNativeControlsReady?.invoke()
+                return
+            }
             "cursorActivity" -> host.noteCursorActivity()
             "scrubChange" -> {
                 val handled = onScrubChange(value.toLong())
@@ -235,6 +283,13 @@ internal class NativePlayerController(
                 if (eventHandled) return
                 val action = type.toPlayerControlsAction()
                 if (action == null) return
+                if (action == PlayerControlsAction.Back) {
+                    if (!closeActionDispatched.compareAndSet(false, true)) {
+                        DesktopDiagnostics.record("player_close_action_ignored", "reason=duplicate handle=$handle")
+                        return
+                    }
+                    DesktopDiagnostics.record("player_close_action_received", "handle=$handle")
+                }
                 val actionHandled = onAction(action)
                 log.d { "action delegated action=$action handled=$actionHandled handle=$handle" }
                 if (!actionHandled) {
@@ -335,22 +390,50 @@ internal class NativePlayerController(
                 positionMs = NativePlayerBridge.positionMs(current),
                 bufferedPositionMs = NativePlayerBridge.bufferedPositionMs(current),
                 playbackSpeed = NativePlayerBridge.speed(current),
-            )
+            ).also { snapshot -> recordHeartbeatIfDue(current, snapshot) }
+        }.onFailure { error ->
+            DesktopDiagnostics.recordFailure("player_snapshot_failed", error, "handle=$current")
         }.getOrDefault(PlayerPlaybackSnapshot(isLoading = true))
     }
 
-    fun dispose() {
+    fun dispose() = dispose(reason = "composition_disposal")
+
+    private fun dispose(reason: String) {
+        DesktopDiagnostics.record(
+            "player_dispose_requested",
+            "reason=$reason handle=$handle hostDisplayable=${host.isDisplayable}",
+        )
         host.resetCursorVisibility()
         disposePlayerHandle()
+        DesktopDiagnostics.record("player_dispose_completed", "reason=$reason")
     }
 
     private fun disposePlayerHandle() {
-        val current = handle
-        handle = 0L
-        lastSentControlsStructureKey = null
-        if (current != 0L) {
-            runCatching { NativePlayerBridge.dispose(current) }
+        val current = synchronized(playerHandleLock) {
+            val activeHandle = handle
+            handle = 0L
+            lastSentControlsStructureKey = null
+            activeHandle
         }
+        if (current != 0L) {
+            DesktopDiagnostics.record("native_player_dispose_started", "handle=$current")
+            runCatching { NativePlayerBridge.dispose(current) }
+                .onSuccess { DesktopDiagnostics.record("native_player_dispose_completed", "handle=$current") }
+                .onFailure { error ->
+                    DesktopDiagnostics.recordFailure("native_player_dispose_failed", error, "handle=$current")
+                }
+        }
+    }
+
+    private fun recordHeartbeatIfDue(current: Long, snapshot: PlayerPlaybackSnapshot) {
+        val now = System.nanoTime()
+        if (now - lastDiagnosticHeartbeatNanos < DiagnosticHeartbeatIntervalNanos) return
+        lastDiagnosticHeartbeatNanos = now
+        DesktopDiagnostics.record(
+            event = "player_heartbeat",
+            details = "handle=$current positionMs=${snapshot.positionMs} durationMs=${snapshot.durationMs} " +
+                "playing=${snapshot.isPlaying} loading=${snapshot.isLoading} ended=${snapshot.isEnded}",
+        )
     }
 
     override fun play() {
@@ -378,6 +461,7 @@ internal class NativePlayerController(
         attach(
             sourceUrl = pending.sourceUrl,
             sourceHeaders = pending.headerLines.toHeaderMap(),
+            preferredAudioLanguages = pending.preferredAudioLanguages,
             playWhenReady = pending.playWhenReady,
             initialPositionMs = pending.initialPositionMs,
             decoderPriority = pending.decoderPriority,
@@ -586,6 +670,7 @@ private fun Int.toHexByte(): String {
 private data class PendingSource(
     val sourceUrl: String,
     val headerLines: List<String>,
+    val preferredAudioLanguages: List<String>,
     val playWhenReady: Boolean,
     val initialPositionMs: Long,
     val decoderPriority: Int,

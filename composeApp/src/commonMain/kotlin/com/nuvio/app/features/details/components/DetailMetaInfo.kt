@@ -216,7 +216,10 @@ internal fun DetailRatingsRow(
         modifier = modifier
             .fillMaxWidth()
             .nuvioDesktopDragScroll(scrollState)
-            .horizontalScroll(scrollState),
+            .horizontalScroll(
+                state = scrollState,
+                flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {

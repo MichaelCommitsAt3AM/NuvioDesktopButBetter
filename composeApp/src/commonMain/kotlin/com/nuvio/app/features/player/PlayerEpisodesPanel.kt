@@ -273,6 +273,7 @@ private fun EpisodesListSubView(
                     .padding(horizontal = tokens.spacing.sheetPadding)
                     .padding(bottom = tokens.spacing.listGap),
                 horizontalArrangement = Arrangement.spacedBy(tokens.spacing.controlGap),
+                flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
             ) {
                 items(availableSeasons, key = { season -> season }) { season ->
                     val label = if (season == 0) {
@@ -312,6 +313,7 @@ private fun EpisodesListSubView(
                 modifier = Modifier.padding(horizontal = tokens.spacing.cardPaddingCompact),
                 verticalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s4),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = tokens.spacing.cardPadding),
+                flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
             ) {
                 itemsIndexed(
                     items = seasonEpisodes,
@@ -544,7 +546,10 @@ private fun EpisodeStreamsSubView(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
+                    .horizontalScroll(
+                        state = rememberScrollState(),
+                        flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+                    )
                     .padding(horizontal = tokens.spacing.sheetPadding)
                     .padding(bottom = tokens.spacing.listGap),
                 horizontalArrangement = Arrangement.spacedBy(tokens.spacing.controlGap),
@@ -604,6 +609,7 @@ private fun EpisodeStreamsSubView(
                     modifier = Modifier.padding(horizontal = tokens.spacing.cardPadding),
                     verticalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = tokens.spacing.cardPadding),
+                    flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
                 ) {
                     itemsIndexed(
                         items = streams,

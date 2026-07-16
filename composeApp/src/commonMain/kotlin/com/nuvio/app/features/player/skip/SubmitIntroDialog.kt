@@ -100,7 +100,10 @@ fun SubmitIntroDialog(
                 modifier = Modifier
                     .padding(24.dp)
                     .heightIn(max = 512.dp)
-                    .verticalScroll(scrollState),
+                    .verticalScroll(
+                        state = scrollState,
+                        flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
+                    ),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 // Header

@@ -25,6 +25,7 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 using Microsoft::WRL::Callback;
@@ -774,6 +775,7 @@ public:
         HWND host,
         const std::string &sourceUrl,
         const std::vector<std::string> &headerLines,
+        const std::string &preferredAudioLanguages,
         bool playWhenReady,
         long long initialPositionMs,
         const std::string &controlsUrl,
@@ -795,8 +797,8 @@ public:
         auto initState = std::make_shared<InitializationState>();
         auto self = shared_from_this();
         uiThread = std::thread(
-            [self, sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, initState]() {
-                self->runNativeUiThread(sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, initState);
+            [self, sourceUrl, headerLines, preferredAudioLanguages, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, initState]() {
+                self->runNativeUiThread(sourceUrl, headerLines, preferredAudioLanguages, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, initState);
             }
         );
 
@@ -816,11 +818,9 @@ public:
             return;
         }
 
-        sendUiTask([self = shared_from_this()]() {
-            self->cleanupUiResources();
-            PostQuitMessage(0);
-        });
-
+        // mpv renders into containerHwnd. Stop it completely before the UI
+        // thread destroys that window; doing this in the opposite order can
+        // race mpv's video output teardown against a dead HWND.
         stopping.store(true);
         {
             std::lock_guard<std::mutex> lock(mpvMutex);
@@ -838,6 +838,12 @@ public:
                 mpv = nullptr;
             }
         }
+
+        sendUiTask([self = shared_from_this()]() {
+            self->cleanupUiResources();
+            PostQuitMessage(0);
+        });
+
         if (uiThread.joinable() && GetCurrentThreadId() != uiThreadId) {
             uiThread.join();
         }
@@ -888,6 +894,12 @@ public:
     void requestFocus() {
         postUiTask([self = shared_from_this()]() {
             self->focusNativeControls();
+        });
+    }
+
+    void refreshLayout() {
+        postUiTask([self = shared_from_this()]() {
+            self->layoutNativeSubviews();
         });
     }
 
@@ -1084,6 +1096,10 @@ private:
     HWND hostHwnd = nullptr;
     HWND containerHwnd = nullptr;
     HWND messageHwnd = nullptr;
+    LONG lastContainerLayoutWidth = -1;
+    LONG lastContainerLayoutHeight = -1;
+    LONG lastWebViewLayoutWidth = -1;
+    LONG lastWebViewLayoutHeight = -1;
     DWORD uiThreadId = 0;
     bool didOleInitialize = false;
     std::thread uiThread;
@@ -1119,6 +1135,7 @@ private:
     void runNativeUiThread(
         std::string sourceUrl,
         std::vector<std::string> headerLines,
+        std::string preferredAudioLanguages,
         bool playWhenReady,
         long long initialPositionMs,
         std::string controlsUrl,
@@ -1128,7 +1145,7 @@ private:
     ) {
         std::string failure;
         try {
-            initializeOnNativeUiThread(sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled);
+            initializeOnNativeUiThread(sourceUrl, headerLines, preferredAudioLanguages, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled);
         } catch (const std::exception &error) {
             failure = error.what();
             cleanupUiResources();
@@ -1155,6 +1172,7 @@ private:
     void initializeOnNativeUiThread(
         const std::string &sourceUrl,
         const std::vector<std::string> &headerLines,
+        const std::string &preferredAudioLanguages,
         bool playWhenReady,
         long long initialPositionMs,
         const std::string &controlsUrl,
@@ -1211,7 +1229,7 @@ private:
         }
 
         startWebView(controlsUrl);
-        startMpv(sourceUrl, headerLines, playWhenReady, initialPositionMs, decoderPriority, nvidiaRtxSuperResolutionEnabled);
+        startMpv(sourceUrl, headerLines, preferredAudioLanguages, playWhenReady, initialPositionMs, decoderPriority, nvidiaRtxSuperResolutionEnabled);
         layoutNativeSubviews();
         if (!SetTimer(messageHwnd, NUVIO_TIMER_ID, 500, nullptr)) {
             throw std::runtime_error("Unable to start native player timer.");
@@ -1395,6 +1413,7 @@ private:
     void startMpv(
         const std::string &sourceUrl,
         const std::vector<std::string> &headerLines,
+        const std::string &preferredAudioLanguages,
         bool playWhenReady,
         long long initialPositionMs,
         int decoderPriority,
@@ -1448,6 +1467,9 @@ private:
             setMpvOptionStringLocked("demuxer-seekable-cache", "yes");
             setMpvOptionStringLocked("cache-secs", "36000");
             setMpvOptionStringLocked("hr-seek", "no");
+            if (!preferredAudioLanguages.empty()) {
+                setMpvOptionStringLocked("alang", preferredAudioLanguages.c_str());
+            }
 
             int64_t wid = (int64_t)(intptr_t)containerHwnd;
             int widResult = api.setOption(mpv, "wid", MPV_FORMAT_INT64, &wid);
@@ -1504,13 +1526,23 @@ private:
         GetClientRect(hostHwnd, &bounds);
         LONG width = std::max<LONG>(1, bounds.right - bounds.left);
         LONG height = std::max<LONG>(1, bounds.bottom - bounds.top);
-        if (containerHwnd) {
+        if (
+            containerHwnd &&
+            (width != lastContainerLayoutWidth || height != lastContainerLayoutHeight)
+        ) {
             SetWindowPos(containerHwnd, HWND_TOP, 0, 0, width, height, SWP_SHOWWINDOW | SWP_NOACTIVATE);
+            lastContainerLayoutWidth = width;
+            lastContainerLayoutHeight = height;
         }
-        if (controller) {
+        if (
+            controller &&
+            (width != lastWebViewLayoutWidth || height != lastWebViewLayoutHeight)
+        ) {
             RECT webBounds = {0, 0, width, height};
             controller->put_Bounds(webBounds);
             controller->put_IsVisible(TRUE);
+            lastWebViewLayoutWidth = width;
+            lastWebViewLayoutHeight = height;
         }
     }
 
@@ -1578,6 +1610,7 @@ private:
             controlsWebReady.store(true);
             flushPendingControlsJsonIfReady();
             syncControls();
+            sendPlayerEvent("nativeControlsReady", 0.0);
             return;
         }
         if (type == "selectAudioTrack") {
@@ -2001,8 +2034,21 @@ LRESULT CALLBACK containerWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPA
     }
 }
 
+// Tracks handles that point at live holder allocations. Guards the JNI boundary
+// against use-after-free: the snapshot polling loop calls player methods from a
+// coroutine thread while dispose() may free the holder on the EDT. Looking the
+// handle up under this lock (and copying out the shared_ptr) keeps the player
+// object alive for the duration of the call and turns a stale handle into a
+// null result instead of a dereference of freed memory.
+std::mutex gLivePlayersMutex;
+std::unordered_set<jlong> gLivePlayers;
+
 std::shared_ptr<WindowsMpvWebPlayer> playerFromHandle(jlong handle) {
     if (handle == 0) return nullptr;
+    std::lock_guard<std::mutex> lock(gLivePlayersMutex);
+    if (gLivePlayers.find(handle) == gLivePlayers.end()) {
+        return nullptr;
+    }
     auto *holder = reinterpret_cast<std::shared_ptr<WindowsMpvWebPlayer> *>(handle);
     return holder ? *holder : nullptr;
 }
@@ -2024,6 +2070,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     jlong hostViewPtr,
     jstring sourceUrl,
     jobjectArray headerLines,
+    jstring preferredAudioLanguages,
     jboolean playWhenReady,
     jlong initialPositionMs,
     jstring controlsPageUrl,
@@ -2034,6 +2081,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     HWND hostHwnd = (HWND)(intptr_t)hostViewPtr;
     std::string sourceUrlText = jstringToUtf8(env, sourceUrl);
     std::vector<std::string> headerLineValues = jstringArrayToVector(env, headerLines);
+    std::string preferredAudioLanguagesText = jstringToUtf8(env, preferredAudioLanguages);
     std::string controlsPageUrlText = jstringToUtf8(env, controlsPageUrl);
     JavaVM *javaVm = nullptr;
     env->GetJavaVM(&javaVm);
@@ -2058,6 +2106,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
             hostHwnd,
             sourceUrlText,
             headerLineValues,
+            preferredAudioLanguagesText,
             playWhenReady == JNI_TRUE,
             initialPositionMs,
             controlsPageUrlText,
@@ -2075,6 +2124,10 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
 
     auto *holder = new std::shared_ptr<WindowsMpvWebPlayer>(player);
     jlong handle = (jlong)(intptr_t)holder;
+    {
+        std::lock_guard<std::mutex> lock(gLivePlayersMutex);
+        gLivePlayers.insert(handle);
+    }
     return handle;
 }
 
@@ -2097,9 +2150,19 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setWindowsDisplayS
 extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_dispose(JNIEnv *, jobject, jlong handle) {
     if (handle == 0) return;
-    auto *holder = reinterpret_cast<std::shared_ptr<WindowsMpvWebPlayer> *>(handle);
-    std::shared_ptr<WindowsMpvWebPlayer> player = *holder;
-    delete holder;
+    std::shared_ptr<WindowsMpvWebPlayer> player;
+    {
+        std::lock_guard<std::mutex> lock(gLivePlayersMutex);
+        auto it = gLivePlayers.find(handle);
+        if (it == gLivePlayers.end()) {
+            // Already disposed (or never valid): avoid a double free / double shutdown.
+            return;
+        }
+        gLivePlayers.erase(it);
+        auto *holder = reinterpret_cast<std::shared_ptr<WindowsMpvWebPlayer> *>(handle);
+        player = *holder;
+        delete holder;
+    }
     if (player) player->shutdown();
 }
 
@@ -2108,6 +2171,12 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_updateControls(JNI
     auto player = playerFromHandle(handle);
     std::string controlsJsonText = jstringToUtf8(env, controlsJson);
     if (player) player->updateControlsJson(controlsJsonText);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_refreshLayout(JNIEnv *, jobject, jlong handle) {
+    auto player = playerFromHandle(handle);
+    if (player) player->refreshLayout();
 }
 
 extern "C" JNIEXPORT void JNICALL

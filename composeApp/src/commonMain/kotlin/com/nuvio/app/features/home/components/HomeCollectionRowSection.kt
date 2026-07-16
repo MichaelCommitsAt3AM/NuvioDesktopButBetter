@@ -43,6 +43,7 @@ fun HomeCollectionRowSection(
     modifier: Modifier = Modifier,
     sectionPadding: Dp? = null,
     animateGifs: Boolean = true,
+    showHeaderAccent: Boolean? = null,
     onFolderClick: ((collectionId: String, folderId: String) -> Unit)? = null,
 ) {
     if (collection.folders.isEmpty()) return
@@ -53,6 +54,7 @@ fun HomeCollectionRowSection(
             modifier = modifier.fillMaxWidth(),
             sectionPadding = sectionPadding,
             animateGifs = animateGifs,
+            showHeaderAccent = showHeaderAccent,
             onFolderClick = onFolderClick,
         )
     } else {
@@ -62,6 +64,7 @@ fun HomeCollectionRowSection(
                 modifier = Modifier.fillMaxWidth(),
                 sectionPadding = homeSectionHorizontalPaddingForWidth(maxWidth.value),
                 animateGifs = animateGifs,
+                showHeaderAccent = showHeaderAccent,
                 onFolderClick = onFolderClick,
             )
         }
@@ -74,12 +77,17 @@ private fun HomeCollectionRowSectionContent(
     modifier: Modifier,
     sectionPadding: Dp,
     animateGifs: Boolean,
+    showHeaderAccent: Boolean?,
     onFolderClick: ((collectionId: String, folderId: String) -> Unit)?,
 ) {
-    val homeCatalogSettings by remember {
-        HomeCatalogSettingsRepository.snapshot()
-        HomeCatalogSettingsRepository.uiState
-    }.collectAsStateWithLifecycle()
+    val homeCatalogSettings = if (showHeaderAccent == null) {
+        remember {
+            HomeCatalogSettingsRepository.snapshot()
+            HomeCatalogSettingsRepository.uiState
+        }.collectAsStateWithLifecycle().value
+    } else {
+        null
+    }
 
     NuvioShelfSection(
         title = collection.title,
@@ -87,7 +95,7 @@ private fun HomeCollectionRowSectionContent(
         modifier = modifier,
         headerHorizontalPadding = sectionPadding,
         rowContentPadding = PaddingValues(horizontal = sectionPadding),
-        showHeaderAccent = !homeCatalogSettings.hideCatalogUnderline,
+        showHeaderAccent = showHeaderAccent ?: !homeCatalogSettings!!.hideCatalogUnderline,
         key = { folder -> "collection_${collection.id}_folder_${folder.id}" },
     ) { folder ->
         CollectionFolderCard(

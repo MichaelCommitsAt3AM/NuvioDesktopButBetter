@@ -551,6 +551,8 @@
     <string name="hero_mark_watched">Mark as watched</string>
     <string name="hero_remove_from_library">Remove from library</string>
     <string name="home_view_all">View All</string>
+    <string name="shelf_scroll_next">Show next titles</string>
+    <string name="shelf_scroll_previous">Show previous titles</string>
     <string name="play_manually">Play manually</string>
     <string name="poster_logo_content_description">%1$s logo</string>
     <string name="settings_account">Account</string>

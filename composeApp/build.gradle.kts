@@ -1,9 +1,12 @@
 import org.gradle.api.DefaultTask
+import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
@@ -350,6 +353,35 @@ abstract class PrepareMacosTorrServerResourcesTask @Inject constructor(
                         )
                     }
                 }
+        }
+    }
+}
+
+abstract class BuildWindowsPlayerBridgeTask @Inject constructor(
+    private val execOperations: ExecOperations,
+) : DefaultTask() {
+    @get:InputFile
+    abstract val sourceFile: RegularFileProperty
+
+    @get:InputFiles
+    abstract val toolchainInputs: ConfigurableFileCollection
+
+    @get:Input
+    abstract val command: ListProperty<String>
+
+    @get:OutputFile
+    abstract val bridgeLibrary: RegularFileProperty
+
+    @get:OutputFile
+    abstract val importLibrary: RegularFileProperty
+
+    @get:OutputFile
+    abstract val programDatabase: RegularFileProperty
+
+    @TaskAction
+    fun build() {
+        execOperations.exec {
+            commandLine(command.get())
         }
     }
 }
@@ -844,20 +876,19 @@ val windowsPlayerBridgeCommand = if (missingWindowsPlayerBridgeInputs.isNotEmpty
         powershellCommand,
     )
 }
-val buildWindowsPlayerBridge = tasks.register<Exec>("buildWindowsPlayerBridge") {
-    notCompatibleWithConfigurationCache("Builds a host-local player bridge against WebView2 and libmpv for Windows.")
+val buildWindowsPlayerBridge = tasks.register<BuildWindowsPlayerBridgeTask>("buildWindowsPlayerBridge") {
     enabled = isWindowsHost
-    inputs.file(windowsPlayerBridgeSource)
+    sourceFile.set(windowsPlayerBridgeSource)
     if (windowsWebView2IncludeDir.exists()) {
-        inputs.dir(windowsWebView2IncludeDir)
+        toolchainInputs.from(windowsWebView2IncludeDir)
     }
     if (windowsWebView2LoaderLib.exists()) {
-        inputs.file(windowsWebView2LoaderLib)
+        toolchainInputs.from(windowsWebView2LoaderLib)
     }
-    outputs.file(windowsPlayerBridgeOutput)
-    outputs.file(windowsPlayerBridgeImportLib)
-    outputs.file(windowsPlayerBridgePdb)
-    commandLine(windowsPlayerBridgeCommand)
+    command.set(windowsPlayerBridgeCommand)
+    bridgeLibrary.set(windowsPlayerBridgeOutput)
+    importLibrary.set(windowsPlayerBridgeImportLib)
+    programDatabase.set(windowsPlayerBridgePdb)
 }
 
 val prepareWindowsPlayerRuntime = tasks.register<Sync>("prepareWindowsPlayerRuntime") {
@@ -886,6 +917,28 @@ val generateWindowsPlayerRuntimeIndex = tasks.register<GenerateNativeRuntimeInde
     dependsOn(prepareWindowsPlayerRuntime)
     runtimeDir.set(windowsPlayerRuntimeOutput)
     indexFile.set(windowsPlayerRuntimeOutput.map { it.file("runtime-files.txt") })
+}
+
+// Stages the native player bridge + its runtime DLLs as static jpackage app resources
+// (under appResourcesRootDir) instead of embedding them in the jar. jpackage copies this
+// content straight into the installed app image, so NativePlayerBridge can System.load()
+// them directly from a stable, installer-owned path — no runtime extraction to %TEMP%,
+// which is the behavior pattern (write a native binary to disk, then load it) that gets
+// flagged by antivirus heuristics as dropper-like.
+val windowsAppResourcesOutput = layout.buildDirectory.dir("appResources/windows")
+val prepareWindowsAppResources = tasks.register<Sync>("prepareWindowsAppResources") {
+    enabled = isWindowsHost
+    dependsOn(buildWindowsPlayerBridge, prepareWindowsPlayerRuntime, generateWindowsPlayerRuntimeIndex)
+    into(windowsAppResourcesOutput)
+    from(windowsPlayerBridgeOutput)
+    from(windowsPlayerRuntimeOutput)
+}
+
+// The compose plugin's own prepareAppResources task reads appResourcesRootDir without
+// declaring a dependency on whatever populates it, so this must be explicit or Gradle's
+// task-validation flags an implicit dependency.
+tasks.matching { it.name == "prepareAppResources" }.configureEach {
+    dependsOn(prepareWindowsAppResources)
 }
 
 abstract class GenerateNativeRuntimeIndexTask : DefaultTask() {
@@ -932,15 +985,9 @@ tasks.withType<Jar>().configureEach {
             into("native/macos")
         }
     }
-    if (isWindowsHost && name == "desktopJar") {
-        dependsOn(buildWindowsPlayerBridge, prepareWindowsPlayerRuntime, generateWindowsPlayerRuntimeIndex)
-        from(windowsPlayerBridgeOutput) {
-            into("native/windows")
-        }
-        from(windowsPlayerRuntimeOutput) {
-            into("native/windows")
-        }
-    }
+    // Windows native player bridge + runtime DLLs are shipped as static jpackage app
+    // resources (see prepareWindowsAppResources) instead of jar resources, so they never
+    // need to be extracted to disk at runtime.
 }
 
 tasks.withType<ProcessResources>().matching { it.name == "desktopProcessResources" }.configureEach {
@@ -974,7 +1021,12 @@ if (isWindowsHost) {
         "packageReleaseUberJarForCurrentOS",
     )
     tasks.matching { it.name in desktopNativePlayerTasks }.configureEach {
-        dependsOn(buildWindowsPlayerBridge, prepareWindowsPlayerRuntime, generateWindowsPlayerRuntimeIndex)
+        dependsOn(
+            buildWindowsPlayerBridge,
+            prepareWindowsPlayerRuntime,
+            generateWindowsPlayerRuntimeIndex,
+            prepareWindowsAppResources,
+        )
     }
 }
 
@@ -1148,6 +1200,9 @@ compose.desktop {
             packageName = "Nuvio"
             packageVersion = desktopReleasePackageVersion
             vendor = "Nuvio Media"
+            if (isWindowsHost) {
+                appResourcesRootDir.set(layout.buildDirectory.dir("appResources"))
+            }
             modules(
                 "java.instrument",
                 "java.management",

@@ -94,7 +94,9 @@ internal fun PlayerScreenRuntime.restorePersistedTrackPreferenceIfNeeded() {
             playerController?.selectAudioTrack(restoredAudioIndex)
             selectedAudioIndex = restoredAudioIndex
         }
-        preferredAudioSelectionApplied = true
+        if (restoredAudioIndex >= 0) {
+            preferredAudioSelectionApplied = true
+        }
     }
 
     when (preference.subtitleType) {

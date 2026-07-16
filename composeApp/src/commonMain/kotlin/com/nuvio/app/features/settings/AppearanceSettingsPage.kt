@@ -307,6 +307,7 @@ private fun DesktopNavigationLayoutBottomSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp),
+            flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
         ) {
             item {
                 Text(
@@ -380,6 +381,7 @@ private fun AppearanceLanguageBottomSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp),
+            flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
         ) {
             item {
                 Text(

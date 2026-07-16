@@ -69,6 +69,7 @@ fun DetailCastSection(
                     .fillMaxWidth()
                     .nuvioDesktopDragScroll(rowState),
                 horizontalArrangement = Arrangement.spacedBy(sizing.avatarGap),
+                flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
             ) {
                 itemsIndexed(
                     items = cast,

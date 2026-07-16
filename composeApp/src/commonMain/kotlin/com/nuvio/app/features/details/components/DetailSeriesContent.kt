@@ -412,6 +412,7 @@ private fun SeasonTextChipScrollRow(
             .fillMaxWidth()
             .nuvioDesktopDragScroll(seasonListState),
         horizontalArrangement = Arrangement.spacedBy(sizing.seasonChipGap),
+        flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
     ) {
         items(seasons, key = { season -> season }) { season ->
             val isSelected = season == currentSeason
@@ -485,6 +486,7 @@ private fun SeasonPosterScrollRow(
             .fillMaxWidth()
             .nuvioDesktopDragScroll(seasonListState),
         horizontalArrangement = Arrangement.spacedBy(sizing.seasonChipGap),
+        flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
     ) {
         items(seasons, key = { season -> season }) { season ->
             SeasonPosterButton(
@@ -623,6 +625,7 @@ private fun EpisodeHorizontalRow(
             .nuvioDesktopDragScroll(listState),
         contentPadding = PaddingValues(horizontal = rowMetrics.rowHorizontalPadding, vertical = rowMetrics.rowVerticalPadding),
         horizontalArrangement = Arrangement.spacedBy(rowMetrics.itemSpacing),
+        flingBehavior = com.nuvio.app.core.ui.rememberNuvioFlingBehavior(),
     ) {
         itemsIndexed(
             items = episodes,

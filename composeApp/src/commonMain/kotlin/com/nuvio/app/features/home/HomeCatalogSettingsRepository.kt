@@ -1,5 +1,6 @@
 package com.nuvio.app.features.home
 
+import co.touchlab.kermit.Logger
 import com.nuvio.app.features.addons.ManagedAddon
 import com.nuvio.app.features.collection.Collection
 import com.nuvio.app.features.collection.CollectionRepository
@@ -85,6 +86,8 @@ private data class StoredHomeCatalogSettingsPayload(
 
 object HomeCatalogSettingsRepository {
     const val HERO_SOURCE_SELECTION_LIMIT = 2
+
+    private val log = Logger.withTag("HomeCatalogSettingsRepository")
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -503,6 +506,12 @@ object HomeCatalogSettingsRepository {
                 key !in remoteKeys && (key in knownKeys || key.requiresExplicitSyncKey())
             }
             preferences = (preservedPreferences + remotePreferences).toMutableMap()
+            val disabledRemoteKeys = payload.items.filterNot { it.enabled }.map { it.preferenceKey() }
+            log.i {
+                "applyFromRemote() — items=${payload.items.size} disabled=${disabledRemoteKeys.size} " +
+                    "knownKeysAtApplyTime=${knownKeys.size} remoteKeysMatchingKnown=${remoteKeys.count { it in knownKeys }} " +
+                    "disabledKeys=$disabledRemoteKeys"
+            }
             normalizePreferences()
         }
         hasLoaded = true

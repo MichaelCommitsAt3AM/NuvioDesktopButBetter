@@ -14,7 +14,9 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.unit.dp
+import co.touchlab.kermit.Logger
 import com.nuvio.app.core.diagnostics.DesktopDiagnostics
+import com.nuvio.app.core.diagnostics.KermitFileLogWriter
 import com.nuvio.app.core.deeplink.handleAppUrl
 import com.nuvio.app.features.p2p.P2pStreamingEngine
 import com.nuvio.app.features.player.PlatformPlayerSurface
@@ -50,6 +52,7 @@ fun main(args: Array<String>) {
     }
 
     DesktopDiagnostics.initialize()
+    Logger.addLogWriter(KermitFileLogWriter())
     markStartup("diagnostics_initialized")
     configureDesktopChrome()
     markStartup("chrome_configured")

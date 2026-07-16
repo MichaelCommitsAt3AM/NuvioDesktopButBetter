@@ -3,14 +3,13 @@ package com.nuvio.app.features.home
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -101,32 +100,6 @@ import com.nuvio.app.features.home.components.rememberContinueWatchingLayout
 import kotlinx.coroutines.CancellationException
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
-
-private const val HomeScrollWarmUpItemCount = 6
-
-// Compose Desktop composes/measures/lays out Lazy items only as they first scroll into
-// view, and Skia JIT-compiles shader configurations on first use — so the very first
-// scroll-down on Home pays a one-time cold-path cost for however many previously-untouched
-// shelves it reveals. Run that cost here, invisibly, while still hidden behind the launch
-// overlay (see onFirstCatalogRendered below), instead of during the user's real first scroll.
-// TODO: this is a stopgap, not a real fix — it masks the cold-path cost rather than
-// eliminating it, adds startup latency, and only warms the outer vertical list (not
-// per-shelf horizontal scrolling). Look into addressing the actual root cause instead
-// (e.g. AppCDS/class-data sharing for JVM cold-start, or a real Skia shader pre-warm).
-private suspend fun warmUpHomeScroll(listState: LazyListState) {
-    if (!isDesktop) return
-    val totalItems = listState.layoutInfo.totalItemsCount
-    if (totalItems <= 1) return
-    runCatching {
-        listState.scrollToItem((totalItems - 1).coerceAtMost(HomeScrollWarmUpItemCount))
-        val viewportHeight = listState.layoutInfo.viewportSize.height.toFloat()
-        if (viewportHeight > 0f) {
-            listState.scrollBy(viewportHeight * 0.5f)
-            listState.scrollBy(-viewportHeight * 0.5f)
-        }
-        listState.scrollToItem(0)
-    }
-}
 
 @Composable
 fun HomeScreen(
@@ -786,16 +759,14 @@ fun HomeScreen(
     val showHeroSkeleton = showHeroSlot &&
         homeUiState.heroItems.isEmpty() &&
         isResolvingHeroSources
-    var firstCatalogReported by remember { mutableStateOf(false) }
+    // Saveable (not plain remember) so onFirstCatalogRendered doesn't re-fire if returning
+    // from details recomposes this screen fresh.
+    var firstCatalogReported by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(homeUiState.sections.firstOrNull()?.key, onFirstCatalogRendered) {
         if (firstCatalogReported || homeUiState.sections.isEmpty()) return@LaunchedEffect
         firstCatalogReported = true
-        try {
-            warmUpHomeScroll(homeListState)
-        } finally {
-            onFirstCatalogRendered?.invoke()
-        }
+        onFirstCatalogRendered?.invoke()
     }
 
     val visibleCollections = remember(collections) {

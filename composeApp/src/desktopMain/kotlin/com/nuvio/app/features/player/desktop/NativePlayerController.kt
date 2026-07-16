@@ -3,6 +3,7 @@ package com.nuvio.app.features.player.desktop
 import androidx.compose.ui.graphics.Color
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.diagnostics.DesktopDiagnostics
+import com.nuvio.app.core.diagnostics.KermitFileLogWriter
 import com.nuvio.app.features.player.PlayerControlAddonSubtitleItem
 import com.nuvio.app.features.player.PlayerControlEpisodeItem
 import com.nuvio.app.features.player.PlayerControlFilterItem
@@ -143,6 +144,10 @@ internal class NativePlayerController(
                     handle = createdHandle
                 }
                 DesktopDiagnostics.record("player_attach_completed", "handle=$createdHandle")
+                // The user is now watching something — the startup window this logging
+                // targets has passed, so stop before playback's own chatter rotates it
+                // out of the file.
+                KermitFileLogWriter.disable()
                 log.d {
                     "attach created handle=$createdHandle source=${resolvedSource.toPlaybackLogKey()} " +
                         "initialPositionMs=${pending.initialPositionMs}"

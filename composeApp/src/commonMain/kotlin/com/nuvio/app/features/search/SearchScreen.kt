@@ -80,6 +80,8 @@ import nuvio.composeapp.generated.resources.compose_search_recent_searches
 import nuvio.composeapp.generated.resources.compose_search_remove_recent_search
 import org.jetbrains.compose.resources.stringResource
 
+private const val MAX_DISPLAYED_RECENT_SEARCHES = 5
+
 @Composable
 fun SearchScreen(
     modifier: Modifier = Modifier,
@@ -291,7 +293,7 @@ fun SearchScreen(
             if (recentSearches.isNotEmpty()) {
                 item(key = "recent_searches") {
                     SearchRecentSection(
-                        recentSearches = recentSearches,
+                        recentSearches = recentSearches.take(MAX_DISPLAYED_RECENT_SEARCHES),
                         onSearchPress = { recentQuery -> query = recentQuery },
                         onRemoveSearch = SearchHistoryRepository::removeSearch,
                     )

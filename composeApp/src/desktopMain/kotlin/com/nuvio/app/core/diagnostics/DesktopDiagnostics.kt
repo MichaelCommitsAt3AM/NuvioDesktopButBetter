@@ -19,7 +19,7 @@ import kotlin.io.path.name
  * normal logging backend can flush. Do not write URLs, headers, or user data here.
  */
 internal object DesktopDiagnostics {
-    private const val MaxLogBytes = 2L * 1024L * 1024L
+    private const val MaxLogBytes = 8L * 1024L * 1024L
     private const val MaxDetailLength = 64 * 1024
     private val initialized = AtomicBoolean(false)
     private val lock = Any()

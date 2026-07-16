@@ -1,5 +1,6 @@
 package com.nuvio.app.features.home
 
+import co.touchlab.kermit.Logger
 import com.nuvio.app.features.addons.ManagedAddon
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.enabledAddons
@@ -28,6 +29,7 @@ import kotlin.math.absoluteValue
 import kotlin.random.Random
 
 object HomeRepository {
+    private val log = Logger.withTag("HomeRepository")
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -211,6 +213,22 @@ object HomeRepository {
                     title = customTitle.ifBlank { section.title },
                 )
             }
+
+        if (sections.isEmpty() && currentDefinitions.isNotEmpty()) {
+            val disabledByPreferenceCount = currentDefinitions.count { preferences[it.key]?.enabled == false }
+            val missingCachedSectionCount = currentDefinitions.count { definition ->
+                preferences[definition.key]?.enabled != false && cachedSections[definition.cacheKey] == null
+            }
+            val emptyCachedSectionCount = currentDefinitions.count { definition ->
+                preferences[definition.key]?.enabled != false &&
+                    cachedSections[definition.cacheKey]?.items?.isEmpty() == true
+            }
+            log.w {
+                "publishCurrentState() — 0 sections from ${currentDefinitions.size} definitions: " +
+                    "disabledByPreference=$disabledByPreferenceCount missingCachedSection=$missingCachedSectionCount " +
+                    "emptyCachedSection=$emptyCachedSectionCount isLoading=$isLoading requestKey=$requestKey"
+            }
+        }
 
         val catalogHeroItems = if (snapshot.heroEnabled) {
             val heroRandom = Random((requestKey?.hashCode() ?: 0).absoluteValue + 1)

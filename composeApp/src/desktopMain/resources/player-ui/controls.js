@@ -331,6 +331,7 @@ let sourceVirtualTotalHeight = 0;
 let sourceVirtualSpacer = null;
 let sourceVirtualRenderRaf = 0;
 let selectedEpisodeSeason = null;
+let lastRenderedEpisodeListKey = "";
 let episodeStreamFilterId = "";
 let submitIntroDraft = {
   segmentType: "intro",
@@ -1421,7 +1422,13 @@ const ensureEpisodeSeason = () => {
     selectedEpisodeSeason = null;
     return null;
   }
-  if (!seasons.some(season => Number(season.season) === Number(selectedEpisodeSeason))) {
+  // selectedEpisodeSeason starts out as `null`, and `Number(null) === 0` — so without the
+  // explicit null check here, a show with a "Specials" (season 0) entry would coincidentally
+  // match that `some()` check on first render and this would skip picking the actually-current
+  // season, leaving selectedEpisodeSeason stuck at `null` and disabling season filtering below.
+  const hasValidSelection = selectedEpisodeSeason != null &&
+    seasons.some(season => Number(season.season) === Number(selectedEpisodeSeason));
+  if (!hasValidSelection) {
     const preferred = seasons.find(season => Boolean(season.isSelected)) || seasons[0];
     selectedEpisodeSeason = Number(preferred.season) || 0;
   }
@@ -1443,17 +1450,31 @@ const renderEpisodeList = () => {
       renderEpisodeList();
     },
   );
+  seasonFilterList.querySelector(".filter-chip.selected")?.scrollIntoView({ block: "nearest", inline: "center" });
 
-  episodeList.textContent = "";
   let items = normalizeItems(state.episodeItems);
   if (selectedSeason != null) {
     items = items.filter(item => Number(item.season) === Number(selectedSeason));
   }
+
+  // window.playerControls (Kotlin -> JS state push) fires on every recomposition,
+  // including ones caused by nothing more than the mouse moving over the chrome
+  // (noteChromeActivity -> keepChromeVisible). render() unconditionally re-renders
+  // whatever modal is open, so without this guard every one of those pushes tore
+  // down and rebuilt every episode row from scratch — recreating each <img> and
+  // restarting its load/fade-in transition, which is what showed up as the
+  // thumbnails twitching while hovering between episodes.
+  const renderKey = JSON.stringify({ selectedSeason, items });
+  if (renderKey === lastRenderedEpisodeListKey) return;
+  lastRenderedEpisodeListKey = renderKey;
+
+  episodeList.textContent = "";
   if (items.length === 0) {
     appendEmptyTrackState(episodeList, state.noEpisodesLabel || "No episodes available");
     return;
   }
   items.forEach(item => appendEpisodeRow(episodeList, item));
+  episodeList.querySelector(".episode-row.selected")?.scrollIntoView({ block: "center" });
 };
 
 const renderEpisodeStreams = () => {
@@ -1726,6 +1747,27 @@ const syncChromeWithPointerPolicy = ({ notify = true, renderNow = true } = {}) =
 const isChromeInteractionTarget = target =>
   Boolean(target && target.closest && target.closest(chromeInteractionSelector));
 
+// Clicking any chrome button (resize, speed, ...) leaves it holding native keyboard focus
+// indefinitely — with nothing else to ever move focus away, isChromeFocusInside would stay
+// true forever and permanently block auto-hide via isInteractingWithChrome() below. Browsers
+// already distinguish this: a pointer-focused element matches :focus but not :focus-visible,
+// while Tab-driven keyboard focus matches both. Only treat the latter as "interacting", so a
+// mouse click doesn't wedge the auto-hide timer for every button, not just this one.
+const supportsFocusVisible = (() => {
+  try {
+    document.documentElement.matches(":focus-visible");
+    return true;
+  } catch (error) {
+    return false;
+  }
+})();
+
+const isChromeFocusVisibleTarget = target => {
+  if (!isChromeInteractionTarget(target)) return false;
+  if (!supportsFocusVisible) return true;
+  return Boolean(target.matches && target.matches(":focus-visible"));
+};
+
 const isInteractingWithChrome = () =>
   Boolean(isChromePointerInside || isChromePointerDown || isChromeFocusInside);
 
@@ -1965,6 +2007,8 @@ const shortcutCommandForEvent = event => {
       return "keyboardVolumeUp";
     case "ArrowDown":
       return "keyboardVolumeDown";
+    case "KeyF":
+      return "keyboardToggleFullscreen";
     default:
       return "";
   }
@@ -2168,7 +2212,7 @@ document.addEventListener("pointerleave", () => {
   syncChromeWithPointerPolicy();
 }, true);
 document.addEventListener("focusin", event => {
-  isChromeFocusInside = isChromeInteractionTarget(event.target);
+  isChromeFocusInside = isChromeFocusVisibleTarget(event.target);
   const actionButton = event.target.closest && event.target.closest(".action-pill .action");
   if (actionButton) {
     setFocusedActionButton(actionButton, { focus: false });
@@ -2179,7 +2223,7 @@ document.addEventListener("focusin", event => {
 }, true);
 document.addEventListener("focusout", () => {
   window.setTimeout(() => {
-    isChromeFocusInside = isChromeInteractionTarget(document.activeElement);
+    isChromeFocusInside = isChromeFocusVisibleTarget(document.activeElement);
     noteChromeActivity(true);
   }, 0);
 }, true);
@@ -2612,6 +2656,10 @@ document.addEventListener("keydown", event => {
   }
   if (command === "keyboardVolumeDown") {
     sendKeyboardVolume(-1);
+    return;
+  }
+  if (command === "keyboardToggleFullscreen") {
+    togglePlayerFullscreen();
     return;
   }
   showCommandToast(command);

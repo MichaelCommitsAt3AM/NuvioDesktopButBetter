@@ -20,7 +20,13 @@ import kotlin.math.abs
 // glide no longer started at the speed your fingers were actually moving. Using
 // a lower-friction exponential decay instead keeps the real release velocity
 // (no jump) and just makes it take longer to coast down to zero.
-private const val NuvioDesktopFlingFrictionMultiplier = 2.6f
+// Raised from 2.6 -> 3.4: 2.6 made the glide too long/floaty for a plain mouse
+// wheel. A single wheel notch can also report a velocity spike (many small
+// scroll events in a few ms), which the low-friction decay would stretch into
+// a multi-second glide that overshot all the way to the top/bottom of the
+// list; clamping the velocity fed into the decay caps how far one notch can fling.
+private const val NuvioDesktopFlingFrictionMultiplier = 3.4f
+private const val NuvioDesktopMaxFlingVelocity = 7000f
 
 @Composable
 fun rememberNuvioFlingBehavior(): FlingBehavior {
@@ -36,11 +42,12 @@ private class NuvioDesktopFlingBehavior(
     private val flingDecay: DecayAnimationSpec<Float>,
 ) : FlingBehavior {
     override suspend fun ScrollScope.performFling(initialVelocity: Float): Float {
-        if (abs(initialVelocity) <= 1f) return initialVelocity
+        val clampedVelocity = initialVelocity.coerceIn(-NuvioDesktopMaxFlingVelocity, NuvioDesktopMaxFlingVelocity)
+        if (abs(clampedVelocity) <= 1f) return clampedVelocity
 
-        var velocityLeft = initialVelocity
+        var velocityLeft = clampedVelocity
         var lastValue = 0f
-        AnimationState(initialValue = 0f, initialVelocity = initialVelocity).animateDecay(flingDecay) {
+        AnimationState(initialValue = 0f, initialVelocity = clampedVelocity).animateDecay(flingDecay) {
             val delta = value - lastValue
             val consumed = scrollBy(delta)
             lastValue = value

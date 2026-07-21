@@ -52,7 +52,6 @@ private val desktopHttpClient = OkHttpClient.Builder()
     .followSslRedirects(true)
     .build()
 
-private const val maxRawResponseBodyBytes = 1024 * 1024
 private const val truncationSuffix = "\n...[truncated]"
 
 actual suspend fun httpGetText(url: String): String =
@@ -104,6 +103,7 @@ actual suspend fun httpRequestRaw(
     headers: Map<String, String>,
     body: String,
     followRedirects: Boolean,
+    maxResponseBodyBytes: Int,
 ): RawHttpResponse = withContext(Dispatchers.IO) {
     val client = if (followRedirects) {
         desktopHttpClient
@@ -120,7 +120,7 @@ actual suspend fun httpRequestRaw(
             status = response.code,
             statusText = response.message,
             url = response.request.url.toString(),
-            body = readResponseBodyLimited(response.body),
+            body = readResponseBodyLimited(response.body, maxResponseBodyBytes),
             headers = response.headers.toMultimap().mapValues { (_, values) ->
                 values.joinToString(",")
             }.mapKeys { (name, _) ->
@@ -215,11 +215,11 @@ private fun readAtMostBytes(stream: InputStream, maxBytes: Int): LimitedReadResu
     return LimitedReadResult(out.toByteArray(), truncated)
 }
 
-private fun readResponseBodyLimited(body: ResponseBody?): String {
+private fun readResponseBodyLimited(body: ResponseBody?, maxBytes: Int): String {
     if (body == null) return ""
     val charset = body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
     val readResult = body.byteStream().use { stream ->
-        readAtMostBytes(stream, maxRawResponseBodyBytes)
+        readAtMostBytes(stream, maxBytes.coerceAtLeast(0))
     }
     val decoded = runCatching {
         String(readResult.bytes, charset)

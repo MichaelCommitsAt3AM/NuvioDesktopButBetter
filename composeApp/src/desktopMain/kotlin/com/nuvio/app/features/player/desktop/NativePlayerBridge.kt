@@ -133,7 +133,7 @@ internal object NativePlayerBridge {
         val libraryName = nativeLibraryName(platform)
         val platformDir = nativeDirectoryName(platform)
 
-        findAppResourcesLibrary(platform, libraryName)?.let { appResourceLibrary ->
+        findAppResourcesLibrary(platform, platformDir, libraryName)?.let { appResourceLibrary ->
             loadNativeRuntimeDependencies(platform, appResourceLibrary.parentFile)
             System.load(appResourceLibrary.absolutePath)
             return
@@ -186,17 +186,20 @@ internal object NativePlayerBridge {
      * exposes its path via this system property. When present, the native library
      * already sits at a stable, installer-owned location and never needs to be written
      * out from a jar resource — avoiding the write-then-load-at-runtime pattern that
-     * antivirus heuristics treat as dropper-like behavior. Files staged under
-     * `appResourcesRootDir/<platformDir>/...` land flattened directly in this directory
-     * (the platform subfolder is a source-side selector, not part of the output path).
+     * antivirus heuristics treat as dropper-like behavior. Windows files are staged
+     * flattened directly under this directory; macOS files are staged nested under
+     * `native/<platformDir>/`, matching each platform's own app-resources Gradle task.
      */
-    private fun findAppResourcesLibrary(platform: DesktopHostOs, libraryName: String): File? {
-        if (platform != DesktopHostOs.WINDOWS) return null
+    private fun findAppResourcesLibrary(platform: DesktopHostOs, platformDir: String, libraryName: String): File? {
         val resourcesDir = System.getProperty("compose.application.resources.dir")
             ?.takeIf(String::isNotBlank)
             ?.let(::File)
             ?: return null
-        return resourcesDir.resolve(libraryName).takeIf(File::exists)
+        return when (platform) {
+            DesktopHostOs.WINDOWS -> resourcesDir.resolve(libraryName).takeIf(File::exists)
+            DesktopHostOs.MACOS -> resourcesDir.resolve("native/$platformDir/$libraryName").takeIf(File::isFile)
+            else -> null
+        }
     }
 
     private fun loadNativeRuntimeDependencies(platform: DesktopHostOs, directory: File) {

@@ -195,6 +195,7 @@ internal fun HomeContinueWatchingSection(
     useEpisodeThumbnails: Boolean = true,
     blurNextUp: Boolean = false,
     modifier: Modifier = Modifier,
+    title: String? = null,
     sectionPadding: Dp? = null,
     layout: ContinueWatchingLayout? = null,
     listState: LazyListState = rememberLazyListState(),
@@ -210,6 +211,7 @@ internal fun HomeContinueWatchingSection(
             useEpisodeThumbnails = useEpisodeThumbnails,
             blurNextUp = blurNextUp,
             modifier = modifier.fillMaxWidth(),
+            title = title,
             sectionPadding = sectionPadding,
             layout = layout,
             listState = listState,
@@ -224,6 +226,7 @@ internal fun HomeContinueWatchingSection(
                 useEpisodeThumbnails = useEpisodeThumbnails,
                 blurNextUp = blurNextUp,
                 modifier = Modifier.fillMaxWidth(),
+                title = title,
                 sectionPadding = homeSectionHorizontalPaddingForWidth(maxWidth.value),
                 layout = rememberContinueWatchingLayout(maxWidth.value),
                 listState = listState,
@@ -241,6 +244,7 @@ private fun HomeContinueWatchingSectionContent(
     useEpisodeThumbnails: Boolean,
     blurNextUp: Boolean,
     modifier: Modifier,
+    title: String?,
     sectionPadding: Dp,
     layout: ContinueWatchingLayout,
     listState: LazyListState,
@@ -256,7 +260,7 @@ private fun HomeContinueWatchingSectionContent(
     val displayEntries = disintegration.sync(items)
 
     NuvioShelfSection(
-        title = stringResource(Res.string.compose_settings_page_continue_watching),
+        title = title ?: stringResource(Res.string.compose_settings_page_continue_watching),
         entries = displayEntries,
         modifier = modifier,
         headerHorizontalPadding = sectionPadding,
@@ -980,6 +984,10 @@ private fun ContinueWatchingPosterCard(
                 .height(layout.posterCardHeight)
                 .clip(RoundedCornerShape(layout.cardRadius))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
+                .nuvioCardDepth(
+                    shape = RoundedCornerShape(layout.cardRadius),
+                    surface = NuvioCardDepthSurface.ContinueWatching,
+                )
                 .posterCardClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,

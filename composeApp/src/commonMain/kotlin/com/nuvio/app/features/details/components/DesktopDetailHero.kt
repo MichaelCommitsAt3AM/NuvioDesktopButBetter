@@ -40,7 +40,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
-import com.nuvio.app.core.ui.NuvioDesktopImageScaling
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.FullscreenActionButton
 import com.nuvio.app.core.ui.fullscreenActionHorizontalInsetForWidth
@@ -116,7 +115,6 @@ fun DesktopDetailHero(
                     },
                 alignment = Alignment.Center,
                 contentScale = ContentScale.Crop,
-                desktopImageScaling = NuvioDesktopImageScaling.Disabled,
                 onSuccess = { state -> onBackdropLoaded(state.painter) },
             )
         } else {

@@ -389,7 +389,6 @@ fun NuvioPosterCard(
     bottomLeftText: String? = null,
     isWatched: Boolean = false,
     posterCardStyle: PosterCardStyleUiState = rememberPosterCardStyleUiState(),
-    useDesktopImagePreScaling: Boolean = true,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
@@ -435,11 +434,6 @@ fun NuvioPosterCard(
                     contentDescription = title,
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.Crop,
-                    desktopImageScaling = if (useDesktopImagePreScaling) {
-                        NuvioDesktopImageScaling.Auto
-                    } else {
-                        NuvioDesktopImageScaling.Disabled
-                    },
                 )
             } else {
                 Text(
@@ -467,11 +461,6 @@ fun NuvioPosterCard(
                                 .width(catalogLogoOverlaySize.width)
                                 .height(catalogLogoOverlaySize.height),
                             contentScale = ContentScale.Fit,
-                            desktopImageScaling = if (useDesktopImagePreScaling) {
-                                NuvioDesktopImageScaling.Auto
-                            } else {
-                                NuvioDesktopImageScaling.Disabled
-                            },
                         )
                     } else {
                         Text(

@@ -35,7 +35,6 @@ fun HomePosterCard(
         bottomLeftText = if (isLandscapeMode && item.logo.isNullOrBlank() && !posterCardStyle.hideLabelsEnabled) item.name else null,
         isWatched = isWatched,
         posterCardStyle = posterCardStyle,
-        useDesktopImagePreScaling = false,
         onClick = onClick,
         onLongClick = onLongClick,
     )

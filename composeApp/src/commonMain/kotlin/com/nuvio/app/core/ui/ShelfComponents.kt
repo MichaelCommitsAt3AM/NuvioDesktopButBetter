@@ -429,8 +429,20 @@ fun NuvioPosterCard(
             contentAlignment = Alignment.Center,
         ) {
             if (imageUrl != null) {
-                NuvioAsyncImage(
+                val posterImageRequest = rememberNuvioImageRequest(
                     model = imageUrl,
+                    bucket = if (shape == NuvioPosterShape.Landscape) {
+                        NuvioImageCacheBucket.ShelfLandscape
+                    } else {
+                        NuvioImageCacheBucket.ShelfPoster
+                    },
+                    // Dense shelves finish loading many posters at once; a crossfade per poster
+                    // means many simultaneous animations competing for the same frame budget
+                    // that's already tight during a catalog load.
+                    crossfadeMillis = 0,
+                )
+                NuvioAsyncImage(
+                    model = posterImageRequest,
                     contentDescription = title,
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.Crop,
@@ -454,8 +466,13 @@ fun NuvioPosterCard(
                         .padding(horizontal = NuvioTokens.Space.s10, vertical = NuvioTokens.Space.s10),
                 ) {
                     if (!bottomLeftLogoUrl.isNullOrBlank()) {
-                        NuvioAsyncImage(
+                        val logoImageRequest = rememberNuvioImageRequest(
                             model = bottomLeftLogoUrl,
+                            bucket = NuvioImageCacheBucket.ShelfLogo,
+                            crossfadeMillis = 0,
+                        )
+                        NuvioAsyncImage(
+                            model = logoImageRequest,
                             contentDescription = stringResource(Res.string.poster_logo_content_description, title),
                             modifier = Modifier
                                 .width(catalogLogoOverlaySize.width)

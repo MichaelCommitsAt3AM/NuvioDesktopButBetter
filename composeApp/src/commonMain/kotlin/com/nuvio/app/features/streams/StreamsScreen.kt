@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,11 +39,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SearchOff
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.Tune
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -80,7 +86,12 @@ import com.nuvio.app.core.ui.NuvioModalBottomSheet
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.core.ui.dismissNuvioBottomSheet
 import com.nuvio.app.core.ui.nuvioDesktopDragScroll
+import com.nuvio.app.core.ui.secondaryClick
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
+import com.nuvio.app.features.downloads.DownloadFilterResult
+import com.nuvio.app.features.downloads.DownloadFilterSettingsRepository
+import com.nuvio.app.features.downloads.DownloadStreamFilter
+import com.nuvio.app.features.downloads.DownloadStreamFilterMode
 import com.nuvio.app.features.downloads.DownloadsRepository
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -128,6 +139,7 @@ fun StreamsScreen(
         resumeProgressFraction: Float?,
     ) -> Unit = { _, _, _, _ -> },
     onBack: () -> Unit,
+    onOpenDownloadFilterSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val uiState by StreamsRepository.uiState.collectAsStateWithLifecycle()
@@ -254,6 +266,7 @@ fun StreamsScreen(
                 },
                 onStreamLongPress = { stream -> streamActionsTarget = stream },
                 onRefresh = reloadStreams,
+                onOpenDownloadFilterSettings = onOpenDownloadFilterSettings,
             )
         } else {
             MobileStreamsLayout(
@@ -274,6 +287,7 @@ fun StreamsScreen(
                 },
                 onStreamLongPress = { stream -> streamActionsTarget = stream },
                 onRefresh = reloadStreams,
+                onOpenDownloadFilterSettings = onOpenDownloadFilterSettings,
             )
         }
 
@@ -467,6 +481,7 @@ private fun MobileStreamsLayout(
     onStreamSelected: (stream: StreamItem, resumePositionMs: Long?, resumeProgressFraction: Float?) -> Unit,
     onStreamLongPress: (StreamItem) -> Unit,
     onRefresh: () -> Unit,
+    onOpenDownloadFilterSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -535,12 +550,24 @@ private fun MobileStreamsLayout(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                         )
                     }
-                    ProviderFilterRow(
-                        groups = uiState.groups,
-                        selectedFilter = uiState.selectedFilter,
-                        onFilterSelected = { addonId -> StreamsRepository.selectFilter(addonId) },
-                        onRefresh = onRefresh,
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ProviderFilterRow(
+                            groups = uiState.groups,
+                            selectedFilter = uiState.selectedFilter,
+                            onFilterSelected = { addonId -> StreamsRepository.selectFilter(addonId) },
+                            onRefresh = onRefresh,
+                            modifier = Modifier.weight(1f),
+                        )
+                        DownloadFilterChip(
+                            mode = uiState.downloadFilterMode,
+                            onModeSelected = { StreamsRepository.setDownloadFilterMode(it) },
+                            onOpenFilterSettings = onOpenDownloadFilterSettings,
+                            modifier = Modifier.padding(start = 8.dp, end = 12.dp),
+                        )
+                    }
 
                     StreamList(
                         uiState = uiState,
@@ -792,6 +819,8 @@ private fun FilterChip(
     contentDescription: String? = null,
     isSelected: Boolean,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    onSecondaryClick: (() -> Unit)? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -827,11 +856,13 @@ private fun FilterChip(
             .height(36.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(containerColor)
-            .clickable(
+            .combinedClickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
+                onLongClick = onLongClick,
             )
+            .secondaryClick(onSecondaryClick)
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -863,12 +894,97 @@ private fun FilterChip(
     }
 }
 
+/**
+ * "Best quality / Data saver" selector for the streams list. Left-click picks the
+ * mode; long-press (touch) or right-click (desktop) surfaces the entry point to
+ * the download-filter settings.
+ */
+@Composable
+internal fun DownloadFilterChip(
+    mode: DownloadStreamFilterMode,
+    onModeSelected: (DownloadStreamFilterMode) -> Unit,
+    onOpenFilterSettings: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var contextMenuExpanded by remember { mutableStateOf(false) }
+    val isDataSaver = mode == DownloadStreamFilterMode.DATA_SAVER
+    val label = if (isDataSaver) {
+        stringResource(Res.string.streams_download_filter_data_saver)
+    } else {
+        stringResource(Res.string.streams_download_filter_best_quality)
+    }
+
+    Box(modifier = modifier) {
+        FilterChip(
+            label = label,
+            icon = Icons.Rounded.Speed,
+            contentDescription = stringResource(Res.string.streams_download_filter_label),
+            isSelected = isDataSaver,
+            onClick = { expanded = true },
+            onLongClick = onOpenFilterSettings,
+            onSecondaryClick = { contextMenuExpanded = true },
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            DownloadStreamFilterMode.entries.forEach { entry ->
+                val entryLabel = when (entry) {
+                    DownloadStreamFilterMode.BEST_QUALITY ->
+                        stringResource(Res.string.streams_download_filter_best_quality)
+                    DownloadStreamFilterMode.DATA_SAVER ->
+                        stringResource(Res.string.streams_download_filter_data_saver)
+                }
+                DropdownMenuItem(
+                    text = { Text(entryLabel) },
+                    leadingIcon = {
+                        if (entry == mode) {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.size(24.dp))
+                        }
+                    },
+                    onClick = {
+                        onModeSelected(entry)
+                        expanded = false
+                    },
+                )
+            }
+        }
+        DropdownMenu(
+            expanded = contextMenuExpanded,
+            onDismissRequest = { contextMenuExpanded = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(Res.string.streams_download_filter_customize)) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Rounded.Tune,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                onClick = {
+                    contextMenuExpanded = false
+                    onOpenFilterSettings()
+                },
+            )
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Stream List
 // ---------------------------------------------------------------------------
 
 private const val STREAM_CONTENT_TYPE_LOADING = "streams_loading"
 private const val STREAM_CONTENT_TYPE_EMPTY = "streams_empty"
+private const val STREAM_CONTENT_TYPE_DATA_SAVER_HINT = "streams_data_saver_hint"
 private const val STREAM_CONTENT_TYPE_SECTION_HEADER = "streams_section_header"
 private const val STREAM_CONTENT_TYPE_SOURCE_HEADER = "streams_source_header"
 private const val STREAM_CONTENT_TYPE_STREAM = "streams_stream"
@@ -904,7 +1020,20 @@ internal fun StreamList(
     resumeProgressFraction: Float?,
     modifier: Modifier = Modifier,
 ) {
-    val filteredGroups = uiState.filteredGroups
+    val baseGroups = uiState.filteredGroups
+    val isDataSaver = uiState.downloadFilterMode == DownloadStreamFilterMode.DATA_SAVER
+    val downloadFilterConfig by remember {
+        DownloadFilterSettingsRepository.ensureLoaded()
+        DownloadFilterSettingsRepository.uiState
+    }.collectAsStateWithLifecycle()
+    val filterResult = remember(baseGroups, isDataSaver, downloadFilterConfig) {
+        if (isDataSaver) {
+            DownloadStreamFilter.apply(baseGroups, downloadFilterConfig)
+        } else {
+            DownloadFilterResult(baseGroups, 0)
+        }
+    }
+    val filteredGroups = filterResult.groups
     val hasGroups = filteredGroups.isNotEmpty()
     val hasAnyStreams = filteredGroups.any { it.streams.isNotEmpty() }
     val anyLoading = filteredGroups.any { it.isLoading }
@@ -938,6 +1067,15 @@ internal fun StreamList(
                     }
                 }
 
+                isDataSaver && filterResult.hasHidden && !hasAnyStreams && !uiState.isAnyLoading -> {
+                    item(
+                        key = "streams_data_saver_all_hidden",
+                        contentType = STREAM_CONTENT_TYPE_EMPTY,
+                    ) {
+                        DataSaverAllHiddenBlock(hiddenCount = filterResult.hiddenCount)
+                    }
+                }
+
                 !hasAnyStreams && !uiState.isAnyLoading -> {
                     item(
                         key = "streams_empty",
@@ -948,6 +1086,14 @@ internal fun StreamList(
                 }
 
                 else -> {
+                    if (isDataSaver && filterResult.hasHidden) {
+                        item(
+                            key = "streams_data_saver_hint",
+                            contentType = STREAM_CONTENT_TYPE_DATA_SAVER_HINT,
+                        ) {
+                            DataSaverHiddenHint(hiddenCount = filterResult.hiddenCount)
+                        }
+                    }
                     streamSections.forEach { section ->
                         streamSection(
                             section = section,
@@ -1408,6 +1554,72 @@ private fun EmptyStateBlock(
         )
         Text(
             text = message,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun DataSaverHiddenHint(
+    hiddenCount: Int,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Speed,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            text = stringResource(Res.string.streams_download_filter_hidden_count, hiddenCount),
+            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun DataSaverAllHiddenBlock(
+    hiddenCount: Int,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Speed,
+            contentDescription = null,
+            modifier = Modifier.size(48.dp),
+            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = stringResource(Res.string.streams_download_filter_all_hidden_title),
+            style = MaterialTheme.typography.bodyLarge.copy(
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = stringResource(Res.string.streams_download_filter_all_hidden_message, hiddenCount),
             style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp),
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             textAlign = TextAlign.Center,

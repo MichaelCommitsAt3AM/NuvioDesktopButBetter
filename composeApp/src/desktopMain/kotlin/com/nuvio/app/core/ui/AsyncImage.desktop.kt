@@ -80,9 +80,11 @@ internal actual fun NuvioAsyncImage(
         alpha = alpha,
         colorFilter = colorFilter,
         // NuvioSkiaImageDecoder already delivers a bitmap sized to the layout, so drawing is
-        // ~1:1 and cubic resampling would buy nothing. Medium (linear + mipmap) keeps hover
-        // scale and fractional DPI from aliasing.
-        filterQuality = filterQuality ?: FilterQuality.Medium,
+        // ~1:1 and there's nothing left to downscale — the only remaining scale is hover zoom,
+        // which is an upscale. Medium maps to FilterMipmap(LINEAR, NEAREST), which makes Skia
+        // build a full mip chain per texture on first draw for zero benefit on an upscale; Low
+        // (linear, no mipmap) gets the same visual result without that render-thread cost.
+        filterQuality = filterQuality ?: FilterQuality.Low,
         clipToBounds = clipToBounds,
     )
 }

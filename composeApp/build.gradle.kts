@@ -1213,6 +1213,10 @@ compose.desktop {
         mainClass = "com.nuvio.app.MainKt"
         val smokePlayerUrl = providers.gradleProperty("nuvio.desktop.smokePlayerUrl").orNull
             ?: System.getenv("NUVIO_DESKTOP_SMOKE_PLAYER_URL")
+        val imageTelemetryEnabled = providers.gradleProperty("nuvio.desktop.imageTelemetry").orNull
+            ?: System.getenv("NUVIO_DESKTOP_IMAGE_TELEMETRY")
+        val frameTelemetryEnabled = providers.gradleProperty("nuvio.desktop.frameTelemetry").orNull
+            ?: System.getenv("NUVIO_DESKTOP_FRAME_TELEMETRY")
         jvmArgs += listOfNotNull(
             "-Dapple.awt.application.appearance=NSAppearanceNameDarkAqua",
             "--add-opens=java.desktop/java.awt=ALL-UNNAMED",
@@ -1220,6 +1224,8 @@ compose.desktop {
             "--add-opens=java.desktop/sun.lwawt.macosx=ALL-UNNAMED",
             "--add-opens=java.desktop/sun.awt.windows=ALL-UNNAMED",
             smokePlayerUrl?.takeIf { it.isNotBlank() }?.let { "-Dnuvio.desktop.smokePlayerUrl=$it" },
+            imageTelemetryEnabled?.takeIf { it.isNotBlank() }?.let { "-Dnuvio.image.telemetry=$it" },
+            frameTelemetryEnabled?.takeIf { it.isNotBlank() }?.let { "-Dnuvio.frame.telemetry=$it" },
         )
 
         nativeDistributions {
@@ -1237,6 +1243,7 @@ compose.desktop {
                 "java.management",
                 "java.net.http",
                 "jdk.httpserver",
+                "jdk.management",
                 "jdk.unsupported",
             )
             macOS {

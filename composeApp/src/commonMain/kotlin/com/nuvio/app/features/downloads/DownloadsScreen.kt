@@ -18,6 +18,7 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -48,6 +49,7 @@ fun DownloadsScreen(
     onBack: () -> Unit,
     onOpenDownload: (DownloadItem) -> Unit,
     initialShowId: String? = null,
+    initialShowFilterSettings: Boolean = false,
     onNavigateToShow: ((showId: String, title: String) -> Unit)? = null,
     onBackFromShow: (() -> Unit)? = null,
 ) {
@@ -57,6 +59,11 @@ fun DownloadsScreen(
     }.collectAsStateWithLifecycle()
 
     var selectedShowId by rememberSaveable(initialShowId) { mutableStateOf(initialShowId) }
+    var showFilterSettings by rememberSaveable(initialShowFilterSettings) { mutableStateOf(initialShowFilterSettings) }
+    val downloadFilterConfig by remember {
+        DownloadFilterSettingsRepository.ensureLoaded()
+        DownloadFilterSettingsRepository.uiState
+    }.collectAsStateWithLifecycle()
     val openDownloadsDirectoryFailedText = stringResource(Res.string.downloads_open_directory_failed)
 
     val completedEpisodes = remember(uiState.items) {
@@ -74,36 +81,51 @@ fun DownloadsScreen(
     NuvioScreen {
         stickyHeader {
             NuvioScreenHeader(
-                title = if (selectedShowId == null) {
-                    stringResource(Res.string.compose_settings_root_downloads_title)
-                } else {
-                    selectedShowTitle ?: stringResource(Res.string.downloads_show_downloads)
+                title = when {
+                    showFilterSettings -> stringResource(Res.string.download_filter_settings_title)
+                    selectedShowId == null -> stringResource(Res.string.compose_settings_root_downloads_title)
+                    else -> selectedShowTitle ?: stringResource(Res.string.downloads_show_downloads)
                 },
                 onBack = {
-                    if (selectedShowId != null) {
-                        onBackFromShow?.invoke() ?: run { selectedShowId = null }
-                    } else {
-                        onBack()
+                    when {
+                        showFilterSettings -> showFilterSettings = false
+                        selectedShowId != null -> onBackFromShow?.invoke() ?: run { selectedShowId = null }
+                        else -> onBack()
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = {
-                            if (!DownloadsPlatformDownloader.openDownloadsDirectory()) {
-                                NuvioToastController.show(openDownloadsDirectoryFailedText)
+                    if (!showFilterSettings) {
+                        if (selectedShowId == null) {
+                            IconButton(onClick = { showFilterSettings = true }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Tune,
+                                    contentDescription = stringResource(Res.string.download_filter_settings_title),
+                                )
                             }
-                        },
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Folder,
-                            contentDescription = stringResource(Res.string.downloads_open_directory),
-                        )
+                        }
+                        IconButton(
+                            onClick = {
+                                if (!DownloadsPlatformDownloader.openDownloadsDirectory()) {
+                                    NuvioToastController.show(openDownloadsDirectoryFailedText)
+                                }
+                            },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Folder,
+                                contentDescription = stringResource(Res.string.downloads_open_directory),
+                            )
+                        }
                     }
                 },
             )
         }
 
-        if (selectedShowId == null) {
+        if (showFilterSettings) {
+            downloadFilterSettingsContent(
+                config = downloadFilterConfig,
+                isTablet = false,
+            )
+        } else if (selectedShowId == null) {
             downloadsRootContent(
                 uiState = uiState,
                 onOpenDownload = onOpenDownload,

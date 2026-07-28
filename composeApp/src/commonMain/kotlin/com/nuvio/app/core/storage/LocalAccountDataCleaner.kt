@@ -69,6 +69,7 @@ internal object LocalAccountDataCleaner {
         TraktSettingsRepository.clearLocalState()
         PlayerSettingsRepository.clearLocalState()
         StreamBadgeSettingsRepository.clearLocalState()
+        com.nuvio.app.features.downloads.DownloadFilterSettingsRepository.clearLocalState()
         P2pSettingsRepository.clearLocalState()
         CatalogRepository.clear()
         StreamsRepository.clear()

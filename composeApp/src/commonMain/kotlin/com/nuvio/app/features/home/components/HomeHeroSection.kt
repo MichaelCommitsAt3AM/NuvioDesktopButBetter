@@ -56,11 +56,13 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.isDesktop
 import com.nuvio.app.core.ui.FullscreenActionButton
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
+import com.nuvio.app.core.ui.NuvioImageCacheBucket
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.isFullscreenActionSupported
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.core.ui.heroStretchHeight
 import com.nuvio.app.core.ui.heroStretchZoom
+import com.nuvio.app.core.ui.rememberNuvioImageRequest
 import com.nuvio.app.features.home.MetaPreview
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -220,8 +222,15 @@ private fun HeroBackgroundLayers(
 
     layerPages.forEach { page ->
         val item = items[page]
-        AsyncImage(
+        // Backdrops render at full hero width; shelf cards can reuse this exact same URL as a
+        // fallback poster at ~250px. Without a bucketed key, whichever size decoded most
+        // recently evicts the other from the memory cache — see NuvioImageCacheBucket.
+        val heroImageRequest = rememberNuvioImageRequest(
             model = item.banner ?: item.poster,
+            bucket = NuvioImageCacheBucket.HeroBackdrop,
+        )
+        AsyncImage(
+            model = heroImageRequest,
             contentDescription = item.name,
             modifier = Modifier
                 .fillMaxWidth()

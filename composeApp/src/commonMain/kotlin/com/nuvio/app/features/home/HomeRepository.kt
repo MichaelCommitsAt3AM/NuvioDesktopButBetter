@@ -44,6 +44,7 @@ object HomeRepository {
     private var collectionHeroRequestKey: String? = null
     private var lastPublishedCatalogHeroEmpty: Boolean = true
     private var lastErrorMessage: String? = null
+    private var publishedSectionsByKey: Map<String, HomeCatalogSection> = emptyMap()
 
     fun refresh(addons: List<ManagedAddon>, force: Boolean = false) {
         val activeAddons = addons.enabledAddons()
@@ -184,6 +185,7 @@ object HomeRepository {
         collectionHeroRequestKey = null
         lastPublishedCatalogHeroEmpty = true
         lastErrorMessage = null
+        publishedSectionsByKey = emptyMap()
         _uiState.value = HomeUiState()
     }
 
@@ -200,6 +202,7 @@ object HomeRepository {
         fun HomeCatalogSection.withReleaseFilter(): HomeCatalogSection =
             if (todayIsoDate == null) this else filterReleasedItems(todayIsoDate)
 
+        val nextPublishedSectionsByKey = mutableMapOf<String, HomeCatalogSection>()
         val sections = currentDefinitions
             .sortedBy { definition -> preferences[definition.key]?.order ?: Int.MAX_VALUE }
             .mapNotNull { definition ->
@@ -209,10 +212,24 @@ object HomeRepository {
                 val section = cachedSections[definition.cacheKey]?.withReleaseFilter() ?: return@mapNotNull null
                 if (section.items.isEmpty()) return@mapNotNull null
                 val customTitle = preference?.customTitle.orEmpty()
-                section.copy(
+                val processedSection = section.copy(
                     title = customTitle.ifBlank { definition.titleFor(snapshot.showCatalogType) },
                 )
+                // Reuse the previously published instance when nothing about it actually
+                // changed. publishCurrentState runs repeatedly while a batch is still loading
+                // (and again on unrelated settings changes), and rebuilding every section via
+                // copy() on every call broke reference equality for sections that hadn't
+                // changed at all — under Compose's strong-skipping mode, an unstable type like
+                // HomeCatalogSection can still be skipped by reference equality, but not by
+                // structural equality, so a fresh copy() forced every visible shelf to
+                // recompose on every publish.
+                val stableSection = publishedSectionsByKey[definition.key]
+                    ?.takeIf { it == processedSection }
+                    ?: processedSection
+                nextPublishedSectionsByKey[definition.key] = stableSection
+                stableSection
             }
+        publishedSectionsByKey = nextPublishedSectionsByKey
 
         if (sections.isEmpty() && currentDefinitions.isNotEmpty()) {
             val disabledByPreferenceCount = currentDefinitions.count { preferences[it.key]?.enabled == false }

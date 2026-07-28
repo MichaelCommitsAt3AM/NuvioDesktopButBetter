@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -69,6 +68,7 @@ internal fun TabletStreamsLayout(
     onStreamSelected: (stream: StreamItem, resumePositionMs: Long?, resumeProgressFraction: Float?) -> Unit,
     onStreamLongPress: (StreamItem) -> Unit,
     onRefresh: () -> Unit,
+    onOpenDownloadFilterSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val hazeState = rememberHazeState()
@@ -194,12 +194,24 @@ internal fun TabletStreamsLayout(
                             )
                         }
 
-                        ProviderFilterRow(
-                            groups = uiState.groups,
-                            selectedFilter = uiState.selectedFilter,
-                            onFilterSelected = { addonId -> StreamsRepository.selectFilter(addonId) },
-                            onRefresh = onRefresh,
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            ProviderFilterRow(
+                                groups = uiState.groups,
+                                selectedFilter = uiState.selectedFilter,
+                                onFilterSelected = { addonId -> StreamsRepository.selectFilter(addonId) },
+                                onRefresh = onRefresh,
+                                modifier = Modifier.weight(1f),
+                            )
+                            DownloadFilterChip(
+                                mode = uiState.downloadFilterMode,
+                                onModeSelected = { StreamsRepository.setDownloadFilterMode(it) },
+                                onOpenFilterSettings = onOpenDownloadFilterSettings,
+                                modifier = Modifier.padding(start = 8.dp, end = 12.dp),
+                            )
+                        }
 
                         ActiveScrapersStatusBlock(
                             groups = uiState.groups,

@@ -2954,6 +2954,11 @@ private fun MainAppContent(
                                 )
                             },
                             onBack = onBack,
+                            onOpenDownloadFilterSettings = {
+                                navController.navigate(
+                                    DownloadsSettingsRoute(downloadsSettingsTitle, openFilterSettings = true),
+                                )
+                            },
                             modifier = Modifier.fillMaxSize(),
                         )
                         pendingP2pStreamOpen?.let { pending ->
@@ -3216,6 +3221,7 @@ private fun MainAppContent(
                     DownloadsScreen(
                         onBack = onBack,
                         onOpenDownload = ::openDownloadedItem,
+                        initialShowFilterSettings = route.openFilterSettings,
                         onNavigateToShow = if (useNativeNavigation) {
                             { showId, title ->
                                 navController.navigate(DownloadShowRoute(showId, title))

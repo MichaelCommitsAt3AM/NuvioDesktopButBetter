@@ -2,6 +2,9 @@ package com.nuvio.app.core.ui
 
 import coil3.ComponentRegistry
 import coil3.ImageLoader
+import coil3.disk.DiskCache
+import coil3.disk.directory
+import coil3.memory.MemoryCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
 import java.util.concurrent.Executors
@@ -36,6 +39,24 @@ private val ImageFetchContext: CoroutineContext = Dispatchers.IO.limitedParallel
 internal actual fun ImageLoader.Builder.configurePlatformImageLoader(): ImageLoader.Builder = this
     .fetcherCoroutineContext(ImageFetchContext)
     .decoderCoroutineContext(ImageDecodeContext)
+    .eventListenerFactory(NuvioImageEventListener.factory)
+    // Decoded bitmaps are Skia-native allocations sized off physical RAM (see
+    // DesktopImageCacheConfig) — Coil's non-Android default is 15% of a hardcoded 512MB
+    // assumption, which bears no relation to the machine this actually runs on.
+    .memoryCache {
+        MemoryCache.Builder()
+            .maxSizeBytes(DesktopImageCacheConfig.memoryCacheMaxSizeBytes)
+            .build()
+    }
+    // Coil's non-Android disk cache default lives under the OS temp directory, which Storage
+    // Sense and cleaner tools purge — making a "warm" start regularly turn into a cold one.
+    // This is a real, app-owned directory with an explicit cap instead of a percent-of-disk one.
+    .diskCache {
+        DiskCache.Builder()
+            .directory(DesktopImageCacheConfig.diskCacheDirectory().toFile())
+            .maxSizeBytes(DesktopImageCacheConfig.DiskCacheMaxSizeBytes)
+            .build()
+    }
 
 internal actual fun ComponentRegistry.Builder.addPlatformImageComponents(): ComponentRegistry.Builder =
     add(NuvioSkiaImageDecoder.Factory())

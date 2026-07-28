@@ -11,6 +11,8 @@ import coil3.fetch.SourceFetchResult
 import coil3.request.Options
 import coil3.request.maxBitmapSize
 import coil3.size.Precision
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import okio.use
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.FilterMipmap
@@ -37,12 +39,30 @@ internal class NuvioSkiaImageDecoder(
 
     @OptIn(ExperimentalCoilApi::class)
     override suspend fun decode(): DecodeResult {
+        val decodeStartNanos = if (NuvioImageTelemetry.enabled) System.nanoTime() else 0L
+
         // Skia needs the whole encoded image up front: https://github.com/JetBrains/skiko/issues/741
         val bytes = source.source().use { it.readByteArray() }
+        // Addon artwork is untrusted network content. Bound the read before it ever reaches
+        // Skia — a pathological or malicious response shouldn't get to allocate native memory
+        // proportional to whatever size it claims.
+        check(bytes.size <= MaxEncodedBytes) {
+            "Image payload too large: ${bytes.size} bytes (max $MaxEncodedBytes)"
+        }
+        currentCoroutineContext().ensureActive()
+
         val image = SkiaImage.makeFromEncoded(bytes)
         try {
             val srcWidth = image.width
             val srcHeight = image.height
+            // makeFromEncoded only parses the header at this point (the full pixel decode
+            // happens in scalePixels below), so this check keeps an oversized source from ever
+            // reaching the expensive path.
+            check(srcWidth <= MaxSourceDimensionPx && srcHeight <= MaxSourceDimensionPx) {
+                "Image dimensions too large: ${srcWidth}x$srcHeight (max $MaxSourceDimensionPx per side)"
+            }
+            currentCoroutineContext().ensureActive()
+
             val dstSize = DecodeUtils.computeDstSize(
                 srcWidth = srcWidth,
                 srcHeight = srcHeight,
@@ -77,6 +97,17 @@ internal class NuvioSkiaImageDecoder(
             )
             bitmap.setImmutable()
 
+            if (NuvioImageTelemetry.enabled) {
+                NuvioImageTelemetry.logDecode(
+                    encodedBytes = bytes.size,
+                    srcWidth = srcWidth,
+                    srcHeight = srcHeight,
+                    outWidth = outWidth,
+                    outHeight = outHeight,
+                    decodeMs = (System.nanoTime() - decodeStartNanos) / 1_000_000,
+                )
+            }
+
             return DecodeResult(
                 image = bitmap.asImage(),
                 isSampled = isSampled,
@@ -97,5 +128,10 @@ internal class NuvioSkiaImageDecoder(
     private companion object {
         val DownscaleSampling = FilterMipmap(FilterMode.LINEAR, MipmapMode.LINEAR)
         val CopySampling = FilterMipmap(FilterMode.LINEAR, MipmapMode.NONE)
+
+        // Generous relative to real poster/backdrop artwork (typically well under 1MB/4K px)
+        // but bounded, since this decodes arbitrary addon-supplied network responses.
+        const val MaxEncodedBytes = 20 * 1024 * 1024
+        const val MaxSourceDimensionPx = 4096
     }
 }

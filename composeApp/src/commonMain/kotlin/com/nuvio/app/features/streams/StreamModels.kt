@@ -294,6 +294,8 @@ data class StreamsUiState(
     val groups: List<AddonStreamGroup> = emptyList(),
     val activeAddonIds: Set<String> = emptySet(),
     val selectedFilter: String? = null,
+    val downloadFilterMode: com.nuvio.app.features.downloads.DownloadStreamFilterMode =
+        com.nuvio.app.features.downloads.DownloadStreamFilterMode.BEST_QUALITY,
     val isAnyLoading: Boolean = false,
     val emptyStateReason: StreamsEmptyStateReason? = null,
     val autoPlayStream: StreamItem? = null,

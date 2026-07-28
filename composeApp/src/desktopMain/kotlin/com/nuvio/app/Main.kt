@@ -18,6 +18,7 @@ import co.touchlab.kermit.Logger
 import com.nuvio.app.core.diagnostics.DesktopDiagnostics
 import com.nuvio.app.core.diagnostics.KermitFileLogWriter
 import com.nuvio.app.core.deeplink.handleAppUrl
+import com.nuvio.app.core.ui.NuvioFrameTimeProbe
 import com.nuvio.app.features.p2p.P2pStreamingEngine
 import com.nuvio.app.features.player.PlatformPlayerSurface
 import com.nuvio.app.features.player.desktop.DesktopAppFullscreenController
@@ -196,6 +197,7 @@ fun main(args: Array<String>) {
             }
 
             if (smokePlayerUrl == null) {
+                NuvioFrameTimeProbe()
                 App()
             } else {
                 PlatformPlayerSurface(

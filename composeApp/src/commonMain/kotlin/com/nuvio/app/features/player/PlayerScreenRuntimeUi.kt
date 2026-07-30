@@ -690,6 +690,8 @@ private fun PlayerScreenRuntime.handlePlayerControlsAction(action: PlayerControl
         PlayerControlsAction.KeyboardVolumeUp -> {
             return false
         }
+        PlayerControlsAction.KeyboardHoldSpeedStart -> activateHoldToSpeed()
+        PlayerControlsAction.KeyboardHoldSpeedEnd -> deactivateHoldToSpeed()
         PlayerControlsAction.ResizeMode -> cycleResizeMode()
         PlayerControlsAction.Speed -> cyclePlaybackSpeed()
         PlayerControlsAction.Subtitles -> {

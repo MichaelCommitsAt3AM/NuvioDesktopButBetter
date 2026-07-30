@@ -89,3 +89,22 @@ Two independent versions are tracked, both managed through `scripts/set-version.
 `.github/workflows/android-release.yml` (`workflow_dispatch`, modes `dry-run`/`draft`/`publish`) builds and publishes Android releases: it reads the version/tag from the latest bump to `Version.xcconfig` via `scripts/release-metadata.sh`, requires that bump commit to be the *last* change before releasing (fails otherwise), generates release notes from commit history via `scripts/generate-release-notes.sh` (filters out `bump version`/`cleanup`/conventional-commit noise and anything tagged `[skip release notes]`), then builds `:androidApp:assembleFullRelease` using secrets `NUVIO_LOCAL_PROPERTIES_BASE64` and `NUVIO_RELEASE_KEYSTORE_BASE64`, and creates the GitHub release. In other words: bump the base version with `set-version.sh --base`, commit that alone, then dispatch this workflow — don't bundle other changes into the bump commit.
 
 Desktop packages (DMG/MSI/DEB) are **not** built by this workflow — they're built locally per-platform via the commands above.
+
+### Desktop release process (manual)
+
+There is no CI workflow for desktop releases — do the whole thing locally:
+
+1. Commit the feature/fix work first.
+2. Bump the desktop version and commit that separately (`bump version`, matching existing history — don't bundle it with feature changes): `./scripts/set-version.sh --desktop <version> --desktop-code <code>`. On this fork, `VERSION_NAME` is `Major.Minor.Patch.Fork` — the first three segments mirror upstream's last-synced base version, and `Fork` increments by 1 per release since that sync (e.g. `0.1.14.1` → `0.1.14.2`). `Fork` resets to `1` only when the release is itself an upstream sync (e.g. after merging upstream `0.1.15`, the next release is `0.1.15.1`). `VERSION_CODE` always goes up by 1 regardless of the version string.
+3. `git push origin <branch>`, then tag and push the tag — the tag name is the bare version string, no `v` prefix (`git tag -a <version> -m "Desktop <version>" && git push origin <version>`).
+4. Build the platform package locally: `./gradlew.bat :composeApp:packageReleaseMsi --rerun-tasks` on Windows (`--rerun-tasks` because jpackage's up-to-date checks are unreliable here). The build logs two output paths; use the one it prints as `Published Windows MSI artifact:` — `composeApp/build/compose/release-msis/Nuvio-Windows-x64-<version>.msi` — not the raw jpackage path also logged above it.
+5. Create the release **and always pass `--repo MichaelCommitsAt3AM/NuvioDesktopButBetter` explicitly** to every `gh release` command: this repo has both `origin` and `upstream` remotes, and `gh` will resolve to the wrong one (`upstream`) without it, failing with "tag exists locally but has not been pushed to NuvioMedia/NuvioDesktop". Title is `<Major.Minor.Patch> - Fork update <Fork>` for a regular release, or `<Major.Minor.Patch> - sync with upstream` when `Fork` is `1` because this release is an upstream sync.
+   ```bash
+   gh release create <version> --repo MichaelCommitsAt3AM/NuvioDesktopButBetter \
+     --title "<Major.Minor.Patch> - Fork update <Fork>" --prerelease --notes "..."
+   gh release upload <version> --repo MichaelCommitsAt3AM/NuvioDesktopButBetter path/to/Nuvio-Windows-x64-<version>.msi
+   ```
+   `scripts/generate-release-notes.sh --from <prev-tag> --to <version> --repository MichaelCommitsAt3AM/NuvioDesktopButBetter --offline` exists but only lists bare commit subjects — write real user-facing notes by hand for anything meant to be read.
+6. To make a release the one GitHub shows as "Latest" (instead of just a dated pre-release): `gh release edit <version> --repo MichaelCommitsAt3AM/NuvioDesktopButBetter --prerelease=false --latest`.
+
+macOS/Linux packages follow the same upload/tag pattern but use `scripts/build-macos-release-dmgs.sh` / `packageReleaseDeb` (see Commands above) and haven't been exercised through this exact flow.

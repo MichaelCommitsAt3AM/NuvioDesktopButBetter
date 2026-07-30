@@ -319,6 +319,10 @@ let fullscreenExitPending = false;
 let isScrubbing = false;
 let scrubPositionMs = 0;
 let tapTimer = 0;
+let spaceHoldTimer = 0;
+let spaceHoldActive = false;
+let spaceHoldTracked = false;
+const spaceHoldThresholdMs = 350;
 let activeModal = "";
 let pressedButton = null;
 let focusedActionCommand = "";
@@ -1994,7 +1998,6 @@ const isTextEntryTarget = target => {
 const shortcutCommandForEvent = event => {
   if (event.metaKey || event.ctrlKey || event.altKey) return "";
   switch (event.code) {
-    case "Space":
     case "KeyK":
       return "keyboardToggle";
     case "ArrowLeft":
@@ -2643,6 +2646,21 @@ document.addEventListener("keydown", event => {
   if (handleTvStyleControlKey(event)) {
     return;
   }
+  if (event.code === "Space" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+    event.preventDefault();
+    if (event.repeat) return;
+    focusShortcutRoot();
+    noteChromeActivity();
+    spaceHoldTracked = true;
+    spaceHoldActive = false;
+    window.clearTimeout(spaceHoldTimer);
+    spaceHoldTimer = window.setTimeout(() => {
+      spaceHoldActive = true;
+      send("keyboardHoldSpeedStart", 0);
+      showPlayerToast("2x speed", { durationMs: 60000 });
+    }, spaceHoldThresholdMs);
+    return;
+  }
   const command = shortcutCommandForEvent(event);
   if (!command) {
     return;
@@ -2664,6 +2682,19 @@ document.addEventListener("keydown", event => {
   }
   showCommandToast(command);
   send(command, 0);
+});
+
+document.addEventListener("keyup", event => {
+  if (event.code !== "Space" || !spaceHoldTracked) return;
+  spaceHoldTracked = false;
+  window.clearTimeout(spaceHoldTimer);
+  if (spaceHoldActive) {
+    spaceHoldActive = false;
+    hidePlayerToast();
+    send("keyboardHoldSpeedEnd", 0);
+    return;
+  }
+  send("keyboardToggle", 0);
 });
 
 setProgress(0, 0);

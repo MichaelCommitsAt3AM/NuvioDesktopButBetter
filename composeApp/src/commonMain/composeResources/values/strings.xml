@@ -2001,6 +2001,7 @@
     <string name="updates_download_failed_http">Download failed with HTTP %1$d</string>
     <string name="updates_downloaded_file_missing">Downloaded update file is missing.</string>
     <string name="updates_empty_download_body">Empty download body</string>
+    <string name="updates_download_incomplete">Download incomplete, please try again.</string>
     <string name="updates_github_api_error">GitHub releases API error: %1$d</string>
     <string name="updates_no_channel_release">No update has been published yet.</string>
     <string name="updates_release_missing_title">Release has no tag or name</string>

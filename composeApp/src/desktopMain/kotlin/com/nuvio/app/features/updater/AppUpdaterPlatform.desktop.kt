@@ -7,6 +7,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.updates_download_failed_http
+import nuvio.composeapp.generated.resources.updates_download_incomplete
 import nuvio.composeapp.generated.resources.updates_downloaded_file_missing
 import nuvio.composeapp.generated.resources.updates_empty_download_body
 import org.jetbrains.compose.resources.getString
@@ -96,6 +97,11 @@ actual object AppUpdaterPlatform {
                 }
             } ?: error(runBlocking { getString(Res.string.updates_empty_download_body) })
 
+            if (totalBytes != null && downloadedBytes != totalBytes) {
+                tempFile.delete()
+                error(runBlocking { getString(Res.string.updates_download_incomplete) })
+            }
+
             if (!tempFile.renameTo(destination)) {
                 tempFile.copyTo(destination, overwrite = true)
                 tempFile.delete()
@@ -112,8 +118,12 @@ actual object AppUpdaterPlatform {
         val updateFile = File(path)
         check(updateFile.exists()) { runBlocking { getString(Res.string.updates_downloaded_file_missing) } }
 
-        launchInstaller(updateFile)
-        scheduleAppExit()
+        if (currentOs == DesktopUpdaterOs.WINDOWS && updateFile.extension.equals("msi", ignoreCase = true)) {
+            installWindowsMsiSilently(updateFile)
+        } else {
+            launchInstaller(updateFile)
+            scheduleAppExit()
+        }
     }
 
     private fun updatesDir(): File =
@@ -134,6 +144,40 @@ actual object AppUpdaterPlatform {
             Thread.sleep(500)
             exitProcess(0)
         }
+    }
+
+    // Hands off to a detached script that waits for this process to release its file locks, runs msiexec silently, and relaunches - avoids the interactive wizard getting abandoned after we force-exit.
+    private fun installWindowsMsiSilently(updateFile: File) {
+        val exePath = ProcessHandle.current().info().command().orElse(null)
+        if (exePath == null) {
+            // Can't determine what to relaunch - fall back to the old interactive flow.
+            launchInstaller(updateFile)
+            scheduleAppExit()
+            return
+        }
+        val script = writeWindowsUpdateScript(ProcessHandle.current().pid(), updateFile, File(exePath))
+        ProcessBuilder("cmd", "/c", "start", "/min", "", script.absolutePath).start()
+        exitProcess(0)
+    }
+
+    private fun writeWindowsUpdateScript(pid: Long, msiFile: File, exeFile: File): File {
+        val script = File(updatesDir(), "apply-update.bat")
+        script.writeText(
+            """
+            @echo off
+            :waitloop
+            tasklist /FI "PID eq $pid" 2>NUL | find /I "$pid" >NUL
+            if not errorlevel 1 (
+              timeout /t 1 /nobreak >NUL
+              goto waitloop
+            )
+            msiexec /i "${msiFile.absolutePath}" /passive /norestart
+            if %ERRORLEVEL%==0 start "" "${exeFile.absolutePath}"
+            if %ERRORLEVEL%==3010 start "" "${exeFile.absolutePath}"
+            del "%~f0"
+            """.trimIndent()
+        )
+        return script
     }
 }
 

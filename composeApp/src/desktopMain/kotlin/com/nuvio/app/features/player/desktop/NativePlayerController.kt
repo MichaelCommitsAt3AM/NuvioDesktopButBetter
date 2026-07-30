@@ -778,6 +778,8 @@ private fun String.toPlayerControlsAction(): PlayerControlsAction? =
         "keyboardSeekForward" -> PlayerControlsAction.KeyboardSeekForward
         "keyboardVolumeDown" -> PlayerControlsAction.KeyboardVolumeDown
         "keyboardVolumeUp" -> PlayerControlsAction.KeyboardVolumeUp
+        "keyboardHoldSpeedStart" -> PlayerControlsAction.KeyboardHoldSpeedStart
+        "keyboardHoldSpeedEnd" -> PlayerControlsAction.KeyboardHoldSpeedEnd
         "resize" -> PlayerControlsAction.ResizeMode
         "speed" -> PlayerControlsAction.Speed
         "subtitles" -> PlayerControlsAction.Subtitles

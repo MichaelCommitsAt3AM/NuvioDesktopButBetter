@@ -70,9 +70,18 @@ validate_version() {
 validate_code() {
   local label="$1"
   local value="$2"
+  local file="$3"
+  local key="$4"
 
   [[ "$value" =~ ^[0-9]+$ ]] || die "$label must be a positive integer"
   (( 10#$value > 0 )) || die "$label must be greater than 0"
+
+  local current
+  current="$(read_key "$file" "$key")"
+  if [[ -n "$current" && "$current" =~ ^[0-9]+$ ]]; then
+    (( 10#$value > 10#$current )) ||
+      die "$label ($value) must be greater than the current value ($current) - it must strictly increase every release (the Windows in-app updater and the MSI's ProductVersion depend on it)."
+  fi
 }
 
 write_key() {
@@ -193,13 +202,13 @@ if [[ -n "$BASE_VERSION" ]]; then
   validate_version "base version" "$BASE_VERSION"
 fi
 if [[ -n "$BASE_CODE" ]]; then
-  validate_code "base code" "$BASE_CODE"
+  validate_code "base code" "$BASE_CODE" "$BASE_VERSION_FILE" "CURRENT_PROJECT_VERSION"
 fi
 if [[ -n "$DESKTOP_VERSION" ]]; then
   validate_version "desktop version" "$DESKTOP_VERSION"
 fi
 if [[ -n "$DESKTOP_CODE" ]]; then
-  validate_code "desktop code" "$DESKTOP_CODE"
+  validate_code "desktop code" "$DESKTOP_CODE" "$DESKTOP_VERSION_FILE" "VERSION_CODE"
 fi
 
 if [[ -n "$BASE_VERSION$BASE_CODE" ]]; then

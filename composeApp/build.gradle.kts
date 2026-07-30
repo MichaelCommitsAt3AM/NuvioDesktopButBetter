@@ -417,25 +417,6 @@ fun newestDirectory(root: File): File? =
         ?.listFiles(File::isDirectory)
         ?.maxByOrNull { semanticVersionSortKey(it.name) }
 
-fun jpackageCompatibleVersion(version: String): String {
-    val versionCore = version.substringBefore('-').substringBefore('+').trim()
-    val parts = versionCore.split('.').filter { it.isNotBlank() }
-    require(parts.isNotEmpty() && parts.size <= 3) {
-        "Desktop package version must use one to three numeric components: $version"
-    }
-    val numbers = parts.map { part ->
-        part.toIntOrNull() ?: error("Desktop package version component is not numeric: $version")
-    }.toMutableList()
-    require(numbers.all { it >= 0 }) {
-        "Desktop package version components must not be negative: $version"
-    }
-    while (numbers.size < 3) {
-        numbers += 0
-    }
-    numbers[0] = numbers[0].coerceAtLeast(1)
-    return numbers.joinToString(".")
-}
-
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidKotlinMultiplatformLibrary)
@@ -502,7 +483,10 @@ val desktopReleaseVersionCode = (
     ?.takeIf { it.isNotBlank() }
     ?.toIntOrNull()
     ?: 1
-val desktopReleasePackageVersion = jpackageCompatibleVersion(desktopReleaseVersionName)
+// Pinned Major.Minor + monotonic VERSION_CODE as Build: MSI's fixed UpgradeCode needs ProductVersion
+// to strictly increase every release, which a marketing-version-derived value can't guarantee across
+// upstream syncs (components reset on upstream's own bumps).
+val desktopReleasePackageVersion = "1.0.$desktopReleaseVersionCode"
 val windowsMsiUpgradeUuid = "395990ee-9b8a-3548-922c-e7a23a495b8d"
 val iosDistribution = (
     providers.gradleProperty("nuvio.ios.distribution").orNull

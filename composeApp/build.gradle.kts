@@ -217,6 +217,10 @@ abstract class NotarizeMacosDmgWithKeychainTask @Inject constructor(
     @get:Input
     abstract val keychainProfile: Property<String>
 
+    @get:Optional
+    @get:Input
+    abstract val keychainPath: Property<String>
+
     @get:Input
     abstract val signingIdentity: Property<String>
 
@@ -237,16 +241,21 @@ abstract class NotarizeMacosDmgWithKeychainTask @Inject constructor(
 
         val dmg = ensureFinalDmg()
         signDmg(dmg, identity)
+        val notaryCommand = mutableListOf(
+            "xcrun",
+            "notarytool",
+            "submit",
+            dmg.absolutePath,
+            "--wait",
+            "--keychain-profile",
+            profile,
+        )
+        keychainPath.orNull
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { notaryCommand += listOf("--keychain", it) }
         execOperations.exec {
-            commandLine(
-                "xcrun",
-                "notarytool",
-                "submit",
-                dmg.absolutePath,
-                "--wait",
-                "--keychain-profile",
-                profile,
-            )
+            commandLine(notaryCommand)
         }
         execOperations.exec {
             commandLine("xcrun", "stapler", "staple", dmg.absolutePath)
@@ -449,6 +458,7 @@ val macosNotaryKeychainProfile = localOrEnvProperty("NUVIO_MACOS_NOTARY_KEYCHAIN
         ?.substringAfter(':')
         ?.trim()
         ?.takeIf { it.isNotBlank() }
+val macosNotaryKeychainPath = localOrEnvProperty("NUVIO_MACOS_NOTARY_KEYCHAIN_PATH")
 val macosNotaryAppSpecificPassword = macosNotaryPassword
     ?.takeUnless { it.startsWith("@keychain:", ignoreCase = true) }
 
@@ -591,9 +601,8 @@ val prepareMacosTorrServerResources = tasks.register<PrepareMacosTorrServerResou
     outputDir.set(layout.buildDirectory.dir("generated/signed-macos-torrserver-resources"))
     signingIdentity.set(macosSigningIdentity.orEmpty())
 }
-val mpvKitDir = providers.gradleProperty("nuvio.mpvkit.dir")
-    .orElse(rootProject.layout.projectDirectory.dir("MPVKit").asFile.absolutePath)
 val macosPlayerBridgeSource = layout.projectDirectory.file("src/desktopMain/native/macos/player_bridge.mm")
+val macosLibmpvHeaders = layout.projectDirectory.dir("src/desktopMain/native/macos/include")
 fun normalizedMacosArch(value: String): String =
     when (value.lowercase()) {
         "aarch64", "arm64" -> "arm64"
@@ -624,25 +633,19 @@ val macosDmgArchName = macosPlayerBridgeArch
 val isMacosDmgNotarizationRequested = requestedGradleTasks.any { taskName ->
     taskName == "notarizedmg" || taskName == "notarizereleasedmg"
 }
-val mpvKitRoot = File(mpvKitDir.get())
-val mpvKitDistRoot = File(mpvKitRoot, "dist")
-val mpvKitLibmpvRoot = File(mpvKitDistRoot, "libmpv/macos/thin/$macosPlayerBridgeArch")
-val mpvKitLibmpvHeaders = File(mpvKitLibmpvRoot, "include")
 val bundledMacosLibmpvRuntimeRoot = layout.projectDirectory.dir("src/desktopMain/native/macos/runtime").asFile
 val bundledMacosLibmpvRuntimeDir = File(bundledMacosLibmpvRuntimeRoot, macosPlayerBridgeArch)
 val bundledMacosLibmpvDylib = File(bundledMacosLibmpvRuntimeDir, "libmpv.2.dylib")
 val missingMacosPlayerBridgeInputs = listOfNotNull(
-    "MPVKit headers".takeUnless { File(mpvKitLibmpvHeaders, "mpv/client.h").exists() },
+    "libmpv headers".takeUnless { macosLibmpvHeaders.file("mpv/client.h").asFile.exists() },
     "bundled libmpv.2.dylib".takeUnless { bundledMacosLibmpvDylib.exists() },
 )
-val missingMpvKitMacosMessage = """
+val missingMacosPlayerBridgeMessage = """
     macOS libmpv inputs are missing for $macosPlayerBridgeArch: ${missingMacosPlayerBridgeInputs.joinToString()}.
-    Build MPVKit's macOS runtime first:
-      cd ${mpvKitRoot.absolutePath}
-      make build platform=macos
+    The libmpv headers must be present under ${macosLibmpvHeaders.asFile.absolutePath}.
     The dynamic libmpv runtime must be present under ${bundledMacosLibmpvRuntimeDir.absolutePath}.
 """.trimIndent()
-val missingMpvKitMacosShellMessage = missingMpvKitMacosMessage.replace("'", "'\"'\"'")
+val missingMacosPlayerBridgeShellMessage = missingMacosPlayerBridgeMessage.replace("'", "'\"'\"'")
 val macosPlayerBridgeSourceFile = macosPlayerBridgeSource.asFile
 val macosPlayerBridgeOutputFile = macosPlayerBridgeOutput.get().asFile
 val macosPlayerBridgeJavaHome = providers.systemProperty("java.home").get()
@@ -653,7 +656,7 @@ val macosPlayerBridgeCommand = if (missingMacosPlayerBridgeInputs.isNotEmpty()) 
     listOf(
         "/bin/sh",
         "-c",
-        "printf '%s\\n' '$missingMpvKitMacosShellMessage' >&2; exit 1",
+        "printf '%s\\n' '$missingMacosPlayerBridgeShellMessage' >&2; exit 1",
     )
 } else {
     mutableListOf(
@@ -677,7 +680,7 @@ val macosPlayerBridgeCommand = if (missingMacosPlayerBridgeInputs.isNotEmpty()) 
           -o ${shellQuote(macosPlayerBridgeOutputFile.absolutePath)} \
           -I${shellQuote("$macosPlayerBridgeJavaHome/include")} \
           -I${shellQuote("$macosPlayerBridgeJavaHome/include/darwin")} \
-          -I${shellQuote(mpvKitLibmpvHeaders.absolutePath)} \
+          -I${shellQuote(macosLibmpvHeaders.asFile.absolutePath)} \
           -L"${'$'}{SWIFT_LIB}" \
           -L/usr/lib/swift \
           -framework AppKit \
@@ -701,7 +704,7 @@ val buildMacosPlayerBridge = tasks.register<Exec>("buildMacosPlayerBridge") {
     enabled = isMacHost
     inputs.file(macosPlayerBridgeSource)
     inputs.file(bundledMacosLibmpvDylib)
-    inputs.dir(mpvKitLibmpvHeaders)
+    inputs.dir(macosLibmpvHeaders)
     outputs.file(macosPlayerBridgeOutput)
     commandLine(macosPlayerBridgeCommand)
 }
@@ -977,6 +980,9 @@ tasks.matching { it.name == "prepareAppResources" }.configureEach {
 }
 
 tasks.withType<ProcessResources>().matching { it.name == "desktopProcessResources" }.configureEach {
+    if (!isWindowsHost) {
+        exclude("torrserver/windows-amd64/**")
+    }
     if (isMacHost) {
         dependsOn(prepareMacosTorrServerResources)
         from(prepareMacosTorrServerResources.map { it.outputDir })
@@ -1405,6 +1411,7 @@ if (isMacHost) {
         finalDmgName.set("Nuvio-macOS-$macosDmgArchName-$desktopReleaseVersionName.dmg")
         defaultDmgName.set("Nuvio-$desktopReleasePackageVersion.dmg")
         keychainProfile.set(macosNotaryKeychainProfile.orEmpty())
+        keychainPath.set(macosNotaryKeychainPath.orEmpty())
         signingIdentity.set(macosSigningIdentity.orEmpty())
     }
 }

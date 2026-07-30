@@ -1,7 +1,9 @@
 package com.nuvio.app.features.home
 
 import co.touchlab.kermit.Logger
+import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.ManagedAddon
+import com.nuvio.app.features.addons.enabledAddons
 import com.nuvio.app.features.collection.Collection
 import com.nuvio.app.features.collection.CollectionRepository
 import kotlinx.coroutines.runBlocking
@@ -35,7 +37,6 @@ data class HomeCatalogSettingsUiState(
     val heroEnabled: Boolean = true,
     val showCatalogType: Boolean = true,
     val hideUnreleasedContent: Boolean = false,
-    val hideCatalogUnderline: Boolean = false,
     val items: List<HomeCatalogSettingsItem> = emptyList(),
 ) {
     val signature: String
@@ -45,8 +46,6 @@ data class HomeCatalogSettingsUiState(
             append(showCatalogType)
             append('|')
             append(hideUnreleasedContent)
-            append('|')
-            append(hideCatalogUnderline)
             append('|')
             append(
                 items.joinToString(separator = "|") { item ->
@@ -67,7 +66,6 @@ internal data class HomeCatalogSettingsSnapshot(
     val heroEnabled: Boolean,
     val showCatalogType: Boolean,
     val hideUnreleasedContent: Boolean,
-    val hideCatalogUnderline: Boolean,
     val preferences: Map<String, HomeCatalogPreference>,
 )
 
@@ -85,7 +83,6 @@ private data class StoredHomeCatalogSettingsPayload(
     val heroEnabled: Boolean = true,
     val showCatalogType: Boolean = true,
     val hideUnreleasedContent: Boolean = false,
-    val hideCatalogUnderline: Boolean = false,
     val items: List<StoredHomeCatalogPreference> = emptyList(),
 )
 
@@ -109,7 +106,6 @@ object HomeCatalogSettingsRepository {
     private var heroEnabled = true
     private var showCatalogType = true
     private var hideUnreleasedContent = false
-    private var hideCatalogUnderline = false
 
     fun onProfileChanged() {
         hasLoaded = false
@@ -117,7 +113,6 @@ object HomeCatalogSettingsRepository {
         heroEnabled = true
         showCatalogType = true
         hideUnreleasedContent = false
-        hideCatalogUnderline = false
         definitions = emptyList()
         collectionDefinitions = emptyList()
         _uiState.value = HomeCatalogSettingsUiState()
@@ -131,7 +126,6 @@ object HomeCatalogSettingsRepository {
         heroEnabled = true
         showCatalogType = true
         hideUnreleasedContent = false
-        hideCatalogUnderline = false
         _uiState.value = HomeCatalogSettingsUiState()
     }
 
@@ -149,8 +143,14 @@ object HomeCatalogSettingsRepository {
         persist()
     }
 
-    fun syncCollections(collections: List<Collection>) {
+    fun syncCollections(
+        collections: List<Collection>,
+        addons: List<ManagedAddon> = AddonRepository.uiState.value.addons.enabledAddons(),
+    ) {
         ensureLoaded()
+        if (definitions.isEmpty()) {
+            definitions = buildHomeCatalogDefinitions(addons)
+        }
         collectionDefinitions = buildCollectionDefinitions(collections)
         normalizePreferences()
         enforcePinnedCollectionsAtTop()
@@ -165,7 +165,6 @@ object HomeCatalogSettingsRepository {
             heroEnabled = heroEnabled,
             showCatalogType = showCatalogType,
             hideUnreleasedContent = hideUnreleasedContent,
-            hideCatalogUnderline = hideCatalogUnderline,
             preferences = preferences.mapValues { (_, value) ->
                 HomeCatalogPreference(
                     customTitle = value.customTitle,
@@ -205,15 +204,6 @@ object HomeCatalogSettingsRepository {
         HomeCatalogSettingsSyncService.triggerPush()
     }
 
-    fun setHideCatalogUnderline(enabled: Boolean) {
-        ensureLoaded()
-        if (hideCatalogUnderline == enabled) return
-        hideCatalogUnderline = enabled
-        publish()
-        persist()
-        HomeCatalogSettingsSyncService.triggerPush()
-    }
-
     fun setHeroSourceEnabled(key: String, enabled: Boolean) {
         updatePreference(key, pushRemote = false) { preference ->
             if (!enabled) {
@@ -243,7 +233,6 @@ object HomeCatalogSettingsRepository {
         heroEnabled = true
         showCatalogType = true
         hideUnreleasedContent = false
-        hideCatalogUnderline = false
         preferences.clear()
         normalizePreferences()
         publish()
@@ -293,7 +282,6 @@ object HomeCatalogSettingsRepository {
             heroEnabled = parsedPayload.heroEnabled
             showCatalogType = parsedPayload.showCatalogType
             hideUnreleasedContent = parsedPayload.hideUnreleasedContent
-            hideCatalogUnderline = parsedPayload.hideCatalogUnderline
             preferences = parsedPayload.items.associateBy { it.key }.toMutableMap()
             publish()
             return
@@ -394,7 +382,6 @@ object HomeCatalogSettingsRepository {
             heroEnabled = heroEnabled,
             showCatalogType = showCatalogType,
             hideUnreleasedContent = hideUnreleasedContent,
-            hideCatalogUnderline = hideCatalogUnderline,
             items = items,
         )
     }
@@ -406,7 +393,6 @@ object HomeCatalogSettingsRepository {
                     heroEnabled = heroEnabled,
                     showCatalogType = showCatalogType,
                     hideUnreleasedContent = hideUnreleasedContent,
-                    hideCatalogUnderline = hideCatalogUnderline,
                     items = preferences.values.sortedBy { it.order },
                 ),
             ),
@@ -503,7 +489,6 @@ object HomeCatalogSettingsRepository {
         return SyncHomeCatalogPayload(
             showCatalogType = showCatalogType,
             hideUnreleasedContent = hideUnreleasedContent,
-            hideCatalogUnderline = hideCatalogUnderline,
             items = items,
         )
     }
@@ -512,7 +497,6 @@ object HomeCatalogSettingsRepository {
         ensureLoaded()
         showCatalogType = payload.showCatalogType
         hideUnreleasedContent = payload.hideUnreleasedContent
-        hideCatalogUnderline = payload.hideCatalogUnderline
         if (payload.items.isNotEmpty()) {
             val existingHeroState = preferences.mapValues { it.value.heroSourceEnabled }
             val remotePreferences = payload.items.associate { item ->

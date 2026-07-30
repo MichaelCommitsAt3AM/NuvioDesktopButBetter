@@ -89,7 +89,6 @@ import com.nuvio.app.features.watching.domain.isReleasedBy
 import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.home.components.HomeCollectionRowSection
-import com.nuvio.app.features.watchprogress.ContinueWatchingSectionStyle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -101,7 +100,7 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import com.nuvio.app.features.trakt.TraktEpisodeMappingService
-import com.nuvio.app.features.home.components.continueWatchingLandscapeCardHeight
+import com.nuvio.app.features.home.components.continueWatchingHeroViewportReserveHeight
 import com.nuvio.app.features.home.components.homeSectionHorizontalPaddingForWidth
 import com.nuvio.app.features.home.components.rememberContinueWatchingLayout
 import kotlinx.coroutines.CancellationException
@@ -469,37 +468,11 @@ fun HomeScreen(
     }
     val hasContinueWatchingRows = continueWatchingItems.isNotEmpty() || upcomingItems.isNotEmpty()
 
-    LaunchedEffect(activeProfileId, continueWatchingItems.isNotEmpty(), hasUserScrolledContinueWatching) {
-        if (!hasUserScrolledContinueWatching && continueWatchingItems.isNotEmpty()) {
-            snapshotFlow {
-                continueWatchingListState.firstVisibleItemIndex to
-                    continueWatchingListState.firstVisibleItemScrollOffset
-            }.collect { (index, offset) ->
-                if (
-                    !hasUserScrolledContinueWatching &&
-                    !continueWatchingListState.isScrollInProgress &&
-                    (index != 0 || offset != 0)
-                ) {
-                    continueWatchingListState.scrollToItem(0)
-                }
-            }
-        }
-    }
-    LaunchedEffect(activeProfileId, upcomingItems.isNotEmpty(), hasUserScrolledUpcoming) {
-        if (!hasUserScrolledUpcoming && upcomingItems.isNotEmpty()) {
-            snapshotFlow {
-                upcomingListState.firstVisibleItemIndex to
-                    upcomingListState.firstVisibleItemScrollOffset
-            }.collect { (index, offset) ->
-                if (
-                    !hasUserScrolledUpcoming &&
-                    !upcomingListState.isScrollInProgress &&
-                    (index != 0 || offset != 0)
-                ) {
-                    upcomingListState.scrollToItem(0)
-                }
-            }
-        }
+    LaunchedEffect(activeProfileId) {
+        hasUserScrolledContinueWatching = false
+        hasUserScrolledUpcoming = false
+        continueWatchingListState.scrollToItem(0)
+        upcomingListState.scrollToItem(0)
     }
     val enabledAddons = remember(addonsUiState.addons) {
         addonsUiState.addons.enabledAddons()
@@ -547,11 +520,8 @@ fun HomeScreen(
     }
 
     LaunchedEffect(collections, enabledAddons) {
-        HomeCatalogSettingsRepository.syncCollections(collections)
+        HomeCatalogSettingsRepository.syncCollections(collections, enabledAddons)
         HomeRepository.applyCurrentSettings()
-        if (collections.any { it.folders.isNotEmpty() }) {
-            HomeRepository.refresh(enabledAddons, force = true)
-        }
     }
 
     LaunchedEffect(
@@ -860,9 +830,6 @@ fun HomeScreen(
         val homeSectionPadding = homeSectionHorizontalPaddingForWidth(maxWidth.value)
         val continueWatchingLayout = rememberContinueWatchingLayout(maxWidth.value)
         val posterCardStyle = rememberPosterCardStyleUiState()
-        val continueWatchingCardHeight = remember(posterCardStyle.widthDp) {
-            continueWatchingLandscapeCardHeight(posterCardStyle.widthDp)
-        }
         val nativeBottomNavigationOverlayHeight =
             if (LocalNuvioBottomNavigationOverlayPadding.current > 0.dp) {
                 nuvioSafeBottomPadding()
@@ -875,18 +842,22 @@ fun HomeScreen(
             continueWatchingPreferences.style,
             hasContinueWatchingRows,
             continueWatchingLayout,
-            continueWatchingCardHeight,
+            posterCardStyle.widthDp,
             nativeBottomNavigationOverlayHeight,
         ) {
-            heroMobileBelowSectionHeightHint(
-                maxWidthDp = maxWidth.value,
-                continueWatchingVisible = continueWatchingPreferences.isVisible,
-                hasContinueWatchingRows = hasContinueWatchingRows,
-                continueWatchingStyle = continueWatchingPreferences.style,
-                continueWatchingLayout = continueWatchingLayout,
-                continueWatchingCardHeight = continueWatchingCardHeight,
-                bottomNavigationOverlayHeight = nativeBottomNavigationOverlayHeight,
-            )
+            if (
+                maxWidth.value < 600f &&
+                continueWatchingPreferences.isVisible &&
+                hasContinueWatchingRows
+            ) {
+                continueWatchingHeroViewportReserveHeight(
+                    style = continueWatchingPreferences.style,
+                    layout = continueWatchingLayout,
+                    basePosterWidthDp = posterCardStyle.widthDp,
+                ) + nativeBottomNavigationOverlayHeight
+            } else {
+                null
+            }
         }
 
         val heroStretchState = rememberHeroStretchState(homeListState)
@@ -973,7 +944,6 @@ fun HomeScreen(
                     ) {
                         HomeSkeletonRow(
                             modifier = Modifier.padding(horizontal = 16.dp),
-                            showHeaderAccent = !homeSettingsUiState.hideCatalogUnderline,
                         )
                     }
                 }
@@ -1029,7 +999,6 @@ fun HomeScreen(
                                         modifier = Modifier.padding(bottom = 12.dp),
                                         sectionPadding = homeSectionPadding,
                                         animateGifs = animateCollectionGifs,
-                                        showHeaderAccent = !homeSettingsUiState.hideCatalogUnderline,
                                         onFolderClick = onFolderClick,
                                     )
                                 }
@@ -1046,7 +1015,6 @@ fun HomeScreen(
                                         entries = sectionPreviewEntries[settingsItem.key].orEmpty(),
                                         modifier = Modifier.padding(bottom = 12.dp),
                                         sectionPadding = homeSectionPadding,
-                                        showHeaderAccent = !homeSettingsUiState.hideCatalogUnderline,
                                         onViewAllClick = if (section.canOpenCatalog(HOME_CATALOG_PREVIEW_LIMIT)) {
                                             onCatalogClick?.let { { it(section) } }
                                         } else {
@@ -1515,26 +1483,6 @@ private fun shouldTreatAsActiveInProgressForNextUpSuppression(
     if (!progress.shouldTreatAsInProgressForContinueWatching()) return false
     if (latestCompletedAt == null || latestCompletedAt == Long.MIN_VALUE) return true
     return progress.lastUpdatedEpochMs >= latestCompletedAt
-}
-
-private fun heroMobileBelowSectionHeightHint(
-    maxWidthDp: Float,
-    continueWatchingVisible: Boolean,
-    hasContinueWatchingRows: Boolean,
-    continueWatchingStyle: ContinueWatchingSectionStyle,
-    continueWatchingLayout: ContinueWatchingLayout,
-    continueWatchingCardHeight: Dp,
-    bottomNavigationOverlayHeight: Dp,
-): Dp? {
-    if (maxWidthDp >= 600f || !continueWatchingVisible || !hasContinueWatchingRows) return null
-
-    val sectionHeight = when (continueWatchingStyle) {
-        ContinueWatchingSectionStyle.Card -> continueWatchingCardHeight + 56.dp
-        ContinueWatchingSectionStyle.Wide -> continueWatchingLayout.wideCardHeight + 56.dp
-        ContinueWatchingSectionStyle.Poster ->
-            continueWatchingLayout.posterCardHeight + continueWatchingLayout.posterTitleBlockHeight + 70.dp
-    }
-    return sectionHeight + bottomNavigationOverlayHeight
 }
 
 internal fun buildHomeContinueWatchingItems(

@@ -2629,7 +2629,11 @@ document.addEventListener("keydown", event => {
   }
   if (event.key === "Escape") {
     event.preventDefault();
-    send("back", 0);
+    if (state.isFullscreen) {
+      togglePlayerFullscreen();
+    } else {
+      send("back", 0);
+    }
     return;
   }
   if (playbackErrorText()) return;

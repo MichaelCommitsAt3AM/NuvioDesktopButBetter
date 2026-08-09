@@ -1343,6 +1343,7 @@ fun MetaDetailsScreen(
                             backgroundColor = dominantBackdropColor.takeIf { dominantColorEnabled },
                             onBack = onBackFromDetails,
                             onToggleSaved = toggleSaved,
+                            modifier = Modifier.zIndex(2f),
                         )
 
                         selectedEpisodeForActions

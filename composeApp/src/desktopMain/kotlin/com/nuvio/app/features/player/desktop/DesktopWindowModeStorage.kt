@@ -23,6 +23,7 @@ internal data class DesktopWindowGeometry(
 internal object DesktopWindowModeStorage {
     private const val PersistDebounceMs = 150L
     private const val WasFullscreenKey = "was_fullscreen"
+    private const val WasMaximizedKey = "was_maximized"
     private const val WindowXKey = "window_x"
     private const val WindowYKey = "window_y"
     private const val WindowWidthKey = "window_width"
@@ -44,6 +45,13 @@ internal object DesktopWindowModeStorage {
             pendingFullscreen = fullscreen
             scheduleWriteLocked()
         }
+    }
+
+    fun loadWasMaximized(): Boolean? =
+        store.getBoolean(WasMaximizedKey)
+
+    fun saveWasMaximized(maximized: Boolean) {
+        store.putBoolean(WasMaximizedKey, maximized)
     }
 
     fun loadWindowedGeometry(): DesktopWindowGeometry? {

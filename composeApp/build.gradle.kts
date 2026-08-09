@@ -822,6 +822,7 @@ val windowsPlayerBridgeCommand = if (missingWindowsPlayerBridgeInputs.isNotEmpty
         "User32.lib",
         "Gdi32.lib",
         "Dwmapi.lib",
+        "Shell32.lib",
     ).joinToString(" ")
     val powershellCompileCommand = compileCommand.replace("\"", "__DQ__")
     val powershellCommand = """
@@ -1065,6 +1066,10 @@ kotlin {
                     defFile(project.file("src/nativeInterop/cinterop/commoncrypto.def"))
                     compilerOpts("-I${project.projectDir}/src/nativeInterop/cinterop")
                 }
+                create("appicon") {
+                    defFile(project.file("src/nativeInterop/cinterop/appicon.def"))
+                    compilerOpts("-I${project.projectDir}/src/nativeInterop/cinterop")
+                }
                 if (iosDistribution == "full") {
                     check(nuvioEngineSliceDirectory.resolve("libCNuvioEngine.a").isFile) {
                         "Build the local Nuvio Engine Apple XCFramework before compiling iOS Full."
@@ -1164,6 +1169,9 @@ kotlin {
                 exclude(group = "org.jetbrains.skiko", module = "skiko")
             }
             implementation("io.coil-kt.coil3:coil-network-ktor3:${libs.versions.coil.get()}") {
+                exclude(group = "org.jetbrains.skiko", module = "skiko")
+            }
+            implementation("io.coil-kt.coil3:coil-network-cache-control:${libs.versions.coil.get()}") {
                 exclude(group = "org.jetbrains.skiko", module = "skiko")
             }
             implementation("io.coil-kt.coil3:coil-svg:${libs.versions.coil.get()}") {

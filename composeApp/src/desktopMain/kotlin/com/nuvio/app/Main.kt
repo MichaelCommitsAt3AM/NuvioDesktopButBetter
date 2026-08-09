@@ -20,6 +20,7 @@ import com.nuvio.app.core.diagnostics.KermitFileLogWriter
 import com.nuvio.app.core.deeplink.handleAppUrl
 import com.nuvio.app.core.ui.NuvioFrameTimeProbe
 import com.nuvio.app.features.p2p.P2pStreamingEngine
+import com.nuvio.app.features.plugins.configureDesktopQuickJsLibrary
 import com.nuvio.app.features.player.PlatformPlayerSurface
 import com.nuvio.app.features.player.desktop.DesktopAppFullscreenController
 import com.nuvio.app.features.player.desktop.DesktopHostOs
@@ -55,6 +56,8 @@ fun main(args: Array<String>) {
     DesktopDiagnostics.initialize()
     Logger.addLogWriter(KermitFileLogWriter())
     markStartup("diagnostics_initialized")
+    configureDesktopQuickJsLibrary()
+    markStartup("quickjs_library_configured")
     configureDesktopChrome()
     markStartup("chrome_configured")
     // Desktop.getDesktop() triggers native Shell/COM initialization on first touch
@@ -81,7 +84,9 @@ fun main(args: Array<String>) {
             )
             ?.takeIf { it.isNotBlank() }
         val wasFullscreenOnLastExit = remember { DesktopWindowModeStorage.loadWasFullscreen() }
+        val wasMaximizedOnLastExit = remember { DesktopWindowModeStorage.loadWasMaximized() }
         val savedGeometry = remember { DesktopWindowModeStorage.loadWindowedGeometry() }
+        val restoresMaximizedWindowPlacement = DesktopHostOs.current != DesktopHostOs.MACOS
         val windowState = rememberWindowState(
             width = savedGeometry?.width?.dp ?: 1280.dp,
             height = savedGeometry?.height?.dp ?: 820.dp,
@@ -89,10 +94,17 @@ fun main(args: Array<String>) {
                 ?: WindowPosition.PlatformDefault,
             // Windows fullscreen is emulated natively (see DesktopAppFullscreenController)
             // rather than driven by WindowPlacement, so it's restored separately below.
-            placement = if (wasFullscreenOnLastExit && DesktopHostOs.current != DesktopHostOs.WINDOWS) {
-                WindowPlacement.Fullscreen
-            } else {
-                WindowPlacement.Floating
+            placement = when {
+                wasFullscreenOnLastExit && DesktopHostOs.current != DesktopHostOs.WINDOWS -> {
+                    WindowPlacement.Fullscreen
+                }
+                wasMaximizedOnLastExit == false && savedGeometry != null -> {
+                    WindowPlacement.Floating
+                }
+                restoresMaximizedWindowPlacement -> {
+                    WindowPlacement.Maximized
+                }
+                else -> WindowPlacement.Floating
             },
         )
         val fullscreenController = remember { DesktopAppFullscreenController() }
@@ -140,8 +152,11 @@ fun main(args: Array<String>) {
                 // coordinates aren't a meaningful "windowed position" to restore later.
                 snapshotFlow { Triple(windowState.placement, windowState.position, windowState.size) }
                     .collect { (placement, position, size) ->
-                        val isWindowed = placement == WindowPlacement.Floating &&
-                            !fullscreenController.isFullscreen(window, windowState)
+                        val isFullscreen = fullscreenController.isFullscreen(window, windowState)
+                        if (!isFullscreen && restoresMaximizedWindowPlacement) {
+                            DesktopWindowModeStorage.saveWasMaximized(placement == WindowPlacement.Maximized)
+                        }
+                        val isWindowed = placement == WindowPlacement.Floating && !isFullscreen
                         if (isWindowed && position.isSpecified) {
                             DesktopWindowModeStorage.saveWindowedGeometry(
                                 DesktopWindowGeometry(

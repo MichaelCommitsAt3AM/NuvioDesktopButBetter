@@ -3,6 +3,7 @@
 #endif
 #include <windows.h>
 #include <dwmapi.h>
+#include <shlobj.h>
 #include <wrl.h>
 #include <WebView2.h>
 #include <jni.h>
@@ -459,22 +460,27 @@ std::wstring moduleDirectory() {
     return path.substr(0, separator);
 }
 
-std::wstring tempUserDataDirectory() {
-    wchar_t tempPath[MAX_PATH] = {};
-    DWORD length = GetTempPathW(MAX_PATH, tempPath);
-    std::wstring result = length > 0 ? std::wstring(tempPath, tempPath + length) : L".\\";
-    if (!result.empty() && result.back() != L'\\' && result.back() != L'/') {
-        result.push_back(L'\\');
-    }
-    result += L"NuvioWebView2";
-    CreateDirectoryW(result.c_str(), nullptr);
-    return result;
-}
-
 std::string hresultMessage(const char *operation, HRESULT hr) {
     std::ostringstream builder;
     builder << operation << " failed: 0x" << std::hex << (unsigned long)hr;
     return builder.str();
+}
+
+std::wstring webViewUserDataDirectory() {
+    PWSTR localAppData = nullptr;
+    HRESULT result = SHGetKnownFolderPath(FOLDERID_LocalAppData, KF_FLAG_CREATE, nullptr, &localAppData);
+    if (FAILED(result) || !localAppData) {
+        if (localAppData) CoTaskMemFree(localAppData);
+        throw std::runtime_error(hresultMessage("SHGetKnownFolderPath", result));
+    }
+    std::wstring directory(localAppData);
+    CoTaskMemFree(localAppData);
+    directory += L"\\Nuvio\\WebView2";
+    int createResult = SHCreateDirectoryExW(nullptr, directory.c_str(), nullptr);
+    if (createResult != ERROR_SUCCESS && createResult != ERROR_ALREADY_EXISTS && createResult != ERROR_FILE_EXISTS) {
+        throw std::runtime_error("Failed to create WebView2 user data directory");
+    }
+    return directory;
 }
 
 struct MpvApi {
@@ -657,7 +663,7 @@ void runWebView2WarmupThread(std::string controlsUrl) {
         return;
     }
 
-    std::wstring userDataDir = tempUserDataDirectory();
+    std::wstring userDataDir = webViewUserDataDirectory();
     HRESULT envCallResult = CreateCoreWebView2EnvironmentWithOptions(
         nullptr,
         userDataDir.c_str(),
@@ -1162,27 +1168,32 @@ public:
         double outlineSize,
         bool bold,
         double fontSize,
-        int subPos
+        int subPos,
+        bool useLibass
     ) {
-        setStringProperty("sub-ass-override", "force");
-        setStringProperty("sub-color", textColor.empty() ? "#FFFFFFFF" : textColor);
-        setStringProperty("sub-back-color", backgroundColor.empty() ? "#00000000" : backgroundColor);
-        setStringProperty("sub-outline-color", outlineColor.empty() ? "#FF000000" : outlineColor);
-        setStringProperty(
-            "sub-border-style",
-            backgroundColor.rfind("#00", 0) == 0 ? "outline-and-shadow" : "opaque-box"
-        );
-        setStringProperty("sub-bold", bold ? "yes" : "no");
+        if (useLibass) {
+            setStringProperty("sub-ass-override", "no");
+        } else {
+            setStringProperty("sub-ass-override", "force");
+            setStringProperty("sub-color", textColor.empty() ? "#FFFFFFFF" : textColor);
+            setStringProperty("sub-back-color", backgroundColor.empty() ? "#00000000" : backgroundColor);
+            setStringProperty("sub-outline-color", outlineColor.empty() ? "#FF000000" : outlineColor);
+            setStringProperty(
+                "sub-border-style",
+                backgroundColor.rfind("#00", 0) == 0 ? "outline-and-shadow" : "opaque-box"
+            );
+            setStringProperty("sub-bold", bold ? "yes" : "no");
 
-        {
-            std::lock_guard<std::mutex> lock(mpvMutex);
-            if (!mpv) return;
-            double outline = std::max(0.0, std::min(8.0, outlineSize));
-            double size = std::max(18.0, std::min(96.0, fontSize));
-            int64_t position = std::max(0, std::min(150, subPos));
-            mpvApi().setProperty(mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
-            mpvApi().setProperty(mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &size);
-            mpvApi().setProperty(mpv, "sub-pos", MPV_FORMAT_INT64, &position);
+            {
+                std::lock_guard<std::mutex> lock(mpvMutex);
+                if (!mpv) return;
+                double outline = std::max(0.0, std::min(8.0, outlineSize));
+                double size = std::max(18.0, std::min(96.0, fontSize));
+                int64_t position = std::max(0, std::min(150, subPos));
+                mpvApi().setProperty(mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
+                mpvApi().setProperty(mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &size);
+                mpvApi().setProperty(mpv, "sub-pos", MPV_FORMAT_INT64, &position);
+            }
         }
     }
 
@@ -1410,7 +1421,7 @@ private:
     }
 
     void startWebView(const std::string &controlsUrl) {
-        std::wstring userDataDir = tempUserDataDirectory();
+        std::wstring userDataDir = webViewUserDataDirectory();
         auto weakSelf = weak_from_this();
         HRESULT result = CreateCoreWebView2EnvironmentWithOptions(
             nullptr,
@@ -2484,7 +2495,8 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
     jfloat outlineSize,
     jboolean bold,
     jfloat fontSize,
-    jint subPos
+    jint subPos,
+    jboolean useLibass
 ) {
     auto player = playerFromHandle(handle);
     if (!player) return;
@@ -2495,6 +2507,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
         outlineSize,
         bold == JNI_TRUE,
         fontSize,
-        subPos
+        subPos,
+        useLibass == JNI_TRUE
     );
 }

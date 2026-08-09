@@ -122,7 +122,8 @@
                              outlineSize:(double)outlineSize
                                     bold:(BOOL)bold
                                 fontSize:(double)fontSize
-                                  subPos:(int)subPos;
+                                  subPos:(int)subPos
+                               useLibass:(BOOL)useLibass;
 - (void)handleScriptMessage:(NSDictionary *)message;
 - (void)focusControlsWebViewIfNeeded;
 - (void)layoutNativeSubviews;
@@ -2025,24 +2026,29 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
                              outlineSize:(double)outlineSize
                                     bold:(BOOL)bold
                                 fontSize:(double)fontSize
-                                  subPos:(int)subPos {
+                                  subPos:(int)subPos
+                               useLibass:(BOOL)useLibass {
     if (!_mpv) return;
-    [self setStringProperty:"sub-ass-override" value:@"force"];
-    [self setStringProperty:"sub-color" value:textColor ?: @"#FFFFFFFF"];
-    [self setStringProperty:"sub-back-color" value:backgroundColor ?: @"#00000000"];
-    [self setStringProperty:"sub-outline-color" value:outlineColor ?: @"#FF000000"];
-    [self setStringProperty:"sub-border-style"
-                      value:[(backgroundColor ?: @"") hasPrefix:@"#00"] ? @"outline-and-shadow" : @"opaque-box"];
-    [self setStringProperty:"sub-bold" value:bold ? @"yes" : @"no"];
+    if (useLibass) {
+        [self setStringProperty:"sub-ass-override" value:@"no"];
+    } else {
+        [self setStringProperty:"sub-ass-override" value:@"force"];
+        [self setStringProperty:"sub-color" value:textColor ?: @"#FFFFFFFF"];
+        [self setStringProperty:"sub-back-color" value:backgroundColor ?: @"#00000000"];
+        [self setStringProperty:"sub-outline-color" value:outlineColor ?: @"#FF000000"];
+        [self setStringProperty:"sub-border-style"
+                          value:[(backgroundColor ?: @"") hasPrefix:@"#00"] ? @"outline-and-shadow" : @"opaque-box"];
+        [self setStringProperty:"sub-bold" value:bold ? @"yes" : @"no"];
 
-    double outline = MAX(0.0, MIN(8.0, outlineSize));
-    mpv_set_property(_mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
+        double outline = MAX(0.0, MIN(8.0, outlineSize));
+        mpv_set_property(_mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
 
-    double size = MAX(18.0, MIN(96.0, fontSize));
-    mpv_set_property(_mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &size);
+        double size = MAX(18.0, MIN(96.0, fontSize));
+        mpv_set_property(_mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &size);
 
-    int64_t position = MAX(0, MIN(150, subPos));
-    mpv_set_property(_mpv, "sub-pos", MPV_FORMAT_INT64, &position);
+        int64_t position = MAX(0, MIN(150, subPos));
+        mpv_set_property(_mpv, "sub-pos", MPV_FORMAT_INT64, &position);
+    }
 }
 
 - (double)doubleProperty:(const char *)name fallback:(double)fallback {
@@ -2834,7 +2840,8 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
     jfloat outlineSize,
     jboolean bold,
     jfloat fontSize,
-    jint subPos
+    jint subPos,
+    jboolean useLibass
 ) {
     if (handle == 0) return;
     std::string text = jstringToString(env, textColor);
@@ -2848,6 +2855,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
                                      outlineSize:(double)outlineSize
                                             bold:bold == JNI_TRUE
                                         fontSize:(double)fontSize
-                                          subPos:(int)subPos];
+                                          subPos:(int)subPos
+                                       useLibass:useLibass == JNI_TRUE];
     });
 }

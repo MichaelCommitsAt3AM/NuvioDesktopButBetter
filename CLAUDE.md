@@ -92,6 +92,8 @@ Two independent versions are tracked, both managed through `scripts/set-version.
 
 Desktop packages (DMG/MSI/DEB) are **not** built by this workflow — they're built locally per-platform via the commands above.
 
+GitHub release notes (both Android and desktop) should be short, feature-level bullet points in plain non-technical language (what changed for a user, not what changed in the code) — not a raw commit list. `scripts/generate-release-notes.sh` produces a commit-list draft; rewrite that into a handful of plain-English bullets before publishing, grouping related commits into one line each.
+
 ### Desktop release process (manual)
 
 There is no CI workflow for desktop releases — do the whole thing locally:

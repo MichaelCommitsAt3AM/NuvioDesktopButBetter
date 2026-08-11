@@ -18,6 +18,7 @@ import co.touchlab.kermit.Logger
 import com.nuvio.app.core.diagnostics.DesktopDiagnostics
 import com.nuvio.app.core.diagnostics.KermitFileLogWriter
 import com.nuvio.app.core.deeplink.handleAppUrl
+import com.nuvio.app.core.diagnostics.SentryInitializer
 import com.nuvio.app.core.ui.NuvioFrameTimeProbe
 import com.nuvio.app.features.p2p.P2pStreamingEngine
 import com.nuvio.app.features.plugins.configureDesktopQuickJsLibrary
@@ -31,6 +32,7 @@ import com.nuvio.app.features.player.desktop.installDesktopAppFullscreenShortcut
 import com.nuvio.app.features.player.desktop.notifyDesktopWindowGainedFocus
 import com.nuvio.app.features.player.desktop.preloadNativePlayerBridgeAsync
 import com.nuvio.app.features.player.desktop.registerDesktopAppFullscreenToggle
+import com.nuvio.app.features.settings.applyDesktopRendererPreference
 import java.awt.Component
 import java.awt.Container
 import java.awt.Desktop
@@ -45,6 +47,9 @@ private const val NuvioDesktopIconPath = "icons/nuvio-app-icon.png"
 private const val MacosDarkAquaAppearance = "NSAppearanceNameDarkAqua"
 
 fun main(args: Array<String>) {
+    applyDesktopRendererPreference()
+    SentryInitializer.start()
+
     val startupStartNanos = System.nanoTime()
     val jvmStartupMs = System.currentTimeMillis() -
         java.lang.management.ManagementFactory.getRuntimeMXBean().startTime
@@ -114,6 +119,7 @@ fun main(args: Array<String>) {
             onCloseRequest = {
                 DesktopDiagnostics.record("app_window_close_requested")
                 P2pStreamingEngine.shutdown()
+                SentryInitializer.close()
                 DesktopWindowModeStorage.flushPendingWrites()
                 DesktopDiagnostics.record("app_window_close_ready")
                 exitApplication()

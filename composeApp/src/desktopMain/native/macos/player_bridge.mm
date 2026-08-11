@@ -94,6 +94,7 @@
                       eventMethod:(jmethodID)eventMethod;
 - (void)shutdown;
 - (void)updateControlsJson:(NSString *)controlsJson;
+- (void)requestFocus;
 - (void)setPaused:(BOOL)paused;
 - (BOOL)isPaused;
 - (void)seekToMilliseconds:(long long)positionMs;
@@ -1169,6 +1170,13 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 
 - (void)focusControlsWebViewIfNeeded {
     if (_didFocusControlsWebView || !_webView || !_webView.window) {
+        return;
+    }
+    [self requestFocus];
+}
+
+- (void)requestFocus {
+    if (!_webView || !_webView.window) {
         return;
     }
     _didFocusControlsWebView = YES;
@@ -2532,6 +2540,19 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_updateControls(
     MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
     runOnMainAsync(^{
         [player updateControlsJson:[NSString stringWithUTF8String:controls.c_str()]];
+    });
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_requestFocus(
+    JNIEnv *,
+    jobject,
+    jlong handle
+) {
+    if (handle == 0) return;
+    MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
+    runOnMainAsync(^{
+        [player requestFocus];
     });
 }
 

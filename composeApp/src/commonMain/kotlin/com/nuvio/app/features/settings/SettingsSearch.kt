@@ -416,12 +416,30 @@ internal fun settingsSearchEntries(
         category = advancedCategory,
         icon = Icons.Rounded.Tune,
     )
+    if (DesktopRendererSettings.isSupported) {
+        addRow(
+            page = SettingsPage.Advanced,
+            key = "desktop-opengl-renderer",
+            title = stringResource(Res.string.settings_advanced_opengl_renderer),
+            description = stringResource(Res.string.settings_advanced_opengl_renderer_description),
+            pageLabel = advancedPage,
+            section = stringResource(Res.string.settings_advanced_section_windows_graphics),
+            category = advancedCategory,
+            icon = Icons.Rounded.Tune,
+        )
+    }
     if (SentrySettingsRepository.isSupported) {
         addRow(
             page = SettingsPage.Advanced,
             key = "sentry-crash-reports",
             title = stringResource(Res.string.settings_advanced_sentry_reports),
-            description = stringResource(Res.string.settings_advanced_sentry_reports_subtitle),
+            description = stringResource(
+                if (SentrySettingsPlatform.usesDesktopCopy) {
+                    Res.string.settings_advanced_sentry_reports_subtitle_desktop
+                } else {
+                    Res.string.settings_advanced_sentry_reports_subtitle
+                },
+            ),
             pageLabel = advancedPage,
             section = stringResource(Res.string.settings_advanced_section_diagnostics),
             category = advancedCategory,

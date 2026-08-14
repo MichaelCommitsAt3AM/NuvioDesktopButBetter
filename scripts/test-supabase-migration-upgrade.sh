@@ -5,6 +5,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DEVICE_MIGRATION="20260731090000_registered_devices.sql"
 LIBRARY_MIGRATION="20260731090001_library_delta_sync.sql"
+# Held back alongside the two migrations above so the initial baseline stays
+# at their predecessor's schema. Doesn't touch anything this test exercises
+# (library_items/registered_devices) — held back purely to keep the DB's
+# last-applied-migration timestamp behind DEVICE_MIGRATION/LIBRARY_MIGRATION,
+# since `migration up` refuses to insert older-dated files after a newer one
+# is already applied. Add any future migration here too, in the same way,
+# until this script is generalized to hold back everything newer than
+# DEVICE_MIGRATION automatically.
+ADDON_ALLOWLIST_MIGRATION="20260814120000_profile_primary_addons_allowlist.sql"
 TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/nuvio-supabase-upgrade.XXXXXX")"
 TEMP_SUPABASE="$TEMP_ROOT/supabase"
 DATABASE_CONTAINER="supabase_db_NuvioDesktop"
@@ -41,7 +50,8 @@ command -v docker >/dev/null 2>&1 || {
 cp -R "$REPO_ROOT/supabase" "$TEMP_SUPABASE"
 rm -f \
   "$TEMP_SUPABASE/migrations/$DEVICE_MIGRATION" \
-  "$TEMP_SUPABASE/migrations/$LIBRARY_MIGRATION"
+  "$TEMP_SUPABASE/migrations/$LIBRARY_MIGRATION" \
+  "$TEMP_SUPABASE/migrations/$ADDON_ALLOWLIST_MIGRATION"
 
 cd "$TEMP_ROOT"
 supabase db start
@@ -77,6 +87,7 @@ SQL
 cp \
   "$REPO_ROOT/supabase/migrations/$DEVICE_MIGRATION" \
   "$REPO_ROOT/supabase/migrations/$LIBRARY_MIGRATION" \
+  "$REPO_ROOT/supabase/migrations/$ADDON_ALLOWLIST_MIGRATION" \
   "$TEMP_SUPABASE/migrations/"
 
 supabase migration up --local

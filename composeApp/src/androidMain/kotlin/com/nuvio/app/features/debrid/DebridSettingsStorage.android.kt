@@ -54,6 +54,10 @@ actual object DebridSettingsStorage {
         preferences = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
     }
 
+    // Debrid/Torbox connection is shared across all profiles, so it's always
+    // pinned to the primary profile's storage slot regardless of which profile is active.
+    private fun sharedKey(baseKey: String): String = ProfileScopedKey.of(baseKey, 1)
+
     actual fun loadEnabled(): Boolean? = loadBoolean(enabledKey)
 
     actual fun saveEnabled(enabled: Boolean) {
@@ -161,13 +165,13 @@ actual object DebridSettingsStorage {
     actual fun clearPendingDeviceAuthorization(providerId: String) {
         preferences
             ?.edit()
-            ?.remove(ProfileScopedKey.of(pendingDeviceAuthorizationKey(providerId)))
+            ?.remove(sharedKey(pendingDeviceAuthorizationKey(providerId)))
             ?.apply()
     }
 
     private fun loadBoolean(key: String): Boolean? =
         preferences?.let { sharedPreferences ->
-            val scopedKey = ProfileScopedKey.of(key)
+            val scopedKey = sharedKey(key)
             if (sharedPreferences.contains(scopedKey)) {
                 sharedPreferences.getBoolean(scopedKey, false)
             } else {
@@ -178,13 +182,13 @@ actual object DebridSettingsStorage {
     private fun saveBoolean(key: String, enabled: Boolean) {
         preferences
             ?.edit()
-            ?.putBoolean(ProfileScopedKey.of(key), enabled)
+            ?.putBoolean(sharedKey(key), enabled)
             ?.apply()
     }
 
     private fun loadInt(key: String): Int? =
         preferences?.let { sharedPreferences ->
-            val scopedKey = ProfileScopedKey.of(key)
+            val scopedKey = sharedKey(key)
             if (sharedPreferences.contains(scopedKey)) {
                 sharedPreferences.getInt(scopedKey, 0)
             } else {
@@ -195,17 +199,17 @@ actual object DebridSettingsStorage {
     private fun saveInt(key: String, value: Int) {
         preferences
             ?.edit()
-            ?.putInt(ProfileScopedKey.of(key), value)
+            ?.putInt(sharedKey(key), value)
             ?.apply()
     }
 
     private fun loadString(key: String): String? =
-        preferences?.getString(ProfileScopedKey.of(key), null)
+        preferences?.getString(sharedKey(key), null)
 
     private fun saveString(key: String, value: String) {
         preferences
             ?.edit()
-            ?.putString(ProfileScopedKey.of(key), value)
+            ?.putString(sharedKey(key), value)
             ?.apply()
     }
 
@@ -232,7 +236,7 @@ actual object DebridSettingsStorage {
 
     actual fun replaceFromSyncPayload(payload: JsonObject) {
         preferences?.edit()?.apply {
-            syncKeys().forEach { remove(ProfileScopedKey.of(it)) }
+            syncKeys().forEach { remove(sharedKey(it)) }
         }?.apply()
 
         payload.decodeSyncBoolean(enabledKey)?.let(::saveEnabled)

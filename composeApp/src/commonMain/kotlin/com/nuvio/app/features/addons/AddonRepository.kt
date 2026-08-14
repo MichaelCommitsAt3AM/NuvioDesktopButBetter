@@ -2,6 +2,8 @@ package com.nuvio.app.features.addons
 
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.network.SupabaseProvider
+import com.nuvio.app.core.auth.AuthRepository
+import com.nuvio.app.core.auth.isAnonymous
 import com.nuvio.app.core.sync.putSyncOriginClientId
 import com.nuvio.app.features.profiles.ProfileRepository
 import io.github.jan.supabase.postgrest.postgrest
@@ -65,7 +67,7 @@ object AddonRepository {
     private val activeRefreshJobs = mutableMapOf<String, Job>()
 
     fun initialize() {
-        val effectiveProfileId = resolveEffectiveProfileId(ProfileRepository.activeProfileId)
+        val effectiveProfileId = ProfileRepository.activeProfileId
         val shouldProceed = synchronized(stateLock) {
             if (initialized) {
                 false
@@ -103,7 +105,7 @@ object AddonRepository {
     }
 
     fun onProfileChanged(profileId: Int) {
-        val effectiveProfileId = resolveEffectiveProfileId(profileId)
+        val effectiveProfileId = profileId
         val shouldReset = synchronized(stateLock) {
             if (effectiveProfileId == currentProfileId && initialized) {
                 false
@@ -129,8 +131,16 @@ object AddonRepository {
         _uiState.value = AddonsUiState()
     }
 
+    // Deleted profile indices get reused by createProfile(), so leftover local addon
+    // data must be wiped or it gets "migrated" back to the server for the new profile
+    // that inherits the same index (see the local-fallback branch in pullFromServer).
+    fun clearLocalDataForDeletedProfile(profileId: Int) {
+        AddonStorage.saveInstalledAddonUrls(profileId, emptyList())
+        AddonStorage.saveAddonEnabledStates(profileId, emptyMap())
+    }
+
     suspend fun pullFromServer(profileId: Int) {
-        val effectiveProfileId = resolveEffectiveProfileId(profileId)
+        val effectiveProfileId = profileId
         val (wasInitialized, wasPulledFromServer) = synchronized(stateLock) {
             currentProfileId = effectiveProfileId
             initialized to pulledFromServer
@@ -257,9 +267,6 @@ object AddonRepository {
     }
 
     suspend fun addAddon(rawUrl: String): AddAddonResult {
-        if (isUsingPrimaryAddonsFromSecondaryProfile()) {
-            return AddAddonResult.Error(getString(Res.string.profile_primary_addons_required))
-        }
         log.i { "addAddon() — rawUrl=$rawUrl" }
         val manifestUrl = try {
             normalizeManifestUrl(rawUrl)
@@ -299,7 +306,6 @@ object AddonRepository {
     }
 
     fun removeAddon(manifestUrl: String) {
-        if (isUsingPrimaryAddonsFromSecondaryProfile()) return
         log.i { "removeAddon() — $manifestUrl" }
         _uiState.update { current ->
             current.copy(
@@ -311,7 +317,6 @@ object AddonRepository {
     }
 
     fun moveAddon(fromIndex: Int, toIndex: Int) {
-        if (isUsingPrimaryAddonsFromSecondaryProfile()) return
         _uiState.update { current ->
             val addons = current.addons
             if (
@@ -332,7 +337,6 @@ object AddonRepository {
     }
 
     fun setAddonEnabled(manifestUrl: String, enabled: Boolean) {
-        if (isUsingPrimaryAddonsFromSecondaryProfile()) return
         var shouldRefresh = false
         _uiState.update { current ->
             current.copy(
@@ -453,9 +457,6 @@ object AddonRepository {
     private fun pushToServer() {
         scope.launch {
             runCatching {
-                if (isUsingPrimaryAddonsFromSecondaryProfile()) {
-                    return@runCatching
-                }
                 val profileId = currentProfileId
                 val addons = _uiState.value.addons
                     .distinctBy { it.manifestUrl }
@@ -520,16 +521,96 @@ object AddonRepository {
         activeRefreshJobs.clear()
     }
 
-    private fun resolveEffectiveProfileId(profileId: Int): Int {
-        val active = ProfileRepository.state.value.activeProfile
-        return if (active != null && active.profileIndex != 1 && active.usesPrimaryAddons) 1 else profileId
+    /**
+     * Read-only snapshot of the primary profile's (profile 1) addons, for the
+     * "choose specific addons" picker in ProfileEditScreen. Deliberately does not
+     * touch currentProfileId/initialized/pulledFromServer/_uiState — must be safe
+     * to call while a different profile is the live/active one.
+     */
+    suspend fun fetchPrimaryAddonsForPicker(): List<PrimaryAddonPickerItem> {
+        val fromServer = runCatching {
+            SupabaseProvider.client.postgrest
+                .from("addons")
+                .select {
+                    filter { eq("profile_id", 1) }
+                    order("sort_order", Order.ASCENDING)
+                }
+                .decodeList<AddonRow>()
+        }.getOrElse { e ->
+            log.e(e) { "fetchPrimaryAddonsForPicker() — server fetch failed" }
+            emptyList()
+        }
+
+        val rows = fromServer.ifEmpty {
+            val urls = dedupeManifestUrls(AddonStorage.loadInstalledAddonUrls(1))
+            val enabledByUrl = AddonStorage.loadAddonEnabledStates(1).mapKeys { ensureManifestSuffix(it.key) }
+            urls.map { url -> AddonRow(url = url, name = null, enabled = enabledByUrl[url] ?: true, sortOrder = 0) }
+        }
+
+        val deduped = linkedMapOf<String, AddonRow>()
+        rows.forEach { row ->
+            val url = ensureManifestSuffix(row.url)
+            if (!deduped.containsKey(url)) deduped[url] = row.copy(url = url)
+        }
+        return deduped.values.map { row ->
+            PrimaryAddonPickerItem(
+                manifestUrl = row.url,
+                displayName = row.name?.takeIf { it.isNotBlank() }
+                    ?: row.url.substringBefore("?").substringAfterLast("/").ifBlank { "Addon" },
+                enabled = row.enabled,
+            )
+        }
     }
 
-    private fun isUsingPrimaryAddonsFromSecondaryProfile(): Boolean {
-        val active = ProfileRepository.state.value.activeProfile
-        return active != null && active.profileIndex != 1 && active.usesPrimaryAddons
+    /**
+     * One-time onboarding convenience: copies the primary profile's addons (or the
+     * given subset) into targetProfileId's OWN independent addon list, merging with
+     * whatever it already has rather than replacing it. After this call the target
+     * profile manages its addons entirely independently — there is no ongoing tie to
+     * the primary profile. Safe to call regardless of which profile is currently
+     * active; does not touch currentProfileId/initialized/_uiState.
+     */
+    suspend fun copyPrimaryAddonsToProfile(targetProfileId: Int, allowlist: List<String>?) {
+        if (targetProfileId == 1) return
+        val primaryItems = fetchPrimaryAddonsForPicker()
+        val selected = (if (allowlist == null) primaryItems else primaryItems.filter { it.manifestUrl in allowlist })
+        if (selected.isEmpty()) return
+
+        val existingUrls = dedupeManifestUrls(AddonStorage.loadInstalledAddonUrls(targetProfileId))
+        val mergedUrls = (existingUrls + selected.map { it.manifestUrl }).distinct()
+        AddonStorage.saveInstalledAddonUrls(targetProfileId, mergedUrls)
+
+        val existingEnabled = AddonStorage.loadAddonEnabledStates(targetProfileId)
+        val mergedEnabled = existingEnabled + selected.associate { it.manifestUrl to it.enabled }
+        AddonStorage.saveAddonEnabledStates(targetProfileId, mergedEnabled)
+
+        if (AuthRepository.state.value.isAnonymous) return
+        runCatching {
+            val addons = mergedUrls.mapIndexed { index, url ->
+                AddonPushItem(
+                    url = url,
+                    name = selected.find { it.manifestUrl == url }?.displayName ?: "",
+                    enabled = mergedEnabled[url] ?: true,
+                    sortOrder = index,
+                )
+            }
+            val params = buildJsonObject {
+                put("p_profile_id", targetProfileId)
+                put("p_addons", json.encodeToJsonElement(addons))
+                putSyncOriginClientId()
+            }
+            SupabaseProvider.client.postgrest.rpc("sync_push_addons", params)
+        }.onFailure { e ->
+            log.e(e) { "copyPrimaryAddonsToProfile() — server push FAILED for profile $targetProfileId" }
+        }
     }
 }
+
+data class PrimaryAddonPickerItem(
+    val manifestUrl: String,
+    val displayName: String,
+    val enabled: Boolean,
+)
 
 private const val ADDON_REFRESH_MAX_ATTEMPTS = 6
 private const val ADDON_REFRESH_INITIAL_BACKOFF_MS = 2_000L

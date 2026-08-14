@@ -46,6 +46,10 @@ actual object DebridSettingsStorage {
             streamDescriptionTemplateKey,
         ) + DebridProviders.all().map { providerApiKeyKey(it.id) }
 
+    // Debrid/Torbox connection is shared across all profiles, so it's always
+    // pinned to the primary profile's storage slot regardless of which profile is active.
+    private fun sharedKey(baseKey: String): String = ProfileScopedKey.of(baseKey, 1)
+
     actual fun loadEnabled(): Boolean? = loadBoolean(enabledKey)
 
     actual fun saveEnabled(enabled: Boolean) {
@@ -152,13 +156,13 @@ actual object DebridSettingsStorage {
 
     actual fun clearPendingDeviceAuthorization(providerId: String) {
         NSUserDefaults.standardUserDefaults.removeObjectForKey(
-            ProfileScopedKey.of(pendingDeviceAuthorizationKey(providerId)),
+            sharedKey(pendingDeviceAuthorizationKey(providerId)),
         )
     }
 
     private fun loadBoolean(key: String): Boolean? {
         val defaults = NSUserDefaults.standardUserDefaults
-        val scopedKey = ProfileScopedKey.of(key)
+        val scopedKey = sharedKey(key)
         return if (defaults.objectForKey(scopedKey) != null) {
             defaults.boolForKey(scopedKey)
         } else {
@@ -167,12 +171,12 @@ actual object DebridSettingsStorage {
     }
 
     private fun saveBoolean(key: String, enabled: Boolean) {
-        NSUserDefaults.standardUserDefaults.setBool(enabled, forKey = ProfileScopedKey.of(key))
+        NSUserDefaults.standardUserDefaults.setBool(enabled, forKey = sharedKey(key))
     }
 
     private fun loadInt(key: String): Int? {
         val defaults = NSUserDefaults.standardUserDefaults
-        val scopedKey = ProfileScopedKey.of(key)
+        val scopedKey = sharedKey(key)
         return if (defaults.objectForKey(scopedKey) != null) {
             defaults.integerForKey(scopedKey).toInt()
         } else {
@@ -181,14 +185,14 @@ actual object DebridSettingsStorage {
     }
 
     private fun saveInt(key: String, value: Int) {
-        NSUserDefaults.standardUserDefaults.setInteger(value.toLong(), forKey = ProfileScopedKey.of(key))
+        NSUserDefaults.standardUserDefaults.setInteger(value.toLong(), forKey = sharedKey(key))
     }
 
     private fun loadString(key: String): String? =
-        NSUserDefaults.standardUserDefaults.stringForKey(ProfileScopedKey.of(key))
+        NSUserDefaults.standardUserDefaults.stringForKey(sharedKey(key))
 
     private fun saveString(key: String, value: String) {
-        NSUserDefaults.standardUserDefaults.setObject(value, forKey = ProfileScopedKey.of(key))
+        NSUserDefaults.standardUserDefaults.setObject(value, forKey = sharedKey(key))
     }
 
     actual fun exportToSyncPayload(): JsonObject = buildJsonObject {
@@ -214,7 +218,7 @@ actual object DebridSettingsStorage {
 
     actual fun replaceFromSyncPayload(payload: JsonObject) {
         syncKeys().forEach { key ->
-            NSUserDefaults.standardUserDefaults.removeObjectForKey(ProfileScopedKey.of(key))
+            NSUserDefaults.standardUserDefaults.removeObjectForKey(sharedKey(key))
         }
 
         payload.decodeSyncBoolean(enabledKey)?.let(::saveEnabled)

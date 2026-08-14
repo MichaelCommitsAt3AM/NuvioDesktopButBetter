@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -23,8 +24,10 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -48,6 +51,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.auth.AuthState
+import com.nuvio.app.features.addons.AddonRepository
+import com.nuvio.app.features.addons.PrimaryAddonPickerItem
 import com.nuvio.app.core.ui.NuvioInputField
 import com.nuvio.app.core.ui.NuvioPrimaryButton
 import com.nuvio.app.core.ui.NuvioScreen
@@ -80,6 +85,9 @@ fun ProfileEditScreen(
     var selectedAvatarId by rememberSaveable { mutableStateOf(currentProfile?.avatarId) }
     var avatarUrl by rememberSaveable { mutableStateOf(currentProfile?.avatarUrl.orEmpty()) }
     var usesPrimaryAddons by rememberSaveable { mutableStateOf(currentProfile?.usesPrimaryAddons ?: false) }
+    var primaryAddonsAllowlist by remember(currentProfile) { mutableStateOf(currentProfile?.primaryAddonsAllowlist) }
+    var primaryAddons by remember { mutableStateOf<List<PrimaryAddonPickerItem>>(emptyList()) }
+    var isLoadingPrimaryAddons by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showPinSetup by remember { mutableStateOf(false) }
@@ -94,6 +102,13 @@ fun ProfileEditScreen(
     LaunchedEffect(isNew, avatars, selectedAvatarId, avatarUrl) {
         if (isNew && avatarUrl.isBlank() && selectedAvatarId == null && avatars.isNotEmpty()) {
             selectedAvatarId = avatars.first().id
+        }
+    }
+    LaunchedEffect(usesPrimaryAddons) {
+        if (usesPrimaryAddons) {
+            isLoadingPrimaryAddons = true
+            primaryAddons = AddonRepository.fetchPrimaryAddonsForPicker()
+            isLoadingPrimaryAddons = false
         }
     }
 
@@ -132,6 +147,17 @@ fun ProfileEditScreen(
                 accentColor = previewAccent,
                 hasAvatarChoices = avatars.isNotEmpty(),
             )
+        }
+
+        if (usesPrimaryAddons) {
+            item {
+                PrimaryAddonsPickerCard(
+                    allowlist = primaryAddonsAllowlist,
+                    onAllowlistChange = { primaryAddonsAllowlist = it },
+                    availableAddons = primaryAddons,
+                    isLoading = isLoadingPrimaryAddons,
+                )
+            }
         }
 
         item {
@@ -274,6 +300,7 @@ fun ProfileEditScreen(
                                 avatarId = if (customAvatarUrl == null) selectedAvatarId else null,
                                 avatarUrl = customAvatarUrl,
                                 usesPrimaryAddons = usesPrimaryAddons,
+                                primaryAddonsAllowlist = if (usesPrimaryAddons) primaryAddonsAllowlist else null,
                             )
                         } else {
                             ProfileRepository.updateProfile(
@@ -283,6 +310,8 @@ fun ProfileEditScreen(
                                 avatarId = if (customAvatarUrl == null) selectedAvatarId else null,
                                 avatarUrl = customAvatarUrl,
                                 usesPrimaryAddons = usesPrimaryAddons,
+                                usesPrimaryPlugins = currentProfile?.usesPrimaryPlugins ?: false,
+                                primaryAddonsAllowlist = if (usesPrimaryAddons) primaryAddonsAllowlist else null,
                             )
                         }
                         isSaving = false
@@ -452,19 +481,12 @@ private fun ProfileIdentityCard(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        text = listOf(
-                            if (isNew) {
-                                stringResource(Res.string.profile_new)
-                            } else {
-                                profileIndex?.let { stringResource(Res.string.profile_label_number, it) }
-                                    ?: stringResource(Res.string.profile_unnamed)
-                            },
-                            if (usesPrimaryAddons) {
-                                stringResource(Res.string.profile_primary_addons_on)
-                            } else {
-                                stringResource(Res.string.profile_primary_addons_off)
-                            },
-                        ).joinToString("  |  "),
+                        text = if (isNew) {
+                            stringResource(Res.string.profile_new)
+                        } else {
+                            profileIndex?.let { stringResource(Res.string.profile_label_number, it) }
+                                ?: stringResource(Res.string.profile_unnamed)
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -589,6 +611,108 @@ private fun ProfileOptionRow(
                 uncheckedTrackColor = MaterialTheme.colorScheme.outlineVariant,
             ),
         )
+    }
+}
+
+@Composable
+private fun PrimaryAddonsPickerCard(
+    allowlist: List<String>?,
+    onAllowlistChange: (List<String>?) -> Unit,
+    availableAddons: List<PrimaryAddonPickerItem>,
+    isLoading: Boolean,
+) {
+    NuvioSurfaceCard {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text(
+                text = stringResource(Res.string.profile_shared_addons_title),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = stringResource(Res.string.profile_shared_addons_description),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            PrimaryAddonsModeRow(
+                label = stringResource(Res.string.profile_shared_addons_share_all),
+                selected = allowlist == null,
+                onClick = { onAllowlistChange(null) },
+            )
+            PrimaryAddonsModeRow(
+                label = stringResource(Res.string.profile_shared_addons_choose_specific),
+                selected = allowlist != null,
+                onClick = { onAllowlistChange(allowlist ?: emptyList()) },
+            )
+
+            if (allowlist != null) {
+                when {
+                    isLoading -> Text(
+                        text = stringResource(Res.string.profile_shared_addons_loading),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    availableAddons.isEmpty() -> Text(
+                        text = stringResource(Res.string.profile_shared_addons_none_available),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    else -> {
+                        if (allowlist.isEmpty()) {
+                            Text(
+                                text = stringResource(Res.string.profile_shared_addons_none_selected_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                        Column {
+                            availableAddons.forEach { addon ->
+                                val checked = addon.manifestUrl in allowlist
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            onAllowlistChange(
+                                                if (checked) allowlist - addon.manifestUrl else allowlist + addon.manifestUrl,
+                                            )
+                                        }
+                                        .padding(vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Text(
+                                        text = addon.displayName,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    Checkbox(
+                                        checked = checked,
+                                        onCheckedChange = {
+                                            onAllowlistChange(
+                                                if (checked) allowlist - addon.manifestUrl else allowlist + addon.manifestUrl,
+                                            )
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PrimaryAddonsModeRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Text(text = label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 

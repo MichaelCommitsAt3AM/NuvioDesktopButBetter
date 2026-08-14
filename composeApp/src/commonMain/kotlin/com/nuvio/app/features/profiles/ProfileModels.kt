@@ -17,6 +17,7 @@ data class NuvioProfile(
     @SerialName("avatar_url") val avatarUrl: String? = null,
     @SerialName("uses_primary_addons") val usesPrimaryAddons: Boolean = false,
     @SerialName("uses_primary_plugins") val usesPrimaryPlugins: Boolean = false,
+    @SerialName("primary_addons_allowlist") val primaryAddonsAllowlist: List<String>? = null,
     @SerialName("pin_enabled") val pinEnabled: Boolean = false,
     @SerialName("pin_locked_until") val pinLockedUntil: String? = null,
     @SerialName("created_at") val createdAt: String = "",
@@ -30,6 +31,7 @@ data class ProfilePushPayload(
     @SerialName("avatar_color_hex") val avatarColorHex: String,
     @SerialName("uses_primary_addons") val usesPrimaryAddons: Boolean = false,
     @SerialName("uses_primary_plugins") val usesPrimaryPlugins: Boolean = false,
+    @SerialName("primary_addons_allowlist") val primaryAddonsAllowlist: List<String>? = null,
     @SerialName("avatar_id") val avatarId: String? = null,
     @SerialName("avatar_url") val avatarUrl: String? = null,
 )

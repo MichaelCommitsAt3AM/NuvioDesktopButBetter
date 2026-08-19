@@ -579,7 +579,7 @@
     <string name="settings_appearance_amoled_description">OLED ekranlar için saf siyah arka planlar kullan.</string>
     <string name="settings_appearance_app_icon">Uygulama Simgesi</string>
     <string name="settings_appearance_app_icon_arctic_blue">Kutup Mavisi</string>
-    <string name="settings_appearance_app_icon_android_confirmation_message">%1$s olarak değiştirmek Nuvio'yu kapatacaktır. Devam etmek için Tamam'a dokunun.</string>
+    <string name="settings_appearance_app_icon_android_confirmation_message">%1$s olarak değiştirmek için Nuvio yeniden başlatılmalıdır. Devam etmek için Tamam'a dokunun.</string>
     <string name="settings_appearance_app_icon_android_confirmation_title">Uygulama Simgesi Değiştirilsin mi?</string>
     <string name="settings_appearance_app_icon_change_failed">Simge değiştirilemedi. Lütfen tekrar deneyin.</string>
     <string name="settings_appearance_app_icon_copper">Bakır</string>

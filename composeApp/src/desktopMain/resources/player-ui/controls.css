@@ -1672,7 +1672,7 @@ button:disabled {
   display: flex;
   align-items: flex-end;
   justify-content: flex-start;
-  padding: clamp(28px, 4vw, 52px) clamp(28px, 4vw, 52px) clamp(40px, 7vh, 76px);
+  padding: clamp(28px, 4vw, 52px) clamp(28px, 4vw, 52px) clamp(64px, 11vh, 124px);
   background:
     linear-gradient(90deg, rgba(0, 0, 0, .88) 0%, rgba(0, 0, 0, .66) 36%, transparent 82%),
     linear-gradient(180deg, rgba(0, 0, 0, .6) 0%, rgba(0, 0, 0, .34) 30%, rgba(0, 0, 0, .14) 60%, transparent 100%),
@@ -1789,8 +1789,14 @@ button:disabled {
   white-space: nowrap;
 }
 
+.panel-context:empty {
+  display: none;
+}
+
 .player-side-panel > .panel-context {
-  margin-top: 16px;
+  margin-top: 6px;
+  margin-bottom: 4px;
+  flex: 0 0 auto;
 }
 
 .episode-stream-toolbar {
@@ -1857,7 +1863,6 @@ button:disabled {
 }
 
 .panel-button.primary,
-.filter-chip.selected,
 .segment-button.selected {
   background: var(--theme-accent);
   color: var(--theme-on-accent);
@@ -1865,9 +1870,15 @@ button:disabled {
 }
 
 .panel-button.primary:hover:not(:disabled),
-.filter-chip.selected:hover:not(:disabled),
 .segment-button.selected:hover:not(:disabled) {
   background: var(--theme-accent-strong);
+}
+
+.filter-chip.selected,
+.filter-chip.selected:hover:not(:disabled) {
+  background: #ffffff !important;
+  color: #000000 !important;
+  border-color: transparent !important;
 }
 
 .filter-row {
@@ -1884,7 +1895,7 @@ button:disabled {
 }
 
 .player-side-panel .filter-row {
-  margin-top: 16px;
+  margin-top: 8px;
 }
 
 .filter-chip {
@@ -1978,7 +1989,7 @@ button:disabled {
   flex-direction: column;
   overflow: auto;
   max-height: calc(100vh - clamp(152px, 22vh, 220px));
-  padding: 0;
+  padding: 0 8px 8px 0;
 }
 
 .style-card {
@@ -1993,6 +2004,22 @@ button:disabled {
   align-items: flex-start;
   gap: 10px;
   min-width: 0;
+}
+
+.style-toggle-section {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.custom-subtitle-style-controls {
+  display: contents;
+}
+
+.custom-subtitle-style-controls.disabled > * {
+  opacity: .42;
+  pointer-events: none;
 }
 
 .style-control-row {
@@ -2053,13 +2080,8 @@ button:disabled {
 .swatch-row {
   display: flex;
   width: 100%;
-  overflow-x: auto;
+  flex-wrap: wrap;
   gap: 8px;
-  scrollbar-width: none;
-}
-
-.swatch-row::-webkit-scrollbar {
-  display: none;
 }
 
 .swatch {
@@ -2139,14 +2161,21 @@ button:disabled {
 .audio-rail-panel .track-list,
 .subtitle-rail-panel .track-list,
 .subtitle-rail-panel .style-panel {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, .3) transparent;
 }
 
 .audio-rail-panel .track-list::-webkit-scrollbar,
 .subtitle-rail-panel .track-list::-webkit-scrollbar,
 .subtitle-rail-panel .style-panel::-webkit-scrollbar {
-  display: none;
+  width: 6px;
+}
+
+.audio-rail-panel .track-list::-webkit-scrollbar-thumb,
+.subtitle-rail-panel .track-list::-webkit-scrollbar-thumb,
+.subtitle-rail-panel .style-panel::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .3);
 }
 
 .player-side-panel .track-list {
@@ -2434,7 +2463,6 @@ button:disabled {
 }
 
 .source-row .stream-name,
-.source-row .stream-subtitle,
 .source-row .stream-addon {
   display: block;
   overflow: visible;
@@ -2443,6 +2471,99 @@ button:disabled {
   white-space: normal;
   -webkit-line-clamp: unset;
   -webkit-box-orient: initial;
+}
+
+.source-row .stream-subtitle {
+  display: block;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: pre-line;
+  -webkit-line-clamp: unset;
+  -webkit-box-orient: initial;
+  line-height: 1.45;
+}
+
+.stream-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+.stream-badge-row.badge-placement-top {
+  margin-top: 2px;
+  margin-bottom: 6px;
+}
+
+.stream-badge-chip-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+
+.stream-badge-chip-img {
+  height: 16px;
+  min-width: 34px;
+  max-width: 92px;
+  object-fit: contain;
+  border-radius: 4px;
+  display: block;
+}
+
+.stream-size-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--theme-surface-popover);
+  border: 1px solid var(--theme-border-default);
+  color: var(--theme-text-primary);
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.stream-addon-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  flex: 0 0 auto;
+  gap: 2px;
+  margin-left: 12px;
+}
+
+.stream-addon-logo {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  flex-shrink: 0;
+  object-fit: contain;
+  border-radius: 6px;
+  display: block;
+}
+
+.stream-addon-label {
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--theme-text-muted);
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .episode-row .episode-name,
@@ -2939,7 +3060,7 @@ button.action:focus-visible {
   }
 
   .player-rail-modal {
-    padding: 28px 24px 40px;
+    padding: 28px 24px 64px;
   }
 
   .subtitle-rails {
@@ -2963,7 +3084,7 @@ button.action:focus-visible {
 @media (max-height: 680px) {
   .player-rail-modal {
     padding-top: 24px;
-    padding-bottom: 32px;
+    padding-bottom: 48px;
   }
 
   .player-rail-modal .track-header {

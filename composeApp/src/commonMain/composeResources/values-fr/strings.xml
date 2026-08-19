@@ -459,6 +459,9 @@
     <string name="settings_advanced_remember_last_profile_description">Mémorise le dernier profil sélectionné au démarrage</string>
     <string name="settings_advanced_sentry_reports">Rapports de plantage Sentry</string>
     <string name="settings_advanced_sentry_reports_subtitle">Envoyer les rapports de plantage et d’ANR avec un contexte sûr. Activé par défaut.</string>
+    <string name="settings_advanced_section_discord">DISCORD</string>
+    <string name="settings_advanced_discord_rich_presence">Discord Rich Presence</string>
+    <string name="settings_advanced_discord_rich_presence_description">Affichez ce que vous consultez ou regardez sur votre profil Discord. Désactivé par défaut.</string>
     <string name="sentry_enable_dialog_title">Activer les rapports de plantage ?</string>
     <string name="sentry_enable_dialog_subtitle">Les rapports de plantage aident à identifier les défaillances propres à un appareil sans vous demander de reproduire le problème avec les journaux ADB.</string>
     <string name="sentry_disable_dialog_title">Désactiver les rapports de plantage ?</string>

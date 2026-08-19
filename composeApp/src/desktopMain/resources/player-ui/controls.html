@@ -199,6 +199,9 @@
             <button class="action playback-action" id="toggle" data-command="toggle" aria-label="Play">
               <svg><use id="toggleIcon" href="#icon-play"></use></svg><span id="toggleLabel">Play</span>
             </button>
+            <button class="action optional" id="nextEpisodeButton" data-command="playNextEpisode" aria-label="Next episode" hidden>
+              <svg><use href="#icon-skip-next"></use></svg><span id="nextEpisodeButtonLabel">Next episode</span>
+            </button>
             <button class="action" data-command="resize"><svg><use href="#icon-aspect"></use></svg><span id="resizeLabel">Fit</span></button>
             <button class="action" data-command="speed"><svg><use href="#icon-speed"></use></svg><span id="speedLabel">1x</span></button>
             <button class="action" data-command="subtitles"><svg><use href="#icon-subs"></use></svg><span id="subtitlesLabel">Subs</span></button>
@@ -251,6 +254,10 @@
                       <button class="panel-button" id="subtitleDelayReset" type="button">Reset</button>
                     </div>
                   </div>
+                  <div class="style-section style-toggle-section">
+                    <span class="style-label" id="customSubtitleStyleLabel">Use custom styling</span>
+                    <button class="panel-button" id="customSubtitleStyleToggle" type="button">On</button>
+                  </div>
                   <div class="style-section">
                     <span class="style-label" id="fontSizeLabel">Font Size</span>
                     <div class="stepper">
@@ -260,33 +267,35 @@
                     </div>
                   </div>
                   <div class="style-section">
-                    <span class="style-label" id="boldLabel">Bold</span>
-                    <button class="panel-button" id="boldToggle" type="button">Off</button>
-                  </div>
-                  <div class="style-section">
-                    <span class="style-label" id="subtitleColorLabel">Color</span>
-                    <div class="swatch-row" id="subtitleColorSwatches"></div>
-                  </div>
-                  <div class="style-section">
-                    <span class="style-label" id="textOpacityLabel">Text Opacity</span>
-                    <div class="stepper">
-                      <button class="round-step" id="textOpacityMinus" type="button">-</button>
-                      <span class="stepper-value" id="textOpacityValue">100%</span>
-                      <button class="round-step" id="textOpacityPlus" type="button">+</button>
-                    </div>
-                  </div>
-                  <div class="style-section">
-                    <span class="style-label" id="outlineLabel">Outline</span>
-                    <button class="panel-button" id="outlineToggle" type="button">On</button>
-                    <span class="style-label" id="outlineColorLabel">Outline Color</span>
-                    <div class="swatch-row" id="outlineColorSwatches"></div>
-                  </div>
-                  <div class="style-section">
                     <span class="style-label" id="bottomOffsetLabel">Bottom Offset</span>
                     <div class="stepper">
                       <button class="round-step" id="bottomOffsetMinus" type="button">-</button>
                       <span class="stepper-value" id="bottomOffsetValue">20</span>
                       <button class="round-step" id="bottomOffsetPlus" type="button">+</button>
+                    </div>
+                  </div>
+                  <div class="custom-subtitle-style-controls" id="customSubtitleStyleControls">
+                    <div class="style-section">
+                      <span class="style-label" id="boldLabel">Bold</span>
+                      <button class="panel-button" id="boldToggle" type="button">Off</button>
+                    </div>
+                    <div class="style-section">
+                      <span class="style-label" id="subtitleColorLabel">Color</span>
+                      <div class="swatch-row" id="subtitleColorSwatches"></div>
+                    </div>
+                    <div class="style-section">
+                      <span class="style-label" id="textOpacityLabel">Text Opacity</span>
+                      <div class="stepper">
+                        <button class="round-step" id="textOpacityMinus" type="button">-</button>
+                        <span class="stepper-value" id="textOpacityValue">100%</span>
+                        <button class="round-step" id="textOpacityPlus" type="button">+</button>
+                      </div>
+                    </div>
+                    <div class="style-section">
+                      <span class="style-label" id="outlineLabel">Outline</span>
+                      <button class="panel-button" id="outlineToggle" type="button">On</button>
+                      <span class="style-label" id="outlineColorLabel">Outline Color</span>
+                      <div class="swatch-row" id="outlineColorSwatches"></div>
                     </div>
                   </div>
                   <div class="style-section">

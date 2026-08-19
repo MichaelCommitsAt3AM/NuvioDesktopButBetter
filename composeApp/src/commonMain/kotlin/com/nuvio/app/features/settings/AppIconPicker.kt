@@ -160,7 +160,7 @@ private fun AppIconPickerDialog(
         ) {
             AppIconPickerContent(
                 state = state,
-                columns = 3,
+                    columns = 3,
                 onSelected = onSelected,
             )
         }
@@ -315,7 +315,7 @@ internal fun AppIconThumbnail(
 ) {
     val tokens = MaterialTheme.nuvio
     Image(
-        painter = painterResource(icon.previewResource),
+        painter = painterResource(icon.transparentPreviewResource),
         contentDescription = contentDescription,
         modifier = modifier
             .aspectRatio(1f)

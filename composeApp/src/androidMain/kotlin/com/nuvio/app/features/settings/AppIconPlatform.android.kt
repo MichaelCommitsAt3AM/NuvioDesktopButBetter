@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 
 internal actual object AppIconPlatform {
+    actual val isSupported: Boolean = true
     actual val requiresCloseConfirmation: Boolean = true
 
     private const val launcherPackage = "com.nuvio.app.launcher"

@@ -1171,30 +1171,85 @@ public:
         int subPos,
         bool useLibass
     ) {
-        if (useLibass) {
-            setStringProperty("sub-ass-override", "no");
-        } else {
-            setStringProperty("sub-ass-override", "force");
-            setStringProperty("sub-color", textColor.empty() ? "#FFFFFFFF" : textColor);
-            setStringProperty("sub-back-color", backgroundColor.empty() ? "#00000000" : backgroundColor);
-            setStringProperty("sub-outline-color", outlineColor.empty() ? "#FF000000" : outlineColor);
-            setStringProperty(
-                "sub-border-style",
-                backgroundColor.rfind("#00", 0) == 0 ? "outline-and-shadow" : "opaque-box"
-            );
-            setStringProperty("sub-bold", bold ? "yes" : "no");
+        double size = std::max(18.0, std::min(96.0, fontSize));
+        int64_t position = std::max(0, std::min(150, subPos));
+        double scale = useLibass ? size / 54.0 : 1.0;
+        double outline = std::max(0.0, std::min(8.0, outlineSize));
+        std::string resolvedTextColor = textColor.empty() ? "#FFFFFFFF" : textColor;
+        std::string resolvedBackgroundColor = backgroundColor.empty() ? "#00000000" : backgroundColor;
+        std::string resolvedOutlineColor = outlineColor.empty() ? "#FF000000" : outlineColor;
 
-            {
-                std::lock_guard<std::mutex> lock(mpvMutex);
-                if (!mpv) return;
-                double outline = std::max(0.0, std::min(8.0, outlineSize));
-                double size = std::max(18.0, std::min(96.0, fontSize));
-                int64_t position = std::max(0, std::min(150, subPos));
-                mpvApi().setProperty(mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
+        bool modeChanged = !hasAppliedSubtitleStyle || appliedSubtitleUseLibass != useLibass;
+        bool sizeChanged = !hasAppliedSubtitleStyle || appliedSubtitleFontSize != size;
+        bool positionChanged = !hasAppliedSubtitleStyle || appliedSubtitlePosition != position;
+        bool boldChanged = !hasAppliedSubtitleStyle || appliedSubtitleBold != bold;
+        bool textColorChanged = !hasAppliedSubtitleStyle || appliedSubtitleTextColor != resolvedTextColor;
+        bool backgroundColorChanged =
+            !hasAppliedSubtitleStyle || appliedSubtitleBackgroundColor != resolvedBackgroundColor;
+        bool outlineColorChanged =
+            !hasAppliedSubtitleStyle || appliedSubtitleOutlineColor != resolvedOutlineColor;
+        bool outlineSizeChanged = !hasAppliedSubtitleStyle || appliedSubtitleOutlineSize != outline;
+
+        if (modeChanged) {
+            setStringProperty("sub-ass-override", useLibass ? "scale" : "force");
+        }
+        if (modeChanged || (!useLibass && boldChanged)) {
+            std::lock_guard<std::mutex> lock(mpvMutex);
+            if (!mpv) return;
+            const char *styleOverridesCommand[] = {
+                "change-list",
+                "sub-ass-style-overrides",
+                useLibass ? "clr" : "set",
+                useLibass ? "" : (bold ? "Bold=1" : "Bold=0"),
+                nullptr,
+            };
+            mpvApi().command(mpv, styleOverridesCommand);
+        }
+        if (modeChanged || sizeChanged || positionChanged) {
+            std::lock_guard<std::mutex> lock(mpvMutex);
+            if (!mpv) return;
+            if (modeChanged || sizeChanged) {
+                mpvApi().setProperty(mpv, "sub-scale", MPV_FORMAT_DOUBLE, &scale);
                 mpvApi().setProperty(mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &size);
+            }
+            if (modeChanged || positionChanged) {
                 mpvApi().setProperty(mpv, "sub-pos", MPV_FORMAT_INT64, &position);
             }
         }
+
+        if (!useLibass) {
+            if (modeChanged || textColorChanged) {
+                setStringProperty("sub-color", resolvedTextColor);
+            }
+            if (modeChanged || backgroundColorChanged) {
+                setStringProperty("sub-back-color", resolvedBackgroundColor);
+                setStringProperty(
+                    "sub-border-style",
+                    resolvedBackgroundColor.rfind("#00", 0) == 0 ? "outline-and-shadow" : "opaque-box"
+                );
+            }
+            if (modeChanged || outlineColorChanged) {
+                setStringProperty("sub-outline-color", resolvedOutlineColor);
+            }
+            if (modeChanged || boldChanged) {
+                setStringProperty("sub-bold", bold ? "yes" : "no");
+            }
+            if (modeChanged || outlineSizeChanged) {
+                std::lock_guard<std::mutex> lock(mpvMutex);
+                if (!mpv) return;
+                mpvApi().setProperty(mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
+            }
+        }
+
+        hasAppliedSubtitleStyle = true;
+        appliedSubtitleUseLibass = useLibass;
+        appliedSubtitleTextColor = resolvedTextColor;
+        appliedSubtitleBackgroundColor = resolvedBackgroundColor;
+        appliedSubtitleOutlineColor = resolvedOutlineColor;
+        appliedSubtitleOutlineSize = outline;
+        appliedSubtitleBold = bold;
+        appliedSubtitleFontSize = size;
+        appliedSubtitlePosition = position;
     }
 
 private:
@@ -1224,6 +1279,16 @@ private:
     std::atomic_bool stopping = false;
     std::atomic_bool shuttingDown = false;
     std::atomic_bool hwdecLogged = false;  // one-shot log for hwdec-current
+
+    bool hasAppliedSubtitleStyle = false;
+    bool appliedSubtitleUseLibass = false;
+    std::string appliedSubtitleTextColor;
+    std::string appliedSubtitleBackgroundColor;
+    std::string appliedSubtitleOutlineColor;
+    double appliedSubtitleOutlineSize = 0.0;
+    bool appliedSubtitleBold = false;
+    double appliedSubtitleFontSize = 0.0;
+    int64_t appliedSubtitlePosition = 0;
 
     JavaVM *javaVm = nullptr;
     jobject eventSink = nullptr;
@@ -1734,6 +1799,15 @@ private:
         if (type == "selectSubtitleTrack") {
             selectSubtitleTrackId((int)std::llround(value));
             syncControls();
+            return;
+        }
+        if (type == "setPlaybackState" || type == "setPlaybackStateQuiet") {
+            bool shouldPlay = value >= 0.5;
+            if (shouldPlay && isEnded()) {
+                seekToMilliseconds(0);
+            }
+            setPaused(!shouldPlay);
+            sendPlayerEvent(type, value);
             return;
         }
         sendPlayerEvent(type, value);

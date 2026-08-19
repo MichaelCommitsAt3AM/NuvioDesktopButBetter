@@ -13,6 +13,7 @@ import kotlin.coroutines.resume
 
 @OptIn(ExperimentalForeignApi::class)
 internal actual object AppIconPlatform {
+    actual val isSupported: Boolean = true
     actual val requiresCloseConfirmation: Boolean = false
 
     private var pendingChange: CancellableContinuation<Boolean>? = null

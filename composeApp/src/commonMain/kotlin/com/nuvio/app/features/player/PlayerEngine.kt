@@ -113,6 +113,7 @@ data class PlayerControlsState(
     val subtitleBuiltInTabLabel: String = "Built-in",
     val subtitleAddonsTabLabel: String = "Addons",
     val subtitleStyleTabLabel: String = "Style",
+    val customSubtitleStyleLabel: String = "Use custom styling",
     val forcedLabel: String = "Forced",
     val noneLabel: String = "None",
     val fetchSubtitlesLabel: String = "Tap to fetch subtitles",
@@ -211,6 +212,7 @@ data class PlayerControlsState(
     val isLoadingAddonSubtitles: Boolean = false,
     val selectedAddonSubtitleId: String = "",
     val useCustomSubtitles: Boolean = false,
+    val customSubtitleStylingEnabled: Boolean = true,
     val subtitleStyle: SubtitleStyleState = SubtitleStyleState.DEFAULT,
     val subtitleDelayMs: Int = 0,
     val hasSelectedAddonSubtitle: Boolean = false,
@@ -235,14 +237,27 @@ data class PlayerControlSeasonItem(
     val isSelected: Boolean = false,
 )
 
+data class PlayerControlSourceBadgeItem(
+    val name: String = "",
+    val imageURL: String = "",
+    val tagColor: String = "",
+    val tagStyle: String = "",
+    val borderColor: String = "",
+)
+
 data class PlayerControlSourceItem(
     val index: Int = 0,
     val filterId: String = "",
     val label: String = "",
     val subtitle: String = "",
     val addonName: String = "",
+    val addonLogo: String = "",
+    val showAddonLogo: Boolean = false,
     val isCurrent: Boolean = false,
     val isEnabled: Boolean = true,
+    val badges: List<PlayerControlSourceBadgeItem> = emptyList(),
+    val formattedSize: String = "",
+    val badgePlacement: String = "BOTTOM",
 )
 
 data class PlayerControlEpisodeItem(

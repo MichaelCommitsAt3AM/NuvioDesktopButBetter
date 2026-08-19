@@ -402,6 +402,7 @@
     <string name="compose_player_seek_forward_10">Seek forward 10 seconds</string>
     <string name="compose_player_sources">Sources</string>
     <string name="compose_player_style">Style</string>
+    <string name="compose_player_use_custom_styling">Use custom styling</string>
     <string name="compose_player_select_addon_subtitle_first">Select an addon subtitle first</string>
     <string name="compose_player_subs">Subs</string>
     <string name="compose_player_subtitle_delay">Subtitle Delay</string>
@@ -441,6 +442,7 @@
     <string name="compose_settings_page_continue_watching">Continue Watching</string>
     <string name="compose_settings_page_debrid">Connected Services</string>
     <string name="compose_settings_page_homescreen">Home Layout</string>
+    <string name="compose_settings_page_hover_preview">Hover Preview</string>
     <string name="compose_settings_page_integrations">Integrations</string>
     <string name="compose_settings_page_licenses_attributions">Licenses &amp; Attribution</string>
     <string name="compose_settings_page_mdblist_ratings">MDBList Ratings</string>
@@ -486,6 +488,7 @@
     <string name="settings_advanced_section_startup">STARTUP</string>
     <string name="settings_advanced_section_windows_graphics">WINDOWS GRAPHICS</string>
     <string name="settings_advanced_section_diagnostics">DIAGNOSTICS</string>
+    <string name="settings_advanced_section_discord">DISCORD</string>
     <string name="settings_advanced_section_cache">CACHE</string>
     <string name="settings_advanced_remember_last_profile">Remember Last Profile</string>
     <string name="settings_advanced_remember_last_profile_description">Remember last selected profile at startup</string>
@@ -495,6 +498,8 @@
     <string name="settings_advanced_sentry_reports">Sentry Crash Reports</string>
     <string name="settings_advanced_sentry_reports_subtitle">Send crash and ANR reports with safe context. On by default.</string>
     <string name="settings_advanced_sentry_reports_subtitle_desktop">Send crash reports with safe diagnostic context. On by default.</string>
+    <string name="settings_advanced_discord_rich_presence">Discord Rich Presence</string>
+    <string name="settings_advanced_discord_rich_presence_description">Show what you're browsing or watching on your Discord profile. Off by default.</string>
     <string name="sentry_enable_dialog_title">Turn on crash reports?</string>
     <string name="sentry_enable_dialog_subtitle">Crash reports help identify device-specific failures without asking you to reproduce the issue with ADB logs.</string>
     <string name="sentry_enable_dialog_subtitle_desktop">Crash reports help identify Windows and macOS failures without asking you to collect logs manually.</string>
@@ -606,7 +611,7 @@
     <string name="settings_appearance_amoled_description">Use pure black backgrounds for OLED screens.</string>
     <string name="settings_appearance_app_icon">App Icon</string>
     <string name="settings_appearance_app_icon_arctic_blue">Arctic Blue</string>
-    <string name="settings_appearance_app_icon_android_confirmation_message">Changing to %1$s will close Nuvio. Tap OK to continue.</string>
+    <string name="settings_appearance_app_icon_android_confirmation_message">Changing to %1$s requires restarting Nuvio. Tap OK to continue.</string>
     <string name="settings_appearance_app_icon_android_confirmation_title">Change App Icon?</string>
     <string name="settings_appearance_app_icon_change_failed">The icon could not be changed. Please try again.</string>
     <string name="settings_appearance_app_icon_copper">Copper</string>
@@ -629,6 +634,7 @@
     <string name="settings_appearance_desktop_navigation_sheet_title">Choose Desktop Navigation</string>
     <string name="settings_appearance_desktop_navigation_sidebar">Sidebar</string>
     <string name="settings_appearance_desktop_navigation_top_bar">Top Bar</string>
+    <string name="settings_appearance_hover_preview_description">Configure poster hover cards and their opening delay.</string>
     <string name="settings_appearance_liquid_glass">Liquid Glass</string>
     <string name="settings_appearance_liquid_glass_description">Use the native iPhone tab bar on iOS 26 and later.</string>
     <string name="settings_appearance_poster_customization_description">Tune card width and corner radius.</string>
@@ -665,6 +671,20 @@
     <string name="settings_homescreen_summary_hint">Open a catalog only when you need to rename or reorder it.</string>
     <string name="settings_homescreen_visible">Visible</string>
     <string name="settings_hide_secret">Hide value</string>
+    <string name="settings_hover_preview_section_behavior">BEHAVIOR</string>
+    <string name="settings_hover_preview_enabled">Enable Hover Preview</string>
+    <string name="settings_hover_preview_enabled_description">Show a larger preview after hovering over a poster.</string>
+    <string name="settings_hover_preview_delay">Open Delay</string>
+    <string name="settings_hover_preview_delay_description">How long a poster must be hovered before its preview opens.</string>
+    <string name="settings_hover_preview_delay_value">%1$s s</string>
+    <string name="settings_hover_preview_section_trailer">TRAILER</string>
+    <string name="settings_hover_preview_trailer_enabled">Preview Trailers</string>
+    <string name="settings_hover_preview_trailer_enabled_description">Play a trailer in the hover preview when one is available.</string>
+    <string name="settings_hover_preview_trailer_sound_enabled">Play with Sound</string>
+    <string name="settings_hover_preview_trailer_sound_enabled_description">Play hover preview trailers with audio. Turn this off to keep previews muted.</string>
+    <string name="settings_hover_preview_trailer_start_time">Trailer Start Time</string>
+    <string name="settings_hover_preview_trailer_start_time_description">Choose how far into the trailer the hover preview begins.</string>
+    <string name="settings_hover_preview_trailer_start_time_value">%1$d s</string>
     <string name="settings_playback_subtitle">Player, subtitles, and auto-play</string>
     <string name="settings_card_depth_title">CARD DEPTH EFFECT</string>
     <string name="settings_card_depth_description">Adds a lit top edge and a soft sheen to image cards for a subtle sense of depth.</string>
@@ -1085,6 +1105,14 @@
     <string name="settings_playback_subtitle_vertical_offset">Vertical Offset</string>
     <string name="settings_playback_skip_intro_outro_recap">Skip Intro</string>
     <string name="settings_playback_skip_intro_outro_recap_description">Use introdb.app to detect intros and recaps.</string>
+    <string name="settings_playback_auto_skip_segments">Automatic Skipping</string>
+    <string name="settings_playback_auto_skip_none">Off</string>
+    <string name="settings_playback_auto_skip_intro">Intro / Opening</string>
+    <string name="settings_playback_auto_skip_intro_description">Skip intros and anime openings automatically.</string>
+    <string name="settings_playback_auto_skip_recap">Recap</string>
+    <string name="settings_playback_auto_skip_recap_description">Skip recap segments automatically.</string>
+    <string name="settings_playback_auto_skip_outro">Outro / Ending</string>
+    <string name="settings_playback_auto_skip_outro_description">Skip outros and anime endings automatically.</string>
     <string name="settings_playback_source_scope">Auto-play Source Scope</string>
     <string name="settings_playback_source_scope_all_addons">All installed addons</string>
     <string name="settings_playback_source_scope_all_addons_description">Auto-play only considers streams coming from your installed addons.</string>

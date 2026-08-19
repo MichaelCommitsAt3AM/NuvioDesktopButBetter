@@ -37,6 +37,8 @@ import nuvio.composeapp.generated.resources.action_cancel
 import nuvio.composeapp.generated.resources.settings_advanced_clear_cw_cache
 import nuvio.composeapp.generated.resources.settings_advanced_clear_cw_cache_done
 import nuvio.composeapp.generated.resources.settings_advanced_clear_cw_cache_subtitle
+import nuvio.composeapp.generated.resources.settings_advanced_discord_rich_presence
+import nuvio.composeapp.generated.resources.settings_advanced_discord_rich_presence_description
 import nuvio.composeapp.generated.resources.settings_advanced_opengl_renderer
 import nuvio.composeapp.generated.resources.settings_advanced_opengl_renderer_description
 import nuvio.composeapp.generated.resources.settings_advanced_opengl_renderer_external_description
@@ -44,6 +46,7 @@ import nuvio.composeapp.generated.resources.settings_advanced_remember_last_prof
 import nuvio.composeapp.generated.resources.settings_advanced_remember_last_profile_description
 import nuvio.composeapp.generated.resources.settings_advanced_section_cache
 import nuvio.composeapp.generated.resources.settings_advanced_section_diagnostics
+import nuvio.composeapp.generated.resources.settings_advanced_section_discord
 import nuvio.composeapp.generated.resources.settings_advanced_section_startup
 import nuvio.composeapp.generated.resources.settings_advanced_section_windows_graphics
 import nuvio.composeapp.generated.resources.settings_advanced_sentry_reports
@@ -159,6 +162,30 @@ internal fun LazyListScope.advancedSettingsContent(
                         showSentryDialog = false
                     },
                 )
+            }
+        }
+    }
+    if (DiscordRichPresenceRepository.isSupported) {
+        item {
+            val discordEnabledFlow = remember {
+                DiscordRichPresenceRepository.ensureLoaded()
+                DiscordRichPresenceRepository.enabled
+            }
+            val discordEnabled by discordEnabledFlow.collectAsStateWithLifecycle()
+
+            SettingsSection(
+                title = stringResource(Res.string.settings_advanced_section_discord),
+                isTablet = isTablet,
+            ) {
+                SettingsGroup(isTablet = isTablet) {
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_advanced_discord_rich_presence),
+                        description = stringResource(Res.string.settings_advanced_discord_rich_presence_description),
+                        checked = discordEnabled,
+                        isTablet = isTablet,
+                        onCheckedChange = DiscordRichPresenceRepository::setEnabled,
+                    )
+                }
             }
         }
     }

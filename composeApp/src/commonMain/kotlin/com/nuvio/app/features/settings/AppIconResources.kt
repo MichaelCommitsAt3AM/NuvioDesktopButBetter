@@ -33,3 +33,14 @@ internal val AppIconOption.wordmarkResource: DrawableResource
         AppIconOption.COPPER -> Res.drawable.app_logo_wordmark_copper
         AppIconOption.GRAPHITE -> Res.drawable.app_logo_wordmark_graphite
     }
+
+
+internal val AppIconOption.transparentPreviewResource: DrawableResource
+    get() = when (this) {
+        AppIconOption.ORIGINAL -> Res.drawable.app_icon_original_transparent
+        AppIconOption.ARCTIC_BLUE -> Res.drawable.app_icon_arctic_blue_transparent
+        AppIconOption.EMERALD -> Res.drawable.app_icon_emerald_transparent
+        AppIconOption.ROSE_GOLD -> Res.drawable.app_icon_rose_gold_transparent
+        AppIconOption.COPPER -> Res.drawable.app_icon_copper_transparent
+        AppIconOption.GRAPHITE -> Res.drawable.app_icon_graphite_transparent
+    }

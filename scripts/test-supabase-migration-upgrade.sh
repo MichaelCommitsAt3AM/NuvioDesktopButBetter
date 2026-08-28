@@ -4,16 +4,25 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DEVICE_MIGRATION="20260731090000_registered_devices.sql"
-LIBRARY_MIGRATION="20260731090001_library_delta_sync.sql"
-# Held back alongside the two migrations above so the initial baseline stays
-# at their predecessor's schema. Doesn't touch anything this test exercises
-# (library_items/registered_devices) — held back purely to keep the DB's
-# last-applied-migration timestamp behind DEVICE_MIGRATION/LIBRARY_MIGRATION,
-# since `migration up` refuses to insert older-dated files after a newer one
-# is already applied. Add any future migration here too, in the same way,
-# until this script is generalized to hold back everything newer than
-# DEVICE_MIGRATION automatically.
-ADDON_ALLOWLIST_MIGRATION="20260814120000_profile_primary_addons_allowlist.sql"
+# Every migration dated at or after DEVICE_MIGRATION is held back so the initial
+# baseline sits at its predecessor's schema, then replayed below. Most of them
+# don't touch what this test exercises (library_items/registered_devices) — they
+# are held back purely to keep the DB's last-applied-migration timestamp behind
+# DEVICE_MIGRATION, since `migration up` refuses to insert older-dated files
+# once a newer one is already applied.
+#
+# Derived rather than hardcoded so adding a migration doesn't silently break
+# this job: filenames are zero-padded timestamps, so a lexicographic compare is
+# chronological.
+mapfile -t HELD_BACK_MIGRATIONS < <(
+  cd "$REPO_ROOT/supabase/migrations" && \
+    ls -1 -- *.sql | awk -v cutoff="$DEVICE_MIGRATION" '$0 >= cutoff'
+)
+
+if [[ ${#HELD_BACK_MIGRATIONS[@]} -eq 0 ]]; then
+  echo "Expected at least one migration at or after $DEVICE_MIGRATION" >&2
+  exit 1
+fi
 TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/nuvio-supabase-upgrade.XXXXXX")"
 TEMP_SUPABASE="$TEMP_ROOT/supabase"
 DATABASE_CONTAINER="supabase_db_NuvioDesktop"
@@ -48,10 +57,9 @@ command -v docker >/dev/null 2>&1 || {
 }
 
 cp -R "$REPO_ROOT/supabase" "$TEMP_SUPABASE"
-rm -f \
-  "$TEMP_SUPABASE/migrations/$DEVICE_MIGRATION" \
-  "$TEMP_SUPABASE/migrations/$LIBRARY_MIGRATION" \
-  "$TEMP_SUPABASE/migrations/$ADDON_ALLOWLIST_MIGRATION"
+for migration in "${HELD_BACK_MIGRATIONS[@]}"; do
+  rm -f -- "$TEMP_SUPABASE/migrations/$migration"
+done
 
 cd "$TEMP_ROOT"
 supabase db start
@@ -84,11 +92,9 @@ insert into public.library_items (
 );
 SQL
 
-cp \
-  "$REPO_ROOT/supabase/migrations/$DEVICE_MIGRATION" \
-  "$REPO_ROOT/supabase/migrations/$LIBRARY_MIGRATION" \
-  "$REPO_ROOT/supabase/migrations/$ADDON_ALLOWLIST_MIGRATION" \
-  "$TEMP_SUPABASE/migrations/"
+for migration in "${HELD_BACK_MIGRATIONS[@]}"; do
+  cp -- "$REPO_ROOT/supabase/migrations/$migration" "$TEMP_SUPABASE/migrations/"
+done
 
 supabase migration up --local
 

@@ -39,7 +39,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v2
         with:
-          version: latest
+          # Pinned deliberately. The CLI version selects the supabase/postgres
+          # image, and that image's default privileges decide whether the
+          # "anonymous clients cannot ..." assertions in
+          # supabase/tests/database/device_and_library_delta.test.sql hold.
+          # 2.115.0 -> postgres 17.6.1.159 (green); 2.116.0 -> 17.6.1.165, which
+          # grants anon EXECUTE by default and fails those tests. Re-pin only
+          # after confirming the tests still pass on the newer image.
+          version: 2.115.0
           github-token: ${{ github.token }}
       - name: Start Supabase and apply every migration
         run: supabase start
@@ -57,7 +64,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v2
         with:
-          version: latest
+          # Pinned deliberately. The CLI version selects the supabase/postgres
+          # image, and that image's default privileges decide whether the
+          # "anonymous clients cannot ..." assertions in
+          # supabase/tests/database/device_and_library_delta.test.sql hold.
+          # 2.115.0 -> postgres 17.6.1.159 (green); 2.116.0 -> 17.6.1.165, which
+          # grants anon EXECUTE by default and fails those tests. Re-pin only
+          # after confirming the tests still pass on the newer image.
+          version: 2.115.0
           github-token: ${{ github.token }}
       - name: Exercise migration over existing library data
         run: bash scripts/test-supabase-migration-upgrade.sh

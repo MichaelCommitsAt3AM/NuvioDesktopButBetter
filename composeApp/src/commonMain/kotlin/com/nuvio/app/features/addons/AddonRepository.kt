@@ -12,6 +12,7 @@ import io.github.jan.supabase.postgrest.rpc
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -49,6 +50,8 @@ private data class AddonPushItem(
     @SerialName("sort_order") val sortOrder: Int = 0,
 )
 
+private const val ADDON_PUSH_DEBOUNCE_MS = 500L
+
 object AddonRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val log = Logger.withTag("AddonRepository")
@@ -65,6 +68,7 @@ object AddonRepository {
     private var pulledFromServer = false
     private var currentProfileId: Int = 1
     private val activeRefreshJobs = mutableMapOf<String, Job>()
+    private val pushJobsByProfile = mutableMapOf<Int, Job>()
 
     fun initialize() {
         val effectiveProfileId = ProfileRepository.activeProfileId
@@ -124,6 +128,8 @@ object AddonRepository {
     fun clearLocalState() {
         synchronized(stateLock) {
             cancelActiveRefreshesLocked()
+            pushJobsByProfile.values.forEach(Job::cancel)
+            pushJobsByProfile.clear()
             currentProfileId = 1
             initialized = false
             pulledFromServer = false
@@ -280,7 +286,7 @@ object AddonRepository {
 
         val manifest = try {
             withContext(Dispatchers.Default) {
-                val payload = httpGetText(manifestUrl)
+                val payload = fetchAddonResponseText(manifestUrl)
                 AddonManifestParser.parse(
                     manifestUrl = manifestUrl,
                     payload = payload,
@@ -307,16 +313,19 @@ object AddonRepository {
 
     fun removeAddon(manifestUrl: String) {
         log.i { "removeAddon() — $manifestUrl" }
+        var changed = false
         _uiState.update { current ->
-            current.copy(
-                addons = current.addons.filterNot { it.manifestUrl == manifestUrl },
-            )
+            val updatedAddons = current.addons.filterNot { it.manifestUrl == manifestUrl }
+            changed = updatedAddons.size != current.addons.size
+            if (changed) current.copy(addons = updatedAddons) else current
         }
+        if (!changed) return
         persist()
         pushToServer()
     }
 
     fun moveAddon(fromIndex: Int, toIndex: Int) {
+        var changed = false
         _uiState.update { current ->
             val addons = current.addons
             if (
@@ -330,26 +339,31 @@ object AddonRepository {
             val reordered = addons.toMutableList()
             val movingAddon = reordered.removeAt(fromIndex)
             reordered.add(toIndex, movingAddon)
+            changed = true
             current.copy(addons = reordered)
         }
+        if (!changed) return
         persist()
         pushToServer()
     }
 
     fun setAddonEnabled(manifestUrl: String, enabled: Boolean) {
         var shouldRefresh = false
+        var changed = false
         _uiState.update { current ->
             current.copy(
                 addons = current.addons.map { addon ->
                     if (addon.manifestUrl != manifestUrl || addon.enabled == enabled) {
                         addon
                     } else {
+                        changed = true
                         shouldRefresh = enabled && addon.manifest == null && !addon.isRefreshing
                         addon.copy(enabled = enabled)
                     }
                 },
             )
         }
+        if (!changed) return
         persist()
         pushToServer()
         if (shouldRefresh) {
@@ -359,11 +373,17 @@ object AddonRepository {
 
     fun refreshAll() {
         _uiState.value.addons.filter { it.enabled }.distinctBy { it.manifestUrl }.forEach { addon ->
-            refreshAddon(addon.manifestUrl)
+            refreshAddon(
+                manifestUrl = addon.manifestUrl,
+                forceRefresh = true,
+            )
         }
     }
 
-    fun refreshAddon(manifestUrl: String) {
+    fun refreshAddon(
+        manifestUrl: String,
+        forceRefresh: Boolean = false,
+    ) {
         // The existing-job check, markRefreshing, launch, and map registration all happen
         // inside one critical section so a concurrent call for the same URL (e.g. from
         // initialize() and pullFromServer() racing at startup) can't slip between the
@@ -380,7 +400,10 @@ object AddonRepository {
                     while (true) {
                         attempt++
                         val result = runCatching {
-                            val payload = httpGetText(manifestUrl)
+                            val payload = fetchAddonResponseText(
+                                url = manifestUrl,
+                                forceRefresh = forceRefresh,
+                            )
                             AddonManifestParser.parse(
                                 manifestUrl = manifestUrl,
                                 payload = payload,
@@ -455,19 +478,22 @@ object AddonRepository {
     }
 
     private fun pushToServer() {
-        scope.launch {
-            runCatching {
-                val profileId = currentProfileId
-                val addons = _uiState.value.addons
-                    .distinctBy { it.manifestUrl }
-                    .mapIndexed { index, addon ->
-                        AddonPushItem(
-                            url = addon.manifestUrl,
-                            name = addon.userSetName?.takeIf { it.isNotBlank() } ?: addon.manifest?.name ?: "",
-                            enabled = addon.enabled,
-                            sortOrder = index,
-                        )
-                    }
+        val profileId = currentProfileId
+        val addons = _uiState.value.addons
+            .distinctBy { it.manifestUrl }
+            .mapIndexed { index, addon ->
+                AddonPushItem(
+                    url = addon.manifestUrl,
+                    name = addon.userSetName?.takeIf { it.isNotBlank() } ?: addon.manifest?.name ?: "",
+                    enabled = addon.enabled,
+                    sortOrder = index,
+                )
+            }
+        pushJobsByProfile[profileId]?.cancel()
+        var pushJob: Job? = null
+        pushJob = scope.launch {
+            try {
+                delay(ADDON_PUSH_DEBOUNCE_MS)
                 log.d { "pushToServer() — profileId=$profileId, pushing ${addons.size} addons" }
                 val params = buildJsonObject {
                     put("p_profile_id", profileId)
@@ -476,10 +502,17 @@ object AddonRepository {
                 }
                 SupabaseProvider.client.postgrest.rpc("sync_push_addons", params)
                 log.d { "pushToServer() — success" }
-            }.onFailure { e ->
-                log.e(e) { "pushToServer() — FAILED" }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                log.e(error) { "pushToServer() — FAILED" }
+            } finally {
+                if (pushJobsByProfile[profileId] === pushJob) {
+                    pushJobsByProfile.remove(profileId)
+                }
             }
         }
+        pushJobsByProfile[profileId] = pushJob
     }
 
     private fun markRefreshing(manifestUrl: String) {

@@ -217,7 +217,7 @@ object ProfileSettingsSync {
     @OptIn(FlowPreview::class)
     private fun observeLocalChangesAndPush() {
         val signatureFlows = listOf(
-            ThemeSettingsRepository.selectedTheme.map { "theme" },
+            ThemeSettingsRepository.selectedThemePreference.map { "theme" },
             ThemeSettingsRepository.amoledEnabled.map { "amoled" },
             ThemeSettingsRepository.liquidGlassNativeTabBarEnabled.map { "liquid_glass_tab_bar" },
             ThemeSettingsRepository.desktopNavigationLayout.map { "desktop_navigation_layout" },

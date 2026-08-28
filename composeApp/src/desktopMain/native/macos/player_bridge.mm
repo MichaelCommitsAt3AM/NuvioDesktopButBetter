@@ -124,7 +124,8 @@
                                     bold:(BOOL)bold
                                 fontSize:(double)fontSize
                                   subPos:(int)subPos
-                               useLibass:(BOOL)useLibass;
+                               useLibass:(BOOL)useLibass
+                                stripSdh:(BOOL)stripSdh;
 - (void)handleScriptMessage:(NSDictionary *)message;
 - (void)focusControlsWebViewIfNeeded;
 - (void)layoutNativeSubviews;
@@ -1063,6 +1064,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     BOOL _appliedSubtitleBold;
     double _appliedSubtitleFontSize;
     int64_t _appliedSubtitlePosition;
+    BOOL _appliedSubtitleStripSdh;
 }
 
 - (instancetype)initWithHostView:(NSView *)hostView
@@ -2044,7 +2046,8 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
                                     bold:(BOOL)bold
                                 fontSize:(double)fontSize
                                   subPos:(int)subPos
-                               useLibass:(BOOL)useLibass {
+                               useLibass:(BOOL)useLibass
+                                stripSdh:(BOOL)stripSdh {
     if (!_mpv) return;
     double size = MAX(18.0, MIN(96.0, fontSize));
     double scale = useLibass ? size / 54.0 : 1.0;
@@ -2064,6 +2067,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     BOOL outlineColorChanged =
         !_hasAppliedSubtitleStyle || ![_appliedSubtitleOutlineColor isEqualToString:resolvedOutlineColor];
     BOOL outlineSizeChanged = !_hasAppliedSubtitleStyle || _appliedSubtitleOutlineSize != outline;
+    BOOL stripSdhChanged = !_hasAppliedSubtitleStyle || _appliedSubtitleStripSdh != stripSdh;
 
     if (modeChanged) {
         [self setStringProperty:"sub-ass-override" value:useLibass ? @"scale" : @"force"];
@@ -2105,6 +2109,10 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
             mpv_set_property(_mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
         }
     }
+    if (stripSdhChanged) {
+        [self setStringProperty:"sub-filter-sdh" value:stripSdh ? @"yes" : @"no"];
+        [self setStringProperty:"sub-filter-sdh-harder" value:stripSdh ? @"yes" : @"no"];
+    }
 
     _hasAppliedSubtitleStyle = YES;
     _appliedSubtitleUseLibass = useLibass;
@@ -2115,6 +2123,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     _appliedSubtitleBold = bold;
     _appliedSubtitleFontSize = size;
     _appliedSubtitlePosition = position;
+    _appliedSubtitleStripSdh = stripSdh;
 }
 
 - (double)doubleProperty:(const char *)name fallback:(double)fallback {
@@ -2951,7 +2960,8 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
     jboolean bold,
     jfloat fontSize,
     jint subPos,
-    jboolean useLibass
+    jboolean useLibass,
+    jboolean stripSdh
 ) {
     if (handle == 0) return;
     std::string text = jstringToString(env, textColor);
@@ -2966,6 +2976,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
                                             bold:bold == JNI_TRUE
                                         fontSize:(double)fontSize
                                           subPos:(int)subPos
-                                       useLibass:useLibass == JNI_TRUE];
+                                       useLibass:useLibass == JNI_TRUE
+                                        stripSdh:stripSdh == JNI_TRUE];
     });
 }

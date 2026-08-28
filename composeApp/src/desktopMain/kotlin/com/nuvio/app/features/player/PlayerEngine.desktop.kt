@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -55,10 +56,15 @@ actual fun PlatformPlayerSurface(
     onControllerReady: (PlayerEngineController) -> Unit,
     onSnapshot: (PlayerPlaybackSnapshot) -> Unit,
     onError: (String?) -> Unit,
+    sourceAvailable: Boolean,
 ) {
-    if (DesktopHostOs.current == DesktopHostOs.MACOS || DesktopHostOs.current == DesktopHostOs.WINDOWS) {
+    if (DesktopHostOs.current == DesktopHostOs.MACOS ||
+        DesktopHostOs.current == DesktopHostOs.WINDOWS ||
+        DesktopHostOs.current == DesktopHostOs.LINUX
+    ) {
         NativePlayerSurface(
             sourceUrl = sourceUrl,
+            sourceAvailable = sourceAvailable,
             sourceHeaders = sourceHeaders,
             preferredAudioLanguages = preferredAudioLanguages,
             modifier = modifier,
@@ -91,6 +97,7 @@ actual fun PlatformPlayerSurface(
 @Composable
 private fun NativePlayerSurface(
     sourceUrl: String,
+    sourceAvailable: Boolean,
     sourceHeaders: Map<String, String>,
     preferredAudioLanguages: List<String>,
     modifier: Modifier,
@@ -124,7 +131,7 @@ private fun NativePlayerSurface(
     val decoderPriority = playerSettings.decoderPriority
     val nvidiaRtxSuperResolutionEnabled = playerSettings.nvidiaRtxSuperResolutionEnabled
 
-    LaunchedEffect(controller, sourceUrl, playbackHeaders) {
+    SideEffect {
         onControllerReady(controller)
     }
 
@@ -157,12 +164,26 @@ private fun NativePlayerSurface(
         )
     }
 
-    DisposableEffect(controller, sourceUrl, playbackHeaders) {
+    DisposableEffect(controller, sourceAvailable, sourceUrl, playbackHeaders) {
         onDispose { controller.dispose() }
+    }
+
+    // The controls overlay owns the player shortcuts. After alt-tab, desktop
+    // window focus can return to the AWT/Compose host instead of the embedded
+    // WebView, so explicitly hand keyboard focus back to the native controls
+    // whenever the player window becomes active again.
+    DisposableEffect(controller, hostFirstFullSizePaintComplete.value) {
+        val uninstall = if (hostFirstFullSizePaintComplete.value) {
+            controller.installWindowFocusForwarding()
+        } else {
+            null
+        }
+        onDispose { uninstall?.invoke() }
     }
 
     LaunchedEffect(
         controller,
+        sourceAvailable,
         sourceUrl,
         playbackHeaders,
         preferredAudioLanguages,
@@ -172,7 +193,7 @@ private fun NativePlayerSurface(
         initialPositionMs,
         initialPositionRequestKey,
     ) {
-        if (!hostFirstFullSizePaintComplete.value) {
+        if (!sourceAvailable || !hostFirstFullSizePaintComplete.value) {
             return@LaunchedEffect
         }
         delay(16L)
@@ -192,7 +213,8 @@ private fun NativePlayerSurface(
         onControllerReady(controller)
     }
 
-    LaunchedEffect(controller, playWhenReady) {
+    LaunchedEffect(controller, sourceAvailable, playWhenReady) {
+        if (!sourceAvailable) return@LaunchedEffect
         if (playWhenReady) {
             controller.play()
         } else {

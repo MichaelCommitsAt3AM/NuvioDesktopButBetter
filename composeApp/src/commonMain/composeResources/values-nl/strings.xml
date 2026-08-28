@@ -1046,6 +1046,8 @@
     <string name="settings_playback_subtitle_show_preferred_only">Alleen voorkeurstalen tonen</string>
     <string name="settings_playback_subtitle_show_preferred_only_description">Toon alleen ondertitels die overeenkomen met je voorkeurstalen voor ondertiteling.</string>
     <string name="settings_playback_subtitle_size">Ondertitelgrootte</string>
+    <string name="settings_playback_subtitle_strip_sdh">SDH-informatie verwijderen</string>
+    <string name="settings_playback_subtitle_strip_sdh_description">Verberg geluidsbeschrijvingen en sprekerlabels in tekstondertitels.</string>
     <string name="settings_playback_subtitle_text_color">Tekstkleur</string>
     <string name="settings_playback_subtitle_use_forced">Geforceerde ondertitels gebruiken</string>
     <string name="settings_playback_subtitle_use_forced_description">Geef de voorkeur aan geforceerde ondertitels bij het matchen van je taalinstellingen voor ondertiteling.</string>

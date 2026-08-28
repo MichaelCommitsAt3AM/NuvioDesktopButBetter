@@ -4,6 +4,7 @@ const positionLabel = document.getElementById("position");
 const durationLabel = document.getElementById("duration");
 const timeLabel = document.getElementById("timeLabel");
 const volumeControl = document.getElementById("volumeControl");
+const volumeButton = document.getElementById("volumeButton");
 const volumeIcon = document.getElementById("volumeIcon");
 const volumeSlider = document.getElementById("volumeSlider");
 const bufferingStatus = document.getElementById("bufferingStatus");
@@ -336,6 +337,9 @@ let state = {
   subtitleColorSwatches: [],
   subtitleOutlineColorSwatches: [],
   closeModalsToken: 0,
+  submitIntroContentKey: "",
+  notificationMessage: "",
+  notificationToken: 0,
 };
 let fullscreenExitPending = false;
 let isScrubbing = false;
@@ -368,6 +372,7 @@ let suppressNextPointerToggleClick = false;
 let pendingCustomSubtitleStyling = null;
 let pendingCustomSubtitleStylingTimer = 0;
 let submitIntroDraft = {
+  contentKey: "",
   segmentType: "intro",
   startTime: "00:00",
   endTime: "00:00",
@@ -494,6 +499,11 @@ const syncVolumeControl = () => {
   volumeSlider.setAttribute("aria-label", label);
   volumeSlider.setAttribute("title", label);
   volumeIcon.setAttribute("href", percent === 0 ? "#icon-volume-muted" : "#icon-volume");
+  if (volumeButton) {
+    const btnLabel = percent === 0 ? "Unmute" : "Mute";
+    volumeButton.setAttribute("aria-label", btnLabel);
+    volumeButton.setAttribute("title", btnLabel);
+  }
 };
 
 const nextVolumeToastLabel = delta => {
@@ -908,12 +918,16 @@ const openPlayerModal = modal => {
   }
   activeModal = modal;
   if (modal === "submitIntro") {
-    submitIntroDraft = {
-      segmentType: state.submitIntroSegmentType || "intro",
-      startTime: state.submitIntroStartTime || "00:00",
-      endTime: state.submitIntroEndTime || "00:00",
-      status: "",
-    };
+    const contentKey = state.submitIntroContentKey || "";
+    if (submitIntroDraft.contentKey !== contentKey) {
+      submitIntroDraft = {
+        contentKey: contentKey,
+        segmentType: state.submitIntroSegmentType || "intro",
+        startTime: state.submitIntroStartTime || "00:00",
+        endTime: state.submitIntroEndTime || "00:00",
+        status: "",
+      };
+    }
   }
   if (modal === "subtitles") {
     resetSubtitleSelectionState();
@@ -2225,6 +2239,7 @@ const renderChrome = () => {
     nextEpisodeButton.hidden = !state.nextEpisodePlayable;
     const nextLabel = state.nextEpisodeHeaderLabel || "Next episode";
     nextEpisodeButton.setAttribute("aria-label", nextLabel);
+    nextEpisodeButton.setAttribute("title", nextLabel);
     if (nextEpisodeButtonLabel) nextEpisodeButtonLabel.textContent = nextLabel;
   }
   syncFullscreenButtons();
@@ -2437,6 +2452,15 @@ const clearPressedButton = () => {
 };
 
 document.addEventListener("pointerdown", event => {
+  if (event.button === 3) {
+    showCommandToast("seekBack");
+    send("seekBack", 0);
+    return;
+  } else if (event.button === 4) {
+    showCommandToast("seekForward");
+    send("seekForward", 0);
+    return;
+  }
   const interactingWithChrome = isChromeInteractionTarget(event.target);
   if (interactingWithChrome) {
     isChromePointerDown = true;
@@ -2713,6 +2737,14 @@ captureEndButton.addEventListener("click", event => {
   renderSubmitIntroModal();
 });
 
+submitIntroStartInput.addEventListener("input", () => {
+  submitIntroDraft.startTime = submitIntroStartInput.value;
+});
+
+submitIntroEndInput.addEventListener("input", () => {
+  submitIntroDraft.endTime = submitIntroEndInput.value;
+});
+
 submitIntroCloseButton.addEventListener("click", event => {
   event.stopPropagation();
   closePlayerModal();
@@ -2809,9 +2841,28 @@ volumeSlider.addEventListener("input", () => {
   const percent = Math.max(0, Math.min(100, Number(volumeSlider.value) || 0));
   const nextLevel = percent / 100;
   state.volumeLevel = nextLevel;
+  if (nextLevel > 0) {
+    preMuteVolumeLevel = nextLevel;
+  }
   syncVolumeControl();
   send("volumeChange", nextLevel);
 });
+
+let preMuteVolumeLevel = 1.0;
+
+if (volumeButton) {
+  volumeButton.addEventListener("click", () => {
+    noteChromeActivity();
+    if (state.volumeLevel > 0) {
+      preMuteVolumeLevel = state.volumeLevel;
+      state.volumeLevel = 0;
+    } else {
+      state.volumeLevel = preMuteVolumeLevel > 0 ? preMuteVolumeLevel : 1.0;
+    }
+    syncVolumeControl();
+    send("volumeChangeTemporary", state.volumeLevel);
+  });
+}
 
 window.playerUpdate = update => {
   const durationMs = Math.round((Number(update.duration) || 0) * 1000);
@@ -2853,6 +2904,8 @@ window.playerUpdate = update => {
 
 window.playerControls = nextState => {
   const previousCloseToken = Number(state.closeModalsToken) || 0;
+  const previousSubmitIntroSuccessToken = Number(state.submitIntroSuccessToken) || 0;
+  const previousNotificationToken = Number(state.notificationToken) || 0;
   const previousResizeLabel = state.resizeModeLabel || "";
   const previousSpeedLabel = state.playbackSpeedLabel || "";
   const previousVolumeLevel = typeof state.volumeLevel === "number" ? state.volumeLevel : NaN;
@@ -2865,10 +2918,24 @@ window.playerControls = nextState => {
   state = { ...state, ...nextState, isPlaying: currentPlaybackState };
   syncChromeWithPointerPolicy({ renderNow: false });
   if (!state.isFullscreen) fullscreenExitPending = false;
+  if (typeof state.volumeLevel === "number" && state.volumeLevel > 0) {
+    preMuteVolumeLevel = state.volumeLevel;
+  }
   hasReceivedPlayerControls = true;
   const closeToken = Number(state.closeModalsToken) || 0;
+  const submitIntroSuccessToken = Number(state.submitIntroSuccessToken) || 0;
   if (closeToken !== previousCloseToken) {
     closePlayerModal();
+  }
+  if (submitIntroSuccessToken !== previousSubmitIntroSuccessToken) {
+    submitIntroDraft.segmentType = "intro";
+    submitIntroDraft.startTime = "00:00";
+    submitIntroDraft.endTime = "00:00";
+    submitIntroDraft.status = "";
+  }
+  const notificationToken = Number(state.notificationToken) || 0;
+  if (notificationToken !== previousNotificationToken) {
+    showPlayerToast(state.notificationMessage);
   }
   if (state.showP2pConsent && activeModal !== "p2pConsent") {
     openPlayerModal("p2pConsent");
@@ -2903,9 +2970,47 @@ window.playerControls = nextState => {
   }
 };
 
+
+const isControlsSurfaceEvent = event => {
+  if (activeModal) return true;
+  if (event.target.closest("button, input, textarea, select, a, .action-pill, .volume-control, .modal-layer, .skip-prompt, .next-episode-card")) {
+    return true;
+  }
+
+  const seekEl = document.getElementById("seek");
+  if (seekEl && event.clientY >= seekEl.getBoundingClientRect().top - 6) {
+    return true;
+  }
+
+  const titleEl = document.getElementById("title");
+  const metaRow = document.querySelector(".meta-row");
+  if (titleEl && metaRow) {
+    const titleRect = titleEl.getBoundingClientRect();
+    const metaRect = metaRow.getBoundingClientRect();
+    const textTop = Math.min(titleRect.top, metaRect.top);
+    const textBottom = Math.max(titleRect.bottom, metaRect.bottom);
+    const textRight = titleRect.left + Math.max(titleEl.scrollWidth, metaRow.scrollWidth) + 16;
+
+    if (
+        event.clientX >= titleRect.left &&
+        event.clientX <= textRight &&
+        event.clientY >= textTop &&
+        event.clientY <= textBottom
+    ) {
+      return true;
+    }
+  }
+
+  const header = document.querySelector(".header");
+  if (header && event.clientY <= header.getBoundingClientRect().bottom + 10) {
+    return true;
+  }
+
+  return false;
+};
+
 root.addEventListener("click", event => {
-  if (playbackErrorText()) return;
-  if (event.target.closest("button,input")) return;
+  if (playbackErrorText() || isControlsSurfaceEvent(event)) return;
   window.clearTimeout(tapTimer);
   tapTimer = window.setTimeout(() => {
     requestPlaybackState("setPlaybackStateQuiet", false);
@@ -2913,12 +3018,20 @@ root.addEventListener("click", event => {
 });
 
 root.addEventListener("dblclick", event => {
-  if (playbackErrorText()) return;
-  if (event.target.closest("button,input")) return;
+  if (playbackErrorText() || isControlsSurfaceEvent(event)) return;
   event.preventDefault();
   window.clearTimeout(tapTimer);
   togglePlayerFullscreen();
 });
+
+root.addEventListener("wheel", event => {
+  if (activeModal) return;
+  event.preventDefault();
+  const delta = Math.sign(event.deltaY) * -1;
+  if (delta !== 0) {
+    sendKeyboardVolume(delta);
+  }
+}, { passive: false });
 
 document.addEventListener("keydown", event => {
   if (event.key === "Escape" && activeModal) {

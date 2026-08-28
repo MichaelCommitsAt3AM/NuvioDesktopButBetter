@@ -1169,7 +1169,8 @@ public:
         bool bold,
         double fontSize,
         int subPos,
-        bool useLibass
+        bool useLibass,
+        bool stripSdh
     ) {
         double size = std::max(18.0, std::min(96.0, fontSize));
         int64_t position = std::max(0, std::min(150, subPos));
@@ -1189,6 +1190,7 @@ public:
         bool outlineColorChanged =
             !hasAppliedSubtitleStyle || appliedSubtitleOutlineColor != resolvedOutlineColor;
         bool outlineSizeChanged = !hasAppliedSubtitleStyle || appliedSubtitleOutlineSize != outline;
+        bool stripSdhChanged = !hasAppliedSubtitleStyle || appliedSubtitleStripSdh != stripSdh;
 
         if (modeChanged) {
             setStringProperty("sub-ass-override", useLibass ? "scale" : "force");
@@ -1240,6 +1242,10 @@ public:
                 mpvApi().setProperty(mpv, "sub-outline-size", MPV_FORMAT_DOUBLE, &outline);
             }
         }
+        if (stripSdhChanged) {
+            setStringProperty("sub-filter-sdh", stripSdh ? "yes" : "no");
+            setStringProperty("sub-filter-sdh-harder", stripSdh ? "yes" : "no");
+        }
 
         hasAppliedSubtitleStyle = true;
         appliedSubtitleUseLibass = useLibass;
@@ -1250,6 +1256,7 @@ public:
         appliedSubtitleBold = bold;
         appliedSubtitleFontSize = size;
         appliedSubtitlePosition = position;
+        appliedSubtitleStripSdh = stripSdh;
     }
 
 private:
@@ -1289,6 +1296,7 @@ private:
     bool appliedSubtitleBold = false;
     double appliedSubtitleFontSize = 0.0;
     int64_t appliedSubtitlePosition = 0;
+    bool appliedSubtitleStripSdh = false;
 
     JavaVM *javaVm = nullptr;
     jobject eventSink = nullptr;
@@ -2570,7 +2578,8 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
     jboolean bold,
     jfloat fontSize,
     jint subPos,
-    jboolean useLibass
+    jboolean useLibass,
+    jboolean stripSdh
 ) {
     auto player = playerFromHandle(handle);
     if (!player) return;
@@ -2582,6 +2591,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_applySubtitleStyle
         bold == JNI_TRUE,
         fontSize,
         subPos,
-        useLibass == JNI_TRUE
+        useLibass == JNI_TRUE,
+        stripSdh == JNI_TRUE
     );
 }

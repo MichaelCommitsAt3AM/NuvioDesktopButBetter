@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
@@ -86,6 +87,7 @@ private const val MAX_DISPLAYED_RECENT_SEARCHES = 5
 fun SearchScreen(
     modifier: Modifier = Modifier,
     topChromePadding: Dp? = null,
+    listState: LazyListState = rememberLazyListState(),
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
     searchFocusRequestCount: Int = 0,
@@ -119,7 +121,6 @@ fun SearchScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var lastRequestedQuery by rememberSaveable { mutableStateOf<String?>(null) }
     var observedOfflineState by remember { mutableStateOf(false) }
-    val listState = rememberLazyListState()
     val discoverInFocus by remember(query, listState) {
         derivedStateOf {
             query.isBlank() && listState.firstVisibleItemIndex > 0
@@ -210,11 +211,15 @@ fun SearchScreen(
 
                 val normalizedQuery = query.trim()
                 if (normalizedQuery.isBlank()) {
-                    SearchRepository.refreshDiscover(addonsUiState.addons)
+                    SearchRepository.refreshDiscover(
+                        addons = addonsUiState.addons,
+                        forceRefresh = true,
+                    )
                 } else {
                     SearchRepository.search(
                         query = normalizedQuery,
                         addons = addonsUiState.addons,
+                        forceRefresh = true,
                     )
                 }
             }
@@ -308,7 +313,10 @@ fun SearchScreen(
                     onGenreSelected = SearchRepository::selectDiscoverGenre,
                     onRetry = {
                         NetworkStatusRepository.requestRefresh(force = true)
-                        SearchRepository.refreshDiscover(addonsUiState.addons)
+                        SearchRepository.refreshDiscover(
+                            addons = addonsUiState.addons,
+                            forceRefresh = true,
+                        )
                     },
                     watchedKeys = watchedUiState.watchedKeys,
                     fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
@@ -347,6 +355,7 @@ fun SearchScreen(
                                         SearchRepository.search(
                                             query = normalizedQuery,
                                             addons = addonsUiState.addons,
+                                            forceRefresh = true,
                                         )
                                     }
                                 },

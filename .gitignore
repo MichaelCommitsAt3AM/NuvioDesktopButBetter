@@ -23,7 +23,11 @@ logs/
 analysis/
 Docs
 SUPPORTER_COSMETICS.md
-supabase/migrations/
+# NOTE: upstream ignores supabase/migrations/ (they keep their schema private).
+# This fork version-controls the backend -- see CLAUDE.md "Supabase backend is
+# tracked in this repo" -- and the Supabase Database Tests workflow reads these
+# migrations, so the ignore is deliberately NOT carried over. Re-drop it if an
+# upstream sync reintroduces it.
 keystore/
 scripts/build-distribution.sh
 asset

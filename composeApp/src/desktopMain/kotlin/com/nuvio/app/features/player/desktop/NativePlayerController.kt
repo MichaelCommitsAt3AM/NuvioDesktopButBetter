@@ -3,6 +3,7 @@ package com.nuvio.app.features.player.desktop
 import androidx.compose.ui.graphics.Color
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.diagnostics.DesktopDiagnostics
+import com.nuvio.app.core.diagnostics.StreamLoadTimeline
 import com.nuvio.app.core.diagnostics.KermitFileLogWriter
 import com.nuvio.app.features.player.PlayerControlAddonSubtitleItem
 import com.nuvio.app.features.player.PlayerControlEpisodeItem
@@ -362,6 +363,7 @@ internal class NativePlayerController(
                         }
                         if (!shouldConfigure) return@invokeLater
                         DesktopDiagnostics.record("player_attach_completed", "handle=$created")
+                        StreamLoadTimeline.mark("mpv handle created (native player attached)") // STREAM-LOAD-TIMELINE
                         // The user is now watching something — the startup window this logging
                         // targets has passed, so stop before playback's own chatter rotates it
                         // out of the file.
@@ -377,6 +379,7 @@ internal class NativePlayerController(
                     }
                 }.onFailure { error ->
                     DesktopDiagnostics.recordFailure("player_attach_failed", error)
+                    StreamLoadTimeline.fail("mpv attach failed: ${error.message}") // STREAM-LOAD-TIMELINE
                     log.w(error) { "attach failed source=${pending.sourceUrl.toPlaybackLogKey()}" }
                     SwingUtilities.invokeLater {
                         if (!releaseRequested && pendingSource === pending) pending.onError(error.message)

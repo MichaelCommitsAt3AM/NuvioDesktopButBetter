@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.core.ui.nuvio
+import com.nuvio.app.core.diagnostics.StreamLoadTimeline
 import com.nuvio.app.features.debrid.DirectDebridPlayableResult
 import com.nuvio.app.features.debrid.DirectDebridPlaybackResolver
 import com.nuvio.app.features.debrid.toastMessage
@@ -35,6 +36,7 @@ import com.nuvio.app.features.player.sanitizePlaybackHeaders
 import com.nuvio.app.features.player.sanitizePlaybackResponseHeaders
 import com.nuvio.app.features.streams.StreamBehaviorHints
 import com.nuvio.app.features.streams.StreamItem
+import com.nuvio.app.features.streams.StreamLaunch
 import com.nuvio.app.features.streams.StreamLaunchStore
 import com.nuvio.app.features.streams.StreamLinkCacheRepository
 import com.nuvio.app.features.streams.StreamsRepository
@@ -43,6 +45,16 @@ import com.nuvio.app.navigation.*
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+
+// STREAM-LOAD-TIMELINE (temporary debug instrumentation) — remove with StreamLoadTimeline.
+private fun streamLoadTimelineHeader(launch: StreamLaunch, stream: StreamItem): String = buildString {
+    append(launch.title)
+    if (launch.seasonNumber != null && launch.episodeNumber != null) {
+        append(" S").append(launch.seasonNumber).append("E").append(launch.episodeNumber)
+    }
+    append("  |  ").append(stream.addonName)
+    append("  |  ").append(stream.streamLabel)
+}
 
 private data class PendingP2pStreamOpen(
     val stream: StreamItem,
@@ -352,6 +364,7 @@ internal fun StreamDestination(
         if (autoPlayHandled) return@LaunchedEffect
         if (streamsUiState.requestToken != expectedStreamsRequestToken) return@LaunchedEffect
         val selectedStream = streamsUiState.autoPlayStream ?: return@LaunchedEffect
+        StreamLoadTimeline.begin("(auto-play) " + streamLoadTimelineHeader(launch, selectedStream)) // STREAM-LOAD-TIMELINE
         val stream = if (DirectDebridPlaybackResolver.shouldResolveToPlayableStream(selectedStream)) {
             when (
                 val resolved = DirectDebridPlaybackResolver.resolveToPlayableStream(
@@ -452,11 +465,13 @@ internal fun StreamDestination(
             initialProgressFraction = launch.resumeProgressFraction,
         )
         if (externalPlayerSupported && playerSettings.externalPlayerEnabled) {
+            StreamLoadTimeline.fail("stream sent to external player (not measured)") // STREAM-LOAD-TIMELINE
             openExternalPlayback(playerLaunch)
             StreamsRepository.consumeAutoPlay()
             StreamsRepository.cancelLoading()
             return@LaunchedEffect
         }
+        StreamLoadTimeline.mark("stream URL ready → navigating to player screen") // STREAM-LOAD-TIMELINE
         StreamsRepository.consumeAutoPlay()
         StreamsRepository.cancelLoading()
         val launchId = PlayerLaunchStore.put(playerLaunch)
@@ -484,6 +499,7 @@ internal fun StreamDestination(
     ) {
         if (DirectDebridPlaybackResolver.shouldResolveToPlayableStream(stream)) {
             if (resolvingDebridStream) return
+            StreamLoadTimeline.mark("debrid: resolving playable URL") // STREAM-LOAD-TIMELINE
             streamRouteScope.launch {
                 resolvingDebridStream = true
                 val resolved = DirectDebridPlaybackResolver.resolveToPlayableStream(
@@ -492,6 +508,7 @@ internal fun StreamDestination(
                     episode = launch.episodeNumber,
                 )
                 resolvingDebridStream = false
+                StreamLoadTimeline.mark("debrid: resolve returned (${resolved::class.simpleName})") // STREAM-LOAD-TIMELINE
                 when (resolved) {
                     is DirectDebridPlayableResult.Success -> openSelectedStream(
                         stream = resolved.stream,
@@ -501,6 +518,7 @@ internal fun StreamDestination(
                         forceInternal = forceInternal,
                     )
                     else -> {
+                        StreamLoadTimeline.fail("debrid resolve failed: ${resolved::class.simpleName}") // STREAM-LOAD-TIMELINE
                         resolved.toastMessage()?.let { NuvioToastController.show(it) }
                         if (resolved == DirectDebridPlayableResult.Stale) {
                             StreamsRepository.reload(
@@ -529,6 +547,7 @@ internal fun StreamDestination(
             return
         }
         if (stream.shouldOpenExternally) {
+            StreamLoadTimeline.fail("stream opened in external app (not measured)") // STREAM-LOAD-TIMELINE
             val opened = stream.externalOpenUrl?.let { url -> openExternalStreamUrl(url) } == true
             if (opened) {
                 StreamsRepository.cancelLoading()
@@ -588,6 +607,7 @@ internal fun StreamDestination(
         )
 
         if (!forceInternal && externalPlayerSupported && (forceExternal || playerSettings.externalPlayerEnabled)) {
+            StreamLoadTimeline.fail("stream sent to external player (not measured)") // STREAM-LOAD-TIMELINE
             streamRouteScope.launch {
                 openExternalPlayback(playerLaunch)
                 StreamsRepository.cancelLoading()
@@ -595,6 +615,7 @@ internal fun StreamDestination(
             return
         }
 
+        StreamLoadTimeline.mark("stream URL ready → navigating to player screen") // STREAM-LOAD-TIMELINE
         val launchId = PlayerLaunchStore.put(playerLaunch)
         StreamsRepository.cancelLoading()
         navController.navigate(
@@ -627,6 +648,7 @@ internal fun StreamDestination(
             manualSelection = launch.manualSelection,
             startFromBeginning = launch.startFromBeginning,
             onStreamSelected = { stream, resolvedResumePositionMs, resolvedResumeProgressFraction ->
+                StreamLoadTimeline.begin(streamLoadTimelineHeader(launch, stream)) // STREAM-LOAD-TIMELINE
                 openSelectedStream(
                     stream = stream,
                     resolvedResumePositionMs = resolvedResumePositionMs,
@@ -636,6 +658,7 @@ internal fun StreamDestination(
                 )
             },
             onStreamActionOpen = { stream, openExternally, resolvedResumePositionMs, resolvedResumeProgressFraction ->
+                StreamLoadTimeline.begin(streamLoadTimelineHeader(launch, stream)) // STREAM-LOAD-TIMELINE
                 openSelectedStream(
                     stream = stream,
                     resolvedResumePositionMs = resolvedResumePositionMs,

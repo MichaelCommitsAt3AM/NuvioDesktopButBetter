@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import com.nuvio.app.core.diagnostics.StreamLoadTimeline
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.features.player.ExternalPlayerIntentResult
 import com.nuvio.app.features.player.ExternalPlayerPlatform
@@ -51,6 +52,9 @@ internal fun PlayerDestination(
     }
     LaunchedEffect(launch.videoId) {
         launch.videoId?.let { ResumePromptRepository.markPlayerEntered(it) }
+    }
+    LaunchedEffect(route.launchId) {
+        StreamLoadTimeline.mark("player screen composed") // STREAM-LOAD-TIMELINE
     }
     PlayerScreen(
         profileId = launch.profileId,

@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.core.diagnostics.StreamLoadTimeline
 import com.nuvio.app.core.ui.LocalNuvioPlatformDensity
 import com.nuvio.app.features.player.desktop.DesktopHostOs
 import com.nuvio.app.features.player.desktop.NativePlayerController
@@ -197,6 +198,7 @@ private fun NativePlayerSurface(
             return@LaunchedEffect
         }
         delay(16L)
+        StreamLoadTimeline.mark("player screen ready (host painted) → attaching to mpv") // STREAM-LOAD-TIMELINE
         controller.attach(
             sourceUrl = sourceUrl,
             sourceHeaders = playbackHeaders,
@@ -205,7 +207,10 @@ private fun NativePlayerSurface(
             initialPositionMs = initialPositionMs,
             decoderPriority = decoderPriority,
             nvidiaRtxSuperResolutionEnabled = nvidiaRtxSuperResolutionEnabled,
-            onError = { message -> latestOnError.value(message) },
+            onError = { message ->
+                StreamLoadTimeline.fail("player error before playback: $message") // STREAM-LOAD-TIMELINE
+                latestOnError.value(message)
+            },
         )
         initialPositionRequestKey?.let { key ->
             latestOnInitialPositionHandled.value(key, initialPositionMs > 0L)
@@ -246,9 +251,16 @@ private fun NativePlayerSurface(
     }
 
     LaunchedEffect(controller) {
+        var firstFrameReported = false // STREAM-LOAD-TIMELINE
         while (true) {
-            onSnapshot(controller.snapshot())
-            delay(500L)
+            val snapshot = controller.snapshot()
+            onSnapshot(snapshot)
+            // STREAM-LOAD-TIMELINE: mpv reports it is no longer idle/buffering -> first frame is up.
+            if (!firstFrameReported && !snapshot.isLoading && !snapshot.isEnded) {
+                firstFrameReported = true
+                StreamLoadTimeline.finish("playback started (first frame)")
+            }
+            delay(if (firstFrameReported) 500L else 100L)
         }
     }
 

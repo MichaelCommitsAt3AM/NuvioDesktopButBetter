@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.diagnostics.DesktopDiagnostics
 import com.nuvio.app.core.diagnostics.KermitFileLogWriter
+import com.nuvio.app.core.diagnostics.StreamLoadTimelineFile
 import com.nuvio.app.core.deeplink.handleAppUrl
 import com.nuvio.app.core.diagnostics.SentryInitializer
 import com.nuvio.app.core.ui.NuvioFrameTimeProbe
@@ -73,6 +74,7 @@ fun main(args: Array<String>) {
 
     DesktopDiagnostics.initialize()
     Logger.addLogWriter(KermitFileLogWriter())
+    StreamLoadTimelineFile.install() // STREAM-LOAD-TIMELINE (temporary debug instrumentation)
     markStartup("diagnostics_initialized")
     configureDesktopQuickJsLibrary()
     markStartup("quickjs_library_configured")

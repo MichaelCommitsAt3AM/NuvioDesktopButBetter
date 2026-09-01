@@ -53,7 +53,10 @@ internal fun officialConfiguration() = ServerConfiguration(
     publishableKey = SupabaseConfig.ANON_KEY.trim(),
     capabilities = ServerCapabilities(
         emailPasswordAuth = true,
-        tvLogin = true,
+        // Upstream's TV/device-link sign-in (start_device_login_session / poll_tv_login_session
+        // RPCs + the tv-logins-exchange edge function) is not implemented on this fork's
+        // Supabase backend, so the UI stays hidden. Flip back to true if that backend lands.
+        tvLogin = false,
     ),
     isCustom = false,
     fallbackBackendUrl = SupabaseConfig.FALLBACK_URL.trim().trimEnd('/').takeIf { it.isNotBlank() },

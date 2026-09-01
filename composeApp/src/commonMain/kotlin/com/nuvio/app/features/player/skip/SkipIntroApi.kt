@@ -38,7 +38,7 @@ internal object SkipIntroApi {
         val url = "$baseUrl/submit"
         val body = json.encodeToString(SubmitIntroRequest.serializer(), request)
         val headers = mapOf(
-            "Authorization" to "Bearer $apiKey",
+            "X-API-Key" to apiKey,
             "Content-Type" to "application/json"
         )
         return try {
@@ -59,7 +59,7 @@ internal object SkipIntroApi {
         if (baseUrl.isBlank() || apiKey.isBlank()) return false
         val url = "$baseUrl/submit"
         val headers = mapOf(
-            "Authorization" to "Bearer $apiKey",
+            "X-API-Key" to apiKey,
             "Content-Type" to "application/json"
         )
         return try {

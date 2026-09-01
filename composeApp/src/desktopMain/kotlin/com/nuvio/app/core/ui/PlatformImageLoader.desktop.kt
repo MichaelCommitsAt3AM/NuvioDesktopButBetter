@@ -59,4 +59,9 @@ internal actual fun ImageLoader.Builder.configurePlatformImageLoader(): ImageLoa
     }
 
 internal actual fun ComponentRegistry.Builder.addPlatformImageComponents(): ComponentRegistry.Builder =
-    add(NuvioSkiaImageDecoder.Factory())
+    // Decoder factories are tried in registration order. SkiaGifDecoder only claims GIFs
+    // (returns null otherwise), so it must come before NuvioSkiaImageDecoder — which claims
+    // everything — for animated GIFs to reach it; every other format falls through to the
+    // layout-sized decoder as before.
+    add(SkiaGifDecoder.Factory())
+        .add(NuvioSkiaImageDecoder.Factory())

@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -63,6 +64,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -72,11 +75,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.NuvioBottomSheetActionRow
@@ -103,10 +115,12 @@ import com.nuvio.app.features.debrid.DebridSettingsRepository
 import com.nuvio.app.features.debrid.DirectDebridPlayableResult
 import com.nuvio.app.features.debrid.DirectDebridPlaybackResolver
 import com.nuvio.app.features.debrid.toastMessage
+import com.nuvio.app.features.details.MetaScreenBackgroundMode
 import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import com.nuvio.app.features.watched.WatchedRepository
 import com.nuvio.app.features.watched.watchedItemKeys
+import com.nuvio.app.isDesktop
 import com.nuvio.app.navigation.LocalUseNativeNavigation
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -167,6 +181,8 @@ fun StreamsScreen(
         WatchedRepository.ensureLoaded()
         WatchedRepository.uiState
     }.collectAsStateWithLifecycle()
+    val dominantColorEnabled = isDesktop &&
+        metaScreenSettings.backgroundMode == MetaScreenBackgroundMode.DominantColor
     remember {
         if (AppFeaturePolicy.downloadsEnabled) {
             DownloadsRepository.ensureLoaded()
@@ -176,7 +192,7 @@ fun StreamsScreen(
     val clipboardManager = LocalClipboardManager.current
     val streamLinkCopiedText = stringResource(Res.string.streams_link_copied)
     val noDirectStreamLinkText = stringResource(Res.string.streams_no_direct_link)
-    var streamActionsTarget by remember(videoId) { mutableStateOf<StreamItem?>(null) }
+    var streamActionsTarget by remember(videoId) { mutableStateOf<StreamActionsTarget?>(null) }
     val downloadScope = rememberCoroutineScope()
     var preferredFilterApplied by remember(videoId) { mutableStateOf(false) }
     var autoPlayOverlayLogoLoadError by remember(logo) { mutableStateOf(false) }
@@ -284,10 +300,16 @@ fun StreamsScreen(
                 appendInstantServiceToDefaultName = debridSettings.canResolvePlayableLinks && !debridSettings.hasCustomStreamFormatting,
                 resumePositionMs = effectiveResumePositionMs,
                 resumeProgressFraction = effectiveResumeProgressFraction,
+                dominantColorEnabled = dominantColorEnabled,
                 onStreamSelected = { stream, positionMs, progressFraction ->
                     onStreamSelected(stream, positionMs, progressFraction)
                 },
-                onStreamLongPress = { stream -> streamActionsTarget = stream },
+                onStreamLongPress = { stream ->
+                    streamActionsTarget = StreamActionsTarget(stream = stream)
+                },
+                onStreamSecondaryClick = { stream, position ->
+                    streamActionsTarget = StreamActionsTarget(stream = stream, anchorInRoot = position)
+                },
                 onRefresh = reloadStreams,
                 onOpenDownloadFilterSettings = onOpenDownloadFilterSettings,
             )
@@ -309,7 +331,12 @@ fun StreamsScreen(
                 onStreamSelected = { stream, positionMs, progressFraction ->
                     onStreamSelected(stream, positionMs, progressFraction)
                 },
-                onStreamLongPress = { stream -> streamActionsTarget = stream },
+                onStreamLongPress = { stream ->
+                    streamActionsTarget = StreamActionsTarget(stream = stream)
+                },
+                onStreamSecondaryClick = { stream, position ->
+                    streamActionsTarget = StreamActionsTarget(stream = stream, anchorInRoot = position)
+                },
                 onRefresh = reloadStreams,
                 onOpenDownloadFilterSettings = onOpenDownloadFilterSettings,
             )
@@ -382,8 +409,9 @@ fun StreamsScreen(
             }
         }
 
-        StreamActionsSheet(
-            stream = streamActionsTarget,
+        StreamActionsHost(
+            target = streamActionsTarget,
+            useDesktopContextMenu = isDesktop,
             externalPlayerSupported = AppFeaturePolicy.externalPlayerSupported,
             externalPlayerEnabled = AppFeaturePolicy.externalPlayerSupported && playerSettings.externalPlayerEnabled,
             showDownloadAction = AppFeaturePolicy.downloadsEnabled,
@@ -505,6 +533,7 @@ private fun MobileStreamsLayout(
     resumeProgressFraction: Float?,
     onStreamSelected: (stream: StreamItem, resumePositionMs: Long?, resumeProgressFraction: Float?) -> Unit,
     onStreamLongPress: (StreamItem) -> Unit,
+    onStreamSecondaryClick: (StreamItem, Offset) -> Unit,
     onRefresh: () -> Unit,
     onOpenDownloadFilterSettings: () -> Unit,
     modifier: Modifier = Modifier,
@@ -601,6 +630,7 @@ private fun MobileStreamsLayout(
                         appendInstantServiceToDefaultName = appendInstantServiceToDefaultName,
                         onStreamSelected = onStreamSelected,
                         onStreamLongPress = onStreamLongPress,
+                        onStreamSecondaryClick = onStreamSecondaryClick,
                         resumePositionMs = resumePositionMs,
                         resumeProgressFraction = resumeProgressFraction,
                         modifier = Modifier.weight(1f),
@@ -1045,6 +1075,7 @@ internal fun StreamList(
     appendInstantServiceToDefaultName: Boolean,
     onStreamSelected: (stream: StreamItem, resumePositionMs: Long?, resumeProgressFraction: Float?) -> Unit,
     onStreamLongPress: (StreamItem) -> Unit,
+    onStreamSecondaryClick: (StreamItem, Offset) -> Unit,
     resumePositionMs: Long?,
     resumeProgressFraction: Float?,
     modifier: Modifier = Modifier,
@@ -1135,6 +1166,7 @@ internal fun StreamList(
                             torrentNotSupportedText = torrentNotSupportedText,
                             onStreamSelected = onStreamSelected,
                             onStreamLongPress = onStreamLongPress,
+                            onStreamSecondaryClick = onStreamSecondaryClick,
                             resumePositionMs = resumePositionMs,
                             resumeProgressFraction = resumeProgressFraction,
                         )
@@ -1214,6 +1246,7 @@ private fun LazyListScope.streamSection(
     torrentNotSupportedText: String,
     onStreamSelected: (stream: StreamItem, resumePositionMs: Long?, resumeProgressFraction: Float?) -> Unit,
     onStreamLongPress: (StreamItem) -> Unit,
+    onStreamSecondaryClick: (StreamItem, Offset) -> Unit,
     resumePositionMs: Long?,
     resumeProgressFraction: Float?,
 ) {
@@ -1270,6 +1303,11 @@ private fun LazyListScope.streamSection(
                 onLongClick = {
                     if (stream.playableDirectUrl != null || stream.shouldOpenExternally || stream.isAddonDebridCandidate) {
                         onStreamLongPress(stream)
+                    }
+                },
+                onSecondaryClick = { position ->
+                    if (stream.playableDirectUrl != null || stream.shouldOpenExternally || stream.isAddonDebridCandidate) {
+                        onStreamSecondaryClick(stream, position)
                     }
                 },
             )
@@ -1373,6 +1411,234 @@ private fun StreamSourceHeader(
         ),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+}
+
+private data class StreamActionsTarget(
+    val stream: StreamItem,
+    val anchorInRoot: Offset? = null,
+)
+
+@Composable
+private fun StreamActionsHost(
+    target: StreamActionsTarget?,
+    useDesktopContextMenu: Boolean,
+    externalPlayerSupported: Boolean,
+    externalPlayerEnabled: Boolean,
+    showDownloadAction: Boolean,
+    onDismiss: () -> Unit,
+    onCopyLink: (StreamItem) -> Unit,
+    onDownload: (StreamItem) -> Unit,
+    onOpen: (StreamItem, openExternally: Boolean) -> Unit,
+) {
+    if (target == null) return
+
+    if (useDesktopContextMenu) {
+        val anchor = target.anchorInRoot ?: return
+        DesktopStreamActionsMenu(
+            stream = target.stream,
+            anchorInRoot = anchor,
+            externalPlayerSupported = externalPlayerSupported,
+            externalPlayerEnabled = externalPlayerEnabled,
+            showDownloadAction = showDownloadAction,
+            onDismiss = onDismiss,
+            onCopyLink = onCopyLink,
+            onDownload = onDownload,
+            onOpen = onOpen,
+        )
+    } else {
+        StreamActionsSheet(
+            stream = target.stream,
+            externalPlayerSupported = externalPlayerSupported,
+            externalPlayerEnabled = externalPlayerEnabled,
+            showDownloadAction = showDownloadAction,
+            onDismiss = onDismiss,
+            onCopyLink = onCopyLink,
+            onDownload = onDownload,
+            onOpen = onOpen,
+        )
+    }
+}
+
+private data class DesktopStreamAction(
+    val icon: ImageVector,
+    val title: String,
+    val onClick: () -> Unit,
+)
+
+@Composable
+private fun DesktopStreamActionsMenu(
+    stream: StreamItem,
+    anchorInRoot: Offset,
+    externalPlayerSupported: Boolean,
+    externalPlayerEnabled: Boolean,
+    showDownloadAction: Boolean,
+    onDismiss: () -> Unit,
+    onCopyLink: (StreamItem) -> Unit,
+    onDownload: (StreamItem) -> Unit,
+    onOpen: (StreamItem, openExternally: Boolean) -> Unit,
+) {
+    val density = LocalDensity.current
+    val edgeMarginPx = with(density) { 8.dp.roundToPx() }
+    val menuShape = RoundedCornerShape(8.dp)
+    val actions = buildList {
+        add(
+            DesktopStreamAction(
+                icon = Icons.Rounded.ContentCopy,
+                title = stringResource(Res.string.streams_copy_link),
+                onClick = { onCopyLink(stream) },
+            ),
+        )
+        if (externalPlayerSupported) {
+            add(
+                DesktopStreamAction(
+                    icon = Icons.AutoMirrored.Rounded.OpenInNew,
+                    title = stringResource(
+                        if (externalPlayerEnabled) {
+                            Res.string.streams_open_internal_player
+                        } else {
+                            Res.string.streams_open_external_player
+                        },
+                    ),
+                    onClick = { onOpen(stream, !externalPlayerEnabled) },
+                ),
+            )
+        }
+        if (showDownloadAction) {
+            add(
+                DesktopStreamAction(
+                    icon = Icons.Rounded.Download,
+                    title = stringResource(Res.string.streams_download_file),
+                    onClick = { onDownload(stream) },
+                ),
+            )
+        }
+    }
+
+    Popup(
+        popupPositionProvider = remember(anchorInRoot, edgeMarginPx) {
+            StreamActionsPopupPositionProvider(
+                pointerPosition = IntOffset(
+                    x = anchorInRoot.x.roundToInt(),
+                    y = anchorInRoot.y.roundToInt(),
+                ),
+                edgeMarginPx = edgeMarginPx,
+            )
+        },
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true),
+    ) {
+        Column(
+            modifier = Modifier
+                .width(244.dp)
+                .shadow(elevation = 14.dp, shape = menuShape)
+                .clip(menuShape)
+                .background(MaterialTheme.colorScheme.surface)
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+                    shape = menuShape,
+                )
+                .padding(4.dp),
+        ) {
+            actions.forEach { action ->
+                DesktopStreamActionRow(
+                    action = action,
+                    onSelected = {
+                        onDismiss()
+                        action.onClick()
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DesktopStreamActionRow(
+    action: DesktopStreamAction,
+    onSelected: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    val rowShape = RoundedCornerShape(5.dp)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(38.dp)
+            .clip(rowShape)
+            .background(
+                if (isHovered) {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.09f)
+                } else {
+                    Color.Transparent
+                },
+            )
+            .hoverable(interactionSource)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onSelected,
+            )
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            imageVector = action.icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(17.dp),
+        )
+        Text(
+            text = action.title,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+internal class StreamActionsPopupPositionProvider(
+    private val pointerPosition: IntOffset,
+    private val edgeMarginPx: Int,
+) : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize,
+    ): IntOffset = IntOffset(
+        x = positionContextMenuAxis(
+            pointer = pointerPosition.x,
+            popupExtent = popupContentSize.width,
+            windowExtent = windowSize.width,
+            edgeMargin = edgeMarginPx,
+        ),
+        y = positionContextMenuAxis(
+            pointer = pointerPosition.y,
+            popupExtent = popupContentSize.height,
+            windowExtent = windowSize.height,
+            edgeMargin = edgeMarginPx,
+        ),
+    )
+}
+
+internal fun positionContextMenuAxis(
+    pointer: Int,
+    popupExtent: Int,
+    windowExtent: Int,
+    edgeMargin: Int,
+): Int {
+    val minimum = edgeMargin
+    val maximum = (windowExtent - popupExtent - edgeMargin).coerceAtLeast(minimum)
+    val preferred = if (pointer + popupExtent <= windowExtent - edgeMargin) {
+        pointer
+    } else {
+        pointer - popupExtent
+    }
+    return preferred.coerceIn(minimum, maximum)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

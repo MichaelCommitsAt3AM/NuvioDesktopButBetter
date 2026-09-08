@@ -198,8 +198,46 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             configuredAudioLanguage != AudioLanguageOption.DEFAULT ||
             !playerSettingsUiState.secondaryPreferredAudioLanguage.isNullOrBlank()
         )
+    // Best-effort subtitle language hint passed to mpv at load time (as `slang`, mirroring
+    // `alang`) so a straightforward language preference resolves in the same demuxer pass as
+    // everything else, instead of costing a mid-playback track switch. Deliberately narrow: skip
+    // it for forced-subtitle mode and addon-provided subtitles, since those depend on the
+    // selected audio track / a network fetch that aren't known yet at this point — the normal
+    // post-load selection logic (now cheap thanks to local subtitle caching) still handles those.
+    val preferredStartupSubtitleLanguages = remember(
+        activeSourceIdentityKey,
+        parentMetaId,
+        playerSettingsUiState.preferredSubtitleLanguage,
+        playerSettingsUiState.secondaryPreferredSubtitleLanguage,
+        subtitleStyle.useForcedSubtitles,
+    ) {
+        val persistedType = persistedStartupTrackPreference?.subtitleType
+        val persistedLanguage = persistedStartupTrackPreference
+            ?.subtitleLanguage
+            ?.takeIf { it.isNotBlank() }
+        val targets = when {
+            persistedType == PersistedSubtitleSelectionType.INTERNAL && persistedLanguage != null ->
+                listOf(persistedLanguage)
+            persistedType != null -> emptyList()
+            subtitleStyle.useForcedSubtitles -> emptyList()
+            else -> resolvePreferredSubtitleLanguageTargets(
+                preferredSubtitleLanguage = playerSettingsUiState.preferredSubtitleLanguage,
+                secondaryPreferredSubtitleLanguage = playerSettingsUiState.secondaryPreferredSubtitleLanguage,
+                deviceLanguages = DeviceLanguagePreferences.preferredLanguageCodes(),
+            )
+        }
+        expandAudioLanguageTargetsForMpv(targets)
+    }
+    val startupSubtitlesDisabled =
+        persistedStartupTrackPreference?.subtitleType == PersistedSubtitleSelectionType.DISABLED
+    val startupSubtitleSelectionRequired = isDesktop && (
+        persistedStartupTrackPreference?.subtitleType != null ||
+            preferredStartupSubtitleLanguages.isNotEmpty()
+        )
     val playerPlayWhenReady = shouldPlay && (
         !startupAudioSelectionRequired || preferredAudioSelectionApplied
+        ) && (
+        !startupSubtitleSelectionRequired || preferredSubtitleSelectionApplied
         )
     val initialPositionRequestKey = currentInitialPositionRequestKey()
     val currentPlayerSurfaceSource = playerSurfaceSourceUrl?.let { sourceUrl ->
@@ -519,8 +557,10 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                 externalSubtitles = surfaceSource?.externalSubtitles.orEmpty(),
                 streamType = surfaceSource?.streamType,
                 preferredAudioLanguages = preferredStartupAudioLanguages,
+                preferredSubtitleLanguages = preferredStartupSubtitleLanguages,
+                subtitlesDisabledAtStartup = startupSubtitlesDisabled,
                 modifier = Modifier.fillMaxSize(),
-                playWhenReady = shouldPlay && sourceAvailable,
+                playWhenReady = playerPlayWhenReady && sourceAvailable,
                 initialPositionMs = surfaceSource?.initialPositionMs,
                 initialPositionRequestKey = surfaceSource?.initialPositionRequestKey,
                 resizeMode = resizeMode,

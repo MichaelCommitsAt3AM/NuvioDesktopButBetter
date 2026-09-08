@@ -1511,9 +1511,17 @@ JNIEXPORT jboolean JNICALL NP(initGtkEarly)(JNIEnv *, jobject) {
 
 JNIEXPORT jlong JNICALL NP(create)(
     JNIEnv *env, jobject /*thiz*/, jlong hostViewPtr, jstring sourceUrl,
-    jobjectArray headerLines, jboolean playWhenReady, jlong initialPositionMs,
+    jobjectArray headerLines, jstring preferredAudioLanguages,
+    jstring preferredSubtitleLanguages, jboolean subtitlesDisabledAtStartup,
+    jboolean playWhenReady, jlong initialPositionMs,
     jstring controlsPageUrl, jint decoderPriority,
     jboolean /*nvidiaRtxSuperResolutionEnabled*/, jobject eventSink) {
+    // NOTE: this prototype's parameter list/order must exactly mirror the Kotlin
+    // `external fun create(...)` declaration in NativePlayerBridge.kt — JNI resolves this
+    // symbol by name only (no signature encoding for a non-overloaded native method), so the
+    // JVM marshals arguments per the Kotlin-side descriptor regardless of what's declared here.
+    // A prior version of this file was missing `preferredAudioLanguages` entirely, which would
+    // have silently misaligned every parameter after it.
 
     // libmpv requires LC_NUMERIC=C (e.g. non-"C" locales with comma
     // decimals make mpv_create fail); the JVM uses java.util.Locale, so
@@ -1527,6 +1535,9 @@ JNIEXPORT jlong JNICALL NP(create)(
         delete player;
         return 0;
     }
+    std::string preferredAudioLanguagesText = jstringToUtf8(env, preferredAudioLanguages);
+    std::string preferredSubtitleLanguagesText = jstringToUtf8(env, preferredSubtitleLanguages);
+
     // Config shared by both init attempts (see below).
     std::string wid;
     if (hostViewPtr != 0) {
@@ -1606,6 +1617,19 @@ JNIEXPORT jlong JNICALL NP(create)(
         mpv_set_option_string(m, "vd-lavc-threads", "0");
         mpv_set_option_string(m, "target-colorspace-hint", "yes");
         mpv_set_option_string(m, "target-colorspace-hint-mode", "source");
+
+        if (!preferredAudioLanguagesText.empty()) {
+            mpv_set_option_string(m, "alang", preferredAudioLanguagesText.c_str());
+        }
+        // Best-effort subtitle hint: lets mpv resolve a known-simple subtitle language
+        // preference during file load instead of the app switching `sid` afterwards (which
+        // costs a demuxer refresh seek). The app's own selection logic still runs after load
+        // and can override this for cases not resolvable this early (forced-only, addon subs).
+        if (subtitlesDisabledAtStartup) {
+            mpv_set_option_string(m, "sid", "no");
+        } else if (!preferredSubtitleLanguagesText.empty()) {
+            mpv_set_option_string(m, "slang", preferredSubtitleLanguagesText.c_str());
+        }
 
         if (!headerFields.empty()) {
             mpv_set_option_string(m, "http-header-fields", headerFields.c_str());

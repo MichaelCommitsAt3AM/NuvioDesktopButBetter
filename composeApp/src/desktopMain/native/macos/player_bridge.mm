@@ -87,6 +87,8 @@ static constexpr double kMaxVolumePercent = 200.0;
                        sourceUrl:(NSString *)sourceUrl
                     headerLines:(NSArray<NSString *> *)headerLines
         preferredAudioLanguages:(NSString *)preferredAudioLanguages
+     preferredSubtitleLanguages:(NSString *)preferredSubtitleLanguages
+     subtitlesDisabledAtStartup:(BOOL)subtitlesDisabledAtStartup
                    playWhenReady:(BOOL)playWhenReady
                 initialPositionMs:(long long)initialPositionMs
                       controlsUrl:(NSString *)controlsUrl
@@ -1073,6 +1075,8 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
                        sourceUrl:(NSString *)sourceUrl
                     headerLines:(NSArray<NSString *> *)headerLines
         preferredAudioLanguages:(NSString *)preferredAudioLanguages
+     preferredSubtitleLanguages:(NSString *)preferredSubtitleLanguages
+     subtitlesDisabledAtStartup:(BOOL)subtitlesDisabledAtStartup
                    playWhenReady:(BOOL)playWhenReady
                 initialPositionMs:(long long)initialPositionMs
                       controlsUrl:(NSString *)controlsUrl
@@ -1170,6 +1174,8 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     [self startMpvWithSource:sourceUrl
                  headerLines:headerLines
      preferredAudioLanguages:preferredAudioLanguages
+  preferredSubtitleLanguages:preferredSubtitleLanguages
+  subtitlesDisabledAtStartup:subtitlesDisabledAtStartup
                 playWhenReady:playWhenReady
              initialPositionMs:initialPositionMs
               decoderPriority:decoderPriority];
@@ -1417,6 +1423,8 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 - (void)startMpvWithSource:(NSString *)sourceUrl
                headerLines:(NSArray<NSString *> *)headerLines
    preferredAudioLanguages:(NSString *)preferredAudioLanguages
+preferredSubtitleLanguages:(NSString *)preferredSubtitleLanguages
+subtitlesDisabledAtStartup:(BOOL)subtitlesDisabledAtStartup
               playWhenReady:(BOOL)playWhenReady
            initialPositionMs:(long long)initialPositionMs
             decoderPriority:(int)decoderPriority {
@@ -1459,6 +1467,15 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     setMpvOptionString(_mpv, "hr-seek", "no");
     if (preferredAudioLanguages.length > 0) {
         setMpvOptionString(_mpv, "alang", preferredAudioLanguages.UTF8String);
+    }
+    // Best-effort subtitle hint: lets mpv resolve a known-simple subtitle language
+    // preference during file load instead of the app switching `sid` afterwards (which costs a
+    // demuxer refresh seek). The app's own selection logic still runs after load and can
+    // override this for cases not resolvable this early (forced-only, addon subs).
+    if (subtitlesDisabledAtStartup) {
+        setMpvOptionString(_mpv, "sid", "no");
+    } else if (preferredSubtitleLanguages.length > 0) {
+        setMpvOptionString(_mpv, "slang", preferredSubtitleLanguages.UTF8String);
     }
 
     if (headerLines.count > 0) {
@@ -2552,6 +2569,8 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     jstring sourceUrl,
     jobjectArray headerLines,
     jstring preferredAudioLanguages,
+    jstring preferredSubtitleLanguages,
+    jboolean subtitlesDisabledAtStartup,
     jboolean playWhenReady,
     jlong initialPositionMs,
     jstring controlsPageUrl,
@@ -2586,6 +2605,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     std::string source = jstringToString(env, sourceUrl);
     std::string controls = jstringToString(env, controlsPageUrl);
     std::string audioLanguages = jstringToString(env, preferredAudioLanguages);
+    std::string subtitleLanguages = jstringToString(env, preferredSubtitleLanguages);
     NSArray<NSString *> *headers = jstringArrayToNSArray(env, headerLines);
     __block MpvWebPlayer *player = nil;
     __block NSString *error = nil;
@@ -2596,6 +2616,8 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
                     sourceUrl:[NSString stringWithUTF8String:source.c_str()]
                     headerLines:headers
         preferredAudioLanguages:[NSString stringWithUTF8String:audioLanguages.c_str()]
+     preferredSubtitleLanguages:[NSString stringWithUTF8String:subtitleLanguages.c_str()]
+     subtitlesDisabledAtStartup:subtitlesDisabledAtStartup == JNI_TRUE
                    playWhenReady:playWhenReady == JNI_TRUE
                 initialPositionMs:initialPositionMs
                      controlsUrl:[NSString stringWithUTF8String:controls.c_str()]

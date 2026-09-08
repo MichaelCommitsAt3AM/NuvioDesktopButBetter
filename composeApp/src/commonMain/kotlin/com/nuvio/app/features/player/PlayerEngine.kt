@@ -372,6 +372,11 @@ expect fun PlatformPlayerSurface(
     externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle> = emptyList(),
     streamType: String? = null,
     preferredAudioLanguages: List<String> = emptyList(),
+    // Desktop-only best-effort startup hint (see NativePlayerController) so mpv can resolve a
+    // straightforward subtitle language preference during file load instead of switching to it
+    // afterwards. Ignored on platforms without this optimization.
+    preferredSubtitleLanguages: List<String> = emptyList(),
+    subtitlesDisabledAtStartup: Boolean = false,
     useYoutubeChunkedPlayback: Boolean = false,
     modifier: Modifier = Modifier,
     playWhenReady: Boolean = true,

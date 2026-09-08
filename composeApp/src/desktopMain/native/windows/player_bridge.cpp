@@ -846,6 +846,8 @@ public:
         const std::string &sourceUrl,
         const std::vector<std::string> &headerLines,
         const std::string &preferredAudioLanguages,
+        const std::string &preferredSubtitleLanguages,
+        bool subtitlesDisabledAtStartup,
         bool playWhenReady,
         long long initialPositionMs,
         const std::string &controlsUrl,
@@ -867,8 +869,8 @@ public:
         auto initState = std::make_shared<InitializationState>();
         auto self = shared_from_this();
         uiThread = std::thread(
-            [self, sourceUrl, headerLines, preferredAudioLanguages, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, initState]() {
-                self->runNativeUiThread(sourceUrl, headerLines, preferredAudioLanguages, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, initState);
+            [self, sourceUrl, headerLines, preferredAudioLanguages, preferredSubtitleLanguages, subtitlesDisabledAtStartup, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, initState]() {
+                self->runNativeUiThread(sourceUrl, headerLines, preferredAudioLanguages, preferredSubtitleLanguages, subtitlesDisabledAtStartup, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, initState);
             }
         );
 
@@ -1315,6 +1317,8 @@ private:
         std::string sourceUrl,
         std::vector<std::string> headerLines,
         std::string preferredAudioLanguages,
+        std::string preferredSubtitleLanguages,
+        bool subtitlesDisabledAtStartup,
         bool playWhenReady,
         long long initialPositionMs,
         std::string controlsUrl,
@@ -1324,7 +1328,7 @@ private:
     ) {
         std::string failure;
         try {
-            initializeOnNativeUiThread(sourceUrl, headerLines, preferredAudioLanguages, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled);
+            initializeOnNativeUiThread(sourceUrl, headerLines, preferredAudioLanguages, preferredSubtitleLanguages, subtitlesDisabledAtStartup, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled);
         } catch (const std::exception &error) {
             failure = error.what();
             cleanupUiResources();
@@ -1352,6 +1356,8 @@ private:
         const std::string &sourceUrl,
         const std::vector<std::string> &headerLines,
         const std::string &preferredAudioLanguages,
+        const std::string &preferredSubtitleLanguages,
+        bool subtitlesDisabledAtStartup,
         bool playWhenReady,
         long long initialPositionMs,
         const std::string &controlsUrl,
@@ -1408,7 +1414,7 @@ private:
         }
 
         startWebView(controlsUrl);
-        startMpv(sourceUrl, headerLines, preferredAudioLanguages, playWhenReady, initialPositionMs, decoderPriority, nvidiaRtxSuperResolutionEnabled);
+        startMpv(sourceUrl, headerLines, preferredAudioLanguages, preferredSubtitleLanguages, subtitlesDisabledAtStartup, playWhenReady, initialPositionMs, decoderPriority, nvidiaRtxSuperResolutionEnabled);
         layoutNativeSubviews();
         if (!SetTimer(messageHwnd, NUVIO_TIMER_ID, 500, nullptr)) {
             throw std::runtime_error("Unable to start native player timer.");
@@ -1601,6 +1607,8 @@ private:
         const std::string &sourceUrl,
         const std::vector<std::string> &headerLines,
         const std::string &preferredAudioLanguages,
+        const std::string &preferredSubtitleLanguages,
+        bool subtitlesDisabledAtStartup,
         bool playWhenReady,
         long long initialPositionMs,
         int decoderPriority,
@@ -1657,6 +1665,16 @@ private:
             setMpvOptionStringLocked("hr-seek", "no");
             if (!preferredAudioLanguages.empty()) {
                 setMpvOptionStringLocked("alang", preferredAudioLanguages.c_str());
+            }
+            // Best-effort subtitle hint: lets mpv resolve a known-simple subtitle language
+            // preference in the same demuxer pass as everything else at load time, instead of
+            // the app switching `sid` afterwards (which costs a demuxer refresh seek). The app's
+            // own selection logic still runs after load and can override this — e.g. for
+            // forced-only or addon-provided subtitles, which aren't resolvable this early.
+            if (subtitlesDisabledAtStartup) {
+                setMpvOptionStringLocked("sid", "no");
+            } else if (!preferredSubtitleLanguages.empty()) {
+                setMpvOptionStringLocked("slang", preferredSubtitleLanguages.c_str());
             }
 
             int64_t wid = (int64_t)(intptr_t)containerHwnd;
@@ -2270,6 +2288,8 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     jstring sourceUrl,
     jobjectArray headerLines,
     jstring preferredAudioLanguages,
+    jstring preferredSubtitleLanguages,
+    jboolean subtitlesDisabledAtStartup,
     jboolean playWhenReady,
     jlong initialPositionMs,
     jstring controlsPageUrl,
@@ -2281,6 +2301,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     std::string sourceUrlText = jstringToUtf8(env, sourceUrl);
     std::vector<std::string> headerLineValues = jstringArrayToVector(env, headerLines);
     std::string preferredAudioLanguagesText = jstringToUtf8(env, preferredAudioLanguages);
+    std::string preferredSubtitleLanguagesText = jstringToUtf8(env, preferredSubtitleLanguages);
     std::string controlsPageUrlText = jstringToUtf8(env, controlsPageUrl);
     JavaVM *javaVm = nullptr;
     env->GetJavaVM(&javaVm);
@@ -2306,6 +2327,8 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
             sourceUrlText,
             headerLineValues,
             preferredAudioLanguagesText,
+            preferredSubtitleLanguagesText,
+            subtitlesDisabledAtStartup == JNI_TRUE,
             playWhenReady == JNI_TRUE,
             initialPositionMs,
             controlsPageUrlText,

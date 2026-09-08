@@ -35,6 +35,7 @@ import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import javax.swing.SwingUtilities
 import kotlin.concurrent.Volatile
 
@@ -43,6 +44,8 @@ internal typealias NativePlayerCreate = (
     String,
     Array<String>,
     String,
+    String,
+    Boolean,
     Boolean,
     Long,
     String,
@@ -94,6 +97,9 @@ internal class NativePlayerController(
     private val closeActionDispatched = AtomicBoolean(false)
     private val layoutRefreshScheduled = AtomicBoolean(false)
 
+    /** Bumped on every setSubtitleUri/clear call so a stale background resolve is dropped. */
+    private val subtitleUriRequestId = AtomicLong(0L)
+
     /** Native teardown of the previous player, if one is still running. */
     @Volatile
     private var disposeInFlight: Thread? = null
@@ -138,6 +144,8 @@ internal class NativePlayerController(
         // Defaulted to match the PlatformPlayerSurface expect signature in PlayerEngine.kt, so
         // lifecycle tests that don't care about audio selection can omit it.
         preferredAudioLanguages: List<String> = emptyList(),
+        preferredSubtitleLanguages: List<String> = emptyList(),
+        subtitlesDisabledAtStartup: Boolean = false,
         playWhenReady: Boolean,
         initialPositionMs: Long,
         decoderPriority: Int,
@@ -148,6 +156,8 @@ internal class NativePlayerController(
             sourceUrl = sourceUrl,
             headerLines = sourceHeaders.toHeaderLines(),
             preferredAudioLanguages = preferredAudioLanguages,
+            preferredSubtitleLanguages = preferredSubtitleLanguages,
+            subtitlesDisabledAtStartup = subtitlesDisabledAtStartup,
             playWhenReady = playWhenReady,
             initialPositionMs = initialPositionMs.coerceAtLeast(0L),
             decoderPriority = decoderPriority,
@@ -329,6 +339,8 @@ internal class NativePlayerController(
                         resolvedSource,
                         pending.headerLines.toTypedArray(),
                         pending.preferredAudioLanguages.joinToString(","),
+                        pending.preferredSubtitleLanguages.joinToString(","),
+                        pending.subtitlesDisabledAtStartup,
                         pending.playWhenReady,
                         pending.initialPositionMs,
                         NativePlayerBridge.controlsPageUrl,
@@ -1068,18 +1080,38 @@ internal class NativePlayerController(
 
     override fun setSubtitleUri(url: String) {
         log.d { "setSubtitleUri ${url.toPlaybackLogKey()} handle=$handle" }
-        handle.takeIf { it != 0L }?.let { current ->
-            NativePlayerBridge.clearExternalSubtitles(current)
-            NativePlayerBridge.addSubtitleUrl(current, url)
+        val requestId = subtitleUriRequestId.incrementAndGet()
+        if (DesktopSubtitleFileCache.isLocalPath(url)) {
+            applyExternalSubtitleUri(url)
+            return
         }
+        // Resolving a remote subtitle URL off the mpv thread: handing mpv the URL directly makes
+        // sub-add block on the HTTP fetch inside the mpv command call, freezing playback for the
+        // round-trip. Downloading it here overlaps with playback instead, so mpv only ever sees a
+        // local file (near-instant to register).
+        Thread({
+            val resolved = runCatching { DesktopSubtitleFileCache.resolve(url) }
+                .onFailure { error -> log.w(error) { "subtitle prefetch failed ${url.toPlaybackLogKey()}" } }
+                .getOrDefault(url)
+            if (subtitleUriRequestId.get() != requestId) return@Thread // superseded by a newer selection
+            applyExternalSubtitleUri(resolved)
+        }, "nuvio-subtitle-fetch").apply { isDaemon = true }.start()
+    }
+
+    private fun applyExternalSubtitleUri(pathOrUrl: String) {
+        val current = handle.takeIf { it != 0L } ?: return
+        NativePlayerBridge.clearExternalSubtitles(current)
+        NativePlayerBridge.addSubtitleUrl(current, pathOrUrl)
     }
 
     override fun clearExternalSubtitle() {
         log.d { "clearExternalSubtitle handle=$handle" }
+        subtitleUriRequestId.incrementAndGet() // cancel any in-flight resolve from setSubtitleUri
         handle.takeIf { it != 0L }?.let(NativePlayerBridge::clearExternalSubtitles)
     }
 
     override fun clearExternalSubtitleAndSelect(trackIndex: Int) {
+        subtitleUriRequestId.incrementAndGet() // cancel any in-flight resolve from setSubtitleUri
         val current = handle.takeIf { it != 0L } ?: return
         val trackId = if (trackIndex < 0) {
             -1
@@ -1215,6 +1247,8 @@ private data class PendingSource(
     val sourceUrl: String,
     val headerLines: List<String>,
     val preferredAudioLanguages: List<String>,
+    val preferredSubtitleLanguages: List<String>,
+    val subtitlesDisabledAtStartup: Boolean,
     val playWhenReady: Boolean,
     val initialPositionMs: Long,
     val decoderPriority: Int,

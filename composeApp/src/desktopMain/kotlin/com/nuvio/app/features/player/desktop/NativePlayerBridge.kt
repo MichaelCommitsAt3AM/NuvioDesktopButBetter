@@ -39,6 +39,8 @@ internal object NativePlayerBridge {
         sourceUrl: String,
         headerLines: Array<String>,
         preferredAudioLanguages: String,
+        preferredSubtitleLanguages: String,
+        subtitlesDisabledAtStartup: Boolean,
         playWhenReady: Boolean,
         initialPositionMs: Long,
         controlsPageUrl: String,

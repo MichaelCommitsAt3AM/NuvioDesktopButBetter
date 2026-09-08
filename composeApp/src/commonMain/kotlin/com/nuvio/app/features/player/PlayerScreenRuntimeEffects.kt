@@ -281,6 +281,15 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
             }
             delay(300)
         }
+
+        // Safety valve: some selection paths (e.g. an explicit prior user pick, or an addon
+        // subtitle search that never resolves) can legitimately leave one of these flags false
+        // forever. That's fine on its own, but on desktop these flags also gate the startup
+        // playback hold (see PlayerScreenRuntimeUi.playerPlayWhenReady) — so once the retry
+        // budget above is spent, force both true rather than holding playback hostage to a
+        // selection that may never land.
+        if (!preferredAudioSelectionApplied) preferredAudioSelectionApplied = true
+        if (!preferredSubtitleSelectionApplied) preferredSubtitleSelectionApplied = true
     }
 
     LaunchedEffect(

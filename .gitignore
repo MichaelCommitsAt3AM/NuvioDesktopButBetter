@@ -36,6 +36,11 @@ tools
 AGENTS.md
 
 PERFORMANCE_FINDINGS.md
+# NOTE: upstream added a blanket `scripts` ignore. This fork version-controls its
+# release tooling under scripts/ (set-version.sh, generate-release-notes.sh,
+# release-metadata.sh -- see CLAUDE.md), and the desktop/Android release flows
+# depend on new scripts being tracked, so the blanket ignore is NOT carried over.
+# Re-drop it if an upstream sync reintroduces it.
 
 # Local MPVKit iOS build environment (sparse APFS image, see MPVKit docs)
 .mpvkit-build.sparseimage

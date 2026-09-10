@@ -32,6 +32,7 @@ import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.features.player.PlayerLaunch
 import com.nuvio.app.features.player.PlayerLaunchStore
 import com.nuvio.app.features.player.PlayerSettingsRepository
+import com.nuvio.app.features.player.resolveContentLanguage
 import com.nuvio.app.features.player.sanitizePlaybackHeaders
 import com.nuvio.app.features.player.sanitizePlaybackResponseHeaders
 import com.nuvio.app.features.streams.StreamBehaviorHints
@@ -146,6 +147,17 @@ internal fun StreamDestination(
     fun p2pSentinelUrl(infoHash: String, fileIdx: Int?): String =
         "torrent://$infoHash${fileIdx?.let { "?index=$it" }.orEmpty()}"
 
+    fun resolveLaunchContentLanguage(fallbackLanguage: String? = null): String? {
+        val meta = MetaDetailsRepository.peek(
+            type = launch.parentMetaType ?: launch.type,
+            id = launch.parentMetaId ?: effectiveVideoId,
+        )
+        return resolveContentLanguage(
+            language = meta?.language?.takeIf { it.isNotBlank() } ?: fallbackLanguage,
+            country = meta?.country,
+        )
+    }
+
     fun openP2pStream(
         stream: StreamItem,
         resolvedResumePositionMs: Long?,
@@ -176,6 +188,7 @@ internal fun StreamDestination(
                 fileIdx = stream.p2pFileIdx,
                 sources = stream.sources,
                 bingeGroup = stream.behaviorHints.bingeGroup,
+                contentLanguage = resolveLaunchContentLanguage(),
             )
         }
         val playerLaunch = PlayerLaunch(
@@ -208,6 +221,7 @@ internal fun StreamDestination(
             torrentTrackers = stream.p2pTrackers,
             initialPositionMs = resolvedResumePositionMs ?: 0L,
             initialProgressFraction = resolvedResumeProgressFraction,
+            contentLanguage = resolveLaunchContentLanguage(),
         )
 
         val launchId = PlayerLaunchStore.put(playerLaunch)
@@ -325,7 +339,7 @@ internal fun StreamDestination(
                 parentMetaType = launch.parentMetaType ?: launch.type,
                 initialPositionMs = launch.resumePositionMs ?: 0L,
                 initialProgressFraction = launch.resumeProgressFraction,
-                contentLanguage = cached.contentLanguage,
+                contentLanguage = resolveLaunchContentLanguage(cached.contentLanguage),
             )
             if (externalPlayerSupported && playerSettings.externalPlayerEnabled) {
                 openExternalPlayback(playerLaunch)
@@ -434,6 +448,7 @@ internal fun StreamDestination(
                 videoSize = stream.behaviorHints.videoSize,
                 bingeGroup = stream.behaviorHints.bingeGroup,
                 streamType = stream.streamType,
+                contentLanguage = resolveLaunchContentLanguage(),
             )
         }
         val playerLaunch = PlayerLaunch(
@@ -463,6 +478,7 @@ internal fun StreamDestination(
             parentMetaType = launch.parentMetaType ?: launch.type,
             initialPositionMs = launch.resumePositionMs ?: 0L,
             initialProgressFraction = launch.resumeProgressFraction,
+            contentLanguage = resolveLaunchContentLanguage(),
         )
         if (externalPlayerSupported && playerSettings.externalPlayerEnabled) {
             StreamLoadTimeline.fail("stream sent to external player (not measured)") // STREAM-LOAD-TIMELINE
@@ -575,6 +591,7 @@ internal fun StreamDestination(
                 videoSize = stream.behaviorHints.videoSize,
                 bingeGroup = stream.behaviorHints.bingeGroup,
                 streamType = stream.streamType,
+                contentLanguage = resolveLaunchContentLanguage(),
             )
         }
         val playerLaunch = PlayerLaunch(
@@ -604,6 +621,7 @@ internal fun StreamDestination(
             parentMetaType = launch.parentMetaType ?: launch.type,
             initialPositionMs = resolvedResumePositionMs ?: 0L,
             initialProgressFraction = resolvedResumeProgressFraction,
+            contentLanguage = resolveLaunchContentLanguage(),
         )
 
         if (!forceInternal && externalPlayerSupported && (forceExternal || playerSettings.externalPlayerEnabled)) {

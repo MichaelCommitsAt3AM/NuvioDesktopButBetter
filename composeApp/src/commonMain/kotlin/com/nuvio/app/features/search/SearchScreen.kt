@@ -332,7 +332,7 @@ fun SearchScreen(
                     isWaitingForSearch -> {
                         items(2) {
                             HomeSkeletonRow(
-                                modifier = Modifier.padding(horizontal = homeSectionPadding),
+                                horizontalPadding = homeSectionPadding,
                             )
                         }
                     }
@@ -340,7 +340,7 @@ fun SearchScreen(
                     (uiState.isLoading || addonManifestsLoading) && uiState.sections.isEmpty() -> {
                         items(2) {
                             HomeSkeletonRow(
-                                modifier = Modifier.padding(horizontal = homeSectionPadding),
+                                horizontalPadding = homeSectionPadding,
                             )
                         }
                     }
@@ -388,7 +388,7 @@ fun SearchScreen(
                         if (uiState.isLoading) {
                             item(key = "search_loading_more") {
                                 HomeSkeletonRow(
-                                    modifier = Modifier.padding(horizontal = homeSectionPadding),
+                                    horizontalPadding = homeSectionPadding,
                                 )
                             }
                         }

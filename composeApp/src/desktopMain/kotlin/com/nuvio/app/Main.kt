@@ -1,6 +1,8 @@
 package com.nuvio.app
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.configureSwingGlobalsForCompose
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -81,6 +83,7 @@ fun main(args: Array<String>) {
     markStartup("quickjs_library_configured")
     configureDesktopChrome()
     markStartup("chrome_configured")
+    configureLinuxSwingGlobalsBeforeAwt()
     // Desktop.getDesktop() triggers native Shell/COM initialization on first touch
     // (multiple seconds observed on Windows) — it must not block the window from
     // appearing, so it's dispatched off the main thread like the native player preload.
@@ -296,6 +299,23 @@ private fun configureDesktopChrome() {
     if (System.getProperty("os.name").contains("mac", ignoreCase = true)) {
         System.setProperty("apple.awt.application.appearance", MacosDarkAquaAppearance)
     }
+}
+
+// application {} applies Compose's Swing globals, which on Linux include Skiko's
+// display-scale detection (it sets sun.java2d.uiScale). AWT reads that property
+// once, when its graphics environment starts, and installDesktopOpenUriHandler()
+// starts it before application {} runs, which left the UI at 1x on HiDPI Linux
+// desktops (#514). Apply the globals before anything touches AWT.
+@OptIn(ExperimentalComposeUiApi::class)
+private fun configureLinuxSwingGlobalsBeforeAwt() {
+    if (DesktopHostOs.current != DesktopHostOs.LINUX) return
+    if (System.getProperty("compose.application.configure.swing.globals") != "true") return
+    // Skiko's detection overwrites sun.java2d.uiScale, so keep an explicitly
+    // set scale (the documented #514 workaround) working by skipping it.
+    configureSwingGlobalsForCompose(
+        useAutoDpiOnLinux = System.getProperty("sun.java2d.uiScale") == null &&
+            System.getProperty("skiko.linux.autodpi", "true") == "true",
+    )
 }
 
 private fun installDesktopOpenUriHandler() {

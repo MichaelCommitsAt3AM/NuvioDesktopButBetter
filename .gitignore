@@ -41,6 +41,7 @@ PERFORMANCE_FINDINGS.md
 # release-metadata.sh -- see CLAUDE.md), and the desktop/Android release flows
 # depend on new scripts being tracked, so the blanket ignore is NOT carried over.
 # Re-drop it if an upstream sync reintroduces it.
+iosApp/Configuration/DeviceSigning.local.json
 
 # Local MPVKit iOS build environment (sparse APFS image, see MPVKit docs)
 .mpvkit-build.sparseimage

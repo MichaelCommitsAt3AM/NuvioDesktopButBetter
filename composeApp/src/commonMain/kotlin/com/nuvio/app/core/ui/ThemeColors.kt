@@ -13,7 +13,6 @@ data class ThemeColorPalette(
     val focusBackground: Color,
     val background: Color = Color(0xFF0D0D0D),
     val backgroundElevated: Color = Color(0xFF1A1A1A),
-    val backgroundCard: Color = Color(0xFF242424),
 )
 
 internal fun dominantBackdropBlendColor(dominantColor: Color, backgroundColor: Color): Color {
@@ -45,7 +44,6 @@ object ThemeColors {
         focusBackground = Color(0xFF3D2D1A),
         background = Color(0xFF0F0E0B),
         backgroundElevated = Color(0xFF1D1A14),
-        backgroundCard = Color(0xFF262116),
     )
 
     val Jade = ThemeColorPalette(
@@ -59,7 +57,6 @@ object ThemeColors {
         focusBackground = Color(0xFF153A2C),
         background = Color(0xFF0B0F0D),
         backgroundElevated = Color(0xFF141D18),
-        backgroundCard = Color(0xFF16251D),
     )
 
     val RoseGold = ThemeColorPalette(
@@ -73,7 +70,6 @@ object ThemeColors {
         focusBackground = Color(0xFF442037),
         background = Color(0xFF100C0F),
         backgroundElevated = Color(0xFF1F161D),
-        backgroundCard = Color(0xFF281A24),
     )
 
     val ArcticBlue = ThemeColorPalette(
@@ -87,7 +83,6 @@ object ThemeColors {
         focusBackground = Color(0xFF172844),
         background = Color(0xFF0B0E14),
         backgroundElevated = Color(0xFF141A24),
-        backgroundCard = Color(0xFF161E2A),
     )
 
     val Graphite = ThemeColorPalette(
@@ -101,7 +96,6 @@ object ThemeColors {
         focusBackground = Color(0xFF30343A),
         background = Color(0xFF0C0D0F),
         backgroundElevated = Color(0xFF17191D),
-        backgroundCard = Color(0xFF20242A),
     )
 
     val Crimson = ThemeColorPalette(
@@ -112,7 +106,6 @@ object ThemeColors {
         focusBackground = Color(0xFF3D1A1A),
         background = Color(0xFF0D0D0D),
         backgroundElevated = Color(0xFF1A1A1A),
-        backgroundCard = Color(0xFF241A1A),
     )
 
     val Ocean = ThemeColorPalette(
@@ -123,7 +116,6 @@ object ThemeColors {
         focusBackground = Color(0xFF1A2D3D),
         background = Color(0xFF0D0D0F),
         backgroundElevated = Color(0xFF1A1A1E),
-        backgroundCard = Color(0xFF1A1F24),
     )
 
     val Violet = ThemeColorPalette(
@@ -134,7 +126,6 @@ object ThemeColors {
         focusBackground = Color(0xFF2D1A3D),
         background = Color(0xFF0D0D0F),
         backgroundElevated = Color(0xFF1A1A1E),
-        backgroundCard = Color(0xFF1F1A24),
     )
 
     val Emerald = ThemeColorPalette(
@@ -145,7 +136,6 @@ object ThemeColors {
         focusBackground = Color(0xFF1A3D1E),
         background = Color(0xFF0D0D0D),
         backgroundElevated = Color(0xFF1A1A1A),
-        backgroundCard = Color(0xFF1A241A),
     )
 
     val Amber = ThemeColorPalette(
@@ -156,7 +146,6 @@ object ThemeColors {
         focusBackground = Color(0xFF3D2D1A),
         background = Color(0xFF0F0D0D),
         backgroundElevated = Color(0xFF1E1A1A),
-        backgroundCard = Color(0xFF24201A),
     )
 
     val Rose = ThemeColorPalette(
@@ -167,7 +156,6 @@ object ThemeColors {
         focusBackground = Color(0xFF3D1A2D),
         background = Color(0xFF0D0D0D),
         backgroundElevated = Color(0xFF1A1A1A),
-        backgroundCard = Color(0xFF241A1F),
     )
 
     val White = ThemeColorPalette(
@@ -180,7 +168,6 @@ object ThemeColors {
         focusBackground = Color(0xFF303030),
         background = Color(0xFF0D0D0D),
         backgroundElevated = Color(0xFF1A1A1A),
-        backgroundCard = Color(0xFF222222),
     )
 
     fun getColorPalette(

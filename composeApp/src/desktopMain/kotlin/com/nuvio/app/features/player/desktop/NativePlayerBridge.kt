@@ -53,6 +53,12 @@ internal object NativePlayerBridge {
     external fun updateControls(handle: Long, controlsJson: String)
     external fun refreshLayout(handle: Long)
     external fun requestFocus(handle: Long)
+    external fun beginWindowDrag(handle: Long)
+    external fun setWindowResizable(windowHwnd: Long, enabled: Boolean)
+    private external fun reparentSurfaceNative(handle: Long, hostViewPtr: Long)
+
+    fun reparentSurface(handle: Long, hostViewPtr: Long): Boolean =
+        runCatching { reparentSurfaceNative(handle, hostViewPtr) }.isSuccess
     external fun setPaused(handle: Long, paused: Boolean)
     external fun seekTo(handle: Long, positionMs: Long)
     external fun seekBy(handle: Long, offsetMs: Long)

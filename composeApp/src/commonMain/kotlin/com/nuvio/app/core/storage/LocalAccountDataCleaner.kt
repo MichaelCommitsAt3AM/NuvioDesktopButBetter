@@ -50,7 +50,7 @@ internal object LocalAccountDataCleaner {
         WatchProgressRepository.clearLocalState()
         WatchedRepository.clearLocalState()
         LibraryRepository.runAccountStorageWipe {
-            PlatformLocalAccountDataCleaner.wipe()
+            wipePlatformStorage()
         }
 
         ProfileRepository.clearInMemory()
@@ -85,6 +85,14 @@ internal object LocalAccountDataCleaner {
         PlayerLaunchStore.clear()
         StreamLaunchStore.clear()
         StreamContextStore.clear()
+    }
+
+    internal fun wipePlatformStorage(wipeStorage: () -> Unit = PlatformLocalAccountDataCleaner::wipe) {
+        try {
+            wipeStorage()
+        } finally {
+            ContinueWatchingEnrichmentCache.clearLocalState()
+        }
     }
 }
 

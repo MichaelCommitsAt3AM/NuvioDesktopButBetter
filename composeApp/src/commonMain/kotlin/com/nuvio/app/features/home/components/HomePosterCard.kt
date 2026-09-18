@@ -20,6 +20,7 @@ fun HomePosterCard(
     posterCardStyle: PosterCardStyleUiState = rememberPosterCardStyleUiState(),
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    showLandscapeOverlay: Boolean = true,
 ) {
     val isLandscapeMode = useLandscapeBackdropMode || posterCardStyle.catalogLandscapeModeEnabled
 

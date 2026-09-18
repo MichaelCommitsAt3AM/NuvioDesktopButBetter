@@ -59,13 +59,12 @@ object AddonRepository {
     private val _uiState = MutableStateFlow(AddonsUiState())
     val uiState: StateFlow<AddonsUiState> = _uiState.asStateFlow()
 
-    // Guards initialized/pulledFromServer/currentProfileId/activeRefreshJobs, all of which
+    // Guards initialized/currentProfileId/activeRefreshJobs, all of which
     // are read and mutated from multiple call sites (initialize, onProfileChanged,
     // pullFromServer, refreshAddon, ...) invoked concurrently on Dispatchers.Default's
     // multi-threaded pool. Never held across a suspension point.
     private val stateLock = SynchronizedObject()
     private var initialized = false
-    private var pulledFromServer = false
     private var currentProfileId: Int = 1
     private val activeRefreshJobs = mutableMapOf<String, Job>()
     private val pushJobsByProfile = mutableMapOf<Int, Job>()
@@ -117,7 +116,6 @@ object AddonRepository {
                 cancelActiveRefreshesLocked()
                 currentProfileId = effectiveProfileId
                 initialized = false
-                pulledFromServer = false
                 true
             }
         }
@@ -132,14 +130,13 @@ object AddonRepository {
             pushJobsByProfile.clear()
             currentProfileId = 1
             initialized = false
-            pulledFromServer = false
         }
         _uiState.value = AddonsUiState()
     }
 
     // Deleted profile indices get reused by createProfile(), so leftover local addon
-    // data must be wiped or it gets "migrated" back to the server for the new profile
-    // that inherits the same index (see the local-fallback branch in pullFromServer).
+    // data must be wiped or the new profile that inherits the same index would load
+    // the deleted profile's stale addons before its first pullFromServer() completes.
     fun clearLocalDataForDeletedProfile(profileId: Int) {
         AddonStorage.saveInstalledAddonUrls(profileId, emptyList())
         AddonStorage.saveAddonEnabledStates(profileId, emptyMap())
@@ -147,11 +144,11 @@ object AddonRepository {
 
     suspend fun pullFromServer(profileId: Int) {
         val effectiveProfileId = profileId
-        val (wasInitialized, wasPulledFromServer) = synchronized(stateLock) {
+        val wasInitialized = synchronized(stateLock) {
             currentProfileId = effectiveProfileId
-            initialized to pulledFromServer
+            initialized
         }
-        log.i { "pullFromServer() — profileId=$profileId, initialized=$wasInitialized, pulledFromServer=$wasPulledFromServer" }
+        log.i { "pullFromServer() — profileId=$profileId, initialized=$wasInitialized" }
         runCatching {
             val rows = SupabaseProvider.client.postgrest
                 .from("addons")
@@ -173,67 +170,6 @@ object AddonRepository {
             log.i { "pullFromServer() — server returned ${rows.size} addons" }
             urls.forEachIndexed { i, u -> log.d { "  server[$i]: $u" } }
 
-            if (urls.isEmpty() && !wasPulledFromServer) {
-                val localUrls = dedupeManifestUrls(AddonStorage.loadInstalledAddonUrls(effectiveProfileId))
-                log.i { "pullFromServer() — server empty, local has ${localUrls.size} addons" }
-                if (localUrls.isNotEmpty()) {
-                    log.i { "pullFromServer() — migrating local addons to server for profile $effectiveProfileId" }
-                    initialize()
-                    synchronized(stateLock) { pulledFromServer = true }
-                    val enabledByUrl = loadLocalEnabledStates()
-                    val addons = localUrls.mapIndexed { index, addonUrl ->
-                        val manifestUrl = ensureManifestSuffix(addonUrl)
-                        AddonPushItem(
-                            url = manifestUrl,
-                            name = _uiState.value.addons
-                                .find { it.manifestUrl == manifestUrl }?.manifest?.name ?: "",
-                            enabled = enabledByUrl[manifestUrl]
-                                ?: _uiState.value.addons.find { it.manifestUrl == manifestUrl }?.enabled
-                                ?: true,
-                            sortOrder = index,
-                        )
-                    }
-                    val params = buildJsonObject {
-                        put("p_profile_id", effectiveProfileId)
-                        put("p_addons", json.encodeToJsonElement(addons))
-                        putSyncOriginClientId()
-                    }
-                    SupabaseProvider.client.postgrest.rpc("sync_push_addons", params)
-                    log.i { "pullFromServer() — migration push done (${addons.size} addons)" }
-                    return
-                }
-            }
-
-            if (urls.isEmpty()) {
-                val localUrls = dedupeManifestUrls(AddonStorage.loadInstalledAddonUrls(effectiveProfileId))
-                if (localUrls.isNotEmpty()) {
-                    log.w { "pullFromServer() — remote empty while local has ${localUrls.size} addons; preserving local addons" }
-                    val enabledByUrl = loadLocalEnabledStates()
-                    val existingByUrl = _uiState.value.addons.associateBy(ManagedAddon::manifestUrl)
-                    _uiState.value = AddonsUiState(
-                        addons = localUrls.map { url ->
-                            existingByUrl[url].toPendingAddon(
-                                manifestUrl = url,
-                                enabled = enabledByUrl[url],
-                            )
-                        },
-                    )
-                    persist()
-                    localUrls.forEach { url ->
-                        val existing = existingByUrl[url]
-                        val addon = _uiState.value.addons.firstOrNull { it.manifestUrl == url }
-                        if (addon?.enabled == true && (existing == null || (addon.manifest == null && !addon.isRefreshing))) {
-                            refreshAddon(url)
-                        }
-                    }
-                    synchronized(stateLock) {
-                        pulledFromServer = true
-                        initialized = true
-                    }
-                    return
-                }
-            }
-
             val existingByUrl = _uiState.value.addons.associateBy(ManagedAddon::manifestUrl)
             _uiState.value = AddonsUiState(
                 addons = urls.map { url ->
@@ -254,7 +190,6 @@ object AddonRepository {
                 }
             }
             synchronized(stateLock) {
-                pulledFromServer = true
                 initialized = true
             }
             log.i { "pullFromServer() — applied ${urls.size} addons to state" }
@@ -557,7 +492,7 @@ object AddonRepository {
     /**
      * Read-only snapshot of the primary profile's (profile 1) addons, for the
      * "choose specific addons" picker in ProfileEditScreen. Deliberately does not
-     * touch currentProfileId/initialized/pulledFromServer/_uiState — must be safe
+     * touch currentProfileId/initialized/_uiState — must be safe
      * to call while a different profile is the live/active one.
      */
     suspend fun fetchPrimaryAddonsForPicker(): List<PrimaryAddonPickerItem> {

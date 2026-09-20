@@ -1,9 +1,6 @@
 name: Update Sideload Source
 
 on:
-  release:
-    types:
-      - published
   workflow_call:
     inputs:
       tag:

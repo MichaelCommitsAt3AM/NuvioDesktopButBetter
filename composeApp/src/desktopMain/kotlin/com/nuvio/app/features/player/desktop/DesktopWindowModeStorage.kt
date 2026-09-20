@@ -21,6 +21,11 @@ internal data class DesktopWindowGeometry(
 )
 
 internal object DesktopWindowModeStorage {
+    // A window driven to a degenerate size by a transient glitch (Windows' own minimum window
+    // rect is 132x37) must never be stored as if the user had chosen it: the next launch would
+    // restore the sliver, be saved again on exit, and the app would never recover on its own.
+    private const val MinPlausibleWidth = 400f
+    private const val MinPlausibleHeight = 300f
     private const val PersistDebounceMs = 150L
     private const val WasFullscreenKey = "was_fullscreen"
     private const val WasMaximizedKey = "was_maximized"
@@ -60,14 +65,20 @@ internal object DesktopWindowModeStorage {
         val width = store.getFloat(WindowWidthKey) ?: return null
         val height = store.getFloat(WindowHeightKey) ?: return null
         return DesktopWindowGeometry(x = x, y = y, width = width, height = height)
+            .takeIf(::isPlausible)
     }
 
     fun saveWindowedGeometry(geometry: DesktopWindowGeometry) {
+        if (!isPlausible(geometry)) return
         synchronized(writeLock) {
             pendingGeometry = geometry
             scheduleWriteLocked()
         }
     }
+
+    // NaN and infinities fail these comparisons too, so a corrupted store is rejected as well.
+    private fun isPlausible(geometry: DesktopWindowGeometry): Boolean =
+        geometry.width >= MinPlausibleWidth && geometry.height >= MinPlausibleHeight
 
     fun flushPendingWrites() {
         runCatching {

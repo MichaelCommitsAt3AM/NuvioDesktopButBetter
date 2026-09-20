@@ -48,6 +48,7 @@ import com.nuvio.app.features.settings.transparentPreviewResource
 import java.awt.Component
 import java.awt.Container
 import java.awt.Desktop
+import java.awt.Dimension
 import java.awt.Window as AwtWindow
 import javax.imageio.ImageIO
 import java.awt.Color as AwtColor
@@ -56,6 +57,11 @@ import java.awt.event.WindowEvent
 import javax.swing.JComponent
 
 private val NuvioDesktopNativeBackground = AwtColor(0x0D, 0x0D, 0x0D)
+
+// Without a floor, anything that hands the window a bad rect — a restore from a placement
+// captured before the window was on screen, say — can collapse it to Windows' own minimum
+// window size, which the user can only escape by dragging an edge.
+private val NuvioDesktopMinimumWindowSize = Dimension(400, 300)
 private const val MacosDarkAquaAppearance = "NSAppearanceNameDarkAqua"
 
 fun main(args: Array<String>) {
@@ -193,6 +199,7 @@ fun main(args: Array<String>) {
             }
 
             LaunchedEffect(window) {
+                window.minimumSize = NuvioDesktopMinimumWindowSize
                 applyNativeDesktopWindowChrome(window)
                 installLinuxExtendedMouseButtons()
                 // Windows fullscreen is emulated natively and isn't reflected by

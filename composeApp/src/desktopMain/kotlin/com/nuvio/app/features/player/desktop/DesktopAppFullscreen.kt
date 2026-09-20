@@ -7,7 +7,11 @@ import java.awt.Frame
 import java.awt.KeyEventDispatcher
 import java.awt.KeyboardFocusManager
 import java.awt.Window
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.awt.event.KeyEvent
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
 import javax.swing.SwingUtilities
 import javax.swing.Timer
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,6 +77,8 @@ internal fun isDesktopAppFullscreen(window: Window? = null): Boolean =
 internal val desktopFullscreenChanges: StateFlow<Int>
     get() = DesktopAppFullscreen.changes
 
+private const val FullscreenReassertDelayMs = 250
+
 internal class DesktopAppFullscreenController {
     private var restoreWindowPlacement = WindowPlacement.Floating
     private var windowsFullscreenState: WindowsFullscreenState? = null
@@ -122,7 +128,15 @@ internal class DesktopAppFullscreenController {
     fun applyRestoredFullscreenState(window: Window, windowState: WindowState, fullscreen: Boolean) {
         if (!fullscreen) return
         if (DesktopHostOs.current == DesktopHostOs.WINDOWS) {
-            enterWindowsFullscreen(window, windowState)
+            runWhenWindowShown(window) {
+                enterWindowsFullscreen(window, windowState)
+                // AWT and Compose can still apply the window's restored bounds after this
+                // point, which would size the window back out of fullscreen while the app
+                // still considers itself fullscreen. Re-assert once so a late write loses.
+                Timer(FullscreenReassertDelayMs) { reassertWindowsFullscreen(window) }
+                    .apply { isRepeats = false }
+                    .start()
+            }
         } else {
             restoreWindowPlacement = windowState.placement
                 .takeUnless { it == WindowPlacement.Fullscreen }
@@ -184,7 +198,14 @@ internal class DesktopAppFullscreenController {
         val wasMaximized = (window as? Frame)?.extendedState == Frame.MAXIMIZED_BOTH ||
             windowState.placement == WindowPlacement.Maximized
 
-        val hwnd = AwtNativeViewResolver.resolveNativeViewPointer(window)
+        // The peer can still fail to resolve even once displayable (e.g. torn down mid-race);
+        // never let a native-bridge lookup crash the caller, and never claim fullscreen state
+        // for a window we couldn't actually reach natively.
+        val hwnd = runCatching { AwtNativeViewResolver.resolveNativeViewPointer(window) }
+            .getOrNull()
+            ?.takeIf { it != 0L }
+            ?: return
+
         windowsFullscreenState = WindowsFullscreenState(
             window = window,
             windowHwnd = hwnd,
@@ -194,15 +215,82 @@ internal class DesktopAppFullscreenController {
         // (resolveBorderlessFullscreenRect -> getMonitorRect), which is per-monitor DPI-correct.
         // The JVM-side `screenBounds * scale` math this replaced got the wrong rect on
         // mixed-DPI multi-monitor setups.
-        NativePlayerBridge.setWindowBorderlessFullscreen(
-            windowHwnd = hwnd,
-            fullscreen = true,
-            x = 0,
-            y = 0,
-            width = 0,
-            height = 0,
-        )
+        val applied = runCatching {
+            NativePlayerBridge.setWindowBorderlessFullscreen(
+                windowHwnd = hwnd,
+                fullscreen = true,
+                x = 0,
+                y = 0,
+                width = 0,
+                height = 0,
+            )
+        }.isSuccess
+        if (!applied) {
+            windowsFullscreenState = null
+            return
+        }
         if (!window.isFocused) window.requestFocus()
+    }
+
+    /**
+     * Runs [action] once [window] is actually on screen, not merely constructed.
+     *
+     * Entering emulated fullscreen needs a window Windows has already shown. The native call
+     * snapshots the live window placement as the point to restore to on exit, and sizes the
+     * window with SetWindowPos — run before the window is shown, both fail: the snapshot
+     * captures Windows' minimum window rect (132x37) rather than real geometry, and the bounds
+     * AWT and Compose apply while showing the window overwrite the fullscreen rect afterwards.
+     * Displayability is not enough, since the peer is attached partway through being shown.
+     */
+    private fun runWhenWindowShown(window: Window, action: () -> Unit) {
+        var started = false
+        var detach: () -> Unit = {}
+
+        fun ready(): Boolean = window.isShowing && window.width > 1 && window.height > 1
+
+        fun attempt() {
+            if (started || !ready()) return
+            started = true
+            detach()
+            // Let whatever event made the window visible finish first: AWT and Compose apply
+            // the window's initial bounds around that point.
+            SwingUtilities.invokeLater(action)
+        }
+
+        val onWindow = object : WindowAdapter() {
+            override fun windowOpened(event: WindowEvent) = attempt()
+            override fun windowActivated(event: WindowEvent) = attempt()
+        }
+        val onComponent = object : ComponentAdapter() {
+            override fun componentShown(event: ComponentEvent) = attempt()
+            override fun componentResized(event: ComponentEvent) = attempt()
+        }
+        detach = {
+            window.removeWindowListener(onWindow)
+            window.removeComponentListener(onComponent)
+        }
+        window.addWindowListener(onWindow)
+        window.addComponentListener(onComponent)
+        attempt()
+    }
+
+    /**
+     * Re-applies the borderless fullscreen rect if [window] is still meant to be fullscreen.
+     * The native side keeps the restore point it captured when fullscreen was entered, so
+     * re-entering cannot corrupt it.
+     */
+    private fun reassertWindowsFullscreen(window: Window) {
+        val fullscreenState = windowsFullscreenState?.takeIf { it.window === window } ?: return
+        runCatching {
+            NativePlayerBridge.setWindowBorderlessFullscreen(
+                windowHwnd = fullscreenState.windowHwnd,
+                fullscreen = true,
+                x = 0,
+                y = 0,
+                width = 0,
+                height = 0,
+            )
+        }
     }
 
     private fun exitWindowsFullscreen(window: Window, windowState: WindowState? = null) {

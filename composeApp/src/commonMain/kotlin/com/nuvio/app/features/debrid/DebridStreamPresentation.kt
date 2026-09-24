@@ -37,12 +37,10 @@ object DebridStreamPresentation {
         val matchedStreams = streams.map { it to DebridStreamMetadata.facts(it, preferences) }
             .filter { (_, facts) -> facts.matchesFilters(preferences) }
 
-        val orderedStreams = if (preferences.sortCriteria.isEmpty()) {
-            matchedStreams
+        val orderedStreams = if (preferences.sortsResults()) {
+            matchedStreams.sortedWith { left, right -> automaticOrder.compare(left.second, right.second) }
         } else {
-            matchedStreams.sortedWith { left, right ->
-                compareFacts(left.second, right.second, preferences.sortCriteria)
-            }
+            matchedStreams
         }
 
         return applyLimits(orderedStreams, preferences)
@@ -108,8 +106,8 @@ object DebridStreamPresentation {
         if (audioChannels.any { it in preferences.excludedAudioChannels }) return false
         if (preferences.requiredEncodes.isNotEmpty() && encode !in preferences.requiredEncodes) return false
         if (encode in preferences.excludedEncodes) return false
-        if (preferences.requiredLanguages.isNotEmpty() && languages.none { it in preferences.requiredLanguages }) return false
-        if (languages.isNotEmpty() && languages.all { it in preferences.excludedLanguages }) return false
+        if (preferences.requiredLanguages.isNotEmpty() && matchLanguages.none { it in preferences.requiredLanguages }) return false
+        if (languages.ifEmpty { listOf(DebridStreamLanguage.UNKNOWN) }.all { it in preferences.excludedLanguages }) return false
         if (preferences.requiredReleaseGroups.isNotEmpty() && preferences.requiredReleaseGroups.none { releaseGroup.equals(it, ignoreCase = true) }) return false
         if (preferences.excludedReleaseGroups.any { releaseGroup.equals(it, ignoreCase = true) }) return false
         if (preferences.sizeMinGb > 0 && size != null && size < preferences.sizeMinGb.gigabytes()) return false
@@ -117,36 +115,37 @@ object DebridStreamPresentation {
         return true
     }
 
-    private fun compareFacts(
-        left: DebridStreamFacts,
-        right: DebridStreamFacts,
-        criteria: List<DebridStreamSortCriterion>,
-    ): Int {
-        for (criterion in criteria) {
-            val comparison = compareKey(left, right, criterion)
-            if (comparison != 0) return comparison
-        }
-        return 0
+    /**
+     * Sorting kicks in once the user customizes any "Preferred …" rule. A sort profile saved
+     * before the "Sort results" setting was hidden also opts in, but its shape is ignored:
+     * everyone gets the same order.
+     */
+    private fun DebridStreamPreferences.sortsResults(): Boolean {
+        val defaults = DebridStreamPreferences()
+        return sortCriteria.isNotEmpty() ||
+            preferredLanguages.isNotEmpty() ||
+            preferredResolutions != defaults.preferredResolutions ||
+            preferredQualities != defaults.preferredQualities ||
+            preferredVisualTags != defaults.preferredVisualTags ||
+            preferredAudioTags != defaults.preferredAudioTags ||
+            preferredAudioChannels != defaults.preferredAudioChannels ||
+            preferredEncodes != defaults.preferredEncodes
     }
 
-    private fun compareKey(
-        left: DebridStreamFacts,
-        right: DebridStreamFacts,
-        criterion: DebridStreamSortCriterion,
-    ): Int {
-        val direction = if (criterion.direction == DebridStreamSortDirection.ASC) 1 else -1
-        return when (criterion.key) {
-            DebridStreamSortKey.RESOLUTION -> left.resolutionRank.compareTo(right.resolutionRank) * -direction
-            DebridStreamSortKey.QUALITY -> left.qualityRank.compareTo(right.qualityRank) * -direction
-            DebridStreamSortKey.VISUAL_TAG -> left.visualRank.compareTo(right.visualRank) * -direction
-            DebridStreamSortKey.AUDIO_TAG -> left.audioRank.compareTo(right.audioRank) * -direction
-            DebridStreamSortKey.AUDIO_CHANNEL -> left.channelRank.compareTo(right.channelRank) * -direction
-            DebridStreamSortKey.ENCODE -> left.encodeRank.compareTo(right.encodeRank) * -direction
-            DebridStreamSortKey.SIZE -> (left.size ?: 0L).compareTo(right.size ?: 0L) * direction
-            DebridStreamSortKey.LANGUAGE -> left.languageRank.compareTo(right.languageRank) * -direction
-            DebridStreamSortKey.RELEASE_GROUP -> left.releaseGroup.compareTo(right.releaseGroup, ignoreCase = true)
-        }
-    }
+    /**
+     * Foreign-only streams sink first, then highest quality wins. An explicit preferred-language
+     * tag only breaks ties, so an untagged 2160p still beats a "720p.ENG".
+     */
+    private val automaticOrder: Comparator<DebridStreamFacts> = compareBy<DebridStreamFacts>(
+        { it.languageGroup },
+        { it.resolutionRank },
+        { it.qualityRank },
+        { it.visualRank },
+        { it.audioRank },
+        { it.channelRank },
+        { it.encodeRank },
+        { it.languageRank },
+    ).thenByDescending { it.size ?: 0L }
 }
 
 internal object DebridStreamMetadata {
@@ -240,9 +239,13 @@ internal object DebridStreamMetadata {
         val audioTags = streamAudioTags(parsed?.audio.orEmpty(), searchText)
         val audioChannels = streamAudioChannels(parsed?.channels.orEmpty(), searchText)
         val encode = streamEncode(parsed?.codec, searchText)
-        val languages = parsed?.languages.orEmpty().mapNotNull { languageFor(it) }.ifEmpty {
-            DebridStreamLanguage.entries.filter { searchText.hasToken(it.code) }
-        }
+        val detection = DebridStreamLanguageDetector.detect(
+            sources = streamTextSources(stream),
+            parsedLanguages = parsed?.languages.orEmpty(),
+        )
+        val languages = detection.audio
+        val matchLanguages = impliedLanguages(detection)
+        val languageRank = languageRank(detection, matchLanguages, preferences.preferredLanguages)
         val releaseGroup = parsed?.group?.takeIf { it.isNotBlank() } ?: releaseGroupFromText(searchText)
         return DebridStreamFacts(
             resolution = resolution,
@@ -252,6 +255,7 @@ internal object DebridStreamMetadata {
             audioChannels = audioChannels,
             encode = encode,
             languages = languages,
+            matchLanguages = matchLanguages,
             releaseGroup = releaseGroup,
             size = streamSize(stream),
             resolutionRank = rank(resolution, preferences.preferredResolutions),
@@ -260,8 +264,43 @@ internal object DebridStreamMetadata {
             audioRank = rankAny(audioTags, preferences.preferredAudioTags),
             channelRank = rankAny(audioChannels, preferences.preferredAudioChannels),
             encodeRank = rank(encode, preferences.preferredEncodes),
-            languageRank = if (languages.isEmpty()) Int.MAX_VALUE else languages.minOf { rank(it, preferences.preferredLanguages) },
+            languageGroup = if (preferences.preferredLanguages.isEmpty() || languageRank != Int.MAX_VALUE) 0 else 1,
+            languageRank = languageRank,
         )
+    }
+
+    /**
+     * Languages a stream plausibly carries. Untagged releases are almost always English (only
+     * dubs and foreign releases name their language), and multi/dual audio usually includes it.
+     */
+    private fun impliedLanguages(detection: DebridLanguageDetection): List<DebridStreamLanguage> =
+        when {
+            detection.audio.isEmpty() && detection.untaggedIsForeign -> listOf(DebridStreamLanguage.UNKNOWN)
+            detection.audio.isEmpty() -> listOf(DebridStreamLanguage.EN, DebridStreamLanguage.UNKNOWN)
+            DebridStreamLanguage.MULTI in detection.audio -> detection.audio + DebridStreamLanguage.EN
+            else -> detection.audio
+        }
+
+    /**
+     * Explicitly tagged matches rank first, then multi-audio, then untagged streams, each tier
+     * ordered by the user's preferred list. Streams matching nothing get [Int.MAX_VALUE].
+     */
+    private fun languageRank(
+        detection: DebridLanguageDetection,
+        matchLanguages: List<DebridStreamLanguage>,
+        preferred: List<DebridStreamLanguage>,
+    ): Int {
+        if (preferred.isEmpty()) return Int.MAX_VALUE
+        val tiers = listOf(
+            detection.audio,
+            if (DebridStreamLanguage.MULTI in detection.audio) listOf(DebridStreamLanguage.EN) else emptyList(),
+            if (detection.audio.isEmpty()) matchLanguages else emptyList(),
+        )
+        tiers.forEachIndexed { tier, values ->
+            val best = values.map { preferred.indexOf(it) }.filter { it >= 0 }.minOrNull()
+            if (best != null) return tier * preferred.size + best
+        }
+        return Int.MAX_VALUE
     }
 
     private fun streamResolution(vararg values: String?): DebridStreamResolution =
@@ -365,13 +404,6 @@ internal object DebridStreamMetadata {
         }
     }
 
-    private fun languageFor(value: String): DebridStreamLanguage? {
-        val normalized = value.lowercase()
-        return DebridStreamLanguage.entries.firstOrNull {
-            normalized == it.code || normalized == it.label.lowercase()
-        }
-    }
-
     private fun releaseGroupFromText(text: String): String =
         Regex("-([a-z0-9][a-z0-9._]{1,24})($|\\.)", RegexOption.IGNORE_CASE)
             .find(text)
@@ -412,7 +444,11 @@ internal object DebridStreamMetadata {
             ?: stream.behaviorHints.videoSize
             ?: stream.debridCacheStatus?.cachedSize
 
-    private fun streamSearchText(stream: StreamItem): String {
+    private fun streamSearchText(stream: StreamItem): String =
+        streamTextSources(stream).joinToString(" ").lowercase()
+
+    /** Case is preserved: language detection relies on it ("DE" vs "de"). */
+    private fun streamTextSources(stream: StreamItem): List<String> {
         val resolve = stream.clientResolve
         val raw = resolve?.stream?.raw
         val parsed = raw?.parsed
@@ -431,7 +467,7 @@ internal object DebridStreamMetadata {
             parsed?.codec,
             parsed?.hdr?.joinToString(" "),
             parsed?.audio?.joinToString(" "),
-        ).joinToString(" ").lowercase()
+        )
     }
 }
 
@@ -442,7 +478,10 @@ internal data class DebridStreamFacts(
     val audioTags: List<DebridStreamAudioTag>,
     val audioChannels: List<DebridStreamAudioChannel>,
     val encode: DebridStreamEncode,
+    /** Audio languages actually named by the stream; shown by the formatter. */
     val languages: List<DebridStreamLanguage>,
+    /** [languages] plus what untagged / multi-audio streams are assumed to carry. */
+    val matchLanguages: List<DebridStreamLanguage>,
     val releaseGroup: String,
     val size: Long?,
     val resolutionRank: Int,
@@ -451,6 +490,8 @@ internal data class DebridStreamFacts(
     val audioRank: Int,
     val channelRank: Int,
     val encodeRank: Int,
+    /** 0 when the stream matches a preferred language (or none are set), 1 when foreign-only. */
+    val languageGroup: Int,
     val languageRank: Int,
 )
 

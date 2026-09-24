@@ -196,6 +196,42 @@ class DebridStreamPresentationTest {
     }
 
     @Test
+    fun `preferred language sinks foreign streams and breaks quality ties`() {
+        val foreign4k = localTorboxStream(name = "HUN 2160p", filename = "72.HOURS.2026.2160p.NF.WEB-DL.DDP5.1.H.265.HUN-GS88.mkv", size = 15_000_000_000)
+        val untagged4k = localTorboxStream(name = "Untagged 2160p", filename = "72.Hours.2026.2160p.NF.WEB-DL.DDP5.1.H.265-FLUX.mkv", size = 14_000_000_000)
+        val untagged1080 = localTorboxStream(name = "Untagged 1080p", filename = "72.Hours.2026.1080p.NF.WEB-DL.DDP5.1.H.265-FLUX.mkv", size = 6_000_000_000)
+        val english1080 = localTorboxStream(name = "ENG 1080p", filename = "72.Hours.2026.1080p.NF.WEB-DL.DDP5.1.H.265.ENG-GRP.mkv", size = 5_000_000_000)
+
+        val ordered = DebridStreamPresentation.applyPreferences(
+            streams = listOf(foreign4k, untagged1080, english1080, untagged4k),
+            settings = DebridSettings(
+                enabled = true,
+                providerApiKeys = mapOf(DebridProviders.TORBOX_ID to "key"),
+                streamPreferences = DebridStreamPreferences(preferredLanguages = listOf(DebridStreamLanguage.EN)),
+            ),
+        )
+
+        assertEquals(listOf("Untagged 2160p", "ENG 1080p", "Untagged 1080p", "HUN 2160p"), ordered.map { it.name })
+    }
+
+    @Test
+    fun `required language keeps untagged streams and drops dubs`() {
+        val untagged = localTorboxStream(name = "Untagged", filename = "Avatar.The.Last.Airbender.S03E07.1080p.BluRay.x264-CiNEFiLE.mkv", size = 2_000_000_000)
+        val hebrewDub = localTorboxStream(name = "HebDub", filename = "Avatar.The.Last.Airbender.S03E07.720p.WEB-DL.h264-HebDub-TZIPORA.mkv", size = 500_000_000)
+
+        val filtered = DebridStreamPresentation.applyPreferences(
+            streams = listOf(untagged, hebrewDub),
+            settings = DebridSettings(
+                enabled = true,
+                providerApiKeys = mapOf(DebridProviders.TORBOX_ID to "key"),
+                streamPreferences = DebridStreamPreferences(requiredLanguages = listOf(DebridStreamLanguage.EN)),
+            ),
+        )
+
+        assertEquals(listOf("Untagged"), filtered.map { it.name })
+    }
+
+    @Test
     fun `applies debrid sort filters and limits without removing normal urls`() {
         val low = localTorboxStream(
             name = "Low",

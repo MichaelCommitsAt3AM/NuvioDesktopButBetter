@@ -425,15 +425,17 @@ internal fun LazyListScope.debridSettingsContent(
                     onClick = { activeStreamPicker = DebridStreamPicker.MAX_RESULTS },
                 )
                 SettingsGroupDivider(isTablet = isTablet)
-                DebridPreferenceRow(
-                    isTablet = isTablet,
-                    title = stringResource(Res.string.settings_debrid_sort_results),
-                    description = stringResource(Res.string.settings_debrid_sort_results_desc),
-                    value = sortProfileLabel(preferences.sortCriteria),
-                    enabled = settings.canResolvePlayableLinks,
-                    onClick = { activeStreamPicker = DebridStreamPicker.SORT_MODE },
-                )
-                SettingsGroupDivider(isTablet = isTablet)
+                // Hidden: results are sorted automatically (language, then quality) once any
+                // "Preferred …" rule is customized. See DebridStreamPresentation.applyPreferences.
+                // DebridPreferenceRow(
+                //     isTablet = isTablet,
+                //     title = stringResource(Res.string.settings_debrid_sort_results),
+                //     description = stringResource(Res.string.settings_debrid_sort_results_desc),
+                //     value = sortProfileLabel(preferences.sortCriteria),
+                //     enabled = settings.canResolvePlayableLinks,
+                //     onClick = { activeStreamPicker = DebridStreamPicker.SORT_MODE },
+                // )
+                // SettingsGroupDivider(isTablet = isTablet)
                 DebridPreferenceRow(
                     isTablet = isTablet,
                     title = stringResource(Res.string.settings_debrid_per_resolution_limit),

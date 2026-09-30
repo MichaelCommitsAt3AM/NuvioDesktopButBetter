@@ -190,8 +190,6 @@ jobs:
         run: |
           required_values=(
             LOCAL_PROPERTIES_BASE64
-            SENTRY_AUTH_TOKEN
-            SENTRY_DESKTOP_DSN
           )
           if [[ "${MACOS_NOTARIZATION_ENABLED}" == "true" ]]; then
             required_values+=(
@@ -295,7 +293,7 @@ jobs:
         run: |
           ./gradlew \
             :composeApp:notarizeReleaseDmgWithKeychain \
-            :desktopSentry:sentryUploadSourceBundleJava \
+            ${SENTRY_AUTH_TOKEN:+:desktopSentry:sentryUploadSourceBundleJava} \
             "-Pnuvio.macos.arch=${MACOS_ARCH}" \
             -Pcompose.desktop.packaging.checkJdkVendor=false \
             --no-configuration-cache \
@@ -311,7 +309,7 @@ jobs:
         run: |
           ./gradlew \
             :composeApp:packageReleaseDmg \
-            :desktopSentry:sentryUploadSourceBundleJava \
+            ${SENTRY_AUTH_TOKEN:+:desktopSentry:sentryUploadSourceBundleJava} \
             "-Pnuvio.macos.arch=${MACOS_ARCH}" \
             -Pcompose.desktop.packaging.checkJdkVendor=false \
             --no-configuration-cache \
@@ -423,8 +421,6 @@ jobs:
           missing=()
           required_values=(
             LOCAL_PROPERTIES_BASE64
-            SENTRY_AUTH_TOKEN
-            SENTRY_DESKTOP_DSN
           )
           for value_name in "${required_values[@]}"; do
             if [[ -z "${!value_name}" ]]; then
@@ -472,9 +468,12 @@ jobs:
       - name: Build MSI
         shell: pwsh
         run: |
+          $gradleTasks = @(":composeApp:packageReleaseMsi")
+          if ($env:SENTRY_AUTH_TOKEN) {
+            $gradleTasks += ":desktopSentry:sentryUploadSourceBundleJava"
+          }
           & .\gradlew.bat `
-            :composeApp:packageReleaseMsi `
-            :desktopSentry:sentryUploadSourceBundleJava `
+            @gradleTasks `
             "-Pnuvio.webview2.dir=$env:WEBVIEW2_ROOT" `
             "-Pcompose.desktop.packaging.checkJdkVendor=false" `
             --no-configuration-cache `
@@ -627,7 +626,7 @@ jobs:
           set -euo pipefail
           ./gradlew \
             :composeApp:createReleaseDistributable \
-            :desktopSentry:sentryUploadSourceBundleJava \
+            ${SENTRY_AUTH_TOKEN:+:desktopSentry:sentryUploadSourceBundleJava} \
             -Pcompose.desktop.packaging.checkJdkVendor=false \
             --no-configuration-cache \
             --no-daemon \
@@ -761,7 +760,7 @@ jobs:
           set -euo pipefail
           ./gradlew \
             :composeApp:packageReleaseDeb \
-            :desktopSentry:sentryUploadSourceBundleJava \
+            ${SENTRY_AUTH_TOKEN:+:desktopSentry:sentryUploadSourceBundleJava} \
             -Pcompose.desktop.packaging.checkJdkVendor=false \
             --no-configuration-cache \
             --no-daemon \
@@ -844,7 +843,7 @@ jobs:
           set -euo pipefail
           ./gradlew \
             :composeApp:packageReleaseRpm \
-            :desktopSentry:sentryUploadSourceBundleJava \
+            ${SENTRY_AUTH_TOKEN:+:desktopSentry:sentryUploadSourceBundleJava} \
             -Pcompose.desktop.packaging.checkJdkVendor=false \
             --no-configuration-cache \
             --no-daemon \
@@ -947,7 +946,7 @@ jobs:
           update_information="gh-releases-zsync|${repo_owner}|${repo_name}|latest|Nuvio-Linux-x86_64-*.AppImage.zsync"
 
           export APPIMAGETOOL="${appimagetool_path}"
-          export APPIMAGE_WEBSITE_URL="https://github.com/NuvioMedia/NuvioDesktop"
+          export APPIMAGE_WEBSITE_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
 
           if [[ "${{ inputs.mode }}" == "publish" ]]; then
             export UPDATE_INFORMATION="${update_information}"
@@ -956,7 +955,7 @@ jobs:
 
           ./gradlew \
             :composeApp:packageReleaseAppImage \
-            :desktopSentry:sentryUploadSourceBundleJava \
+            ${SENTRY_AUTH_TOKEN:+:desktopSentry:sentryUploadSourceBundleJava} \
             -Pcompose.desktop.packaging.checkJdkVendor=false \
             --no-configuration-cache \
             --no-daemon \
@@ -1092,13 +1091,24 @@ jobs:
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.AppImage.zsync"
             "release/SHA256SUMS.txt"
           )
+          # Fork versions are Major.Minor.Patch.Fork; Fork resets to 1 only on an upstream sync.
+          release_title="${RELEASE_VERSION}"
+          if [[ "${RELEASE_VERSION}" =~ ^([0-9]+\.[0-9]+\.[0-9]+)\.([0-9]+)$ ]]; then
+            if [[ "${BASH_REMATCH[2]}" == "1" ]]; then
+              release_title="${BASH_REMATCH[1]} - sync with upstream"
+            else
+              release_title="${BASH_REMATCH[1]} - Fork update ${BASH_REMATCH[2]}"
+            fi
+          fi
           release_args=(
             "${RELEASE_TAG}"
             --target "${RELEASE_COMMIT}"
-            --title "${RELEASE_VERSION}"
+            --title "${release_title}"
             --notes-file release/release-notes.md
           )
           if [[ "${RELEASE_MODE}" == "draft" ]]; then
             release_args+=(--draft)
+          else
+            release_args+=(--latest)
           fi
           gh release create --repo "${GITHUB_REPOSITORY}" "${release_args[@]}" "${release_assets[@]}"

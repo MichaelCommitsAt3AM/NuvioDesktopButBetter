@@ -4,8 +4,6 @@ set -euo pipefail
 
 required_values=(
     LOCAL_PROPERTIES_BASE64
-    SENTRY_AUTH_TOKEN
-    SENTRY_DESKTOP_DSN
 )
 missing=()
 for value_name in "${required_values[@]}"; do

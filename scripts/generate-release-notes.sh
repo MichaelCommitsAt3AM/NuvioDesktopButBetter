@@ -205,7 +205,14 @@ if [[ "$repository_history" == true ]]; then
             continue
         fi
 
-        [[ "$parents" != *" "* ]] || continue
+        if [[ "$parents" == *" "* ]]; then
+            # An upstream sync is a PR-less first-parent merge; without this it contributes no
+            # note, and a sync-only release range comes out empty and fails the release.
+            [[ "$subject" =~ ^Merge\ (remote-tracking\ )?branch\ \'upstream/ ]] || continue
+            username="$(resolve_username "$commit" "$author_name" "$author_email")"
+            emit_release_note "$short_hash" "Sync with upstream" "$username"
+            continue
+        fi
         username="$(resolve_username "$commit" "$author_name" "$author_email")"
         emit_release_note "$short_hash" "$subject" "$username"
     done < <(

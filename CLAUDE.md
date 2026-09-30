@@ -12,12 +12,10 @@ Nuvio Desktop is a Kotlin Multiplatform + Compose Multiplatform media hub for Wi
 # Run desktop from source
 ./gradlew :composeApp:run                          # or gradlew.bat on Windows
 
-# Package a release for the current host OS
+# Local packaging — for testing an installer only; releases are built in CI (see Desktop release process)
 ./gradlew :composeApp:packageReleaseDistributionForCurrentOS
-
-# Platform-specific packaging
 ./gradlew :composeApp:packageReleaseMsi --rerun-tasks   # Windows
-./scripts/build-macos-release-dmgs.sh --package-only    # macOS (signs + notarizes unless --package-only)
+./scripts/build-macos-release-dmgs.sh --package-only    # macOS
 ./gradlew :composeApp:packageReleaseDeb                  # Linux
 
 # Android (shares the mobile flavor setup)
@@ -53,7 +51,7 @@ Secrets/config (Supabase URL+key, Sentry DSN, Trakt client id/secret, TMDB/IMDB 
 
 ### macOS packaging (notarization/signing)
 
-`composeApp/build.gradle.kts` defines custom tasks beyond stock Compose Desktop packaging: `NotarizeMacosDmgWithKeychainTask` (codesigns + `notarytool submit --wait` + staples the DMG, driven by `NUVIO_MACOS_SIGNING_IDENTITY` and a notary keychain profile) and `PrepareMacosTorrServerResourcesTask` (bundles the TorrServer binary as a macOS app resource). `nativeDistributions` targets `Dmg`/`Msi`/`Deb` with bundle ID `com.nuvio.media.desktop` and registers `nuvio://`/`stremio://` URL schemes. `scripts/build-macos-release-dmgs.sh` wraps this for local release builds.
+`composeApp/build.gradle.kts` defines custom tasks beyond stock Compose Desktop packaging: `NotarizeMacosDmgWithKeychainTask` (codesigns + `notarytool submit --wait` + staples the DMG, driven by `NUVIO_MACOS_SIGNING_IDENTITY` and a notary keychain profile) and `PrepareMacosTorrServerResourcesTask` (bundles the TorrServer binary as a macOS app resource). `nativeDistributions` targets `Dmg`/`Msi`/`Deb` with bundle ID `com.nuvio.media.desktop` and registers `nuvio://`/`stremio://` URL schemes. `scripts/build-macos-release-dmgs.sh` wraps this for local builds. On this fork, signing/notarization only runs in `desktop-release.yml` (currently disabled there) — never sign or notarize release packages locally.
 
 ### Sync
 
@@ -96,6 +94,8 @@ GitHub release notes (both Android and desktop) should be short, feature-level b
 
 ### Desktop release process
 
+**Desktop releases are built and signed only in CI — this fork no longer builds, signs, or uploads release packages locally.** Don't run local packaging to produce a release, hand-create tags, or `gh release upload` locally built installers; local packaging is for testing an installer before a change is merged.
+
 Desktop releases are built on GitHub Actions by `.github/workflows/desktop-release.yml` (inherited from upstream, adapted for this fork). It builds all platforms on hosted runners — macOS DMG (arm64 + x86_64), Windows MSI, Linux Flatpak/DEB/RPM/AppImage — writes `SHA256SUMS.txt`, and creates the tag + GitHub release itself. Modes: `build-only` (artifacts only, any `target`), `dry-run` (validate release state), `draft`, `publish` (these two require `target=all`, and every platform must succeed).
 
 Required setup (GitHub Environment `desktop-release`): secret `NUVIO_DESKTOP_LOCAL_PROPERTIES_BASE64` (base64 `local.properties`; must contain `NUVIO_SUPABASE_URL` and `NUVIO_SUPABASE_ANON_KEY`; Trakt credentials are not needed — Trakt sync UI is commented out in this fork). Optional: `SENTRY_DESKTOP_DSN`, and `SENTRY_AUTH_TOKEN` (source-bundle upload is skipped without it; note `desktopSentry` targets upstream's `nuviomedia` org). Runtime binaries (libmpv, macOS dylibs, `TorrServer.exe`) come from Git LFS. macOS notarization is off (`MACOS_NOTARIZATION_ENABLED: 'false'`, upstream's setting), so DMGs are unsigned; the MSI is not code-signed either.
@@ -106,4 +106,4 @@ Required setup (GitHub Environment `desktop-release`): secret `NUVIO_DESKTOP_LOC
 4. Dispatch `Build Desktop Release` on that branch with `mode=draft`, `target=all`. Don't tag manually — the release job creates the tag (bare version, no `v` prefix) at the bump commit. The title is set automatically: `<Major.Minor.Patch> - Fork update <Fork>`, or `<Major.Minor.Patch> - sync with upstream` when `Fork` is `1`.
 5. The draft's notes are a generated commit list — rewrite them into short user-facing bullets, then publish it as **Latest**: `gh release edit <version> --repo MichaelCommitsAt3AM/NuvioDesktopButBetter --draft=false --latest`. (`mode=publish` publishes straight away as Latest, but with the generated notes.) Always pass `--repo MichaelCommitsAt3AM/NuvioDesktopButBetter` to `gh release` commands: with both `origin` and `upstream` remotes, `gh` otherwise resolves to `upstream`.
 
-Local fallback (e.g. Actions unavailable): tag it yourself (`git tag -a <version> -m "Desktop <version>" && git push origin <version>`), build with `./gradlew.bat :composeApp:packageReleaseMsi --rerun-tasks` on Windows (`--rerun-tasks` because jpackage's up-to-date checks are unreliable; use the path logged as `Published Windows MSI artifact:` — `composeApp/build/compose/release-msis/Nuvio-Windows-x64-<version>.msi`), `scripts/build-macos-release-dmgs.sh` / `packageReleaseDeb` elsewhere, then `gh release create <version> --repo MichaelCommitsAt3AM/NuvioDesktopButBetter --title "..." --latest --notes "..."` and `gh release upload <version> --repo MichaelCommitsAt3AM/NuvioDesktopButBetter <file>`. For a risky change, use `--prerelease` and promote later with `gh release edit <version> --repo MichaelCommitsAt3AM/NuvioDesktopButBetter --prerelease=false --latest`.
+If a CI release job fails, fix the workflow or code and dispatch the workflow again — don't fall back to building locally. If a build job fails, the release job never runs and no tag or release is created, so rerunning is safe (if the final release step itself fails, delete any partial release/tag it left before rerunning). For a risky change, publish the draft as a pre-release instead (`gh release edit <version> --repo MichaelCommitsAt3AM/NuvioDesktopButBetter --draft=false --prerelease`) and promote it later with `gh release edit <version> --repo MichaelCommitsAt3AM/NuvioDesktopButBetter --prerelease=false --latest`.

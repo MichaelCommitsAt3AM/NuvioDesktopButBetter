@@ -521,17 +521,31 @@ jobs:
             throw "Could not inspect the extracted desktop application JAR."
           }
           $requiredEntries = @(
-            "native/windows/player_bridge.dll",
-            "native/windows/libmpv-2.dll",
-            "native/windows/WebView2Loader.dll",
-            "native/windows/vcruntime140.dll",
-            "native/windows/msvcp140.dll",
-            "native/windows/runtime-files.txt",
             "torrserver/windows-amd64/TorrServer.exe"
           )
           foreach ($entry in $requiredEntries) {
             if ($jarEntries -notcontains $entry) {
               throw "The extracted MSI application is missing $entry"
+            }
+          }
+
+          # This fork ships the native player runtime as jpackage app resources (flat under
+          # the app's resources dir, see prepareWindowsAppResources) rather than in the jar.
+          $requiredAppResources = @(
+            "player_bridge.dll",
+            "libmpv-2.dll",
+            "WebView2Loader.dll",
+            "vcruntime140.dll",
+            "msvcp140.dll",
+            "runtime-files.txt"
+          )
+          foreach ($resource in $requiredAppResources) {
+            $pattern = "[\\/]app[\\/]resources[\\/]" + [regex]::Escape($resource) + "$"
+            $match = Get-ChildItem $extractDir -Recurse -File `
+              | Where-Object { $_.FullName -match $pattern } `
+              | Select-Object -First 1
+            if ($null -eq $match) {
+              throw "The extracted MSI application is missing app resource $resource"
             }
           }
 

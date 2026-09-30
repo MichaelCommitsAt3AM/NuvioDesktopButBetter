@@ -1673,9 +1673,13 @@ if (isLinuxHost) {
                 val effectiveLinuxAppRelease = linuxAppRelease.orNull ?: "1"
                 val artifactPrefix =
                     "${effectiveLinuxPackageName}_${packageVersion.get()}-${effectiveLinuxAppRelease}_"
+                // Some jpackage versions omit the "-<release>" segment from DEB file names.
+                val artifactPrefixWithoutRelease = "${effectiveLinuxPackageName}_${packageVersion.get()}_"
                 val debs = destinationDir.get().asFile
                     .listFiles { file ->
-                        file.isFile && file.name.startsWith(artifactPrefix) && file.extension == "deb"
+                        file.isFile &&
+                            file.extension == "deb" &&
+                            (file.name.startsWith(artifactPrefix) || file.name.startsWith(artifactPrefixWithoutRelease))
                     }
                     ?.sortedBy { it.name }
                     .orEmpty()

@@ -22,8 +22,6 @@ sed -i -E '/^[[:space:]]*(sdk\.dir|NUVIO_RELEASE_(STORE_FILE|STORE_PASSWORD|KEY_
 required_properties=(
     NUVIO_SUPABASE_URL
     NUVIO_SUPABASE_ANON_KEY
-    TRAKT_CLIENT_ID
-    TRAKT_CLIENT_SECRET
 )
 for property_name in "${required_properties[@]}"; do
     if ! grep -Eq "^${property_name}=.+" local.properties; then

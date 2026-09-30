@@ -4,8 +4,6 @@ set -euo pipefail
 
 required_values=(
     LOCAL_PROPERTIES_BASE64
-    SENTRY_AUTH_TOKEN
-    SENTRY_DESKTOP_DSN
 )
 missing=()
 for value_name in "${required_values[@]}"; do
@@ -24,8 +22,6 @@ sed -i -E '/^[[:space:]]*(sdk\.dir|NUVIO_RELEASE_(STORE_FILE|STORE_PASSWORD|KEY_
 required_properties=(
     NUVIO_SUPABASE_URL
     NUVIO_SUPABASE_ANON_KEY
-    TRAKT_CLIENT_ID
-    TRAKT_CLIENT_SECRET
 )
 for property_name in "${required_properties[@]}"; do
     if ! grep -Eq "^${property_name}=.+" local.properties; then

@@ -183,10 +183,11 @@ internal fun TrackingProviderCards(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(if (isTablet) 16.dp else 12.dp),
     ) {
-        TraktProviderCard(
-            uiState = traktUiState,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        // Trakt sync is disabled in this fork (no Trakt credentials are shipped).
+        // TraktProviderCard(
+        //     uiState = traktUiState,
+        //     modifier = Modifier.fillMaxWidth(),
+        // )
         SimklProviderCard(
             uiState = simklUiState,
             isSyncing = syncState.isLoading,

@@ -137,22 +137,23 @@ internal fun LazyListScope.trackingSettingsContent(
         }
     }
 
-    if (traktUiState.mode == TraktConnectionMode.CONNECTED) {
-        item {
-            SettingsSection(
-                title = stringResource(Res.string.settings_tracking_viewing_discovery),
-                isTablet = isTablet,
-            ) {
-                TrackingViewingAndDiscovery(
-                    isTablet = isTablet,
-                    settingsUiState = settingsUiState,
-                    traktConnected = true,
-                    commentsEnabled = commentsEnabled,
-                    onCommentsEnabledChange = onCommentsEnabledChange,
-                )
-            }
-        }
-    }
+    // Trakt sync is disabled in this fork; this section only has Trakt-backed settings.
+    // if (traktUiState.mode == TraktConnectionMode.CONNECTED) {
+    //     item {
+    //         SettingsSection(
+    //             title = stringResource(Res.string.settings_tracking_viewing_discovery),
+    //             isTablet = isTablet,
+    //         ) {
+    //             TrackingViewingAndDiscovery(
+    //                 isTablet = isTablet,
+    //                 settingsUiState = settingsUiState,
+    //                 traktConnected = true,
+    //                 commentsEnabled = commentsEnabled,
+    //                 onCommentsEnabledChange = onCommentsEnabledChange,
+    //             )
+    //         }
+    //     }
+    // }
 
     if (simklUiState.mode == SimklConnectionMode.CONNECTED) {
         item {
@@ -459,13 +460,14 @@ private fun librarySourceOptions(
             title = stringResource(Res.string.trakt_library_source_nuvio),
             description = stringResource(Res.string.settings_tracking_nuvio_library_description),
         ),
-        TrackingPickerOption(
-            value = LibrarySourceMode.TRAKT,
-            title = stringResource(Res.string.trakt_library_source_trakt),
-            description = stringResource(Res.string.settings_tracking_trakt_library_description),
-            enabled = traktAvailable,
-            unavailableReason = trackingUnavailableReason(TrackingBrand.TRAKT, traktAvailable),
-        ),
+        // Trakt sync is disabled in this fork.
+        // TrackingPickerOption(
+        //     value = LibrarySourceMode.TRAKT,
+        //     title = stringResource(Res.string.trakt_library_source_trakt),
+        //     description = stringResource(Res.string.settings_tracking_trakt_library_description),
+        //     enabled = traktAvailable,
+        //     unavailableReason = trackingUnavailableReason(TrackingBrand.TRAKT, traktAvailable),
+        // ),
         TrackingPickerOption(
             value = LibrarySourceMode.SIMKL,
             title = stringResource(Res.string.tracking_source_simkl),
@@ -489,13 +491,14 @@ private fun watchProgressSourceOptions(
             title = stringResource(Res.string.trakt_watch_progress_source_nuvio),
             description = stringResource(Res.string.settings_tracking_nuvio_progress_description),
         ),
-        TrackingPickerOption(
-            value = WatchProgressSource.TRAKT,
-            title = stringResource(Res.string.trakt_watch_progress_source_trakt),
-            description = stringResource(Res.string.settings_tracking_trakt_progress_description),
-            enabled = traktAvailable,
-            unavailableReason = trackingUnavailableReason(TrackingBrand.TRAKT, traktAvailable),
-        ),
+        // Trakt sync is disabled in this fork.
+        // TrackingPickerOption(
+        //     value = WatchProgressSource.TRAKT,
+        //     title = stringResource(Res.string.trakt_watch_progress_source_trakt),
+        //     description = stringResource(Res.string.settings_tracking_trakt_progress_description),
+        //     enabled = traktAvailable,
+        //     unavailableReason = trackingUnavailableReason(TrackingBrand.TRAKT, traktAvailable),
+        // ),
         TrackingPickerOption(
             value = WatchProgressSource.SIMKL,
             title = stringResource(Res.string.tracking_source_simkl),

@@ -5,6 +5,7 @@ import androidx.compose.runtime.remember
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import com.nuvio.app.core.poster.CustomPosterFallbackInterceptor
 
 /**
  * Identifies the role a URL is being rendered in, independent of the URL itself.
@@ -34,21 +35,33 @@ enum class NuvioImageCacheBucket(internal val id: String) {
  * crossfade. Pass `0` to disable it for this request — worthwhile on dense shelves, where many
  * posters finishing at once means many simultaneous crossfade animations competing for the same
  * frame budget that's already tight during a catalog load.
+ *
+ * [fallbackModel], when set to a different non-blank URL, is loaded instead if [model] fails —
+ * see [CustomPosterFallbackInterceptor], which also moves both cache keys over to the fallback
+ * URL so a fallback result is never cached under [model]'s keys.
  */
 @Composable
 fun rememberNuvioImageRequest(
     model: String?,
     bucket: NuvioImageCacheBucket,
     crossfadeMillis: Int? = null,
+    fallbackModel: String? = null,
 ): ImageRequest? {
     val context = LocalPlatformContext.current
-    return remember(context, model, bucket, crossfadeMillis) {
+    return remember(context, model, bucket, crossfadeMillis, fallbackModel) {
         model?.let { url ->
             ImageRequest.Builder(context)
                 .data(url)
                 .memoryCacheKey("${bucket.id}:$url")
                 .diskCacheKey(url)
                 .apply { if (crossfadeMillis != null) crossfade(crossfadeMillis) }
+                .apply {
+                    if (!fallbackModel.isNullOrBlank() && fallbackModel != url) {
+                        memoryCacheKeyExtras(
+                            mapOf(CustomPosterFallbackInterceptor.FALLBACK_URL_KEY to fallbackModel),
+                        )
+                    }
+                }
                 .build()
         }
     }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -68,12 +69,12 @@ import com.nuvio.app.core.ui.isFullscreenActionSupported
 import com.nuvio.app.core.ui.WideDesktopViewportAspectRatio
 import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.details.formatRuntimeForDisplay
-import com.nuvio.app.features.mdblist.MdbListMetadataService.PROVIDER_IMDB
 import com.nuvio.app.features.tmdb.originalTmdbImageUrl
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.detail_logo_content_description
 import nuvio.composeapp.generated.resources.hero_add_to_library
 import nuvio.composeapp.generated.resources.hero_mark_unwatched
+import nuvio.composeapp.generated.resources.playback_unavailable
 import nuvio.composeapp.generated.resources.hero_mark_watched
 import nuvio.composeapp.generated.resources.hero_remove_from_library
 import nuvio.composeapp.generated.resources.rating_imdb
@@ -192,7 +193,10 @@ fun DesktopDetailBackdrop(
 @Composable
 fun DesktopDetailHero(
     meta: MetaDetails,
+    showOverallRatings: Boolean,
+    isMdbListActive: Boolean,
     playButtonLabel: String,
+    isPrimaryPlayEnabled: Boolean,
     isSaved: Boolean,
     isWatched: Boolean,
     onHeightChanged: (Int) -> Unit,
@@ -261,8 +265,8 @@ fun DesktopDetailHero(
                 )
             }
             Spacer(modifier = Modifier.height(space.s20))
-            DesktopHeroMetaRow(meta = meta)
-            if (meta.externalRatings.isNotEmpty()) {
+            DesktopHeroMetaRow(meta = meta, showOverallRatings = showOverallRatings && !isMdbListActive)
+            if (isMdbListActive && meta.externalRatings.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(space.s12))
                 DetailRatingsRow(
                     ratings = meta.externalRatings,
@@ -300,7 +304,8 @@ fun DesktopDetailHero(
             Spacer(modifier = Modifier.height(space.s28))
             DetailActionButtons(
                 modifier = Modifier.widthIn(max = 520.dp),
-                playLabel = playButtonLabel,
+                playLabel = if (isPrimaryPlayEnabled) playButtonLabel else stringResource(Res.string.playback_unavailable),
+                playEnabled = isPrimaryPlayEnabled,
                 secondaryActions = listOf(
                     DetailSecondaryAction(
                         label = if (isWatched) {
@@ -344,6 +349,7 @@ fun DesktopDetailHero(
                 enabled = heroTrailerReady,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
+                    .statusBarsPadding()
                     .padding(
                         top = space.s32,
                         end = actionHorizontalInset + if (isFullscreenActionSupported) 60.dp else 0.dp,
@@ -375,6 +381,7 @@ fun DesktopDetailHero(
             FullscreenActionButton(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
+                    .statusBarsPadding()
                     .padding(top = space.s32, end = actionHorizontalInset),
                 buttonSize = 48.dp,
                 iconSize = 24.dp,
@@ -386,7 +393,7 @@ fun DesktopDetailHero(
 }
 
 @Composable
-private fun DesktopHeroMetaRow(meta: MetaDetails) {
+private fun DesktopHeroMetaRow(meta: MetaDetails, showOverallRatings: Boolean) {
     val colorScheme = MaterialTheme.colorScheme
     val space = NuvioTokens.Space
     val opacity = NuvioTokens.Opacity
@@ -395,7 +402,6 @@ private fun DesktopHeroMetaRow(meta: MetaDetails) {
         desktopSeasonCountLabel(meta)?.let(::add)
         formatRuntimeForDisplay(meta.runtime)?.let(::add)
     }
-    val hasMdbImdbRating = meta.externalRatings.any { it.source == PROVIDER_IMDB }
     val validImdbRating = meta.imdbRating
         ?.takeIf { raw -> raw.toDoubleOrNull()?.let { it > 0.0 } == true }
     Row(
@@ -435,7 +441,7 @@ private fun DesktopHeroMetaRow(meta: MetaDetails) {
                 )
             }
         }
-        if (validImdbRating != null && !hasMdbImdbRating) {
+        if (validImdbRating != null && showOverallRatings) {
             val imdbTextStyle = MaterialTheme.typography.titleSmall.copy(
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.sp,

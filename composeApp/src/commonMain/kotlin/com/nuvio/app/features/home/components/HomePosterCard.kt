@@ -23,6 +23,13 @@ fun HomePosterCard(
     showLandscapeOverlay: Boolean = true,
 ) {
     val isLandscapeMode = useLandscapeBackdropMode || posterCardStyle.catalogLandscapeModeEnabled
+    val imageUrl = if (isLandscapeMode) (item.landscapePoster ?: item.banner ?: item.poster) else item.poster
+    val fallbackImageUrl = if (isLandscapeMode && !item.landscapePoster.isNullOrBlank()) {
+        // Landscape custom poster -> fall back to original backdrop, then portrait
+        item.banner ?: item.rawPosterUrl
+    } else {
+        item.rawPosterUrl
+    }
 
     HomePosterHoverPreview(
         item = item,
@@ -32,14 +39,15 @@ fun HomePosterCard(
     ) { hoverModifier ->
         NuvioPosterCard(
             title = item.name,
-            imageUrl = if (isLandscapeMode) (item.banner ?: item.poster) else item.poster,
+            imageUrl = if (isLandscapeMode) (item.landscapePoster ?: item.banner ?: item.poster) else item.poster,
             modifier = modifier.then(hoverModifier),
+            fallbackImageUrl = fallbackImageUrl,
             basePosterWidthDp = desktopCatalogShelfPosterBaseWidthDp(posterCardStyle.widthDp),
             shape = if (isLandscapeMode) NuvioPosterShape.Landscape else item.posterShape.toNuvioPosterShape(),
             detailLine = if (isLandscapeMode || posterCardStyle.hideLabelsEnabled) null else item.releaseInfo?.let { formatReleaseDateForDisplay(it) },
             showTitleBelow = !posterCardStyle.hideLabelsEnabled,
-            bottomLeftLogoUrl = if (isLandscapeMode) item.logo else null,
-            bottomLeftText = if (isLandscapeMode && item.logo.isNullOrBlank() && !posterCardStyle.hideLabelsEnabled) item.name else null,
+            bottomLeftLogoUrl = if (isLandscapeMode && showLandscapeOverlay) item.logo else null,
+            bottomLeftText = if (isLandscapeMode && showLandscapeOverlay && item.logo.isNullOrBlank() && !posterCardStyle.hideLabelsEnabled) item.name else null,
             isWatched = isWatched,
             posterCardStyle = posterCardStyle,
             onClick = onClick,

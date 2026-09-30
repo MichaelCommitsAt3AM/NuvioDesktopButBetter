@@ -42,11 +42,21 @@ internal fun PlayerDestination(
         Box(modifier = Modifier.fillMaxSize())
         return
     }
-    val onBack = rememberGuardedPlayerPopBackStack(
+    val currentFullscreen = com.nuvio.app.core.ui.isFullscreenActionActive()
+    val initialFullscreen = remember { currentFullscreen }
+    val onBackBase = rememberGuardedPlayerPopBackStack(
         navController = navController,
         route = route,
         beforePop = ResumePromptRepository::markPlayerExitedNormally,
     )
+    val onBack = remember(onBackBase, initialFullscreen, currentFullscreen) {
+        { releaseBeforeBack: com.nuvio.app.features.player.PlayerReleaseBeforeBack ->
+            if (currentFullscreen != initialFullscreen) {
+                com.nuvio.app.core.ui.toggleFullscreenAction()
+            }
+            onBackBase(releaseBeforeBack)
+        }
+    }
     val registerSystemBack = remember(route, onSystemBackHandlerChanged) {
         { handler: (() -> Unit)? -> onSystemBackHandlerChanged(route, handler) }
     }
@@ -89,6 +99,7 @@ internal fun PlayerDestination(
         initialPositionMs = launch.initialPositionMs,
         initialProgressFraction = launch.initialProgressFraction,
         contentLanguage = launch.contentLanguage,
+        launchId = route.launchId,
         onBack = onBack,
         onSystemBackHandlerChanged = registerSystemBack,
         onOpenInExternalPlayer = if (externalPlayerSupported) { { request ->
@@ -126,6 +137,8 @@ internal fun PlayerDestination(
                     val launched = launchExternalPlayer(intentResult)
                     if (!launched) {
                         NuvioToastController.show(externalPlayerFailedText)
+                    } else if (externalPlayerId == "infuse") {
+                        popBack()
                     }
                 }
                 ExternalPlayerIntentResult.NotConfigured -> {

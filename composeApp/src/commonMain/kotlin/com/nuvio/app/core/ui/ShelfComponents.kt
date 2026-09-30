@@ -380,6 +380,7 @@ fun NuvioPosterCard(
     imageUrl: String?,
     modifier: Modifier = Modifier,
     basePosterWidthDp: Int? = null,
+    fallbackImageUrl: String? = null,
     shape: NuvioPosterShape = NuvioPosterShape.Poster,
     detailLine: String? = null,
     showTitleBelow: Boolean = true,
@@ -438,6 +439,7 @@ fun NuvioPosterCard(
                     // means many simultaneous animations competing for the same frame budget
                     // that's already tight during a catalog load.
                     crossfadeMillis = 0,
+                    fallbackModel = fallbackImageUrl,
                 )
                 NuvioAsyncImage(
                     model = posterImageRequest,

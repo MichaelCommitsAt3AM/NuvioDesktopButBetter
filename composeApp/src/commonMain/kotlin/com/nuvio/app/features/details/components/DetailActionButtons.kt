@@ -60,6 +60,7 @@ fun DetailActionButtons(
     modifier: Modifier = Modifier,
     playLabel: String = stringResource(Res.string.action_play),
     playEnabled: Boolean = true,
+    pinnedAction: DetailSecondaryAction? = null,
     secondaryActions: List<DetailSecondaryAction> = emptyList(),
     actionsMenuLabel: String = stringResource(Res.string.details_actions_menu_label),
     isTablet: Boolean = false,
@@ -135,6 +136,21 @@ fun DetailActionButtons(
                 }
             }
 
+            if (pinnedAction != null) {
+                Spacer(modifier = Modifier.width(12.dp))
+                DetailIconAction(
+                    label = pinnedAction.label,
+                    icon = pinnedAction.icon,
+                    active = pinnedAction.isActive,
+                    progress = 1f,
+                    size = iconButtonSize,
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                        pinnedAction.onClick()
+                    },
+                )
+            }
+
             if (hasSecondaryActions) {
                 Spacer(modifier = Modifier.width(12.dp))
                 secondaryActions.forEachIndexed { index, action ->
@@ -182,7 +198,7 @@ fun DetailActionButtons(
                     color = if (actionsExpanded) {
                         MaterialTheme.colorScheme.onBackground
                     } else {
-                        MaterialTheme.colorScheme.surfaceVariant
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.82f)
                     },
                     contentColor = if (actionsExpanded) {
                         MaterialTheme.colorScheme.background

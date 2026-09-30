@@ -14,3 +14,5 @@ internal actual fun ComponentRegistry.Builder.addPlatformImageComponents(): Comp
     } else {
         add(GifDecoder.Factory())
     }
+
+internal actual val platformProvidesImageLoader: Boolean = true

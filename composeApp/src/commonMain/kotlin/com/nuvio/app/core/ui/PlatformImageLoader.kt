@@ -14,3 +14,11 @@ internal expect fun ImageLoader.Builder.configurePlatformImageLoader(): ImageLoa
  * registered.
  */
 internal expect fun ComponentRegistry.Builder.addPlatformImageComponents(): ComponentRegistry.Builder
+
+/**
+ * Returns `true` when the platform already provides a singleton [ImageLoader]
+ * (e.g. via `Application` implementing `SingletonImageLoader.Factory` on Android).
+ * When `true`, the composable [setSingletonImageLoaderFactory] must be skipped
+ * so it doesn't overwrite the platform-provided loader.
+ */
+internal expect val platformProvidesImageLoader: Boolean

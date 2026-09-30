@@ -11,6 +11,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.CoroutineContext
 
+internal actual val platformProvidesImageLoader: Boolean = false
+
 // Coil defaults both fetching and decoding to Dispatchers.IO, which is 64 threads on the JVM.
 // Compose Desktop draws from a single thread, so a shelf scrolling into view would hand ~18
 // full Skia decodes to 18 cores at once and the render thread would lose its frame budget

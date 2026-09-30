@@ -6,3 +6,5 @@ import coil3.ImageLoader
 internal actual fun ImageLoader.Builder.configurePlatformImageLoader(): ImageLoader.Builder = this
 
 internal actual fun ComponentRegistry.Builder.addPlatformImageComponents(): ComponentRegistry.Builder = this
+
+internal actual val platformProvidesImageLoader: Boolean = false

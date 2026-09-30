@@ -2,6 +2,7 @@ package com.nuvio.app
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.awt.SwingWindow
 import androidx.compose.ui.configureSwingGlobalsForCompose
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -12,7 +13,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.painterResource
-import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
@@ -26,6 +26,7 @@ import com.nuvio.app.core.deeplink.handleAppUrl
 import com.nuvio.app.core.diagnostics.SentryInitializer
 import com.nuvio.app.core.ui.NuvioFrameTimeProbe
 import com.nuvio.app.core.ui.NuvioTheme
+import com.nuvio.app.core.ui.ProvideDesktopWindowInsets
 import com.nuvio.app.features.discordrpc.DiscordPresenceManager
 import com.nuvio.app.features.p2p.P2pStreamingEngine
 import com.nuvio.app.features.plugins.configureDesktopQuickJsLibrary
@@ -36,6 +37,7 @@ import com.nuvio.app.features.player.desktop.DesktopWindowGeometry
 import com.nuvio.app.features.player.desktop.DesktopWindowModeStorage
 import com.nuvio.app.features.player.desktop.NativePlayerBridge
 import com.nuvio.app.features.player.desktop.applyNativeDesktopWindowChrome
+import com.nuvio.app.features.player.desktop.configureMacosWindowBeforePeer
 import com.nuvio.app.features.player.desktop.installDesktopAppFullscreenShortcuts
 import com.nuvio.app.features.player.desktop.notifyDesktopWindowGainedFocus
 import com.nuvio.app.features.player.desktop.preloadNativePlayerBridgeAsync
@@ -64,6 +66,7 @@ private val NuvioDesktopNativeBackground = AwtColor(0x0D, 0x0D, 0x0D)
 private val NuvioDesktopMinimumWindowSize = Dimension(400, 300)
 private const val MacosDarkAquaAppearance = "NSAppearanceNameDarkAqua"
 
+@OptIn(ExperimentalComposeUiApi::class)
 fun main(args: Array<String>) {
     // On Linux, initialize GTK BEFORE AWT/Compose/Skia to prevent GdkDisplayManager
     // type registration conflict (Skiko partially loads GDK without full GTK init).
@@ -165,7 +168,7 @@ fun main(args: Array<String>) {
         val fullscreenController = remember { DesktopAppFullscreenController() }
         markStartup("before_window_call")
 
-        Window(
+        SwingWindow(
             onCloseRequest = {
                 DesktopDiagnostics.record("app_window_close_requested")
                 P2pStreamingEngine.shutdown()
@@ -178,6 +181,7 @@ fun main(args: Array<String>) {
             title = if (smokePlayerUrl == null) "Nuvio" else "Nuvio Player Smoke",
             state = windowState,
             icon = painterResource(appIconState.selected.transparentPreviewResource),
+            init = ::configureMacosWindowBeforePeer,
         ) {
             LaunchedEffect(Unit) {
                 markStartup("window_content_first_composition")
@@ -284,7 +288,9 @@ fun main(args: Array<String>) {
 
             if (smokePlayerUrl == null) {
                 NuvioFrameTimeProbe()
-                App()
+                ProvideDesktopWindowInsets(isFullscreen = windowState.placement == WindowPlacement.Fullscreen) {
+                    App()
+                }
             } else {
                 // The player surface reads LocalNuvioPlatformDensity, which only
                 // NuvioTheme provides — the bare smoke harness must supply it too.

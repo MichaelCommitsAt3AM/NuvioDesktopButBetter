@@ -24,12 +24,6 @@
 
 Nuvio Desktop is a media client for browsing metadata, managing collections and watch progress, downloading media, and playing streams from user-installed extensions or user-provided sources.
 
-## ⚠️ Alpha Software - Testers Only
-
-Like upstream, this is alpha software intended for testers. It is not suitable for daily use.
-
-Expect breaking changes with every update. Features, settings, stored data, and compatibility may change or stop working without notice. Please report any issues you run into.
-
 ## What's different from upstream
 
 **Your account and sync**

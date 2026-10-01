@@ -69,6 +69,8 @@ There's no Koin/Hilt/Dagger — repositories and services are plain objects/clas
 
 This is a personal fork (`origin` = `MichaelCommitsAt3AM/NuvioDesktopButBetter`) of upstream `NuvioMedia/NuvioDesktop`, tracked via an `upstream` remote and periodically merged. `CONTRIBUTING.md`'s strict PR-scoping policy governs contributions back to the upstream project — it does not apply to work done directly on this fork.
 
+`docs/FORK_CHANGES.md` is the detailed reference of everything this fork changes versus upstream. Whenever a fork-only feature, fix, or behavior change lands (or an upstream sync supersedes or removes one), update the matching section there in the same change. If the change is user-visible, also update the short plain-language "What's different from upstream" list in `README.md`.
+
 ### Versioning
 
 Two independent versions are tracked, both managed through `scripts/set-version.sh` (don't hand-edit the files):

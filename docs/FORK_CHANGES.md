@@ -332,6 +332,8 @@ Commits: `2e2059c5`, `a858b642`, `93678608`, `d18426ff`.
   - The DEB check accepts file names without the release segment.
   - Markdown-only changes after the bump commit don't block a release.
   - Upstream-sync-only releases get a release note instead of failing on empty notes.
+- `pr-template-check.yml` (upstream's PR-template/contribution-policy gate) is disabled on this fork with an
+  `if: github.repository == 'NuvioMedia/NuvioDesktop'` guard, so it's skipped here but unchanged for upstream.
 - `update-store-source.yml` no longer runs on desktop releases: it always failed looking for an `.ipa`.
 - `scripts/linux/configure-desktop-runtime.sh` no longer requires Sentry/Trakt secrets.
 - `buildWindowsPlayerBridge` is a typed, configuration-cache-compatible task that rebuilds when its inputs

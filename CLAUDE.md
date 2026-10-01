@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Nuvio Desktop is a Kotlin Multiplatform + Compose Multiplatform media hub for Windows, macOS, and Linux (alpha, testers-only per README). It's built from the same monorepo lineage as the separate NuvioMobile project — Android and iOS targets exist here too (`androidApp/`, `iosApp/`), sharing the same `com.nuvio.app` package and feature set in `composeApp/src/commonMain/`, but the desktop target (`composeApp/src/desktopMain/`) is this repo's primary focus. It's a client for the Stremio addon ecosystem — it does not host or distribute content itself (see README "Legal & DMCA" section before making any change that touches source/addon handling).
+Nuvio Desktop is a Kotlin Multiplatform + Compose Multiplatform media hub for Windows, macOS, and Linux. It's built from the same monorepo lineage as the separate NuvioMobile project — Android and iOS targets exist here too (`androidApp/`, `iosApp/`), sharing the same `com.nuvio.app` package and feature set in `composeApp/src/commonMain/`, but the desktop target (`composeApp/src/desktopMain/`) is this repo's primary focus. It's a client for the Stremio addon ecosystem — it does not host or distribute content itself (see README "Legal & DMCA" section before making any change that touches source/addon handling).
 
 ## Commands
 

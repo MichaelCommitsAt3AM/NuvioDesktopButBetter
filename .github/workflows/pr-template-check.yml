@@ -9,6 +9,9 @@ permissions:
 
 jobs:
   validate_pr_body:
+    # Upstream's contribution-policy gate (CONTRIBUTING.md), which doesn't apply to this fork.
+    # Guarded rather than deleted so upstream syncs merge cleanly.
+    if: github.repository == 'NuvioMedia/NuvioDesktop'
     runs-on: ubuntu-latest
     steps:
       - name: Validate required PR sections

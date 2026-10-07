@@ -36,6 +36,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Connect your debrid service once and every profile can use it.
 
 **Finding the right stream**
+- Releases whose titles match the movie or series are preferred over clear mismatches, including during automatic playback. This defaults to on and can be switched off under **Settings → Streams**.
 - Debrid results are sorted by your preferred language first, then by quality, so the version you want is near the top.
 - English releases without a language label are no longer pushed to the bottom or hidden.
 - 20 more languages to choose from in debrid language preferences.

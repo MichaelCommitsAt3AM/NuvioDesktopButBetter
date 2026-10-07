@@ -530,6 +530,15 @@ internal fun settingsSearchEntries(
     val playbackNextEpisode = stringResource(Res.string.settings_playback_section_next_episode)
     addRow(
         page = SettingsPage.Streams,
+        key = "stream-prefer-matching-titles",
+        title = stringResource(Res.string.settings_stream_prefer_matching_titles),
+        description = stringResource(Res.string.settings_stream_prefer_matching_titles_desc),
+        pageLabel = streamsPage,
+        section = playbackStreamSelection,
+        icon = Icons.Rounded.Style,
+    )
+    addRow(
+        page = SettingsPage.Streams,
         key = "stream-addon-logo",
         title = stringResource(Res.string.settings_stream_addon_logo_title),
         description = stringResource(Res.string.settings_stream_addon_logo_description),

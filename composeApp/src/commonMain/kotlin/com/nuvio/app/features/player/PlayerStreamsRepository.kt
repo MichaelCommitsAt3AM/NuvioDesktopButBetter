@@ -68,6 +68,7 @@ object PlayerStreamsRepository {
         season: Int? = null,
         episode: Int? = null,
         forceRefresh: Boolean = false,
+        contentTitle: String? = null,
     ) {
         fetchStreams(
             panelName = "sources",
@@ -76,6 +77,7 @@ object PlayerStreamsRepository {
             season = season,
             episode = episode,
             forceRefresh = forceRefresh,
+            contentTitle = contentTitle,
             stateFlow = _sourceState,
             requestKeyHolder = { sourceRequestKey },
             setRequestKey = { sourceRequestKey = it },
@@ -90,6 +92,7 @@ object PlayerStreamsRepository {
         season: Int? = null,
         episode: Int? = null,
         forceRefresh: Boolean = false,
+        contentTitle: String? = null,
     ) {
         fetchStreams(
             panelName = "episodeStreams",
@@ -98,6 +101,7 @@ object PlayerStreamsRepository {
             season = season,
             episode = episode,
             forceRefresh = forceRefresh,
+            contentTitle = contentTitle,
             stateFlow = _episodeStreamsState,
             requestKeyHolder = { episodeStreamsRequestKey },
             setRequestKey = { episodeStreamsRequestKey = it },
@@ -177,6 +181,7 @@ object PlayerStreamsRepository {
         season: Int?,
         episode: Int?,
         forceRefresh: Boolean,
+        contentTitle: String?,
         stateFlow: MutableStateFlow<StreamsUiState>,
         requestKeyHolder: () -> String?,
         setRequestKey: (String?) -> Unit,
@@ -189,7 +194,7 @@ object PlayerStreamsRepository {
         } else {
             PluginsUiState(pluginsEnabled = false)
         }
-        val requestKey = "$type::$videoId::$season::$episode::pluginsGrouped=${pluginUiState.groupStreamsByRepository}"
+        val requestKey = "$type::$videoId::$season::$episode::pluginsGrouped=${pluginUiState.groupStreamsByRepository}::title=$contentTitle::titlePreference=${DebridSettingsRepository.snapshot().streamPreferences.preferMatchingReleaseTitles}"
         PluginRepository.setLocalPluginSearchPaused(false)
         val current = stateFlow.value
         if (
@@ -206,6 +211,7 @@ object PlayerStreamsRepository {
         jobHolder()?.cancel()
         stateFlow.value = StreamsUiState()
 
+        val debridSettings = DebridSettingsRepository.snapshot()
         val streamBadgeRules = StreamBadgeSettingsRepository.snapshot()
         val embeddedStreams = MetaDetailsRepository.findEmbeddedStreams(videoId)
         if (embeddedStreams.isNotEmpty()) {
@@ -213,7 +219,9 @@ object PlayerStreamsRepository {
             val group = AddonStreamGroup(
                 addonName = embeddedStreams.first().addonName,
                 addonId = "embedded",
-                streams = embeddedStreams,
+                streams = com.nuvio.app.features.streams.StreamTitlePreference.order(
+                    embeddedStreams, contentTitle, debridSettings.streamPreferences.preferMatchingReleaseTitles,
+                ),
                 isLoading = false,
             )
             val presentedGroup = StreamBadgePresentation.apply(
@@ -232,7 +240,6 @@ object PlayerStreamsRepository {
         val installedAddons = AddonRepository.uiState.value.addons.enabledAddons()
         PlayerSettingsRepository.ensureLoaded()
         val playerSettings = PlayerSettingsRepository.uiState.value
-        val debridSettings = DebridSettingsRepository.snapshot()
         val pluginScrapers = if (AppFeaturePolicy.pluginsEnabled) {
             PluginRepository.getEnabledScrapersForType(type)
         } else {
@@ -335,6 +342,7 @@ object PlayerStreamsRepository {
                 return DebridStreamPresentation.apply(
                     groups = listOf(badgeGroup),
                     settings = debridSettings,
+                    contentTitle = contentTitle,
                 ).firstOrNull() ?: badgeGroup
             }
 

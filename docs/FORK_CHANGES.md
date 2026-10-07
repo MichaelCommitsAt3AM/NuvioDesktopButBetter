@@ -125,6 +125,16 @@ Commits: `2e2059c5`, `4602eddb`, `93678608`.
 
 ## 4. Debrid and stream ranking
 
+- **Prefer matching release titles** (`StreamTitlePreference.kt`): the default-on toggle under
+  Settings → Streams moves clear title mismatches below matching releases without hiding them.
+  Ranking uses parsed release titles, torrent names, filenames, or folder descriptions; it ignores
+  punctuation, years and release metadata, and leaves missing or ambiguous titles neutral. A matching
+  alternative is required before a mismatch is demoted. Existing ordering is preserved within each tier.
+  This applies to stream lists, automatic selection (including next episodes and binge-group choices),
+  and debrid result limits before truncation. It works with playable-link resolution on or off and
+  adds no network requests or waiting period. `StreamTitlePreferenceTest` covers normalization, fallback,
+  setting defaults/persistence, limits and automatic selection.
+
 - **Manual API key entry:** the debrid connect dialog accepts a pasted API key (e.g. Torbox) as an
   alternative to the browser device-code flow. The app validates the key before saving it
   (`DebridSettingsPage.kt`).

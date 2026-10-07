@@ -47,7 +47,7 @@ object StreamsRepository {
     ): String =
         "$type::$videoId::$season::$episode::$manualSelection"
 
-    fun load(type: String, videoId: String, parentMetaId: String? = null, season: Int? = null, episode: Int? = null, manualSelection: Boolean = false) {
+    fun load(type: String, videoId: String, parentMetaId: String? = null, season: Int? = null, episode: Int? = null, manualSelection: Boolean = false, contentTitle: String? = null) {
         PluginRepository.setLocalPluginSearchPaused(false)
         load(
             type = type,
@@ -56,11 +56,12 @@ object StreamsRepository {
             season = season,
             episode = episode,
             manualSelection = manualSelection,
+            contentTitle = contentTitle,
             forceRefresh = false,
         )
     }
 
-    fun reload(type: String, videoId: String, parentMetaId: String? = null, season: Int? = null, episode: Int? = null, manualSelection: Boolean = false) {
+    fun reload(type: String, videoId: String, parentMetaId: String? = null, season: Int? = null, episode: Int? = null, manualSelection: Boolean = false, contentTitle: String? = null) {
         PluginRepository.setLocalPluginSearchPaused(false)
         load(
             type = type,
@@ -69,11 +70,12 @@ object StreamsRepository {
             season = season,
             episode = episode,
             manualSelection = manualSelection,
+            contentTitle = contentTitle,
             forceRefresh = true,
         )
     }
 
-    private fun load(type: String, videoId: String, parentMetaId: String?, season: Int?, episode: Int?, manualSelection: Boolean, forceRefresh: Boolean) {
+    private fun load(type: String, videoId: String, parentMetaId: String?, season: Int?, episode: Int?, manualSelection: Boolean, contentTitle: String?, forceRefresh: Boolean) {
         val pluginUiState = if (AppFeaturePolicy.pluginsEnabled) {
             PluginRepository.initialize()
             PluginRepository.uiState.value
@@ -87,7 +89,7 @@ object StreamsRepository {
             episode = episode,
             manualSelection = manualSelection,
         )
-        val requestKey = "$requestToken::pluginsGrouped=${pluginUiState.groupStreamsByRepository}"
+        val requestKey = "$requestToken::pluginsGrouped=${pluginUiState.groupStreamsByRepository}::title=$contentTitle::titlePreference=${DebridSettingsRepository.snapshot().streamPreferences.preferMatchingReleaseTitles}"
         val currentState = _uiState.value
         if (
             !forceRefresh &&
@@ -141,7 +143,9 @@ object StreamsRepository {
             val group = AddonStreamGroup(
                 addonName = embeddedStreams.first().addonName,
                 addonId = "embedded",
-                streams = embeddedStreams,
+                streams = com.nuvio.app.features.streams.StreamTitlePreference.order(
+                    embeddedStreams, contentTitle, debridSettings.streamPreferences.preferMatchingReleaseTitles,
+                ),
                 isLoading = false,
             )
             val presentedGroup = StreamBadgePresentation.apply(
@@ -260,6 +264,8 @@ object StreamsRepository {
                     bingeGroupOnly = bingeGroupOnly,
                     debridEnabled = debridSettings.canResolvePlayableLinks,
                     activeResolverProviderId = debridSettings.activeResolverProviderId,
+                    contentTitle = contentTitle,
+                    preferMatchingReleaseTitles = debridSettings.streamPreferences.preferMatchingReleaseTitles,
                 )
 
             fun settleAutoPlay(evaluation: StreamAutoPlayEvaluation) {
@@ -319,6 +325,7 @@ object StreamsRepository {
                 return DebridStreamPresentation.apply(
                     groups = listOf(badgeGroup),
                     settings = debridSettings,
+                    contentTitle = contentTitle,
                 ).firstOrNull() ?: badgeGroup
             }
 

@@ -3,22 +3,29 @@ package com.nuvio.app.features.debrid
 import com.nuvio.app.features.streams.AddonStreamGroup
 import com.nuvio.app.features.streams.StreamDebridCacheState
 import com.nuvio.app.features.streams.StreamItem
+import com.nuvio.app.features.streams.StreamTitlePreference
 
 object DebridStreamPresentation {
     private val formatter = DebridStreamFormatter()
 
-    fun apply(groups: List<AddonStreamGroup>, settings: DebridSettings): List<AddonStreamGroup> {
-        if (!settings.canResolvePlayableLinks) return groups
+    fun apply(groups: List<AddonStreamGroup>, settings: DebridSettings, contentTitle: String? = null): List<AddonStreamGroup> {
+        if (!settings.canResolvePlayableLinks) return groups.map { group ->
+            group.copy(streams = StreamTitlePreference.order(
+                group.streams, contentTitle, settings.streamPreferences.preferMatchingReleaseTitles,
+            ))
+        }
         return groups.map { group ->
             val visibleStreams = group.streams
                 .filterNot { stream -> stream.isInactiveResolverStream(settings) }
                 .filterNot { stream -> stream.isUncachedDebridStream }
             val debridStreams = visibleStreams.filter { stream -> stream.isManagedDebridStream }
-            if (debridStreams.isEmpty()) return@map group.copy(streams = visibleStreams)
+            if (debridStreams.isEmpty()) return@map group.copy(streams = StreamTitlePreference.order(
+                visibleStreams, contentTitle, settings.streamPreferences.preferMatchingReleaseTitles,
+            ))
 
             val shouldFormatStreams = settings.hasCustomStreamFormatting ||
                 debridStreams.any { stream -> stream.badges.isNotEmpty() }
-            val presentedDebridStreams = applyPreferences(debridStreams, settings)
+            val presentedDebridStreams = applyPreferences(debridStreams, settings, contentTitle)
                 .map { stream ->
                     if (shouldFormatStreams) {
                         formatter.format(stream, settings)
@@ -28,11 +35,13 @@ object DebridStreamPresentation {
                 }
             val passthroughStreams = visibleStreams.filterNot { stream -> stream.isManagedDebridStream }
 
-            group.copy(streams = presentedDebridStreams + passthroughStreams)
+            group.copy(streams = StreamTitlePreference.order(
+                presentedDebridStreams + passthroughStreams, contentTitle, settings.streamPreferences.preferMatchingReleaseTitles,
+            ))
         }
     }
 
-    internal fun applyPreferences(streams: List<StreamItem>, settings: DebridSettings): List<StreamItem> {
+    internal fun applyPreferences(streams: List<StreamItem>, settings: DebridSettings, contentTitle: String? = null): List<StreamItem> {
         val preferences = DebridStreamMetadata.effectivePreferences(settings)
         val matchedStreams = streams.map { it to DebridStreamMetadata.facts(it, preferences) }
             .filter { (_, facts) -> facts.matchesFilters(preferences) }
@@ -43,7 +52,11 @@ object DebridStreamPresentation {
             matchedStreams
         }
 
-        return applyLimits(orderedStreams, preferences)
+        val titleOrdered = StreamTitlePreference.order(
+            orderedStreams.map { it.first }, contentTitle, preferences.preferMatchingReleaseTitles,
+        )
+        val factsByStream = orderedStreams.toMap()
+        return applyLimits(titleOrdered.map { it to factsByStream.getValue(it) }, preferences)
             .map { it.first }
     }
 

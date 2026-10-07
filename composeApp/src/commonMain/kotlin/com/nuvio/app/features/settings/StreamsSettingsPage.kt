@@ -49,6 +49,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
+import com.nuvio.app.features.debrid.DebridSettingsRepository
+import nuvio.composeapp.generated.resources.settings_stream_prefer_matching_titles
+import nuvio.composeapp.generated.resources.settings_playback_section_stream_selection
+import nuvio.composeapp.generated.resources.settings_stream_prefer_matching_titles_desc
 import com.nuvio.app.features.streams.STREAM_BADGE_IMPORT_LIMIT
 import com.nuvio.app.features.streams.StreamBadgeChip
 import com.nuvio.app.features.streams.StreamBadgeChipSize
@@ -99,6 +103,25 @@ import nuvio.composeapp.generated.resources.settings_meta_background_mode_normal
 import org.jetbrains.compose.resources.stringResource
 
 internal fun LazyListScope.streamsSettingsContent(isTablet: Boolean) {
+    item {
+        val settings by remember {
+            DebridSettingsRepository.ensureLoaded()
+            DebridSettingsRepository.uiState
+        }.collectAsStateWithLifecycle()
+        SettingsSection(title = stringResource(Res.string.settings_playback_section_stream_selection), isTablet = isTablet) {
+            SettingsGroup(isTablet = isTablet) {
+                SettingsSwitchRow(
+                    title = stringResource(Res.string.settings_stream_prefer_matching_titles),
+                    description = stringResource(Res.string.settings_stream_prefer_matching_titles_desc),
+                    checked = settings.streamPreferences.preferMatchingReleaseTitles,
+                    isTablet = isTablet,
+                    onCheckedChange = {
+                        DebridSettingsRepository.setStreamPreferences(settings.streamPreferences.copy(preferMatchingReleaseTitles = it))
+                    },
+                )
+            }
+        }
+    }
     item {
         val currentSettings by remember {
             StreamBadgeSettingsRepository.ensureLoaded()

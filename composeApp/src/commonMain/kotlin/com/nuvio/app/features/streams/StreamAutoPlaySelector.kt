@@ -45,6 +45,8 @@ object StreamAutoPlaySelector {
         bingeGroupOnly: Boolean = false,
         debridEnabled: Boolean = true,
         activeResolverProviderId: String? = null,
+        contentTitle: String? = null,
+        preferMatchingReleaseTitles: Boolean = false,
     ): StreamItem? =
         evaluateAutoPlayStream(
             streams = streams,
@@ -59,6 +61,8 @@ object StreamAutoPlaySelector {
             bingeGroupOnly = bingeGroupOnly,
             debridEnabled = debridEnabled,
             activeResolverProviderId = activeResolverProviderId,
+            contentTitle = contentTitle,
+            preferMatchingReleaseTitles = preferMatchingReleaseTitles,
         ).stream
 
     fun evaluateAutoPlayStream(
@@ -74,6 +78,8 @@ object StreamAutoPlaySelector {
         bingeGroupOnly: Boolean = false,
         debridEnabled: Boolean = true,
         activeResolverProviderId: String? = null,
+        contentTitle: String? = null,
+        preferMatchingReleaseTitles: Boolean = false,
     ): StreamAutoPlayEvaluation {
         if (streams.isEmpty()) return StreamAutoPlayEvaluation()
 
@@ -102,7 +108,10 @@ object StreamAutoPlaySelector {
             emptyList()
         }
         val preferredReadyStream = bingeGroupCandidates.firstOrNull { stream ->
-            stream.isAutoPlayable(debridEnabled, activeResolverProviderId)
+            stream.isAutoPlayable(debridEnabled, activeResolverProviderId) &&
+                !StreamTitlePreference.isDeprioritized(stream, candidateStreams.filter {
+                    it.isAutoPlayable(debridEnabled, activeResolverProviderId)
+                }, contentTitle, preferMatchingReleaseTitles)
         }
         if (bingeGroupOnly) {
             val readyStreams = preferredReadyStream?.let(::listOf).orEmpty()
@@ -173,13 +182,13 @@ object StreamAutoPlaySelector {
         }
         if (matchingStreams.isEmpty() && preferredStream == null) return StreamAutoPlayEvaluation()
 
-        val readyStreams = buildList {
+        val readyStreams = StreamTitlePreference.order(buildList {
             preferredStream?.let(::add)
             matchingStreams
                 .filter { it.isAutoPlayable(debridEnabled, activeResolverProviderId) }
                 .filterNot { it == preferredStream }
                 .forEach(::add)
-        }
+        }, contentTitle, preferMatchingReleaseTitles)
         val selected = readyStreams.firstOrNull()
         if (selected != null) {
             return StreamAutoPlayEvaluation(

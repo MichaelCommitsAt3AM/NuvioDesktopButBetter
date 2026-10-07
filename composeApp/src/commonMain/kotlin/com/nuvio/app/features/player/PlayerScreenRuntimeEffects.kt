@@ -841,6 +841,7 @@ internal fun PlayerScreenRuntime.tryRefreshCredentialedSourceAfterError(message:
     credentialRefreshJob = scope.launch {
         try {
             PlayerStreamsRepository.loadSources(
+                contentTitle = title,
                 type = type,
                 videoId = currentVideoId,
                 season = season,

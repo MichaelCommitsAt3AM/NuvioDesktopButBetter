@@ -101,6 +101,7 @@ enum class DebridStreamCodecFilter {
 
 @Serializable
 data class DebridStreamPreferences(
+    val preferMatchingReleaseTitles: Boolean = true,
     val maxResults: Int = 0,
     val maxPerResolution: Int = 0,
     val maxPerQuality: Int = 0,

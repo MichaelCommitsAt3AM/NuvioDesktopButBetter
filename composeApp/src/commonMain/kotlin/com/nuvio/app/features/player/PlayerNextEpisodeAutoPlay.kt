@@ -54,6 +54,7 @@ internal fun CoroutineScope.launchPlayerNextEpisodeAutoPlay(
     parentMetaId: String,
     parentMetaType: String,
     contentType: String?,
+    contentTitle: String,
     settings: PlayerSettingsUiState,
     currentStreamBingeGroup: String?,
     onDownloadedEpisodeSelected: (DownloadItem, MetaVideo) -> Unit,
@@ -131,6 +132,7 @@ internal fun CoroutineScope.launchPlayerNextEpisodeAutoPlay(
 
     return launch {
         PlayerStreamsRepository.loadEpisodeStreams(
+            contentTitle = contentTitle,
             type = type,
             videoId = nextVideo.id,
             season = nextVideo.season,
@@ -186,6 +188,8 @@ internal fun CoroutineScope.launchPlayerNextEpisodeAutoPlay(
                 bingeGroupOnly = bingeGroupOnlyManualMode,
                 debridEnabled = debridSettings.canResolvePlayableLinks,
                 activeResolverProviderId = debridSettings.activeResolverProviderId,
+                contentTitle = contentTitle,
+                preferMatchingReleaseTitles = debridSettings.streamPreferences.preferMatchingReleaseTitles,
             )
 
         fun tryBingeGroupOnly(streams: List<StreamItem>): StreamItem? {
@@ -203,6 +207,8 @@ internal fun CoroutineScope.launchPlayerNextEpisodeAutoPlay(
                 bingeGroupOnly = true,
                 debridEnabled = debridSettings.canResolvePlayableLinks,
                 activeResolverProviderId = debridSettings.activeResolverProviderId,
+                contentTitle = contentTitle,
+                preferMatchingReleaseTitles = debridSettings.streamPreferences.preferMatchingReleaseTitles,
             )
         }
 
@@ -248,6 +254,7 @@ internal fun CoroutineScope.launchPlayerNextEpisodeAutoPlay(
                 else -> {
                     result.toastMessage()?.let { NuvioToastController.show(it) }
                     PlayerStreamsRepository.loadEpisodeStreams(
+                        contentTitle = contentTitle,
                         type = type,
                         videoId = nextVideo.id,
                         season = nextVideo.season,

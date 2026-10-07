@@ -242,6 +242,7 @@ internal fun PlayerScreenRuntime.switchToSource(stream: StreamItem) {
                 val vid = activeVideoId
                 if (vid != null) {
                     PlayerStreamsRepository.loadSources(
+                        contentTitle = title,
                         type = contentType ?: parentMetaType,
                         videoId = vid,
                         season = activeSeasonNumber,
@@ -298,6 +299,7 @@ internal fun PlayerScreenRuntime.switchToEpisodeStream(stream: StreamItem, episo
             onResolved = { resolvedStream -> switchToEpisodeStream(resolvedStream, episode) },
             onStale = {
                 PlayerStreamsRepository.loadEpisodeStreams(
+                    contentTitle = title,
                     type = contentType ?: parentMetaType,
                     videoId = episode.id,
                     season = episode.season,
@@ -401,6 +403,7 @@ internal fun PlayerScreenRuntime.playNextEpisode(automatic: Boolean = false) {
         parentMetaType = parentMetaType,
         contentType = contentType,
         settings = playerSettingsUiState,
+        contentTitle = title,
         currentStreamBingeGroup = currentStreamBingeGroup,
         onDownloadedEpisodeSelected = { item, episode ->
             if (isCurrentRequest()) switchToDownloadedEpisode(item, episode)
@@ -438,6 +441,7 @@ internal fun PlayerScreenRuntime.playNextEpisode(automatic: Boolean = false) {
 internal fun PlayerScreenRuntime.openSourcesPanel() {
     val vid = activeVideoId ?: return
     PlayerStreamsRepository.loadSources(
+        contentTitle = title,
         type = contentType ?: parentMetaType,
         videoId = vid,
         season = activeSeasonNumber,

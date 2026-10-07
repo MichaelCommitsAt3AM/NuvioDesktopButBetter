@@ -1202,6 +1202,7 @@ private fun PlayerScreenRuntime.prepareSourcesForPlayerControls(forceRefresh: Bo
     }
     val requestType = contentType ?: parentMetaType
     PlayerStreamsRepository.loadSources(
+        contentTitle = title,
         type = requestType,
         videoId = vid,
         season = activeSeasonNumber,
@@ -1237,6 +1238,7 @@ private fun PlayerScreenRuntime.requestEpisodeStreamsForPlayerControls(
     forceRefresh: Boolean = false,
 ) {
     PlayerStreamsRepository.loadEpisodeStreams(
+        contentTitle = title,
         type = contentType ?: parentMetaType,
         videoId = episode.id,
         season = episode.season,
@@ -1872,6 +1874,7 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
             val vid = activeVideoId
             if (vid != null) {
                 PlayerStreamsRepository.loadSources(
+                    contentTitle = title,
                     type = contentType ?: parentMetaType,
                     videoId = vid,
                     season = activeSeasonNumber,
@@ -1906,6 +1909,7 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
         },
         onEpisodeStreamsRequested = { episode ->
             PlayerStreamsRepository.loadEpisodeStreams(
+                contentTitle = title,
                 type = contentType ?: parentMetaType,
                 videoId = episode.id,
                 season = episode.season,
@@ -1923,6 +1927,7 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
             val episode = episodeStreamsPanelState.selectedEpisode
             if (episode != null) {
                 PlayerStreamsRepository.loadEpisodeStreams(
+                    contentTitle = title,
                     type = contentType ?: parentMetaType,
                     videoId = episode.id,
                     season = episode.season,

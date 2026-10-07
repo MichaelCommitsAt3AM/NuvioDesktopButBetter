@@ -360,59 +360,6 @@ abstract class NotarizeMacosDmgWithKeychainTask @Inject constructor(
     }
 }
 
-abstract class PrepareMacosTorrServerResourcesTask @Inject constructor(
-    private val execOperations: ExecOperations,
-) : DefaultTask() {
-    @get:InputDirectory
-    abstract val sourceDir: DirectoryProperty
-
-    @get:OutputDirectory
-    abstract val outputDir: DirectoryProperty
-
-    @get:Input
-    abstract val signingIdentity: Property<String>
-
-    @TaskAction
-    fun prepare() {
-        val sourceRoot = sourceDir.get().asFile
-        val outputRoot = outputDir.get().asFile
-        val resourceRoot = outputRoot.resolve("torrserver")
-
-        outputRoot.deleteRecursively()
-        resourceRoot.mkdirs()
-
-        sourceRoot.walkTopDown()
-            .filter(File::isFile)
-            .forEach { sourceFile ->
-                val relativePath = sourceFile.relativeTo(sourceRoot)
-                val outputFile = resourceRoot.resolve(relativePath.path)
-                outputFile.parentFile.mkdirs()
-                sourceFile.copyTo(outputFile, overwrite = true)
-                outputFile.setExecutable(sourceFile.canExecute())
-            }
-
-        val identity = signingIdentity.get().trim()
-        if (identity.isNotEmpty()) {
-            resourceRoot.walkTopDown()
-                .filter(File::isFile)
-                .forEach { binary ->
-                    execOperations.exec {
-                        commandLine(
-                            "codesign",
-                            "--force",
-                            "--options",
-                            "runtime",
-                            "--timestamp",
-                            "--sign",
-                            identity,
-                            binary.absolutePath,
-                        )
-                    }
-                }
-        }
-    }
-}
-
 abstract class BuildWindowsPlayerBridgeTask @Inject constructor(
     private val execOperations: ExecOperations,
 ) : DefaultTask() {
@@ -646,12 +593,6 @@ val generateRuntimeConfigs = tasks.register<GenerateRuntimeConfigsTask>("generat
 
 val isMacHost = System.getProperty("os.name").contains("mac", ignoreCase = true)
 val isWindowsHost = System.getProperty("os.name").contains("win", ignoreCase = true)
-val prepareMacosTorrServerResources = tasks.register<PrepareMacosTorrServerResourcesTask>("prepareMacosTorrServerResources") {
-    enabled = isMacHost
-    sourceDir.set(layout.projectDirectory.dir("src/desktopMain/torrserver"))
-    outputDir.set(layout.buildDirectory.dir("generated/signed-macos-torrserver-resources"))
-    signingIdentity.set(macosSigningIdentity.orEmpty())
-}
 val macosPlayerBridgeSource = layout.projectDirectory.file("src/desktopMain/native/macos/player_bridge.mm")
 val macosLibmpvHeaders = layout.projectDirectory.dir("src/desktopMain/native/macos/include")
 fun normalizedMacosArch(value: String): String =
@@ -741,6 +682,7 @@ val macosPlayerBridgeCommand = if (missingMacosPlayerBridgeInputs.isNotEmpty()) 
           -framework WebKit \
           -framework Metal \
           -framework Security \
+          -framework MediaPlayer \
           -lswiftCompatibility56 \
           -lswiftCompatibilityConcurrency \
           -lswiftCompatibilityPacks \
@@ -1003,6 +945,9 @@ val prepareWindowsAppResources = tasks.register<Sync>("prepareWindowsAppResource
     into(windowsAppResourcesOutput)
     from(windowsPlayerBridgeOutput)
     from(windowsPlayerRuntimeOutput)
+    from(layout.projectDirectory.file("src/desktopMain/native/windows/engine/nuvio_engine.dll")) {
+        into("native/windows")
+    }
 }
 
 // The compose plugin's own prepareAppResources task reads appResourcesRootDir without
@@ -1046,6 +991,7 @@ val prepareMacosPlayerAppResources = tasks.register<Sync>("prepareMacosPlayerApp
     from(macosPlayerRuntimeOutput) {
         include("*.dylib")
     }
+    from(layout.projectDirectory.file("src/desktopMain/native/macos/engine/libnuvio_engine.dylib"))
     into(macosPlayerAppResourcesRoot.map { it.dir("macos/native/macos") })
 }
 
@@ -1058,12 +1004,8 @@ tasks.withType<Jar>().configureEach {
         from(linuxPlayerBridgeOutput) {
             into("native/linux")
         }
-        // TorrServer ships as a classpath resource so P2P streaming works from
-        // any working directory and in packaged builds (macOS does the same via
-        // prepareMacosTorrServerResources; Linux needs no signing pass).
-        from(layout.projectDirectory.dir("src/desktopMain/torrserver")) {
-            include("linux-amd64/**")
-            into("torrserver")
+        from(layout.projectDirectory.file("src/desktopMain/native/linux/engine/libnuvio_engine.so")) {
+            into("native/linux")
         }
     }
 }
@@ -1071,16 +1013,6 @@ tasks.withType<Jar>().configureEach {
 tasks.matching { it.name == "prepareAppResources" }.configureEach {
     if (isMacHost) {
         dependsOn(prepareMacosPlayerAppResources)
-    }
-}
-
-tasks.withType<ProcessResources>().matching { it.name == "desktopProcessResources" }.configureEach {
-    if (!isWindowsHost) {
-        exclude("torrserver/windows-amd64/**")
-    }
-    if (isMacHost) {
-        dependsOn(prepareMacosTorrServerResources)
-        from(prepareMacosTorrServerResources.map { it.outputDir })
     }
 }
 
@@ -1281,6 +1213,8 @@ kotlin {
                 implementation(libs.quickjs.kt)
                 implementation(libs.ksoup)
                 implementation(libs.sentry.jvm)
+                implementation(libs.jna)
+                implementation(files("libs/nuvio-engine-jvm-0.1.4.jar"))
             }
         }
         val androidHostTest by getting {

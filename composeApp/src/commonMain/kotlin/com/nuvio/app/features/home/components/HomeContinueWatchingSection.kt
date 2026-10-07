@@ -71,6 +71,7 @@ import com.nuvio.app.features.watchprogress.WatchProgressCompletionPercentThresh
 import com.nuvio.app.features.watchprogress.continueWatchingItemKey
 import com.nuvio.app.features.watchprogress.CurrentDateProvider
 import com.nuvio.app.features.watchprogress.computeAirDateBadgeText
+import com.nuvio.app.isDesktop
 import kotlin.math.roundToInt
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -711,6 +712,12 @@ private fun ContinueWatchingCard(
 
     Box(
         modifier = Modifier
+            .posterCardClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+                zoomImageUrl = imageUrl,
+                zoomCornerRadius = cardMetrics.cornerRadius,
+            )
             .width(cardMetrics.width)
             .aspectRatio(PosterLandscapeAspectRatio)
             .clip(RoundedCornerShape(cardMetrics.cornerRadius))
@@ -718,12 +725,6 @@ private fun ContinueWatchingCard(
             .nuvioCardDepth(
                 shape = RoundedCornerShape(cardMetrics.cornerRadius),
                 surface = NuvioCardDepthSurface.ContinueWatching,
-            )
-            .posterCardClickable(
-                onClick = onClick,
-                onLongClick = onLongClick,
-                zoomImageUrl = imageUrl,
-                zoomCornerRadius = cardMetrics.cornerRadius,
             ),
     ) {
         if (imageUrl != null) {
@@ -1033,7 +1034,7 @@ private fun ContinueWatchingPosterCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(layout.posterCardHeight)
+                .let { if (isDesktop) it.aspectRatio(0.675f) else it.height(layout.posterCardHeight) }
                 .clip(RoundedCornerShape(cornerRadius))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .nuvioCardDepth(
@@ -1248,7 +1249,7 @@ internal fun rememberContinueWatchingLayout(
             wideCardHeight = 160.dp,
             widePosterStripWidth = 100.dp,
             wideContentPadding = 16.dp,
-            posterCardWidth = posterCardStyle.widthDp.dp,
+            posterCardWidth = desktopCatalogShelfPosterBaseWidthDp(posterCardStyle.widthDp).dp,
             posterCardHeight = posterCardStyle.heightDp.dp,
             progressHeight = 6.dp,
             wideTitleSize = 20.sp,
@@ -1266,7 +1267,7 @@ internal fun rememberContinueWatchingLayout(
             wideCardHeight = 140.dp,
             widePosterStripWidth = 90.dp,
             wideContentPadding = 14.dp,
-            posterCardWidth = posterCardStyle.widthDp.dp,
+            posterCardWidth = desktopCatalogShelfPosterBaseWidthDp(posterCardStyle.widthDp).dp,
             posterCardHeight = posterCardStyle.heightDp.dp,
             progressHeight = 5.dp,
             wideTitleSize = 18.sp,
@@ -1284,7 +1285,7 @@ internal fun rememberContinueWatchingLayout(
             wideCardHeight = 130.dp,
             widePosterStripWidth = 85.dp,
             wideContentPadding = 12.dp,
-            posterCardWidth = posterCardStyle.widthDp.dp,
+            posterCardWidth = desktopCatalogShelfPosterBaseWidthDp(posterCardStyle.widthDp).dp,
             posterCardHeight = posterCardStyle.heightDp.dp,
             progressHeight = 4.dp,
             wideTitleSize = 17.sp,
@@ -1302,7 +1303,7 @@ internal fun rememberContinueWatchingLayout(
             wideCardHeight = 120.dp,
             widePosterStripWidth = 80.dp,
             wideContentPadding = 12.dp,
-            posterCardWidth = posterCardStyle.widthDp.dp,
+            posterCardWidth = desktopCatalogShelfPosterBaseWidthDp(posterCardStyle.widthDp).dp,
             posterCardHeight = posterCardStyle.heightDp.dp,
             progressHeight = 4.dp,
             wideTitleSize = 16.sp,

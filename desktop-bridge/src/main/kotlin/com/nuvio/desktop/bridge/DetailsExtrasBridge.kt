@@ -17,6 +17,7 @@ import com.nuvio.app.features.tmdb.TmdbSettingsRepository
 import com.nuvio.app.features.tmdb.normalizeTmdbLanguage
 import com.nuvio.app.features.watched.WatchedRepository
 import com.nuvio.app.features.watched.releasedEpisodesForSeason
+import com.nuvio.app.features.watched.previousReleasedEpisodesBefore
 import com.nuvio.app.features.watched.watchedItemKey
 import com.nuvio.app.features.watching.application.WatchingActions
 import com.nuvio.app.features.watchprogress.CurrentDateProvider
@@ -131,6 +132,21 @@ object DetailsExtrasBridge {
             WatchedRepository.ensureLoaded()
             val currentlyWatched = WatchedRepository.isWatched(meta.id, meta.type, episode.season, episode.episode)
             WatchingActions.toggleEpisodeWatched(meta, episode, currentlyWatched)
+            watchedSnapshot(meta.type, meta.id)
+        }
+        "details.watched.togglePreviousEpisodes" -> {
+            val meta = requireMeta(params.str("type"), params.str("id"))
+            val episode = meta.videos.firstOrNull { video ->
+                video.id == params.optionalStr("videoId") ||
+                    (video.season == params.optionalInt("season") && video.episode == params.optionalInt("episode"))
+            } ?: error("Episode details are unavailable")
+            val previous = meta.previousReleasedEpisodesBefore(episode, CurrentDateProvider.todayIsoDate())
+            require(previous.isNotEmpty()) { "No earlier released episodes are available" }
+            WatchedRepository.ensureLoaded()
+            val allWatched = previous.all { item ->
+                WatchedRepository.isWatched(meta.id, meta.type, item.season, item.episode)
+            }
+            WatchingActions.togglePreviousEpisodesWatched(meta, previous, allWatched)
             watchedSnapshot(meta.type, meta.id)
         }
         "details.watched.toggleSeason" -> {

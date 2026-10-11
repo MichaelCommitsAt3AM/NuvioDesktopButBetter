@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Building2, LoaderCircle, Play, RotateCw } from 'lucide-react';
+import { Building2, CheckCircle, CircleCheck, LoaderCircle, ListChecks, Play, RotateCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot } from '../../bridge';
 import type { Media } from '../../generated/contract';
 import { InlineError } from '../../components/Status';
+import { Dialog } from '../../components/Dialog';
 import { Poster } from '../../components/Poster';
 import { SeriesEpisodes } from './SeriesEpisodes';
 
@@ -55,6 +56,7 @@ export function DetailsExtras({ type, id, onMetaLoaded }: { type: string; id: st
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const [revealedSpoilers, setRevealedSpoilers] = useState<Set<number>>(new Set());
   const [selectedTrailerCategory, setSelectedTrailerCategory] = useState('Trailer');
+  const [selectedEpisode, setSelectedEpisode] = useState<Video | null>(null);
 
   const commentsSettingEnabled = !!settings?.items.some((item) => item.key === 'COMMENTS' && item.enabled);
   useEffect(() => {
@@ -65,6 +67,11 @@ export function DetailsExtras({ type, id, onMetaLoaded }: { type: string; id: st
     setWatched(null);
     void call<ExtrasMeta>('details.extras', { type, id }).then((result) => {
       if (loadGeneration.current !== generation) return;
+      if (!result) {
+        setLoading(false);
+        setError('No additional title details were returned.');
+        return;
+      }
       setMeta(result);
       onMetaLoaded?.(result);
       setSelectedTrailerCategory(result.trailers[0]?.type || 'Trailer');
@@ -134,6 +141,7 @@ export function DetailsExtras({ type, id, onMetaLoaded }: { type: string; id: st
   };
   const toggleEpisode = async (video: Video) => {
     if (!meta) return;
+    setSelectedEpisode(null);
     setMutationBusy(true);
     try {
       const result = await call<WatchedSnapshot>('details.watched.toggleEpisode', { type: meta.type, id: meta.id, videoId: video.id, season: video.season, episode: video.episode });
@@ -146,6 +154,16 @@ export function DetailsExtras({ type, id, onMetaLoaded }: { type: string; id: st
     setMutationBusy(true);
     try {
       const result = await call<WatchedSnapshot>('details.watched.toggleSeason', { type: meta.type, id: meta.id, season });
+      setWatched(result);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { setMutationBusy(false); }
+  };
+  const togglePreviousEpisodes = async (video: Video) => {
+    if (!meta) return;
+    setSelectedEpisode(null);
+    setMutationBusy(true);
+    try {
+      const result = await call<WatchedSnapshot>('details.watched.togglePreviousEpisodes', { type: meta.type, id: meta.id, videoId: video.id, season: video.season, episode: video.episode });
       setWatched(result);
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setMutationBusy(false); }
@@ -222,7 +240,7 @@ export function DetailsExtras({ type, id, onMetaLoaded }: { type: string; id: st
       ratingsVisibility={settings?.episodeRatingsVisibility ?? 'show_all'}
       isWatched={watchedVideo}
       onEpisodeClick={(video) => navigate(`/details/${encodeURIComponent(meta.type)}/${encodeURIComponent(meta.id)}/streams/${encodeURIComponent(video.id)}`)}
-      onEpisodeLongPress={(video) => void toggleEpisode(video)}
+      onEpisodeLongPress={setSelectedEpisode}
       onToggleSeason={(season) => void toggleSeason(season)}
       mutationBusy={mutationBusy}
     /> : null,
@@ -249,6 +267,14 @@ export function DetailsExtras({ type, id, onMetaLoaded }: { type: string; id: st
     { key: 'MORE_LIKE_THIS', title: 'More like this', enabled: true, order: 7, tabGroup: null },
   ]).filter((item) => item.enabled && sectionContents[item.key]).sort((a, b) => a.order - b.order);
 
+  const isReleased = (date: string | null) => !date || date.slice(0, 10) <= new Date().toISOString().slice(0, 10);
+  const selectedSeasonEpisodes = selectedEpisode ? meta.videos.filter((video) => video.season === selectedEpisode.season && video.available && isReleased(video.released)) : [];
+  const releasedEpisodes = meta.videos.filter((video) => video.available && isReleased(video.released)).sort(compareEpisodes);
+  const selectedEpisodeIndex = selectedEpisode ? releasedEpisodes.findIndex((video) => video.id === selectedEpisode.id) : -1;
+  const previousEpisodes = selectedEpisodeIndex > 0 ? releasedEpisodes.slice(0, selectedEpisodeIndex) : [];
+  const previousEpisodesWatched = previousEpisodes.length > 0 && previousEpisodes.every(watchedVideo);
+  const selectedSeasonWatched = selectedSeasonEpisodes.length > 0 && selectedSeasonEpisodes.every(watchedVideo);
+
   return <div className="details-extras">
     <style>{`.details-extras h2,.details-extras h3{margin:0}.details-extras-facts{display:flex;flex-wrap:wrap;gap:8px}.details-extras-credit{margin:10px 0;color:var(--muted,#a2a4aa)}.details-extras-credit strong{color:var(--text,#f5f5f5);margin-right:8px}.details-extras-awards{margin:10px 0}.details-extras-link{display:inline-flex;align-items:center;gap:6px;margin:10px 12px 0 0;color:var(--app-accent,#eee);font-size:13px;text-decoration:none}.details-extras-people,.details-extras-companies,.details-extras-trailers{display:flex;gap:10px;overflow-x:auto;padding:2px 0 8px}.details-extras-person,.details-extras-company,.details-extras-trailer{display:flex;align-items:center;gap:10px;flex:0 0 auto;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.035);color:var(--text,#f5f5f5);text-align:left;cursor:pointer}.details-extras-person{width:190px;min-height:70px;padding:8px}.details-extras-person img,.details-extras-placeholder{width:46px;height:54px;flex:0 0 46px;border-radius:8px;object-fit:cover;background:#26272b;display:grid;place-items:center}.details-extras-person strong,.details-extras-person small,.details-extras-trailer strong,.details-extras-trailer small{display:block}.details-extras-person strong,.details-extras-trailer strong{font-size:13px}.details-extras-person small,.details-extras-trailer small{margin-top:3px;color:var(--muted,#a2a4aa);font-size:11px}.details-extras-company{padding:9px 12px}.details-extras-company img{max-width:100px;max-height:35px;object-fit:contain}.details-extras-company span{font-size:12px}.details-extras-trailer{width:250px;min-height:72px;padding:10px}.details-extras-trailer-image{width:56px;height:44px;display:grid;place-items:center;border-radius:8px;background:linear-gradient(135deg,#4a2525,#18181b);color:#fff}.details-extras-episodes{display:grid;gap:14px}.details-extras-season{padding:12px;border:1px solid rgba(255,255,255,.08);border-radius:14px;background:rgba(255,255,255,.018)}.details-extras-season-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}.details-extras-season-heading h3{font-size:15px}.details-extras-episode{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid rgba(255,255,255,.06)}.details-extras-episode>img{width:106px;height:62px;flex:0 0 106px;border-radius:8px;object-fit:cover}.details-extras-episode-copy{min-width:0;flex:1}.details-extras-episode-copy strong,.details-extras-episode-copy small{display:block}.details-extras-episode-copy strong{font-size:13px}.details-extras-episode-copy small,.details-extras-episode-copy p,.details-extras-biography,.details-extras-bottomline{color:var(--muted,#a2a4aa);font-size:12px}.details-extras-episode-copy small{margin-top:4px}.details-extras-episode-copy p{margin:5px 0 0;line-height:1.45}.details-extras-profile{float:left;width:110px;height:130px;margin:0 14px 8px 0;border-radius:12px;object-fit:cover}.details-extras-biography{line-height:1.65}.details-extras-browse{padding:16px;border:1px solid rgba(255,255,255,.08);border-radius:16px;background:rgba(255,255,255,.025)}.details-extras-bottomline{margin:24px 0 8px}.details-extras-retry{display:inline-flex;align-items:center;gap:7px;margin-top:10px}.details-extras button:disabled{opacity:.55;cursor:default}@media(max-width:640px){.details-extras-episode>img{width:76px;height:48px;flex-basis:76px}.details-extras-person{width:160px}.details-extras-browse{padding:12px}}`}</style>
     <style>{`.details-configured-sections{display:flex;flex-direction:column}.details-tab-group{margin-top:28px;padding:12px;border:1px solid rgba(255,255,255,.08);border-radius:14px;background:rgba(255,255,255,.02)}.details-tab-list{display:flex;gap:6px;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,.08)}.details-tab-list button{padding:9px 12px;border:0;border-bottom:2px solid transparent;background:transparent;color:#a4a7ad;font-size:12px;cursor:pointer}.details-tab-list button[aria-selected=true]{border-bottom-color:#eee;color:#fff}.details-extras-company-group h3{margin:8px 0;font-size:12px;color:#9da1a8}.details-extras-episode-open{display:flex;align-items:center;gap:12px;min-width:0;flex:1;padding:0;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer}.details-extras-episode-open:disabled{cursor:default}.details-extras-episode-open>img{width:106px;height:62px;flex:0 0 106px;border-radius:8px;object-fit:cover}.details-extras-episode-open:hover strong{color:#fff;text-decoration:underline}.episode-find-streams{flex:0 0 auto;color:#b7bbc1;font-size:10px}.episode-card-layout .details-extras-season-episodes{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px}.episode-card-layout .details-extras-episode{display:flex;flex-direction:column;align-items:stretch;flex:0 0 245px;padding:0;border:1px solid rgba(255,255,255,.07);border-radius:10px;overflow:hidden}.episode-card-layout .details-extras-episode-open{display:flex;flex-direction:column;align-items:stretch;gap:0}.episode-card-layout .details-extras-episode-open>img{width:100%;height:130px;flex-basis:130px;border-radius:0}.episode-card-layout .details-extras-episode-copy{padding:10px}.episode-card-layout .details-extras-episode>.icon-button{position:absolute;align-self:flex-end;margin:8px}.episode-card-layout .details-extras-episode{position:relative}.episode-card-layout .episode-find-streams{padding:0 10px 10px}.episode-list-layout .details-extras-season-episodes{display:grid}.episode-list-layout .details-extras-episode{min-height:76px}.episode-list-layout .details-extras-episode-open>img{width:106px;height:62px}.details-extras-episode-copy p{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}.details-extras-comments{display:grid;gap:9px;margin-bottom:12px}.details-extras-comment{padding:13px;border:1px solid rgba(255,255,255,.08);border-radius:9px;background:rgba(255,255,255,.025)}.details-extras-comment header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.details-extras-comment header strong{font-size:12px}.details-extras-comment header span,.details-extras-comment time{color:#999da5;font-size:10px}.details-extras-comment time{margin-left:auto}.details-extras-comment p{margin:9px 0 0;color:#d0d2d6;font-size:12px;line-height:1.55;white-space:pre-wrap}.details-extras-comment.spoiler-hidden{background:rgba(120,80,20,.08)}.details-extras-comment.spoiler-hidden p{filter:blur(4px)}`}</style>
@@ -272,8 +298,26 @@ export function DetailsExtras({ type, id, onMetaLoaded }: { type: string; id: st
     </section>}
     {(person || entity) && loading && <div className="loading-block"><LoaderCircle className="spin" size={18} /><span>Loading browse results…</span></div>}
     <button className="text-button details-extras-retry" type="button" onClick={() => { setLoading(true); void call<ExtrasMeta>('details.extras', { type, id }).then((result) => { setMeta(result); onMetaLoaded?.(result); }).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause))).finally(() => setLoading(false)); }}><RotateCw size={14} /> Refresh details</button>
+    {selectedEpisode && <Dialog label={`Actions for ${selectedEpisode.title}`} onClose={() => setSelectedEpisode(null)} className="episode-actions-dialog">
+      <div className="episode-actions-sheet">
+        <span className="episode-actions-handle" aria-hidden="true" />
+        <header><strong>{selectedEpisode.title}</strong><span>{actionEpisodeCode(selectedEpisode)}{selectedEpisode.season != null ? ` • Season ${selectedEpisode.season}` : ' • Specials'}</span></header>
+        <div className="episode-actions-divider" />
+        <button type="button" className="episode-action-row" disabled={mutationBusy} onClick={() => void toggleEpisode(selectedEpisode)}><span className="episode-action-icon"><CheckCircle size={20} /></span><span>{watchedVideo(selectedEpisode) ? 'Mark as unwatched' : 'Mark as watched'}</span></button>
+        {previousEpisodes.length > 0 && <button type="button" className="episode-action-row" disabled={mutationBusy} onClick={() => void togglePreviousEpisodes(selectedEpisode)}><span className="episode-action-icon"><ListChecks size={20} /></span><span>Mark previous episodes {previousEpisodesWatched ? 'unwatched' : 'watched'}</span></button>}
+        {selectedSeasonEpisodes.length > 0 && <button type="button" className="episode-action-row" disabled={mutationBusy} onClick={() => { setSelectedEpisode(null); void toggleSeason(selectedEpisode.season ?? 0); }}><span className="episode-action-icon"><CircleCheck size={20} /></span><span>Mark Season {selectedEpisode.season ?? 0} as {selectedSeasonWatched ? 'unwatched' : 'watched'}</span></button>}
+        <button type="button" className="episode-action-row" disabled={mutationBusy || !selectedEpisode.available} onClick={() => { const episode = selectedEpisode; setSelectedEpisode(null); navigate(`/details/${encodeURIComponent(meta.type)}/${encodeURIComponent(meta.id)}/streams/${encodeURIComponent(episode.id)}?manual=1`); }}><span className="episode-action-icon"><Play size={20} fill="currentColor" /></span><span>Play manually</span></button>
+      </div>
+    </Dialog>}
   </div>;
 }
+
+function actionEpisodeCode(video: Video) {
+  if (video.season == null && video.episode == null) return 'Episode';
+  const code = video.episode == null ? `Season ${video.season ?? 0}` : `S${video.season ?? 0} E${video.episode}`;
+  return code;
+}
+function compareEpisodes(a: Video, b: Video) { return (a.season ?? 0) - (b.season ?? 0) || (a.episode ?? 0) - (b.episode ?? 0) || (a.released ?? '').localeCompare(b.released ?? ''); }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return <div className="details-info-row"><strong>{label}</strong><span>{value}</span></div>;

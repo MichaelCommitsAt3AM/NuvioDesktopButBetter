@@ -52,17 +52,15 @@ function Shell() {
       onKeyDown={event => { if (event.key === 'ArrowDown' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); setProfileOpen(true); } }}>
       <Avatar profile={selectedProfile} size="sm" /><span>Settings</span>
     </Link>{profileOpen && <ProfileMenu onClose={() => setProfileOpen(false)} />}
-  </div> : <Link key={to} to={to} className={`nav-link ${selected === label ? 'active' : ''}`} aria-current={selected === label ? 'page' : undefined} title={label}><Icon size={19} strokeWidth={1.9} /><span>{label}</span></Link>)}</>;
+  </div> : <Link key={to} to={to} state={to === '/' ? { resetHomeScroll: true } : undefined} className={`nav-link ${selected === label ? 'active' : ''}`} aria-current={selected === label ? 'page' : undefined} title={label}><Icon size={19} strokeWidth={1.9} /><span>{label}</span></Link>)}</>;
   const sidebar = appearance?.navigationLayout === 'sidebar';
   const isDetailsRoute = /^\/details\/[^/]+\/[^/]+$/.test(location.pathname);
   const isStreamsRoute = /^\/details\/[^/]+\/[^/]+\/streams\/[^/]+$/.test(location.pathname);
   const isPlaybackRoute = location.pathname === '/playback';
   return <div className={`shell ${sidebar ? 'sidebar-layout' : 'topbar-layout'} ${location.pathname==='/'?'home-layout':''} ${isDetailsRoute?'details-layout':''} ${isStreamsRoute?'streams-layout':''} ${isPlaybackRoute?'playback-layout':''} nav-style-${appearance?.navBarStyle ?? 'adaptive'} ${appearance?.navBarGlowEnabled ? 'nav-glow' : ''}`}>
     {sidebar ? <aside className="side-nav">
-      <Link className="mini-brand" to="/" aria-label="Nuvio home"><img src="/images/nuvio-wordmark.png" alt="Nuvio" /></Link>
       <nav className="side-nav-links" aria-label="Main navigation">{navigation}</nav>
     </aside> : <header className="topbar">
-      <Link className="mini-brand" to="/" aria-label="Nuvio home"><img src="/images/nuvio-wordmark.png" alt="Nuvio" /></Link>
       <nav className="floating-nav" aria-label="Main navigation">{navigation}</nav>
     </header>}
     <main className="main-area" key={location.pathname}>
@@ -126,7 +124,20 @@ function AppContent() {
   const profileSetupRoute = location.pathname.startsWith('/profiles');
   const explicitPicker=location.pathname==='/profiles/choose';
   const showPicker=explicitPicker||(!profileSetupRoute&&launchPicker===true);
-  return <div className="app" style={style}>{state.status !== 'ready' && <ConnectionNotice status={state.status} />}{state.session.status === 'loading' ? <div className="boot">{state.status === 'disconnected' ? <InlineError message={startupError ?? 'The Kotlin backend could not start.'} onRetry={() => { void actions.restartBridge().catch(() => {}); }} /> : <><span className="spin" /> <span>Starting Nuvio…</span></>}</div> : state.session.status === 'signedOut' ? <AuthPage /> : showPicker ? <ProfileChooser onSelected={()=>{setLaunchPicker(false);navigate('/');}} onBack={explicitPicker&&!launchPicker&&state.session.activeProfile!==null?()=>navigate(-1):undefined}/> : launchPicker===null&&!profileSetupRoute ? <div className="boot">Loading profiles…</div> : <Shell />}{state.profileTransition && <ProfileLoadingScreen />}</div>;
+  const startupLoading = (state.session.status === 'loading' && state.status !== 'disconnected') || (state.session.status === 'signedIn' && launchPicker === null && !profileSetupRoute);
+  return <div className="app" style={style}>
+    {state.status !== 'ready' && <ConnectionNotice status={state.status} />}
+    {state.session.status === 'loading' && state.status === 'disconnected'
+      ? <div className="boot"><InlineError message={startupError ?? 'The Kotlin backend could not start.'} onRetry={() => { void actions.restartBridge().catch(() => {}); }} /></div>
+      : startupLoading
+      ? <ProfileLoadingScreen startup />
+      : state.session.status === 'signedOut'
+        ? <AuthPage />
+        : showPicker
+          ? <ProfileChooser onSelected={() => { setLaunchPicker(false); navigate('/'); }} onBack={explicitPicker && !launchPicker && state.session.activeProfile !== null ? () => navigate(-1) : undefined} />
+          : <Shell />}
+    {state.profileTransition && !startupLoading && <ProfileLoadingScreen />}
+  </div>;
 }
 
 export default function AppRoot() { return <BrowserRouter><AppContent /></BrowserRouter>; }

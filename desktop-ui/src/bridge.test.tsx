@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AppRoot from './App';
 import { actions, disposeBridge } from './bridge';
+import { streamAddonNames } from './features/streams/StreamsPage';
+import type { Addons } from './generated/contract';
 
 const bridgeMock = vi.hoisted(() => ({ homeLoading:false, rejectSelection:false, failSessionSnapshot:false, epoch:5,activeProfile:7 as number|null,sessionStatus:'signedIn',listeners: new Map<string, (event: { payload: unknown }) => void>(), requests: [] as Array<{ id: string; method: string; params: Record<string, unknown> }> }));
 
@@ -23,13 +25,15 @@ vi.mock('@tauri-apps/api/core', () => ({
     if (request.method === 'profiles.select' && bridgeMock.rejectSelection) throw new Error('Selection failed');
     const defaults: Record<string, unknown> = {
       'session.snapshot': { status: bridgeMock.sessionStatus, email: 'person@example.com', version: '1.0', activeProfile: bridgeMock.activeProfile, profiles: [{id:7,name:'Michael',color:'#1E88E5',avatarUrl:null,locked:false}], capabilities: [], error: null },
+      'details.watched.snapshot': { loaded: true, watched: false, fullyWatched: false },
+      'details.watched.toggle': { loaded: true, watched: true, fullyWatched: false },
       'profiles.snapshot': { items: [{id:7,name:'Michael',avatarColorHex:'#1E88E5',avatarId:null,avatarUrl:null,backgroundId:null,backgroundUrl:null,locked:false,pinLockedUntil:null,usesPrimaryAddons:false,usesPrimaryPlugins:false,primaryAddonsAllowlist:null}], activeProfile:7, rememberLastProfileEnabled:false, maxProfiles:6, avatars:[], backgrounds:[] },
       'home.snapshot': { loading: bridgeMock.homeLoading, error: null, hero: [], shelves: [] },
       'library.snapshot': { loading: false, error: null, items: [] },
       'addons.snapshot': [],
       'settings.snapshot': { theme: 'White', themes: [{ id: 'White', label: 'White', background: '#0d0d0d', accent: '#f5f5f5', surface: '#1a1a1a' }] },
-      'discover.refresh': { loading: false, typeOptions: ['movie'], selectedType: 'movie', catalogOptions: [{ key: 'cinemeta:movie:popular', addonName: 'Cinemeta', type: 'movie', catalogId: 'popular', catalogName: 'Popular', genreOptions: [], genreRequired: false, supportsPagination: true }], selectedCatalogKey: 'cinemeta:movie:popular', selectedGenre: null, genreOptions: [], items: [media('discover-popular', 'Discover popular title')], hasMore: false, emptyStateReason: null, error: null },
-      'discover.snapshot': { loading: false, typeOptions: ['movie'], selectedType: 'movie', catalogOptions: [{ key: 'cinemeta:movie:popular', addonName: 'Cinemeta', type: 'movie', catalogId: 'popular', catalogName: 'Popular', genreOptions: [], genreRequired: false, supportsPagination: true }], selectedCatalogKey: 'cinemeta:movie:popular', selectedGenre: null, genreOptions: [], items: [media('discover-popular', 'Discover popular title')], hasMore: false, emptyStateReason: null, error: null },
+      'discover.refresh': { loading: false, typeOptions: ['movie', 'series'], selectedType: 'movie', catalogOptions: [{ key: 'cinemeta:movie:popular', addonName: 'Cinemeta', type: 'movie', catalogId: 'popular', catalogName: 'Popular', genreOptions: ['Action'], genreRequired: false, supportsPagination: true }, { key: 'cinemeta:movie:top', addonName: 'Cinemeta', type: 'movie', catalogId: 'top', catalogName: 'Top', genreOptions: ['Action'], genreRequired: false, supportsPagination: true }], selectedCatalogKey: 'cinemeta:movie:popular', selectedGenre: null, genreOptions: ['Action'], items: [media('discover-popular', 'Discover popular title')], hasMore: false, emptyStateReason: null, error: null },
+      'discover.snapshot': { loading: false, typeOptions: ['movie', 'series'], selectedType: 'movie', catalogOptions: [{ key: 'cinemeta:movie:popular', addonName: 'Cinemeta', type: 'movie', catalogId: 'popular', catalogName: 'Popular', genreOptions: ['Action'], genreRequired: false, supportsPagination: true }, { key: 'cinemeta:movie:top', addonName: 'Cinemeta', type: 'movie', catalogId: 'top', catalogName: 'Top', genreOptions: ['Action'], genreRequired: false, supportsPagination: true }], selectedCatalogKey: 'cinemeta:movie:popular', selectedGenre: null, genreOptions: ['Action'], items: [media('discover-popular', 'Discover popular title')], hasMore: false, emptyStateReason: null, error: null },
       'search.historySnapshot': { enabled: true, items: ['A recent movie'] },
     };
     return { id: request.id, epoch: bridgeMock.epoch, result: defaults[request.method] ?? null };
@@ -65,15 +69,16 @@ describe('desktop bridge UI workflow', () => {
   });
   afterEach(() => { cleanup(); disposeBridge(); });
 
-  it('keeps the branded profile overlay until Home is ready, then fades it out', async () => {
+  it('opens Home with shimmer cards while the home snapshot is still loading', async () => {
     render(<AppRoot />);
     await screen.findByText('Your home is ready for content');
     bridgeMock.homeLoading=true;
     await act(async()=>{await actions.selectProfile(7);});
-    expect(screen.getByRole('status',{name:'Loading profile'})).toBeInTheDocument();
-    expect(within(screen.getByRole('status',{name:'Loading profile'})).getByRole('img',{name:'Nuvio'})).toBeInTheDocument();
-    await act(async()=>{emit({topic:'home',epoch:5,revision:10,data:{loading:false,error:null,hero:[],shelves:[]}});});
+    expect(await screen.findByRole('status',{name:'Loading titles'})).toBeInTheDocument();
     await waitFor(()=>expect(screen.queryByRole('status',{name:'Loading profile'})).not.toBeInTheDocument());
+    expect(screen.queryByText('Loading your home…')).not.toBeInTheDocument();
+    await act(async()=>{emit({topic:'home',epoch:5,revision:10,data:{loading:false,error:null,hero:[],shelves:[]}});});
+    expect(await screen.findByText('Your home is ready for content')).toBeInTheDocument();
   });
 
   it('dismisses the profile overlay and preserves the session on selection failure', async () => {
@@ -89,7 +94,7 @@ describe('desktop bridge UI workflow', () => {
     bridgeMock.sessionStatus='loading';
     render(<AppRoot />);
     await waitFor(()=>expect(bridgeMock.requests.some(request=>request.method==='home.snapshot')).toBe(true));
-    expect(screen.getByText('Starting Nuvio…')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Starting Nuvio' })).toBeInTheDocument();
     bridgeMock.sessionStatus='signedIn';bridgeMock.epoch=6;
     emit({topic:'session',epoch:6,revision:1,data:{status:'signedIn',email:'person@example.com',version:'1.0',activeProfile:7,profiles:[],capabilities:[],error:null}});
     expect(await screen.findByText('Your home is ready for content')).toBeInTheDocument();
@@ -143,6 +148,54 @@ describe('desktop bridge UI workflow', () => {
     expect(await screen.findByText('Loading title…')).toBeInTheDocument();
   });
 
+  it('expands detail actions inline and toggles watched and library state', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    emit({ topic: 'home', epoch: 5, revision: 70, data: { loading: false, error: null, hero: [], shelves: [{ key: 'actions', title: 'Actions', subtitle: '', items: [media('overflow-actions', 'Action title')], hasMore: false }] } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Action title' }));
+    await screen.findByText('Loading title…');
+    const detailRequest = bridgeMock.requests.find((request) => request.method === 'details.load')!;
+    emit({ topic: 'details', epoch: 5, revision: 80, data: { requestId: detailRequest.id, loading: false, error: null, media: media('overflow-actions', 'Action title'), episodes: [], cast: [], related: [] } });
+
+    const expander = await screen.findByRole('button', { name: 'More title actions' });
+    expect(expander).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(expander);
+    expect(expander).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Mark watched' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Mark watched' }));
+    await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'details.watched.toggle')).toBe(true));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add to library' }));
+    await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'library.add')).toBe(true));
+    expect(await screen.findByRole('button', { name: 'Remove from library' })).toBeInTheDocument();
+  });
+
+  it('long-pressing Play opens manual stream selection and bypasses auto-selection', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    emit({ topic: 'home', epoch: 5, revision: 90, data: { loading: false, error: null, hero: [], shelves: [{ key: 'long-press', title: 'Long press', subtitle: '', items: [media('manual-play', 'Manual play title')], hasMore: false }] } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Manual play title' }));
+    await screen.findByText('Loading title…');
+    const detailRequest = bridgeMock.requests.find((request) => request.method === 'details.load')!;
+    emit({ topic: 'details', epoch: 5, revision: 91, data: { requestId: detailRequest.id, loading: false, error: null, media: media('manual-play', 'Manual play title'), episodes: [], cast: [], related: [] } });
+    const playButton = await screen.findByRole('button', { name: /Play/ });
+    fireEvent.pointerDown(playButton, { button: 0, pointerId: 1, pointerType: 'mouse' });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 560)); });
+    await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'streams.load' && request.params.manualSelection === true)).toBe(true));
+    expect(window.location.search).toContain('manual=1');
+  });
+
+  it('shows only enabled addons with a matching stream resource as active scrapers', () => {
+    const addons: Addons = { items: [
+      { id: 'cinemeta', name: 'Cinemeta', manifestUrl: '', enabled: true, description: null, logo: null, types: ['movie'], resources: [{ name: 'catalog', types: ['movie'], idPrefixes: [] }, { name: 'meta', types: ['movie'], idPrefixes: [] }] },
+      { id: 'aiometa', name: 'AIOMetadata | ElfHosted', manifestUrl: '', enabled: true, description: null, logo: null, types: ['movie'], resources: [{ name: 'meta', types: ['movie'], idPrefixes: [] }] },
+      { id: 'subtitles', name: 'opensubtitles PRO', manifestUrl: '', enabled: true, description: null, logo: null, types: ['movie'], resources: [{ name: 'subtitles', types: ['movie'], idPrefixes: [] }] },
+      { id: 'stremthru', name: 'StremThru Torz', manifestUrl: '', enabled: true, description: null, logo: null, types: ['movie'], resources: [{ name: 'stream', types: ['movie'], idPrefixes: [] }] },
+      { id: 'series-streams', name: 'Series-only streams', manifestUrl: '', enabled: true, description: null, logo: null, resources: [{ name: 'stream', types: ['series'], idPrefixes: [] }] },
+    ] };
+    expect(streamAddonNames(addons, 'movie')).toEqual(['StremThru Torz']);
+  });
+
   it('refreshes Discover on entry and keeps its posters visible with recent searches open', async () => {
     render(<AppRoot />);
     await screen.findByText('Your home is ready for content');
@@ -155,5 +208,24 @@ describe('desktop bridge UI workflow', () => {
     expect(await screen.findByRole('heading', { name: 'Recent searches' })).toBeInTheDocument();
     expect(screen.getByText('A recent movie')).toBeInTheDocument();
     expect(screen.getAllByText('Discover popular title').length).toBeGreaterThan(0);
+  });
+
+  it('opens Discover filter menus outside the scroll strip and dispatches all three selections', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    fireEvent.click(screen.getByRole('link', { name: /search/i }));
+    await screen.findByRole('heading', { name: 'Discover' });
+
+    fireEvent.click(screen.getByRole('button', { name: /Movies/i }));
+    fireEvent.click(await screen.findByRole('option', { name: 'Series' }));
+    await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'discover.selectType' && request.params.type === 'series')).toBe(true));
+
+    fireEvent.click(document.querySelector('[data-filter="catalog"] .discover-filter-chip')!);
+    fireEvent.click(await screen.findByRole('option', { name: 'Top' }));
+    await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'discover.selectCatalog' && request.params.catalogKey === 'cinemeta:movie:top')).toBe(true));
+
+    fireEvent.click(document.querySelector('[data-filter="genre"] .discover-filter-chip')!);
+    fireEvent.click(await screen.findByRole('option', { name: 'Action' }));
+    await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'discover.selectGenre' && request.params.genre === 'Action')).toBe(true));
   });
 });

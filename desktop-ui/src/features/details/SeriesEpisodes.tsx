@@ -4,7 +4,7 @@ import type { Video } from './DetailsExtras';
 import './series-episodes.css';
 
 type SeasonView = 'posters' | 'text';
-type Props = {
+export type Props = {
   videos: Video[];
   poster: string | null;
   background: string | null;
@@ -103,6 +103,9 @@ export function SeriesEpisodes({ videos, poster, background, seasonPosters, card
 function EpisodeCollection({ episodes, season, cardStyle, fallbackImage, blurUnwatched, showRatings, ratingsVisibility, isWatched, onEpisodeClick, onEpisodeLongPress, onToggleSeason, mutationBusy }: {
   episodes: Video[]; season: number; cardStyle: Props['cardStyle']; fallbackImage: string | null; blurUnwatched: boolean; showRatings: boolean; ratingsVisibility: Props['ratingsVisibility']; isWatched: Props['isWatched']; onEpisodeClick: Props['onEpisodeClick']; onEpisodeLongPress: Props['onEpisodeLongPress']; onToggleSeason: Props['onToggleSeason']; mutationBusy: boolean;
 }) {
+  const episodeLongPressTimer = useRef<number | null>(null);
+  const longPressTriggered = useRef(false);
+  useEffect(() => () => { if (episodeLongPressTimer.current != null) window.clearTimeout(episodeLongPressTimer.current); }, []);
   return <>
     {cardStyle === 'horizontal' && <h3 className="series-episode-season-heading">{seasonLabel(season)}</h3>}
     {season > 0 && <button type="button" className="series-season-watch" disabled={mutationBusy} onClick={() => onToggleSeason(season)}>Mark season {episodes.length > 0 && episodes.every(isWatched) ? 'unwatched' : 'watched'}</button>}
@@ -111,7 +114,18 @@ function EpisodeCollection({ episodes, season, cardStyle, fallbackImage, blurUnw
         const watched = isWatched(video);
         const showRating = showRatings && (ratingsVisibility === 'show_all' || (ratingsVisibility === 'hide_unwatched_episodes' && watched));
         const click = () => video.available && onEpisodeClick(video);
-        return <button type="button" key={`${video.id}:${index}`} className="series-episode-card" disabled={!video.available} onClick={click} onContextMenu={(event) => { event.preventDefault(); onEpisodeLongPress(video); }} title={video.available ? 'Find streams' : video.title}>
+        return <button type="button" key={`${video.id}:${index}`} className={`series-episode-card ${video.available ? '' : 'unavailable'}`} aria-disabled={!video.available} onPointerDown={(event) => {
+          if (event.button != null && event.button !== 0) return;
+          if (episodeLongPressTimer.current != null) window.clearTimeout(episodeLongPressTimer.current);
+          longPressTriggered.current = false;
+          episodeLongPressTimer.current = window.setTimeout(() => {
+            longPressTriggered.current = true;
+            onEpisodeLongPress(video);
+          }, 520);
+        }} onPointerUp={() => { if (episodeLongPressTimer.current != null) window.clearTimeout(episodeLongPressTimer.current); episodeLongPressTimer.current = null; }} onPointerLeave={() => { if (episodeLongPressTimer.current != null) window.clearTimeout(episodeLongPressTimer.current); episodeLongPressTimer.current = null; }} onPointerCancel={() => { if (episodeLongPressTimer.current != null) window.clearTimeout(episodeLongPressTimer.current); episodeLongPressTimer.current = null; longPressTriggered.current = false; }} onClick={(event) => {
+          if (longPressTriggered.current) { event.preventDefault(); event.stopPropagation(); longPressTriggered.current = false; return; }
+          click();
+        }} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); if (episodeLongPressTimer.current != null) window.clearTimeout(episodeLongPressTimer.current); episodeLongPressTimer.current = null; longPressTriggered.current = true; onEpisodeLongPress(video); }} title={video.available ? 'Click to find streams · Right-click or hold for episode actions' : 'Right-click or hold for episode actions'}>
           <span className="series-episode-art">{(video.thumbnail || fallbackImage) && <img src={video.thumbnail || fallbackImage || ''} alt="" loading="lazy" style={{ filter: blurUnwatched && !watched ? 'blur(18px)' : undefined }} />}<span className="series-episode-code">{episodeCode(video)}</span>{watched && <span className="series-episode-watched"><Check size={14} /></span>}</span>
           <span className="series-episode-copy"><strong>{video.title}</strong><small>{formatReleaseDate(video.released)}{showRating && video.rating != null && video.rating > 0 ? ` · ★ ${video.rating.toFixed(1)}` : ''}{video.runtime && cardStyle === 'horizontal' ? ` · ${video.runtime} min` : ''}</small>{video.overview && <span className="series-episode-overview">{video.overview}</span>}</span>
         </button>;

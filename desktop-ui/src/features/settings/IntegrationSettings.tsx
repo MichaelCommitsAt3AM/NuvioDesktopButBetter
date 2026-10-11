@@ -1,6 +1,6 @@
 import './integrationSettings.css';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, Cloud, Eye, EyeOff, Film, KeyRound, Link2, LoaderCircle, RotateCcw, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Check, Cloud, Eye, EyeOff, Film, KeyRound, Link2, LoaderCircle, RotateCcw, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot } from '../../bridge';
 import { Dialog } from '../../components/Dialog';
@@ -28,15 +28,6 @@ function Select({ title, value, values, labels, description, onChange, disabled 
     {open && <div className="consent-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}><div className="consent-card settings-choice-dialog" role="dialog" aria-modal="true" aria-label={title}><div className="dialog-head"><strong>{title}</strong><button className="icon-button" onClick={() => setOpen(false)} aria-label="Close"><ArrowLeft size={15} /></button></div><div className="settings-radio-list">{values.map((option, index) => <label className="settings-radio-option" key={option}><span><strong>{labels?.[index] ?? option}</strong></span><input type="radio" name={`settings-${title}`} value={option} checked={value === option} disabled={disabledValues.includes(option)} onChange={() => { onChange(option); setOpen(false); }} /></label>)}</div></div></div>}
   </>;
 }
-function SecretField({ title, description, configured, onSave }: { title: string; description?: string; configured: boolean; onSave: (value: string) => Promise<unknown> }) {
-  const [open, setOpen] = useState(false); const [value, setValue] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
-  async function save(next: string) { setBusy(true); setError(''); try { await onSave(next); setValue(''); setOpen(false); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save this key.'); } finally { setBusy(false); } }
-  return <>
-    <button type="button" className="settings-control-row settings-value-row" onClick={() => setOpen(true)}><span className="settings-control-copy"><strong>{title}</strong><span>{configured ? '••••••••  ·  Saved' : 'Not set'}</span></span><KeyRound size={18} /></button>
-    {open && <div className="consent-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setOpen(false); }}><div className="consent-card settings-choice-dialog" role="dialog" aria-modal="true" aria-label={title}><div className="dialog-head"><strong>{title}</strong><button className="icon-button" onClick={() => setOpen(false)} aria-label="Close" disabled={busy}><ArrowLeft size={15} /></button></div>{description && <p className="muted">{description}</p>}<input type="password" value={value} autoComplete="new-password" placeholder={configured ? 'Enter a new key to replace saved key' : 'Enter API key'} onChange={(event) => setValue(event.target.value)} />{configured && <p className="muted small">The saved key is hidden. Leave the field empty to keep it.</p>}{error && <p className="form-error">{error}</p>}<div className="dialog-actions">{configured && <button className="button subtle-danger" disabled={busy} onClick={() => void save('')}>Remove</button>}<button className="button secondary" disabled={busy} onClick={() => setOpen(false)}>Cancel</button><button className="button primary" disabled={!value.trim() || busy} onClick={() => void save(value.trim())}>{busy ? <LoaderCircle size={14} className="spin" /> : <KeyRound size={14} />} Save</button></div></div></div>}
-  </>;
-}
-function TextField({ title, value, onSave, placeholder = '' }: { title: string; value: string; onSave: (value: string) => void; placeholder?: string }) { const [draft, setDraft] = useState(value); useEffect(() => setDraft(value), [value]); return <label className="profile-url-field">{title}<input value={draft} placeholder={placeholder} onChange={(event) => setDraft(event.target.value)} onBlur={() => { if (draft !== value) onSave(draft); }} /></label>; }
 function NumberField({ title, value, min, max, onSave }: { title: string; value: number; min: number; max: number; onSave: (value: number) => void }) { const [draft, setDraft] = useState(String(value)); useEffect(() => setDraft(String(value)), [value]); return <div className="settings-control-row"><span className="settings-control-copy"><strong>{title}</strong></span><input className="settings-inline-number" type="number" value={draft} min={min} max={max} onChange={(event) => setDraft(event.target.value)} onBlur={() => { const next = Number(draft); if (Number.isInteger(next) && next >= min && next <= max && next !== value) onSave(next); else setDraft(String(value)); }} /></div>; }
 function SettingsError({ error, refresh }: { error: string; refresh: () => void }) { return error ? <InlineError message={error} onRetry={() => void refresh()} /> : null; }
 function Loading({ title }: { title: string }) { return <SubPage title={title}><div className="loading-block"><LoaderCircle size={17} className="spin" /> Loading settings…</div></SubPage>; }
@@ -60,7 +51,7 @@ export function TmdbSettingsPage() {
   return <SubPage title="TMDB Enrichment">{error && <SettingsError error={error} refresh={refresh} />}
     <h2 className="settings-group-title">TMDB ENRICHMENT</h2><section className="settings-section">
       <Toggle title="Enable TMDB Enrichment" description="Use TMDB as a metadata source to enhance addon data" checked={s.enabled} onChange={(value) => set('enabled', value)} />
-      <TmdbApiKeyField configured={s.hasApiKey} onSave={(value) => run('tmdb.set', { key: 'apiKey', value })} />
+      <IntegrationApiKeyField title="Personal API key" description="Use your own TMDB API key, or leave blank to use the default." inputLabel="API key" configured={s.hasApiKey} onSave={(value) => run('tmdb.set', { key: 'apiKey', value })} />
     </section>
     <h2 className="settings-group-title">LOCALIZATION</h2><section className="settings-section">
       <LanguageField value={s.language} onSave={(value) => set('language', value)} />
@@ -71,13 +62,13 @@ export function TmdbSettingsPage() {
   </SubPage>;
 }
 function tmdbLabel(key: string) { return ({ useBasicInfo: 'Basic Info', useDetails: 'Details', useArtwork: 'Artwork', useTrailers: 'Trailers', useCredits: 'Credits', useProductions: 'Productions', useNetworks: 'Networks', useEpisodes: 'Episodes', useSeasonPosters: 'Season posters', useMoreLikeThis: 'More Like This', useCollections: 'Collections' } as Record<string, string>)[key] ?? key; }
-function tmdbDescription(key: string) { return ({ useBasicInfo: 'Description, genres, and rating from TMDB.', useDetails: 'Runtime, status, country, and language from TMDB.', useArtwork: 'Logo and backdrop images from TMDB.', useTrailers: 'Trailer candidates from TMDB videos for the detail trailer section.', useCredits: 'Cast with photos, director, and writer from TMDB.', useProductions: 'Production companies from TMDB.', useNetworks: 'Networks with logos from TMDB.', useEpisodes: 'Episode titles, overviews, thumbnails, and runtime from TMDB.', useSeasonPosters: 'Use TMDB season posters in the metadata screen season selector for series.', useMoreLikeThis: 'TMDB recommendation backdrops on detail page.', useCollections: 'TMDB movie collections in release order.' } as Record<string, string>)[key] ?? ''; }
-function TmdbApiKeyField({ configured, onSave }: { configured: boolean; onSave: (value: string) => Promise<unknown> }) {
-  const [value, setValue] = useState(''); const [visible, setVisible] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
-  async function save() { const key = value.trim(); if (!key) return; setBusy(true); setError(''); try { await onSave(key); setValue(''); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save the API key.'); } finally { setBusy(false); } }
-  return <div className="settings-tmdb-key-row"><div className="settings-tmdb-key-copy"><strong>Personal API key</strong><span>Use your own TMDB API key, or leave blank to use the default.</span></div><div className="settings-tmdb-key-input"><input type={visible ? 'text' : 'password'} value={value} autoComplete="new-password" placeholder="API key" aria-label="API key" onChange={(event) => setValue(event.target.value)} /><button type="button" className="icon-button" aria-label={visible ? 'Hide API key' : 'Show API key'} onClick={() => setVisible((shown) => !shown)}>{visible ? <EyeOff size={17} /> : <Eye size={17} />}</button></div><button className="button primary" disabled={!value.trim() || busy} onClick={() => void save()}>{busy ? <LoaderCircle size={14} className="spin" /> : null}Save</button>{error && <p className="form-error">{error}</p>}{configured && !value && <small className="settings-tmdb-key-status">A personal key is saved. Its value is hidden.</small>}</div>;
+function tmdbDescription(key: string) { return ({ useBasicInfo: 'Description, genres, and rating from TMDB', useDetails: 'Runtime, status, country, and language from TMDB', useArtwork: 'Logo and backdrop images from TMDB', useTrailers: 'Trailer candidates from TMDB videos for the detail trailer section', useCredits: 'Cast with photos, director, and writer from TMDB', useProductions: 'Production companies from TMDB', useNetworks: 'Networks with logos from TMDB', useEpisodes: 'Episode titles, overviews, thumbnails, and runtime from TMDB', useSeasonPosters: 'Use TMDB season posters in the metadata screen season selector for series.', useMoreLikeThis: 'TMDB recommendation backdrops on detail page', useCollections: 'TMDB movie collections in release order' } as Record<string, string>)[key] ?? ''; }
+function IntegrationApiKeyField({ title, description, inputLabel, configured, usingAccount = false, onSave }: { title: string; description: string; inputLabel: string; configured: boolean; usingAccount?: boolean; onSave: (value: string) => Promise<unknown> }) {
+  const [value, setValue] = useState(''); const [visible, setVisible] = useState(false); const [focused, setFocused] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  async function save(next = value.trim()) { setBusy(true); setError(''); try { await onSave(next); setValue(''); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save the API key.'); } finally { setBusy(false); } }
+  return <div className="settings-tmdb-key-row"><div className="settings-tmdb-key-copy"><strong>{title}</strong><span>{description}</span></div>{usingAccount && <small className="settings-tmdb-key-status">Using connected account</small>}<div className={`settings-tmdb-key-input settings-outlined-field ${focused || value || configured ? 'field-floating' : ''}`}><span>{inputLabel}</span><input type={visible ? 'text' : 'password'} value={value} autoComplete="new-password" placeholder={configured && !value ? '••••••••••••' : ''} aria-label={inputLabel} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} onChange={(event) => setValue(event.target.value)} /><button type="button" className="icon-button" aria-label={visible ? 'Hide API key' : 'Show API key'} onClick={() => setVisible((shown) => !shown)}>{visible ? <EyeOff size={17} /> : <Eye size={17} />}</button></div><div className="settings-tmdb-key-actions"><button className="button primary" disabled={!value.trim() || busy} onClick={() => void save()}>{busy ? <LoaderCircle size={14} className="spin" /> : null}Save</button>{configured && <button className="button secondary" disabled={busy} onClick={() => void save('')}>Clear</button>}</div>{error && <p className="form-error">{error}</p>}</div>;
 }
-function LanguageField({ value, onSave }: { value: string; onSave: (value: string) => void }) { const [draft, setDraft] = useState(value || 'en'); useEffect(() => setDraft(value || 'en'), [value]); const normalized = draft.trim(); return <div className="settings-language-row"><span className="settings-control-copy"><strong>Language</strong><span>TMDB metadata language for title, logo, and enabled fields</span></span><label>Language code<input value={draft} placeholder="en" onChange={(event) => setDraft(event.target.value)} /></label><button className="button primary" disabled={!normalized || normalized === value} onClick={() => { setDraft(normalized); onSave(normalized); }}>Save</button></div>; }
+function LanguageField({ value, onSave }: { value: string; onSave: (value: string) => void }) { const [draft, setDraft] = useState(value || 'en'); const [focused, setFocused] = useState(false); useEffect(() => setDraft(value || 'en'), [value]); const normalized = draft.trim(); return <div className="settings-language-row"><div className="settings-language-copy"><strong>Language</strong><span>TMDB metadata language for title, logo, and enabled fields</span></div><label className={`settings-language-input settings-outlined-field ${focused || draft ? 'field-floating' : ''}`}><span>Language code</span><input value={draft} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} onChange={(event) => setDraft(event.target.value)} /></label><button className="button primary" disabled={!normalized || normalized === value} onClick={() => { setDraft(normalized); onSave(normalized); }}>Save</button></div>; }
 
 type Mdb = { enabled: boolean; hasApiKey: boolean; hasAccount: boolean; hasCredentials: boolean; isActive: boolean; useImdb: boolean; useTmdb: boolean; useTomatoes: boolean; useMetacritic: boolean; useTrakt: boolean; useLetterboxd: boolean; useAudience: boolean; useMal: boolean; account: { connected: boolean; username: string | null; userId: string | null; isSupporter: boolean; mode: string | null; userCode: string | null; verificationUrl: string | null; verificationUrlComplete: string | null; expiresAtEpochMs: number | null; pollIntervalSeconds: number; isBusy: boolean; error: string | null; revokeFailed: boolean } };
 export function MdbListSettingsPage() {
@@ -85,15 +76,14 @@ export function MdbListSettingsPage() {
   const set = (key: string, value: unknown) => void run('mdblist.set', { key, value }).catch(() => {});
   if (loading && !s) return <Loading title="MDBList Ratings" />;
   if (!s) return <SubPage title="MDBList Ratings"><SettingsError error={error} refresh={refresh} /></SubPage>;
-  const providers = [['imdb', 'IMDb ratings', s.useImdb], ['tmdb', 'TMDB ratings', s.useTmdb], ['tomatoes', 'Rotten Tomatoes', s.useTomatoes], ['metacritic', 'Metacritic', s.useMetacritic], ['trakt', 'Trakt', s.useTrakt], ['letterboxd', 'Letterboxd', s.useLetterboxd], ['audience', 'Audience score', s.useAudience], ['mal', 'MyAnimeList', s.useMal]] as const;
+  const providers = [['imdb', 'IMDb', s.useImdb], ['tmdb', 'TMDB', s.useTmdb], ['tomatoes', 'Rotten Tomatoes', s.useTomatoes], ['metacritic', 'Metacritic', s.useMetacritic], ['trakt', 'Trakt', s.useTrakt], ['letterboxd', 'Letterboxd', s.useLetterboxd], ['audience', 'Audience Score', s.useAudience], ['mal', 'MyAnimeList', s.useMal]] as const;
   return <SubPage title="MDBList Ratings">{error && <SettingsError error={error} refresh={refresh} />}
     <h2 className="settings-group-title">MDBLIST RATINGS</h2><section className="settings-section">
-      <Toggle title="Enable MDBList Ratings" description="Fetch ratings from external providers in metadata detail screen." checked={s.enabled} onChange={(value) => set('enabled', value)} />
+      <Toggle title="Enable MDBList Ratings" description="Fetch ratings from external providers in metadata detail screen" checked={s.enabled} onChange={(value) => set('enabled', value)} />
       {!s.hasCredentials && <p className="muted small">Connect MDBList in Tracking or enter an API key to fetch ratings.</p>}
     </section>
     <h2 className="settings-group-title">API KEY</h2><section className="settings-section">
-      {s.hasAccount && !s.hasApiKey && <p className="muted small">Using credentials from the connected MDBList account.</p>}
-      <SecretField title="MDBList API key" description="Add a personal API key to override connected account credentials." configured={s.hasApiKey} onSave={(value) => run('mdblist.set', { key: 'apiKey', value })} />
+      <IntegrationApiKeyField title="API Key" description="An API key overrides your connected account for ratings. Clear it and save to use the connected account again." inputLabel="API Key" configured={s.hasApiKey} usingAccount={s.hasAccount && !s.hasApiKey} onSave={(value) => run('mdblist.set', { key: 'apiKey', value })} />
     </section>
     <h2 className="settings-group-title">EXTERNAL RATINGS PROVIDERS</h2><section className="settings-section">
       {providers.map(([id, label, checked]) => <Toggle key={id} title={label} checked={checked} disabled={!s.enabled} onChange={(value) => void run('mdblist.setProviderEnabled', { providerId: id, enabled: value }).catch(() => {})} />)}
@@ -139,8 +129,51 @@ export function DebridSettingsPage() {
     {activeProviderId && (() => { const provider = s.providers.find((item) => item.id === activeProviderId); return provider ? provider.authMethod === 'DeviceCode' ? <div className="consent-backdrop"><div className="consent-card" role="dialog" aria-modal="true"><div className="dialog-head"><strong>{provider.displayName}</strong><button className="icon-button" onClick={() => setActiveProviderId(null)} aria-label="Close"><ArrowLeft size={15} /></button></div><p className="muted">Link your {provider.displayName} account in the browser.</p>{provider.configured ? <div className="dialog-actions"><button className="button secondary" onClick={() => { set('providerApiKey', '', provider.id); setActiveProviderId(null); }}>Disconnect</button><button className="button secondary" onClick={() => setActiveProviderId(null)}>Close</button></div> : <div className="dialog-actions"><button className="button secondary" onClick={() => setActiveProviderId(null)}>Cancel</button><button className="button primary" disabled={busy === provider.id} onClick={() => void startDevice(provider.id)}>{busy === provider.id ? 'Connecting…' : 'Connect'}</button></div>}</div></div> : <div className="consent-backdrop"><div className="consent-card" role="dialog" aria-modal="true"><div className="dialog-head"><strong>{provider.displayName} API Key</strong><button className="icon-button" onClick={() => setActiveProviderId(null)} aria-label="Close"><ArrowLeft size={15} /></button></div><p className="muted">Enter your {provider.displayName} API key. {provider.configured ? 'A key is already configured; its value is hidden.' : ''}</p><input type="password" autoComplete="new-password" value={apiDrafts[provider.id] ?? ''} placeholder={`Enter ${provider.displayName} API key`} onChange={(event) => setApiDrafts((drafts) => ({ ...drafts, [provider.id]: event.target.value }))} />{deviceMessage && <p className="form-error">{deviceMessage}</p>}<div className="dialog-actions">{provider.configured && <button className="button subtle-danger" disabled={busy === provider.id} onClick={() => { set('providerApiKey', '', provider.id); setActiveProviderId(null); }}>Clear</button>}<button className="button secondary" onClick={() => setActiveProviderId(null)}>Cancel</button><button className="button primary" disabled={!apiDrafts[provider.id]?.trim() || busy === provider.id} onClick={() => void saveKey(provider).then(() => setActiveProviderId(null)).catch((cause) => setDeviceMessage(cause instanceof Error ? cause.message : 'Could not validate provider key.'))}>{busy === provider.id ? 'Validating…' : 'Save'}</button></div></div></div> : null; })()}
     {device && <div className="consent-backdrop"><div className="consent-card" role="dialog" aria-modal="true"><div className="dialog-head"><strong>Authorize {s.providers.find((provider) => provider.id === device.providerId)?.displayName}</strong></div><p>Enter this user code at the provider’s device authorization page.</p><code className="auth-device-code">{device.userCode}</code><div className="plugin-row-actions"><button className="button secondary" onClick={() => void call('app.openExternal', { url: device.friendlyVerificationUrl || device.verificationUrl }).catch(() => {})}>Open verification page</button><button className="button secondary" onClick={() => void pollDevice()} disabled={busy === device.providerId}>Check authorization</button><button className="button secondary" onClick={() => void cancelDevice()}>Cancel</button></div></div></div>}    <section className="settings-section"><div className="settings-section-heading"><span className="settings-icon"><Film size={18} /></span><div><h2>Link Preparation</h2><p>Resolve playable links before playback starts.</p></div></div><Toggle title="Prepare links" description="Resolve playable links before playback starts." checked={s.instantPlaybackPreparationLimit > 0} disabled={!s.canResolvePlayableLinks} onChange={(enabled) => set('instantPlaybackPreparationLimit', enabled ? Math.min(3, s.limits.instantPlaybackMax) : 0)} />{s.instantPlaybackPreparationLimit > 0 && <NumberField title="Links to prepare" value={s.instantPlaybackPreparationLimit} min={1} max={s.limits.instantPlaybackMax} onSave={(value) => set('instantPlaybackPreparationLimit', value)} />}</section>
     <DebridResultManagement preferences={s.streamPreferences} enabled={s.canResolvePlayableLinks} onSave={(preferences) => set('streamPreferences', preferences)} />
-    <section className="settings-section"><div className="settings-section-heading"><span className="settings-icon"><RotateCcw size={18} /></span><div><h2>Formatting</h2><p>Customize how stream names and descriptions are shown.</p></div></div><TextField title="Stream name template" value={s.streamNameTemplate} onSave={(value) => set('streamNameTemplate', value)} /><TextField title="Stream description template" value={s.streamDescriptionTemplate} onSave={(value) => set('streamDescriptionTemplate', value)} /><button className="button secondary" onClick={() => set('resetStreamTemplates', true)}><RotateCcw size={14} /> Reset templates</button></section>
+    <DebridFormattingSection nameTemplate={s.streamNameTemplate} descriptionTemplate={s.streamDescriptionTemplate} enabled={s.canResolvePlayableLinks} onSave={(key, value) => set(key, value)} onReset={() => set('resetStreamTemplates', true)} />
   </SubPage>;
+}
+
+const DEFAULT_STREAM_NAME_TEMPLATE = '{stream.resolution::exists["{stream.resolution} "||""]}{service.shortName::exists["{service.shortName}"||"Cloud"]} Instant';
+const DEFAULT_STREAM_DESCRIPTION_TEMPLATE = '';
+type DebridTemplateField = 'name' | 'description';
+function DebridFormattingSection({ nameTemplate, descriptionTemplate, enabled, onSave, onReset }: { nameTemplate: string; descriptionTemplate: string; enabled: boolean; onSave: (key: 'streamNameTemplate' | 'streamDescriptionTemplate', value: string) => void; onReset: () => void }) {
+  const [activeField, setActiveField] = useState<DebridTemplateField | null>(null);
+  const field = activeField === 'name'
+    ? { title: 'Name template', description: 'Controls how result names appear. Leave blank to use the original result name.', value: nameTemplate, defaultValue: DEFAULT_STREAM_NAME_TEMPLATE, preferenceKey: 'streamNameTemplate' as const }
+    : activeField === 'description'
+      ? { title: 'Description template', description: 'Controls the metadata shown under each result. Leave blank to use the original result details.', value: descriptionTemplate, defaultValue: DEFAULT_STREAM_DESCRIPTION_TEMPLATE, preferenceKey: 'streamDescriptionTemplate' as const }
+      : null;
+  return <>
+    <section className="settings-section">
+      <div className="settings-section-heading"><span className="settings-icon"><RotateCcw size={18} /></span><div><h2>Formatting</h2><p>Customize how stream names and descriptions are shown.</p></div></div>
+      <DebridPreferenceRow title="Name template" description="Controls how result names appear. Leave blank to use the original result name." value={templatePreview(nameTemplate, DEFAULT_STREAM_NAME_TEMPLATE)} enabled={enabled} onClick={() => setActiveField('name')} />
+      <DebridPreferenceRow title="Description template" description="Controls the metadata shown under each result. Leave blank to use the original result details." value={templatePreview(descriptionTemplate, DEFAULT_STREAM_DESCRIPTION_TEMPLATE)} enabled={enabled} onClick={() => setActiveField('description')} />
+      <DebridPreferenceRow title="Reset formatting" description="Restore default result formatting." value="Reset to Default" enabled={enabled} onClick={onReset} />
+    </section>
+    {field && <DebridTemplateDialog key={activeField} title={field.title} description={field.description} value={field.value} defaultValue={field.defaultValue} onClose={() => setActiveField(null)} onSave={(value) => { onSave(field.preferenceKey, value); setActiveField(null); }} />}
+  </>;
+}
+
+function DebridTemplateDialog({ title, description, value, defaultValue, onClose, onSave }: { title: string; description: string; value: string; defaultValue: string; onClose: () => void; onSave: (value: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  return <Dialog label={title} onClose={onClose} className="settings-choice-dialog debrid-result-dialog debrid-template-dialog">
+    <h2>{title}</h2>
+    <p className="muted">{description}</p>
+    <textarea className="debrid-template-input" value={draft} onChange={(event) => setDraft(event.target.value)} rows={5} aria-label={title} />
+    <div className="dialog-actions debrid-template-actions">
+      <button type="button" className="button secondary" onClick={() => setDraft(defaultValue)}>Reset</button>
+      <button type="button" className="button secondary" onClick={onClose}>Cancel</button>
+      <button type="button" className="button primary" onClick={() => onSave(draft)}>Save</button>
+    </div>
+  </Dialog>;
+}
+
+function templatePreview(value: string, defaultValue: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return 'Original format';
+  if (trimmed === defaultValue.trim()) return 'Default format';
+  const firstLine = value.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+  return firstLine ? firstLine.length <= 28 ? firstLine : `${firstLine.slice(0, 28)}...` : 'Default format';
 }
 
 function DebridResultManagement({ preferences, enabled, onSave }: { preferences: DebridPreferences; enabled: boolean; onSave: (value: DebridPreferences) => void }) {
@@ -176,21 +209,17 @@ function DebridPreferenceDialogs({ active, setActive, preferences, onSave }: { a
 
   if (active === 'maxResults' || active === 'maxPerResolution' || active === 'maxPerQuality') {
     const options = active === 'maxResults' ? [0, 5, 10, 20, 50] : [0, 1, 2, 3, 5];
-    const selected = preferences[active];
-    return <Dialog label="Max results" onClose={() => setActive(null)} className="settings-choice-dialog">
-      <h2>Max results</h2>
-      <div className="settings-dialog-options">{options.map((option) => <button type="button" className="settings-dialog-option" key={option} onClick={() => { onSave({ ...preferences, [active]: option }); setActive(null); }}><span>{resultCountLabel(option)}</span><span className={`settings-radio ${selected === option ? 'selected' : ''}`} aria-hidden="true" /></button>)}</div>
-      <div className="dialog-actions"><button type="button" className="button secondary" onClick={() => setActive(null)}>Done</button></div>
-    </Dialog>;
+    return <DebridSingleChoiceDialog title="Max results" selected={preferences[active]} options={options.map((value) => ({ value, label: resultCountLabel(value) }))} onClose={() => setActive(null)} onSelect={(value) => { onSave({ ...preferences, [active]: value }); setActive(null); }} />;
   }
 
   if (active === 'sizeRange') {
     const options: Array<[number, number]> = [[0, 0], [0, 5], [0, 10], [5, 20], [10, 50], [20, 100]];
-    return <Dialog label="Size range" onClose={() => setActive(null)} className="settings-choice-dialog">
-      <h2>Size range</h2>
-      <div className="settings-dialog-options">{options.map(([min, max]) => <button type="button" className="settings-dialog-option" key={`${min}-${max}`} onClick={() => { onSave({ ...preferences, sizeMinGb: min, sizeMaxGb: max }); setActive(null); }}><span>{sizeRangeLabel(min, max)}</span><span className={`settings-radio ${preferences.sizeMinGb === min && preferences.sizeMaxGb === max ? 'selected' : ''}`} aria-hidden="true" /></button>)}</div>
-      <div className="dialog-actions"><button type="button" className="button secondary" onClick={() => setActive(null)}>Done</button></div>
-    </Dialog>;
+    const selected = `${preferences.sizeMinGb}-${preferences.sizeMaxGb}`;
+    return <DebridSingleChoiceDialog title="Size range" selected={selected} options={options.map(([min, max]) => ({ value: `${min}-${max}`, label: sizeRangeLabel(min, max) }))} onClose={() => setActive(null)} onSelect={(value) => {
+      const [min, max] = value.split('-').map(Number);
+      onSave({ ...preferences, sizeMinGb: min, sizeMaxGb: max });
+      setActive(null);
+    }} />;
   }
 
   if (optionGroup) {
@@ -208,26 +237,45 @@ function DebridPreferenceDialogs({ active, setActive, preferences, onSave }: { a
   return null;
 }
 
+function DebridSingleChoiceDialog<T extends string | number>({ title, options, selected, onClose, onSelect }: { title: string; options: Array<{ value: T; label: string }>; selected: T; onClose: () => void; onSelect: (value: T) => void }) {
+  return <Dialog label={title} onClose={onClose} className="settings-choice-dialog debrid-result-dialog">
+    <h2>{title}</h2>
+    <div className="settings-dialog-options debrid-choice-options">{options.map((option) => {
+      const isSelected = selected === option.value;
+      return <button type="button" className={`settings-dialog-option${isSelected ? ' selected' : ''}`} key={option.value} aria-pressed={isSelected} onClick={() => onSelect(option.value)}>
+        <span>{option.label}</span>{isSelected && <Check size={20} strokeWidth={2} aria-hidden="true" />}
+      </button>;
+    })}</div>
+  </Dialog>;
+}
+
+function DebridDialogActions({ onClear, onSave }: { onClear: () => void; onSave: () => void }) {
+  return <div className="dialog-actions debrid-dialog-actions">
+    <button type="button" className="button secondary" onClick={onClear}>Clear</button>
+    <button type="button" className="button primary" onClick={onSave}>Save</button>
+  </div>;
+}
+
 function DebridMultiChoiceDialog({ title, values, selected, onClose, onSave }: { title: string; values: string[]; selected: string[]; onClose: () => void; onSave: (value: string[]) => void }) {
   const [draft, setDraft] = useState(selected);
-  return <Dialog label={title} onClose={onClose} className="settings-choice-dialog">
+  return <Dialog label={title} onClose={onClose} className="settings-choice-dialog debrid-result-dialog">
     <h2>{title}</h2>
     <div className="settings-dialog-options debrid-multichoice-options">{values.map((value) => {
       const checked = draft.includes(value);
-      return <button type="button" role="checkbox" aria-checked={checked} className="settings-dialog-option debrid-multichoice-option" key={value} onClick={() => setDraft((current) => checked ? current.filter((item) => item !== value) : [...current, value])}>
-        <span>{preferenceChoiceLabel(value)}</span><span className={`debrid-checkbox ${checked ? 'selected' : ''}`} aria-hidden="true">{checked ? '✓' : ''}</span>
+      return <button type="button" role="checkbox" aria-checked={checked} className={`settings-dialog-option debrid-multichoice-option${checked ? ' selected' : ''}`} key={value} onClick={() => setDraft((current) => checked ? current.filter((item) => item !== value) : [...current, value])}>
+        <span>{preferenceChoiceLabel(value)}</span>{checked && <Check size={20} strokeWidth={2} aria-hidden="true" />}
       </button>;
     })}</div>
-    <div className="dialog-actions"><button type="button" className="button secondary" onClick={() => setDraft([])}>Clear</button><button type="button" className="button primary" onClick={() => { onSave(draft); onClose(); }}>Save</button></div>
+    <DebridDialogActions onClear={() => setDraft([])} onSave={() => { onSave(draft); onClose(); }} />
   </Dialog>;
 }
 
 function DebridReleaseGroupDialog({ title, values, onClose, onSave }: { title: string; values: string[]; onClose: () => void; onSave: (value: string[]) => void }) {
   const [draft, setDraft] = useState(values.join('\n'));
-  return <Dialog label={title} onClose={onClose} className="settings-choice-dialog">
+  return <Dialog label={title} onClose={onClose} className="settings-choice-dialog debrid-result-dialog">
     <h2>{title}</h2><p className="muted">Enter one group per line.</p>
-    <textarea className="debrid-release-groups-input" value={draft} onChange={(event) => setDraft(event.target.value)} rows={5} aria-label={title} />
-    <div className="dialog-actions"><button type="button" className="button secondary" onClick={() => setDraft('')}>Clear</button><button type="button" className="button primary" onClick={() => { onSave([...new Set(draft.split(/[\n,]/).map((item) => item.trim()).filter(Boolean))]); onClose(); }}>Save</button></div>
+    <textarea className="debrid-release-groups-input" value={draft} onChange={(event) => setDraft(event.target.value)} rows={4} aria-label={title} />
+    <DebridDialogActions onClear={() => setDraft('')} onSave={() => { onSave([...new Set(draft.split(/[\n,]/).map((item) => item.trim()).filter(Boolean))]); onClose(); }} />
   </Dialog>;
 }
 

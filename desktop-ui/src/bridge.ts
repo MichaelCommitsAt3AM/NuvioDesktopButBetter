@@ -240,7 +240,10 @@ async function reconcile() {
       }
       sessionEpochReady = true;
       replayBufferedEvents(snapshotResult.epoch);
-      await Promise.allSettled([
+      // Let the shell enter Home as soon as the session is known. Home and
+      // library snapshots may wait on remote catalogs; they must not hold the
+      // startup/profile transition overlay while those requests are in flight.
+      void Promise.allSettled([
         snapshot('home.snapshot', 'home', generation),
         snapshot('library.snapshot', 'library', generation),
         snapshot('addons.snapshot', 'addons', generation),

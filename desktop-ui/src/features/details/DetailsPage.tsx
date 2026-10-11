@@ -1,23 +1,28 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, LoaderCircle, Maximize, MoreHorizontal, Play } from 'lucide-react';
+import { ArrowLeft, Check, CircleCheck, LoaderCircle, Maximize, MoreHorizontal, Play, Plus } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { actions, call, useSelector } from '../../bridge';
+import { actions, call, refreshFeature, useSelector } from '../../bridge';
 import { InlineError } from '../../components/Status';
 import { DetailsExtras, type ExtrasMeta } from './DetailsExtras';
-import { ListMembershipButton } from '../library/ListMembershipButton';
 import './details.css';
 
 export function DetailsPage() {
   const { type = '', id = '' } = useParams();
   const details = useSelector((current) => current.details);
+  const library = useSelector((current) => current.library);
   const navigate = useNavigate();
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [savedOverride, setSavedOverride] = useState<boolean | null>(null);
+  const [savedBusy, setSavedBusy] = useState(false);
+  const [actionError, setActionError] = useState('');
   const [watched, setWatched] = useState<{ loaded: boolean; watched?: boolean; fullyWatched?: boolean }>({ loaded: false });
   const [watchBusy, setWatchBusy] = useState(false);
   const [extraMeta, setExtraMeta] = useState<ExtrasMeta | null>(null);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
   const requestedDetailsKey = useRef<string | null>(null);
+  const playHoldTimer = useRef<number | null>(null);
+  const longPlayTriggered = useRef(false);
   useEffect(() => {
     const key = `${type}:${id}`;
     // React Strict Mode replays mount effects in development. Details loading
@@ -33,8 +38,10 @@ export function DetailsPage() {
     const timeout = window.setTimeout(() => setLoadTimedOut(true), 30_000);
     return () => window.clearTimeout(timeout);
   }, [type, id, details.loading, details.requestId]);
-  useEffect(() => { setActionsOpen(false); }, [type, id]);
+  useEffect(() => { setActionsOpen(false); setSavedOverride(null); setActionError(''); }, [type, id]);
+  useEffect(() => () => { if (playHoldTimer.current !== null) window.clearTimeout(playHoldTimer.current); }, []);
   const media = details.media;
+  const saved = savedOverride ?? library.items.some((item) => item.id === id && item.type === type);
   useEffect(() => { setExtraMeta(null); }, [type, id]);
   useEffect(() => {
     let active = true;
@@ -45,8 +52,39 @@ export function DetailsPage() {
   const toggleWatched = async () => {
     if (!media) return;
     setWatchBusy(true);
+    setActionError('');
     try { setWatched(await call<{ loaded: boolean; watched?: boolean; fullyWatched?: boolean }>('details.watched.toggle', { id: media.id, type: media.type, name: media.name, poster: media.poster, background: media.background, releaseInfo: media.releaseInfo, genres: media.genres, description: media.description })); }
+    catch (cause) { setActionError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setWatchBusy(false); }
+  };
+  const toggleSaved = async () => {
+    if (!media || savedBusy) return;
+    setSavedBusy(true);
+    setActionError('');
+    try {
+      if (saved) await actions.removeFromLibrary(media.type, media.id);
+      else await actions.addToLibrary(media.type, media.id);
+      setSavedOverride(!saved);
+      void refreshFeature('library').catch(() => {});
+    } catch (cause) { setActionError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { setSavedBusy(false); }
+  };
+  const openStreams = (manual = false) => navigate(`/details/${encodeURIComponent(media!.type)}/${encodeURIComponent(media!.id)}/streams/${encodeURIComponent(media!.id)}${manual ? '?manual=1' : ''}`);
+  const beginPlayHold = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    // Some embedded webviews do not populate `button` for pointerdown. Only
+    // reject an explicitly non-primary button so long-press still works there.
+    if (event.button > 0) return;
+    if (playHoldTimer.current !== null) window.clearTimeout(playHoldTimer.current);
+    playHoldTimer.current = window.setTimeout(() => {
+      playHoldTimer.current = null;
+      longPlayTriggered.current = true;
+      openStreams(true);
+      window.setTimeout(() => { longPlayTriggered.current = false; }, 1200);
+    }, 520);
+  };
+  const cancelPlayHold = () => {
+    if (playHoldTimer.current !== null) window.clearTimeout(playHoldTimer.current);
+    playHoldTimer.current = null;
   };
 
   return <div className="detail-page" style={media?.background ? { '--detail-backdrop': `url("${media.background}")` } as CSSProperties : undefined}>
@@ -76,12 +114,14 @@ export function DetailsPage() {
           {media.genres.length > 0 && <p className="detail-genres">{media.genres.slice(0, 4).join(' · ')}</p>}
           {media.description && <p className="detail-description">{media.description}</p>}
           <div className="detail-actions">
-            <button className="detail-play" type="button" onClick={() => navigate(`/details/${encodeURIComponent(media.type)}/${encodeURIComponent(media.id)}/streams/${encodeURIComponent(media.id)}`)}><Play size={19} fill="currentColor" />Play</button>
-            <div className="detail-more-wrap">
+            <button className="detail-play" type="button" onPointerDown={beginPlayHold} onPointerUp={cancelPlayHold} onPointerCancel={cancelPlayHold} onPointerLeave={cancelPlayHold} onContextMenu={(event) => event.preventDefault()} onClick={() => { if (longPlayTriggered.current) { longPlayTriggered.current = false; return; } openStreams(false); }}><Play size={19} fill="currentColor" />Play</button>
+            <div className={`detail-action-expander ${actionsOpen ? 'expanded' : ''}`}>
+              <span className="detail-inline-action-slot"><button className={`detail-inline-action ${watched.watched || watched.fullyWatched ? 'active' : ''}`} type="button" aria-label={watched.watched || watched.fullyWatched ? 'Mark unwatched' : 'Mark watched'} title={watched.watched || watched.fullyWatched ? 'Mark unwatched' : 'Mark watched'} disabled={watchBusy || !watched.loaded} onClick={() => void toggleWatched()}><CircleCheck size={21} /></button></span>
+              <span className="detail-inline-action-slot"><button className={`detail-inline-action ${saved ? 'active' : ''}`} type="button" aria-label={saved ? 'Remove from library' : 'Add to library'} title={saved ? 'Remove from library' : 'Add to library'} disabled={savedBusy} onClick={() => void toggleSaved()}>{saved ? <Check size={21} /> : <Plus size={21} />}</button></span>
               <button className="detail-more" type="button" aria-label="More title actions" aria-expanded={actionsOpen} onClick={() => setActionsOpen((open) => !open)}><MoreHorizontal size={22} /></button>
-              {actionsOpen && <div className="detail-more-menu"><button className="detail-menu-action" type="button" disabled={watchBusy || !watched.loaded} onClick={() => void toggleWatched()}><Check size={17} />{watched.watched || watched.fullyWatched ? 'Mark unwatched' : 'Mark watched'}</button><ListMembershipButton type={media.type} id={media.id} name={media.name} /></div>}
             </div>
           </div>
+          {actionError && <p className="detail-action-error" role="alert">{actionError}</p>}
         </div>
       </section>
       <DetailsExtras type={type} id={id} onMetaLoaded={setExtraMeta} />

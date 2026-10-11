@@ -33,6 +33,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - The profile chooser now follows the original centered logo, gradient backdrop, circular avatars and in-place Manage Profiles mode. It opens on launch when Remember Last Profile is off, and is available through the profile menu.
 - After profile selection, the preview shows the original-style centered Nuvio logo and animated loading arc over the profile backdrop until Home is ready, then fades into the app.
 - Downloads opens from Library. Hold the Settings navigation item to switch profiles; its icon shows the current avatar. Content is enlarged independently of the top bar, and horizontal card rows have scroll arrows.
+- While streams load, the stream-selection screen shows active scraper names and shimmer cards like the Kotlin desktop build.
 
 - Home is being aligned against the installed Compose app: full-width hero, in-card Continue Watching details, poster actions/previews and hover arrows. See [the Home comparison](docs/DESKTOP_HOME_COMPARISON.md) for verified behavior and remaining differences.
 

@@ -77,3 +77,77 @@ body:has(.settings-desktop) .dialog-backdrop{backdrop-filter:none;background:#00
 
 .settings-desktop .addon-logo{display:grid;place-items:center;overflow:hidden}.settings-desktop .addon-logo img{display:block;width:100%;height:100%;object-fit:cover}
 
+/* Details-page controls mirror the grouped Kotlin settings rows and selectors. */
+.metadata-settings-chip-row,.metadata-episode-style{padding:18px 22px;border-bottom:1px solid #ffffff08;display:grid;gap:10px}
+.metadata-settings-copy{display:grid;gap:4px;min-width:0}
+.metadata-settings-copy strong{font-size:18px;line-height:24px;font-weight:500;color:var(--text)}
+.metadata-settings-copy>span{font-size:16px;line-height:22px;color:#999}
+.metadata-settings-hint{font-size:14px;line-height:20px;color:#999}
+.metadata-chip-list,.metadata-tab-groups{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.metadata-chip{min-height:38px;padding:7px 13px;border:1px solid #ffffff20;border-radius:10px;background:transparent;color:#a5aab0;font:inherit;font-size:15px;line-height:20px;cursor:pointer;transition:background-color .15s,border-color .15s,color .15s}
+.metadata-chip:hover:not(:disabled){background:#ffffff0b;border-color:#ffffff38;color:#eee}
+.metadata-chip.selected{border-color:#ffffff30;background:#ffffff12;color:#f1f1f1}
+.metadata-chip:disabled{opacity:.4;cursor:default}
+.metadata-episode-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.metadata-episode-option{min-width:0;display:grid;justify-items:center;align-content:start;gap:8px;padding:16px 12px;border:1px solid transparent;border-radius:12px;background:#1b1c1e;color:#f1f1f1;text-align:center;cursor:pointer;transition:background-color .15s,border-color .15s}
+.metadata-episode-option:hover{background:#222326}
+.metadata-episode-option.selected{border-color:#ffffff14;background:#ffffff0d}
+.metadata-episode-preview{position:relative;width:100%;height:148px;display:grid;place-items:center}
+.episode-preview-horizontal{position:relative;width:128px;height:80px;overflow:hidden;border-radius:8px;background:#41454b}
+.episode-preview-horizontal i{position:absolute;inset:auto 0 0;height:26px;background:#16171988}
+.episode-preview-horizontal b{position:absolute;left:6px;top:6px;width:42px;height:7px;border-radius:3px;background:#e5e7eb42}
+.episode-preview-horizontal em{position:absolute;left:8px;bottom:8px;width:72px;height:6px;border-radius:3px;background:#e5e7eb2e}
+.episode-preview-list{width:132px;height:78px;display:flex;overflow:hidden;border-radius:8px;background:#3b3f44}
+.episode-preview-list>i{width:48px;flex:none;background:#696f77}
+.episode-preview-list>b{flex:1;display:flex;flex-direction:column;justify-content:center;gap:7px;padding:6px}
+.episode-preview-list b i,.episode-preview-list b em{height:8px;border-radius:3px;background:#e5e7eb35}
+.episode-preview-list b i:first-child{width:82%}.episode-preview-list b i:nth-child(2){width:52%;height:6px}.episode-preview-list b em{height:4px;background:#818b9b}
+.metadata-episode-check{position:absolute;top:5px;right:5px;width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:#e8eaed;color:#151618}
+.metadata-episode-option>strong{font-size:16px;line-height:22px;font-weight:600}
+.metadata-episode-option>small{font-size:14px;line-height:20px;color:#999}
+.metadata-reset-button{margin-left:auto;padding:4px 0;border:0;background:none;color:var(--text);font:inherit;font-size:17px;font-weight:500;cursor:pointer}
+.metadata-reset-button:hover{color:#bbb}
+.metadata-sections-list{margin:0}
+.settings-desktop .metadata-item-row{box-sizing:border-box;min-height:160px;display:flex;align-items:center;gap:18px;padding:24px 32px;border-top:1px solid #ffffff08;transition:background-color .15s,opacity .15s}
+.settings-desktop .metadata-item-row:first-child{border-top:0}
+.settings-desktop .metadata-item-row.dragging{opacity:.45;background:#ffffff08}
+.metadata-item-copy{min-width:0;flex:1;display:grid;gap:4px}
+.metadata-item-copy strong{overflow:hidden;color:#f1f1f1;font-size:18px;line-height:25px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.metadata-item-copy>span,.metadata-item-copy>small{color:#969ba1;font-size:16px;line-height:22px}
+.metadata-item-copy>small{font-size:15px}
+.metadata-tab-groups{flex-basis:100%;padding-top:8px}
+.metadata-drag-handle{width:38px;height:42px;display:grid;place-items:center;flex:none;padding:0;border:0;border-radius:8px;background:transparent;color:#9da2a8;cursor:grab;touch-action:none}
+.metadata-drag-handle:hover{background:#ffffff0b;color:#eee}
+.metadata-drag-handle:active{cursor:grabbing}
+.metadata-item-row>.switch{flex:none}
+.metadata-item-row .switch input:checked+span{background:#f5f5f5}
+.metadata-item-row .switch input:checked+span:after{background:#080808}
+.metadata-item-row .switch input:not(:checked)+span{background:#514e56}
+.metadata-item-row .switch input:not(:checked)+span:after{background:#969ca1}
+.settings-desktop .metadata-item-row .switch{margin:0 2px 0 auto}
+@media(max-width:720px){.settings-desktop .metadata-item-row{min-height:112px;gap:10px;padding:18px}.metadata-episode-preview{height:112px}.metadata-episode-options{gap:8px}.metadata-item-copy>span{font-size:14px;line-height:19px}.metadata-chip-list{gap:6px}}
+
+/* Result-management dialogs follow the Kotlin DialogSurface/Option template. */
+body:has(.settings-desktop) .debrid-result-dialog .dialog-surface{box-sizing:border-box;width:min(600px,calc(100vw - 40px));max-height:min(82vh,720px);display:flex;flex-direction:column;gap:0;padding:24px;border:1px solid #ffffff0d;border-radius:28px;background:#1c1c1c;box-shadow:0 18px 60px #0008;overflow:hidden}
+body:has(.settings-desktop) .debrid-result-dialog .dialog-surface h2{flex:none;margin:0 0 18px;font-size:24px;line-height:31px;font-weight:500}
+body:has(.settings-desktop) .debrid-result-dialog .settings-dialog-options{display:grid;flex:none;gap:8px;max-height:min(420px,52vh);overflow:auto;padding:0 2px 2px;scrollbar-width:thin;scrollbar-color:#555 transparent}
+body:has(.settings-desktop) .debrid-result-dialog .settings-dialog-option{box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:46px;width:100%;padding:10px 14px;border:0;border-radius:12px;background:#292929;color:#f2f2f2;text-align:left;font-size:18px;line-height:24px;cursor:pointer;transition:background-color 120ms ease}
+body:has(.settings-desktop) .debrid-result-dialog .settings-dialog-option:hover{background:#353535}
+body:has(.settings-desktop) .debrid-result-dialog .settings-dialog-option.selected{background:#363636}
+body:has(.settings-desktop) .debrid-result-dialog .settings-dialog-option>svg{flex:none;color:#f3f3f3}
+body:has(.settings-desktop) .debrid-result-dialog .debrid-multichoice-options{flex:0 1 auto}
+body:has(.settings-desktop) .debrid-result-dialog .dialog-surface>p{flex:none;margin:0 0 12px;color:#9a9da2;font-size:16px;line-height:24px}
+body:has(.settings-desktop) .debrid-result-dialog .debrid-release-groups-input{box-sizing:border-box;flex:none;width:100%;min-height:120px;resize:vertical;padding:12px 14px;border:1px solid #ffffff30;border-radius:12px;background:#191919;color:#f2f2f2;font-family:inherit;font-size:16px;line-height:24px;outline:none}
+body:has(.settings-desktop) .debrid-result-dialog .debrid-release-groups-input:focus{border-color:#ffffff75}
+body:has(.settings-desktop) .debrid-result-dialog .debrid-dialog-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px;flex:none}
+body:has(.settings-desktop) .debrid-result-dialog .debrid-dialog-actions .button{width:100%;min-height:48px;padding:10px 16px;border-radius:26px;font-size:17px}
+body:has(.settings-desktop) .debrid-result-dialog .debrid-dialog-actions .button.secondary{background:#303030;color:#f2f2f2}
+body:has(.settings-desktop) .debrid-result-dialog .debrid-dialog-actions .button.primary{background:#f3f3f3;color:#111}
+@media(max-width:520px){body:has(.settings-desktop) .debrid-result-dialog .dialog-surface{width:calc(100vw - 24px);padding:20px;border-radius:22px}}
+body:has(.settings-desktop) .debrid-template-dialog .debrid-template-input{box-sizing:border-box;display:block;width:100%;min-height:140px;max-height:280px;resize:vertical;padding:12px 14px;border:1px solid #ffffff30;border-radius:12px;background:#191919;color:#f2f2f2;font-family:inherit;font-size:16px;line-height:24px;outline:none}
+body:has(.settings-desktop) .debrid-template-dialog .debrid-template-input:focus{border-color:#ffffff75}
+body:has(.settings-desktop) .debrid-template-dialog .debrid-template-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px;flex:none}
+body:has(.settings-desktop) .debrid-template-dialog .debrid-template-actions .button{width:100%;min-height:48px;padding:10px 12px;border-radius:26px;font-size:17px}
+body:has(.settings-desktop) .debrid-template-dialog .debrid-template-actions .button.secondary{background:#303030;color:#f2f2f2}
+body:has(.settings-desktop) .debrid-template-dialog .debrid-template-actions .button.primary{background:#f3f3f3;color:#111}
+

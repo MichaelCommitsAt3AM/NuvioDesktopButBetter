@@ -40,23 +40,25 @@ function LoadingArc() {
   return <svg className="profile-loading-spinner" viewBox="0 0 350 350" aria-hidden="true"><path ref={path} fill="none" stroke="currentColor" strokeWidth="37.5" strokeLinecap="round" /></svg>;
 }
 
-export function ProfileLoadingScreen() {
+export function ProfileLoadingScreen({ startup = false }: { startup?: boolean }) {
   const state = useAppState();
   const transition = state.profileTransition;
   const [leaving, setLeaving] = useState(false);
-  const ready = transition?.ready && (!state.home.loading || state.status === 'disconnected');
+  // The profile is ready once its session is active. Remote home catalogs can
+  // keep loading behind the transition and should not hold the splash overlay.
+  const ready = !startup && transition?.ready;
   useEffect(() => {
     if (!ready) return;
     setLeaving(true);
     const timer = setTimeout(() => actions.finishProfileTransition(), 400);
     return () => clearTimeout(timer);
   }, [ready]);
-  if (!transition) return null;
+  if (!startup && !transition) return null;
   const style = {
-    '--profile-color': transition.profile.color,
-    ...(transition.backgroundUrl ? { backgroundImage: `linear-gradient(#00000047,#00000047),url("${transition.backgroundUrl}")` } : {}),
+    '--profile-color': transition?.profile.color ?? '#1e88e5',
+    ...(transition?.backgroundUrl ? { backgroundImage: `linear-gradient(#00000047,#00000047),url("${transition.backgroundUrl}")` } : {}),
   } as CSSProperties;
-  return <div className={`profile-picker profile-loading-screen ${leaving?'leaving':''}`} style={style} role="status" aria-label="Loading profile" aria-live="polite">
+  return <div className={`profile-picker profile-loading-screen ${startup ? 'startup-loading-screen' : ''} ${leaving?'leaving':''}`} style={style} role="status" aria-label={startup ? 'Starting Nuvio' : 'Loading profile'} aria-live="polite">
     <div className="profile-loading-content"><img src="/images/nuvio-wordmark.png" alt="Nuvio" /><LoadingArc /></div>
   </div>;
 }

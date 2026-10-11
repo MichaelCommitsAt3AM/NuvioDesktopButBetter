@@ -6,7 +6,7 @@
 .profile-picker h1{font-size:36px;line-height:43.2px;font-weight:700;letter-spacing:0;margin:23.76px 0 30.24px;animation:profile-title-in 600ms cubic-bezier(.4,0,.2,1) both}
 .profile-picker-row{display:flex;gap:21.6px;max-width:100%;overflow-x:auto;padding-inline:4px;scrollbar-width:none}
 .profile-picker-card{flex:none;width:162px;display:flex;flex-direction:column;align-items:center;gap:12.96px;padding:8.64px;border:0;border-radius:21.6px;background:none;color:inherit;cursor:pointer;text-decoration:none;animation:profile-card-in 500ms cubic-bezier(.4,0,.2,1) var(--profile-delay,150ms) both}
-.profile-picker-card:active{scale:.95}.profile-picker-card:focus-visible{outline:2px solid var(--avatar-color,#aaa);outline-offset:-2px}.profile-picker-card:disabled{cursor:wait;opacity:.65}
+.profile-picker-card:active{scale:.95}.profile-picker-card:focus-visible{outline:2px solid var(--avatar-color,#aaa);outline-offset:-2px}.profile-picker-card:disabled{cursor:default;opacity:.65}
 .profile-picker-avatar{position:relative;display:grid;place-items:center;flex:none;width:118.8px;height:118.8px}
 .profile-picker .profile-picker-avatar .avatar{width:108px;height:108px;border-radius:50%;font-size:45.6px;box-sizing:border-box;object-fit:cover}
 .profile-picker .profile-picker-avatar .avatar.placeholder{background:color-mix(in srgb,var(--avatar-color,#1e88e5) 15%,transparent)!important;border:2.16px solid color-mix(in srgb,var(--avatar-color,#1e88e5) 40%,transparent);color:var(--avatar-color,#1e88e5);font-weight:700}
@@ -21,7 +21,7 @@
 @keyframes profile-manage-in{from{opacity:0}to{opacity:1}}
 @media(max-width:768px){.profile-picker{align-items:flex-start;padding-top:60px}.profile-picker-row{flex-wrap:wrap;justify-content:center}.profile-picker h1{font-size:30px}.profile-picker-wordmark{height:36.7px}}
 @media(prefers-reduced-motion:reduce){.profile-picker *{animation:none!important}}
-.profile-loading-screen{position:fixed;inset:0;z-index:1000;min-height:0;height:100dvh;padding:0;animation:profile-manage-in 180ms both;transition:opacity 400ms;cursor:wait}
+.profile-loading-screen{position:fixed;inset:0;z-index:1000;min-height:0;height:100dvh;padding:0;animation:profile-manage-in 180ms both;transition:opacity 400ms;cursor:default}
 .profile-loading-screen.leaving{animation:none;opacity:0}
 .profile-loading-content{display:flex;flex-direction:column;align-items:center;gap:25.92px;width:100%}
 .profile-loading-content img{height:47.52px;max-width:48%;object-fit:contain}

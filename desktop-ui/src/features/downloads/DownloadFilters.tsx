@@ -1,29 +1,73 @@
 import { useEffect, useState } from 'react';
+import { ArrowLeft, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot } from '../../bridge';
 import { InlineError } from '../../components/Status';
 import { PageHeader } from '../../components/ui';
+import './downloads.css';
 
 export type DownloadFilter = { maxResolution: string; maxSizeBytes: number; showUnknownSizeStreams: boolean; allowedSources: string[]; minMaxSizeBytes: number; maxMaxSizeBytes: number };
 type Snapshot = { filter: DownloadFilter };
+const RESOLUTIONS = [
+  ['uhd_4k', '2160p (4K)'], ['fhd_1080', '1080p'], ['hd_720', '720p'], ['sd', '480p & below'],
+] as const;
+const SOURCES = [
+  ['webdl', 'WEB-DL'], ['webrip', 'WEBRip'], ['hdtv', 'HDTV'], ['dvd', 'DVD'], ['cam', 'Cam / TS'], ['bluray', 'Blu-ray'], ['remux', 'Remux'],
+] as const;
+const GB = 1024 ** 3;
+
 export function DownloadFiltersPage() {
   const snapshot = useFeatureSnapshot<Snapshot>('downloads');
   const filter = snapshot?.filter;
   const [error, setError] = useState('');
-  const [size, setSize] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => { void refreshFeature('downloads').catch(e => setError(String(e))); }, []);
-  useEffect(() => { if (filter) setSize(String(filter.maxSizeBytes / 1024 ** 3)); }, [filter?.maxSizeBytes]);
   const save = async (method: string, params = {}) => {
     setBusy(true); setError('');
     try { await call(method, params); await refreshFeature('downloads'); }
-    catch(e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { setBusy(false); }
   };
-  return <div className="page settings-page"><Link to="/settings" className="back-button">Back to Settings</Link><PageHeader title="Download filters" subtitle="Choose the streams shown when Data saver is selected." />{error && <InlineError message={error} />}{filter ? <section className="settings-section">
-    <div className="settings-control-row"><strong>Maximum resolution</strong><select disabled={busy} value={filter.maxResolution} onChange={e => void save('downloads.filter.setMaxResolution', { tier: e.target.value })}>{[['sd','SD'],['hd_720','720p'],['fhd_1080','1080p'],['uhd_4k','4K']].map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></div>
-    <div className="settings-control-row"><strong>Maximum file size (GB)</strong><input aria-label="Maximum file size in GB" type="number" min={filter.minMaxSizeBytes / 1024 ** 3} max={filter.maxMaxSizeBytes / 1024 ** 3} step="0.25" value={size} onChange={e => setSize(e.target.value)} onBlur={() => { const bytes = Math.round(Number(size) * 1024 ** 3); if (Number.isFinite(bytes) && bytes >= filter.minMaxSizeBytes && bytes <= filter.maxMaxSizeBytes && bytes !== filter.maxSizeBytes) void save('downloads.filter.setMaxSizeBytes', { bytes }); else setSize(String(filter.maxSizeBytes / 1024 ** 3)); }} /></div>
-    <label className="settings-control-row"><strong>Show streams with unknown file size</strong><input type="checkbox" disabled={busy} checked={filter.showUnknownSizeStreams} onChange={e => void save('downloads.filter.setShowUnknownSize', { enabled: e.target.checked })} /></label>
-    <h2>Allowed sources</h2>{['remux','bluray','webdl','webrip','hdtv','dvd','cam','unknown'].map(source => <label className="settings-control-row" key={source}><strong>{source.toUpperCase()}</strong><input type="checkbox" disabled={busy} checked={filter.allowedSources.includes(source)} onChange={e => void save('downloads.filter.setSourceAllowed', { source, allowed: e.target.checked })} /></label>)}
-    <button className="button secondary" disabled={busy} onClick={() => void save('downloads.filter.reset')}>Reset filters to defaults</button>
-  </section> : <div className="loading-block">Loading download filters…</div>}</div>;
+  const maxGb = filter ? Math.max(1, Math.min(20, Math.round(filter.maxSizeBytes / GB))) : 8;
+  return <div className="page settings-page download-filter-page">
+    <Link to="/settings" className="back-button settings-page-back" aria-label="Back to Settings"><ArrowLeft /></Link>
+    <PageHeader title="Download filter" />
+    <p className="download-filter-intro">Data Saver filters the streams list down to smaller, download-friendly files. Customize what counts as data-friendly below.</p>
+    {error && <InlineError message={error} />}
+    {!filter ? <div className="loading-block">Loading download filters…</div> : <>
+      <section className="download-filter-section">
+        <h2>Maximum resolution</h2>
+        <p>Hide streams above this resolution while Data Saver is on.</p>
+        <div className="download-filter-group" role="radiogroup" aria-label="Maximum resolution">
+          {RESOLUTIONS.map(([value, label]) => <label className="download-filter-option" key={value}>
+            <span>{label}</span><input type="radio" name="max-resolution" checked={filter.maxResolution === value} disabled={busy} onChange={() => void save('downloads.filter.setMaxResolution', { tier: value })} />
+          </label>)}
+        </div>
+      </section>
+      <section className="download-filter-section">
+        <h2>Allowed file types</h2>
+        <p>Only show these source types while Data Saver is on.</p>
+        <div className="download-filter-group" aria-label="Allowed file types">
+          {SOURCES.map(([value, label]) => <label className="download-filter-option" key={value}>
+            <span>{label}</span><input type="checkbox" checked={filter.allowedSources.includes(value)} disabled={busy} onChange={event => void save('downloads.filter.setSourceAllowed', { source: value.toUpperCase(), allowed: event.target.checked })} />
+          </label>)}
+        </div>
+      </section>
+      <section className="download-filter-section">
+        <h2>Maximum size</h2>
+        <p>Hide streams larger than this size while Data Saver is on.</p>
+        <div className="download-filter-group">
+          <div className="download-filter-slider">
+            <strong>Up to {maxGb} GB</strong>
+            <input aria-label="Maximum file size" type="range" min={Math.ceil(filter.minMaxSizeBytes / GB)} max={Math.floor(filter.maxMaxSizeBytes / GB)} step="1" value={maxGb} disabled={busy} onChange={event => void save('downloads.filter.setMaxSizeBytes', { bytes: Number(event.target.value) * GB })} />
+          </div>
+          <label className="download-filter-option download-filter-unknown">
+            <span><strong>Show streams with unknown size</strong><small>Off by default. When off, streams that don’t report a file size are hidden while Data Saver is on.</small></span>
+            <input type="checkbox" checked={filter.showUnknownSizeStreams} disabled={busy} onChange={event => void save('downloads.filter.setShowUnknownSize', { enabled: event.target.checked })} />
+          </label>
+        </div>
+      </section>
+      <button className="download-filter-reset" disabled={busy} onClick={() => void save('downloads.filter.reset')}><span><strong>Reset to defaults</strong><small>Restore 1080p WEB-DL / WEBRip defaults.</small></span><RotateCcw size={19} /></button>
+    </>}
+  </div>;
 }

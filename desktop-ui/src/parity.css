@@ -7,7 +7,7 @@
 .poster-grid .media-card{width:100%;min-width:0}.poster-grid .card-title{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .horizontal-rail{position:relative;margin-inline:calc(-1 * var(--page-gutter))}
 .horizontal-rail>.shelf-track,.horizontal-rail>.home-cw-rail{margin-inline:0;padding-inline:var(--page-gutter);scroll-padding-inline:var(--page-gutter)}
-.rail-arrow{position:absolute;z-index:3;top:40%;transform:translateY(-50%);display:grid;place-items:center;width:44px;height:64px;border:1px solid #ffffff30;border-radius:12px;background:#111e;color:#fff;box-shadow:0 4px 20px #0008;cursor:pointer}
+.rail-arrow{position:absolute;z-index:10;top:40%;transform:translateY(-50%);display:grid;place-items:center;width:44px;height:64px;border:1px solid #ffffff30;border-radius:12px;background:#111e;color:#fff;box-shadow:0 4px 20px #0008;cursor:pointer}
 .rail-previous{left:8px}.rail-next{right:8px}.rail-arrow:hover:not(:disabled){background:#343434}.rail-arrow:disabled{opacity:.3;cursor:default}
 .home-cw-heading h2{font-size:22px}.home-cw-heading p{font-size:14px}.home-cw-copy strong,.home-cw-art-title{font-size:14px}.home-cw-copy span{font-size:12px}.home-cw-heading select{font-size:14px;min-height:42px}
 .home-hero-copy .eyebrow{font-size:12px}.home-hero-copy .hero-meta{font-size:14px}.home-hero-copy .hero-description{font-size:16px;max-width:560px}.home-hero-copy{max-width:640px}

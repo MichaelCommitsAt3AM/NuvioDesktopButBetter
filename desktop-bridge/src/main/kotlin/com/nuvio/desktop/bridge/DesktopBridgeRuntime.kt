@@ -303,7 +303,10 @@ class DesktopBridgeRuntime {
                 is AuthState.Authenticated -> "signedIn"
             }
             val currentUserId = (state as? AuthState.Authenticated)?.userId
-            if (hasObservedAuthUser && currentUserId != observedAuthUserId) advanceEpoch()
+            if (hasObservedAuthUser && currentUserId != observedAuthUserId) {
+                advanceEpoch()
+                HomeRepository.clear()
+            }
             observedAuthUserId = currentUserId
             hasObservedAuthUser = true
             if (state is AuthState.Authenticated) {
@@ -366,6 +369,7 @@ class DesktopBridgeRuntime {
             playbackAdapter?.stop()
             advanceEpoch()
             ProfileRepository.switchToProfile(selected)
+            HomeRepository.clear()
             HomeRepository.refresh(AddonRepository.uiState.value.addons, force = true)
             sessionJson()
         }
@@ -378,13 +382,14 @@ class DesktopBridgeRuntime {
                 is AddAddonResult.Success -> Unit
                 is AddAddonResult.Error -> error(outcome.message)
             }
+            refreshHomeAfterAddonChange()
             addonsJson()
         }
-        "addons.toggle" -> { AddonRepository.setAddonEnabled(params.str("id"), params.bool("enabled")); addonsJson() }
-        "addons.remove" -> { AddonRepository.removeAddon(params.str("id")); addonsJson() }
-        "addons.refresh" -> { AddonRepository.refreshAddon(params.str("id"), forceRefresh = true); addonsJson() }
-        "addons.refreshAll" -> { AddonRepository.refreshAll(); addonsJson() }
-        "addons.move" -> { AddonRepository.moveAddon(params.int("from"), params.int("to")); addonsJson() }
+        "addons.toggle" -> { AddonRepository.setAddonEnabled(params.str("id"), params.bool("enabled")); refreshHomeAfterAddonChange(); addonsJson() }
+        "addons.remove" -> { AddonRepository.removeAddon(params.str("id")); refreshHomeAfterAddonChange(); addonsJson() }
+        "addons.refresh" -> { AddonRepository.refreshAddon(params.str("id"), forceRefresh = true); refreshHomeAfterAddonChange(); addonsJson() }
+        "addons.refreshAll" -> { AddonRepository.refreshAll(); refreshHomeAfterAddonChange(); addonsJson() }
+        "addons.move" -> { AddonRepository.moveAddon(params.int("from"), params.int("to")); refreshHomeAfterAddonChange(); addonsJson() }
         "library.snapshot" -> libraryJson()
         "library.add" -> {
             val mediaId = params.str("id")
@@ -582,6 +587,7 @@ class DesktopBridgeRuntime {
             ?: return null
         if (previousProfile != ProfileRepository.activeProfileId) {
             advanceEpoch()
+            HomeRepository.clear()
             HomeRepository.refresh(AddonRepository.uiState.value.addons, force = true)
         }
         val topic = when {
@@ -624,6 +630,16 @@ class DesktopBridgeRuntime {
             emit("home", homeJson())
         }
         return result
+    }
+
+    private suspend fun refreshHomeAfterAddonChange() {
+        val enabledAddons = AddonRepository.uiState.value.addons.enabledAddons()
+        HomeCatalogSettingsRepository.syncCatalogs(enabledAddons)
+        HomeCatalogSettingsRepository.syncCollections(
+            collections = CollectionRepository.collections.value,
+            addons = enabledAddons,
+        )
+        HomeRepository.refresh(enabledAddons)
     }
 
     private val latestRequest = java.util.concurrent.ConcurrentHashMap<String, String>()

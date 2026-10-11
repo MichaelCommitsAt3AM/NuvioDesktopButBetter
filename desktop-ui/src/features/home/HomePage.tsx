@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Compass, LoaderCircle, Maximize, MoreHorizontal, RotateCcw, Trash2, Info, Play } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Compass, Maximize, MoreHorizontal, RotateCcw, Trash2, Info, Play } from 'lucide-react';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { EmptyState } from '../../components/EmptyState';
 import { InlineError } from '../../components/Status';
@@ -10,6 +10,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { AppearanceSnapshot } from '../settings/appearanceStore';
 import { HomeActionDialog } from './HomeActionDialog';
 import { useCardHold } from '../../components/useCardHold';
+import { PosterLoadingCard } from '../../components/PosterLoadingCard';
 import './home.css';
 import './homeParity.css';
 
@@ -35,20 +36,26 @@ type ContinueItem = {
 };
 
 const homeViewPositions=new Map<string,{scrollTop:number;heroIndex:number}>();
+const consumedHomeScrollResets=new Set<string>();
 
 export function HomePage() {
   const home = useSelector((current) => current.home);
+  const location = useLocation();
+  const navigate = useNavigate();
   const appearance = useFeatureSnapshot<AppearanceSnapshot>('appearance');
   const profileId = useSelector((current) => current.session.activeProfile);
   const extras = useFeatureSnapshot<HomeExtras>('homeExtras');
-  const heroItems = home.hero ?? [];
+  // The preferred hero sources can temporarily be empty while catalogs load or fail.
+  // Reuse visible shelf results as a resilient fallback so the featured area does not
+  // disappear while Home still has usable titles to show.
+  const heroItems = home.hero?.length ? home.hero : home.shelves.flatMap(shelf => shelf.items ?? []);
   const viewKey=String(profileId??'default');
   const [heroIndex, setHeroIndex] = useState(()=>homeViewPositions.get(viewKey)?.heroIndex??0);
   const heroIndexRef=useRef(heroIndex);heroIndexRef.current=heroIndex;
-  useLayoutEffect(()=>{const main=document.querySelector<HTMLElement>('.main-area');if(main)main.scrollTop=homeViewPositions.get(viewKey)?.scrollTop??0;return()=>{if(main)homeViewPositions.set(viewKey,{scrollTop:main.scrollTop,heroIndex:heroIndexRef.current});};},[viewKey]);
+  const resetHomeScroll=(location.state as {resetHomeScroll?:boolean}|null)?.resetHomeScroll===true&&!consumedHomeScrollResets.has(location.key);
+  useLayoutEffect(()=>{const main=document.querySelector<HTMLElement>('.main-area');if(resetHomeScroll){consumedHomeScrollResets.add(location.key);if(main)main.scrollTop=0;}else if(main)main.scrollTop=homeViewPositions.get(viewKey)?.scrollTop??0;return()=>{if(main)homeViewPositions.set(viewKey,{scrollTop:main.scrollTop,heroIndex:heroIndexRef.current});};},[viewKey,resetHomeScroll,location.key]);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
-  const navigate = useNavigate();
   const generation = useRef(0);
   const swipeStart = useRef<number | null>(null);
   const hero = heroItems.length ? heroItems[heroIndex % heroItems.length] : undefined;
@@ -59,7 +66,7 @@ export function HomePage() {
   const [logoFailed,setLogoFailed]=useState(false);
   const [viewport,setViewport]=useState({width:window.innerWidth,height:window.innerHeight});
   useEffect(()=>{const resize=()=>setViewport({width:window.innerWidth,height:window.innerHeight});window.addEventListener('resize',resize);return ()=>window.removeEventListener('resize',resize);},[]);
-  useEffect(()=>{const element=heroElement.current;if(!element)return;const observer=new IntersectionObserver(([entry])=>setHeroActive(entry.isIntersecting));observer.observe(element);return ()=>observer.disconnect();},[heroItems.length]);
+  useEffect(()=>{const element=heroElement.current;if(!element||typeof IntersectionObserver==='undefined')return;const observer=new IntersectionObserver(([entry])=>setHeroActive(entry.isIntersecting));observer.observe(element);return ()=>observer.disconnect();},[heroItems.length]);
   useEffect(()=>{if(!heroActive||heroDragging||heroItems.length<2)return;const timer=setTimeout(()=>{if(document.visibilityState==='visible')setHeroIndex(index=>(index+1)%heroItems.length);},8000);return ()=>clearTimeout(timer);},[heroIndex,heroItems.length,heroActive,heroDragging]);
   useEffect(()=>setLogoFailed(false),[hero?.id]);
   const unit=1.08,widthDp=viewport.width/unit,heightDp=viewport.height/unit;
@@ -130,7 +137,7 @@ export function HomePage() {
     </section>}
     {actionError && <InlineError message={actionError} onRetry={() => setActionError(null)} />}
     {home.error && <InlineError message={home.error} onRetry={() => void actions.homeRefresh()} />}
-    {home.loading && !home.shelves.length && <div className="loading-block"><LoaderCircle className="spin" size={22} /><span>Loading your home…</span></div>}
+    {home.loading && !home.shelves.length && <HomeLoadingSkeleton showHero={!hero} />}
 
     {preferences?.isVisible && continueItems.length > 0 && <section className="home-cw-section">
       <div className="home-cw-heading"><h2>Continue Watching</h2></div>
@@ -141,6 +148,16 @@ export function HomePage() {
     </section>}
     <HomeCollections shelves={home.shelves} />
     {!home.loading && !home.error && !home.shelves.length && !hero && <EmptyState title="Your home is ready for content" message="Install an addon from Settings to add catalogs and discover titles here." icon={<Compass size={22} />} />}
+  </div>;
+}
+
+function HomeLoadingSkeleton({ showHero }: { showHero: boolean }) {
+  return <div className="home-loading-skeleton" role="status" aria-label="Loading titles">
+    {showHero && <div className="home-loading-hero poster-loading-shimmer"><span className="home-loading-hero-copy"><i className="poster-loading-shimmer"/><i className="poster-loading-shimmer"/><i className="poster-loading-shimmer"/></span></div>}
+    {[0, 1, 2].map((row) => <section className="home-loading-shelf" key={row}>
+      <span className="home-loading-heading poster-loading-shimmer" />
+      <div className="home-loading-posters">{Array.from({ length: 8 }, (_, index) => <PosterLoadingCard key={index} variant="card" />)}</div>
+    </section>)}
   </div>;
 }
 

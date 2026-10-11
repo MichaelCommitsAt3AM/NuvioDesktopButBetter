@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { Activity, ArrowLeft, Check, Clapperboard, Download, LoaderCircle, Maximize, RefreshCw, Settings2, Gauge, X } from 'lucide-react';
+import { Activity, ArrowLeft, Check, Copy, Download, LoaderCircle, Maximize, RefreshCw, Settings2, Gauge, X } from 'lucide-react';
 import { actions, BridgeError, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { EmptyState } from '../../components/EmptyState';
 import { InlineError } from '../../components/Status';
 import { Dialog } from '../../components/Dialog';
-import type { Stream } from '../../generated/contract';
+import type { Addons, Stream } from '../../generated/contract';
+import { createPortal } from 'react-dom';
 import './streams.css';
 
 type Selection = {
@@ -30,12 +31,24 @@ type Presentation = {
   badges?: { name: string; imageUrl: string; tagColor: string; tagStyle?: string; textColor?: string; borderColor?: string }[];
 };
 
+export function streamAddonNames(addons: Addons | undefined, type: string) {
+  const streamType = type.toLowerCase();
+  return [...new Set((addons?.items ?? [])
+    .filter(addon => addon.enabled && addon.resources?.some(resource => {
+      const resourceName = resource.name.trim().toLowerCase();
+      return (resourceName === 'stream' || resourceName === 'streams')
+        && (!resource.types.length || resource.types.some(item => item.toLowerCase() === streamType || item.toLowerCase() === 'stream'));
+    }))
+    .map(addon => addon.name))];
+}
+
 export function StreamsPage() {
   const { type = '', id = '', videoId = '' } = useParams();
   const streams = useSelector(current => current.streams);
   const details = useSelector(current => current.details);
   const selection = useFeatureSnapshot<Selection>('streamSelection');
   const playbackLoadingSettings = useFeatureSnapshot<PlaybackLoadingSettings>('playbackSettings');
+  const addons = useFeatureSnapshot<Addons>('addons');
   const lastAuto = useRef('');
   const cancelStartingPlayback = useRef(false);
   const navigate = useNavigate();
@@ -60,6 +73,7 @@ export function StreamsPage() {
   const [replace, setReplace] = useState<{ id: string; title: string } | null>(null);
   const [notice, setNotice] = useState('');
   const [playbackStarting, setPlaybackStarting] = useState<{ resolvingDebrid: boolean } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ stream: Stream; x: number; y: number } | null>(null);
   const playback = useSelector(current => current.playback);
   const media = details.media;
   const episode = details.episodes.find(item => item.id === videoId);
@@ -107,6 +121,9 @@ export function StreamsPage() {
   useEffect(() => { void refreshFeature('streamSelection', 'streams.snapshot').catch(() => {}); }, [streams.requestId]);
   useEffect(() => { void refreshFeature('playbackSettings', 'playbackSettings.snapshot').catch(() => {}); }, []);
   useEffect(() => {
+    void refreshFeature<Addons>('addons', 'addons.snapshot').catch(() => {});
+  }, []);
+  useEffect(() => {
     const streamId = selection?.autoPlayStreamId;
     if (!streamId || streamId === lastAuto.current || busy || consent) return;
     lastAuto.current = streamId; void play(streamId, false, true);
@@ -135,7 +152,21 @@ export function StreamsPage() {
     .map(group => ({ ...group }));
   const groupsWithItems = groups.filter(group => group.streams.length || group.loading);
   const hasStreams = groupsWithItems.some(group => group.streams.length > 0);
+  const isStreamsLoading = streams.loading || groups.some(group => group.loading);
   const isDataSaver = (selection?.downloadFilterMode ?? 'best_quality').toLowerCase() === 'data_saver';
+  const addonLoadingNames = groupsWithItems.filter(group => group.loading).map(group => group.name);
+  const expectedLoadingNames = streamAddonNames(addons, type);
+  const activeScraperNames = [...new Set(addonLoadingNames.length ? addonLoadingNames : (isStreamsLoading && !groupsWithItems.length ? expectedLoadingNames : []))];
+  const copyStreamLink = async (stream: Stream) => {
+    if (!stream.url) return;
+    try {
+      await navigator.clipboard.writeText(stream.url);
+      setNotice('Stream link copied.');
+    } catch {
+      setError('Could not copy the stream link.');
+    }
+    setContextMenu(null);
+  };
 
   const loadingMessage = playback.phase === 'resolving' || playbackStarting?.resolvingDebrid && playback.phase !== 'preparing' && playback.phase !== 'buffering'
     ? 'Resolving debrid stream'
@@ -192,19 +223,22 @@ export function StreamsPage() {
             </div>}
           </div>
         </div>
-        {streams.loading && groupsWithItems.some(group => group.loading) && <div className="streams-active-scrapers">
-          <small>Finding streams from</small><div>{groupsWithItems.filter(group => group.loading).map(group => <span key={group.id}>{group.name}</span>)}</div>
+        {isStreamsLoading && activeScraperNames.length > 0 && <div className="streams-active-scrapers">
+          <small>Active scrapers</small><div>{activeScraperNames.map(name => <span key={name}>{name}</span>)}</div>
         </div>}
         <div className="streams-results" aria-live="polite">
           {notice && <p className="streams-notice" role="status">{notice}</p>}
           {error && <InlineError message={error} />}
           {streams.error && <InlineError message={streams.error} />}
-          {!hasStreams && streams.loading && <div className="streams-loading"><LoaderCircle className="spin" size={22} /> Finding streams…</div>}
-          {!streams.loading && !streams.error && !hasStreams && <div className="streams-empty"><EmptyState title="No streams found" message="No streams match the installed addons and current filters." icon={<Activity size={22} />} /></div>}
-          {groups.map(group => <div className="streams-group" key={group.id}>
+          {!hasStreams && isStreamsLoading && <div className="streams-loading-list" role="status" aria-label="Finding streams" aria-busy="true">
+            <span className="streams-loading-label">Finding streams…</span>
+            {Array.from({ length: 4 }, (_, index) => <div className="streams-card-skeleton" aria-hidden="true" key={index}><span /><span /></div>)}
+          </div>}
+          {!isStreamsLoading && !streams.error && !hasStreams && <div className="streams-empty"><EmptyState title="No streams found" message="No streams match the installed addons and current filters." icon={<Activity size={22} />} /></div>}
+          {(hasStreams || !isStreamsLoading) && groups.map(group => <div className="streams-group" key={group.id}>
             {provider === 'all' && <div className="streams-group-heading">{group.name}{group.loading && <span>Fetching…</span>}</div>}
             {group.error && <p className="streams-group-error">{group.error}</p>}
-            {group.streams.map(stream => <StreamCard key={stream.id} stream={stream} selection={selection} busy={busy === stream.id} disabled={!!busy} onPlay={() => void play(stream.id)} onDownload={() => void download(stream.id)} />)}
+            {group.streams.map(stream => <StreamCard key={stream.id} stream={stream} selection={selection} busy={busy === stream.id} disabled={!!busy} onPlay={() => void play(stream.id)} onContextMenu={(event) => { event.preventDefault(); setContextMenu({ stream, x: event.clientX, y: event.clientY }); }} />)}
           </div>)}
         </div>
       </section>
@@ -212,10 +246,11 @@ export function StreamsPage() {
     <button className="streams-back" aria-label={`Back to ${title}`} onClick={() => navigate(-1)}><ArrowLeft size={20} /></button>
     {consent && <Dialog label="Enable peer-to-peer playback" onClose={() => setConsent(null)}><h2>Enable peer-to-peer playback?</h2><p>Torrent playback connects your device to other peers. Your IP address is visible to them and upload is enabled by default. You can change P2P and upload preferences in Settings.</p><div className="dialog-actions"><button className="button secondary" onClick={() => setConsent(null)}>Cancel</button><button className="button primary" disabled={!!busy} onClick={() => void play(consent, true)}>Enable and play</button></div></Dialog>}
     {replace && <Dialog label="Replace download" onClose={() => setReplace(null)}><h2>Replace {replace.title}?</h2><p>The existing download and its local file will be removed before the new download starts.</p><div className="dialog-actions"><button className="button secondary" onClick={() => setReplace(null)}>Keep existing</button><button className="button primary" disabled={!!busy} onClick={() => void download(replace.id, true)}>Replace download</button></div></Dialog>}
+    {contextMenu && <StreamContextMenu stream={contextMenu.stream} x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} onCopy={() => void copyStreamLink(contextMenu.stream)} onDownload={() => { setContextMenu(null); void download(contextMenu.stream.id); }} />}
   </div>;
 }
 
-function StreamCard({ stream, selection, busy, disabled, onPlay, onDownload }: { stream: Stream; selection?: Selection; busy: boolean; disabled: boolean; onPlay: () => void; onDownload: () => void }) {
+function StreamCard({ stream, selection, busy, disabled, onPlay, onContextMenu }: { stream: Stream; selection?: Selection; busy: boolean; disabled: boolean; onPlay: () => void; onContextMenu: (event: ReactMouseEvent<HTMLElement>) => void }) {
   const presentation = stream.presentation as Presentation | undefined;
   const badges = presentation?.badges ?? [];
   const showBadges = badges.length > 0 || (!!selection?.badges.showFileSize && presentation?.fileSizeBytes != null);
@@ -226,10 +261,9 @@ function StreamCard({ stream, selection, busy, disabled, onPlay, onDownload }: {
     [metadata?.year ? String(metadata.year) : null],
   ].map(row => row.filter((value): value is string => !!value)).filter(row => row.length);
   const details = stream.description?.trim();
-  const fileName = presentation?.fileName?.trim();
   const fileSize = presentation?.fileSizeBytes != null ? formatSize(presentation.fileSizeBytes) : null;
   const providerLogo = selection?.badges.showAddonLogo ? presentation?.providerLogo : null;
-  return <article className="streams-card">
+  return <article className="streams-card" onContextMenu={onContextMenu}>
     <button className="streams-card-content" onClick={onPlay} disabled={disabled || !stream.playable} aria-label={`Play ${stream.name}`}>
       <span className="streams-card-copy">
         <span className="streams-card-title">{stream.name}</span>
@@ -240,12 +274,26 @@ function StreamCard({ stream, selection, busy, disabled, onPlay, onDownload }: {
           {badges.map((badge, index) => badge.imageUrl ? <img key={`${badge.name}:${index}`} src={badge.imageUrl} alt={badge.name} title={badge.name} style={{ backgroundColor: badge.tagStyle?.toLowerCase() === 'filled' ? badge.tagColor || undefined : undefined, borderColor: badge.borderColor || undefined }} /> : <span key={`${badge.name}:${index}`} style={{ backgroundColor: badge.tagStyle?.toLowerCase() === 'filled' ? badge.tagColor || undefined : undefined, color: badge.textColor || undefined }}>{badge.name}</span>)}
           {selection?.badges.showFileSize && fileSize && <strong>SIZE {fileSize}</strong>}
         </span>}
-        {fileName && <span className="streams-card-filename">{fileName}</span>}
       </span>
-      <span className="streams-card-play">{busy ? <LoaderCircle className="spin" size={18} /> : <Clapperboard size={18} />}</span>
+      {busy && <span className="streams-card-play" aria-label="Starting playback"><LoaderCircle className="spin" size={18} /></span>}
     </button>
-    {stream.downloadable && <button className="streams-card-download" aria-label={`Download ${stream.name}`} disabled={disabled} onClick={onDownload}><Download size={17} /></button>}
   </article>;
+}
+
+function StreamContextMenu({ stream, x, y, onClose, onCopy, onDownload }: { stream: Stream; x: number; y: number; onClose: () => void; onCopy: () => void; onDownload: () => void }) {
+  useEffect(() => {
+    const dismiss = (event: MouseEvent) => { if (!(event.target instanceof Element) || !event.target.closest('.stream-context-menu')) onClose(); };
+    const keydown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    document.addEventListener('mousedown', dismiss);
+    document.addEventListener('keydown', keydown);
+    return () => { document.removeEventListener('mousedown', dismiss); document.removeEventListener('keydown', keydown); };
+  }, [onClose]);
+  const left = Math.min(x, window.innerWidth - 250);
+  const top = Math.min(y, window.innerHeight - 112);
+  return createPortal(<div className="stream-context-menu" role="menu" style={{ left: Math.max(8, left), top: Math.max(8, top) }}>
+    <button role="menuitem" disabled={!stream.url} onClick={onCopy}><Copy size={17} /> Copy stream link</button>
+    <button role="menuitem" disabled={!stream.downloadable} onClick={onDownload}><Download size={17} /> Download file</button>
+  </div>, document.body);
 }
 
 function formatClock(ms: number) {

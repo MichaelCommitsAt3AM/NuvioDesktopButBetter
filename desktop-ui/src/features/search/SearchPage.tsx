@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import type { Addon, Discover, Search as SearchState, SearchHistory } from '../../generated/contract';
 import type { AppearanceSnapshot } from '../settings/appearanceStore';
 import { PosterGrid } from '../../components/PosterGrid';
+import { PosterLoadingCard } from '../../components/PosterLoadingCard';
 import { Shelf } from '../../components/Shelf';
 import { EmptyState } from '../../components/EmptyState';
 import { InlineError } from '../../components/Status';
@@ -133,12 +135,12 @@ export function SearchPage() {
       </div>
       {activeCatalog && <p className="discover-context">{activeCatalog.addonName} · {displayType(activeCatalog.type)}</p>}
       {discover?.error && <InlineError message={discover.error} onRetry={() => void call('discover.refresh', { force: true }).then(() => refreshFeature('discover')).catch(() => {})} />}
-      {(!discover || (discover.loading && discover.items.length === 0)) ? <div className="discover-loading" aria-label="Loading catalog results">{Array.from({ length: 8 }, (_, index) => <div className="discover-poster-skeleton" key={index} />)}</div>
+      {(!discover || (discover.loading && discover.items.length === 0)) ? <div className="discover-loading" role="status" aria-label="Loading catalog results" aria-busy="true">{Array.from({ length: 8 }, (_, index) => <PosterLoadingCard variant="poster" key={index} />)}</div>
         : discover.items.length ? <PosterGrid items={discover.items} />
           : <DiscoverEmpty discover={discover} />}
     </section> : <section className="search-results" aria-label="Search results">
       {waitingForSearch || search.loading ? <SearchLoadingSkeleton /> : search.error ? <InlineError message={search.error} onRetry={() => void actions.searchStart(query.trim())} />
-        : search.shelves.length ? search.shelves.map((shelf) => <Shelf key={shelf.key} shelf={shelf} source="search" />)
+        : search.shelves.length ? search.shelves.map((shelf) => <Shelf key={shelf.key} shelf={shelf} source="search" posterSizeScale={0.88} />)
           : <EmptyState title={searchEmpty[0]} message={searchEmpty[1]} icon={<span>⌕</span>} />}
     </section>}
   </div>;
@@ -149,13 +151,7 @@ function SearchLoadingSkeleton() {
     <span className="search-skeleton-sr-only">Searching…</span>
     {Array.from({ length: 3 }, (_, shelf) => <section className="search-skeleton-shelf" key={shelf} aria-hidden="true">
       <div className="search-skeleton-heading search-skeleton-shimmer" />
-      <div className="search-skeleton-grid">
-        {Array.from({ length: 9 }, (_, card) => <div className="search-skeleton-card" key={card}>
-          <div className="search-skeleton-poster search-skeleton-shimmer" />
-          <div className="search-skeleton-title search-skeleton-shimmer" />
-          <div className="search-skeleton-meta search-skeleton-shimmer" />
-        </div>)}
-      </div>
+      <div className="search-skeleton-grid">{Array.from({ length: 9 }, (_, card) => <PosterLoadingCard key={card} />)}</div>
     </section>)}
   </div>;
 }
@@ -173,10 +169,42 @@ function emptyDiscoverMessage(reason: string | null | undefined, failed: boolean
 }
 
 function FilterChip({ id, label, options, selected, open, enabled = options.length > 0, onToggle, onSelect }: { id: string; label: string; options: Array<{ value: string; label: string }>; selected: string; open: boolean; enabled?: boolean; onToggle: () => void; onSelect: (value: string) => void }) {
+  const trigger = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<{ top: number; left: number; minWidth: number; maxHeight: number } | null>(null);
+  const updatePosition = () => {
+    const rect = trigger.current?.getBoundingClientRect();
+    if (!rect) return;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - Math.max(rect.width, 160) - 8));
+    const below = window.innerHeight - rect.bottom - 12;
+    const above = rect.top - 12;
+    const placeAbove = below < Math.min(options.length * 36 + 12, 360) && above > below;
+    setPosition({ top: placeAbove ? Math.max(8, rect.top - Math.min(options.length * 36 + 12, 360) - 6) : rect.bottom + 6, left, minWidth: rect.width, maxHeight: Math.max(96, Math.min(360, placeAbove ? above : below)) });
+  };
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const dismissOutside = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!trigger.current?.contains(target) && !menu.current?.contains(target)) onToggle();
+    };
+    const dismissEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onToggle(); };
+    const reposition = () => updatePosition();
+    document.addEventListener('pointerdown', dismissOutside, true);
+    document.addEventListener('keydown', dismissEscape);
+    window.addEventListener('resize', reposition);
+    window.addEventListener('scroll', reposition, true);
+    return () => {
+      document.removeEventListener('pointerdown', dismissOutside, true);
+      document.removeEventListener('keydown', dismissEscape);
+      window.removeEventListener('resize', reposition);
+      window.removeEventListener('scroll', reposition, true);
+    };
+  }, [open, onToggle, options.length]);
   return <div className="discover-filter" data-filter={id}>
-    <button type="button" className="discover-filter-chip" aria-haspopup="listbox" aria-expanded={open} disabled={!enabled} onClick={onToggle}>{label}<ChevronDown size={14} /></button>
-    {open && <div className="discover-filter-menu" role="listbox" aria-label={`Choose ${id}`}>
+    <button ref={trigger} type="button" className="discover-filter-chip" aria-haspopup="listbox" aria-expanded={open} disabled={!enabled} onClick={() => { if (!open) updatePosition(); onToggle(); }}>{label}<ChevronDown size={14} /></button>
+    {open && position && createPortal(<div ref={menu} className="discover-filter-menu" style={{ position: 'fixed', top: position.top, left: position.left, minWidth: Math.max(160, position.minWidth), maxHeight: position.maxHeight }} role="listbox" aria-label={`Choose ${id}`}>
       {options.map((option) => <button type="button" role="option" aria-selected={option.value === selected} key={option.value} onClick={() => onSelect(option.value)}>{option.label}{option.value === selected && <Check size={14} />}</button>)}
-    </div>}
+    </div>, document.body)}
   </div>;
 }

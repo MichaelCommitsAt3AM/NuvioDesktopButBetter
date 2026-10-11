@@ -7,5 +7,11 @@ export function HorizontalRail({ label, className = 'shelf-track', children }: {
   const measure = () => { const element = track.current; if (element) setEdges({ start:element.scrollLeft <= 2,end:element.scrollLeft + element.clientWidth >= element.scrollWidth - 2 }); };
   useEffect(() => { const element = track.current; if (!element) return; const observer = new ResizeObserver(measure); observer.observe(element); for (const child of element.children) observer.observe(child); measure(); return () => observer.disconnect(); }, [children]);
   const page = (direction: number) => { const element = track.current; if (element) element.scrollBy({ left:direction * element.clientWidth * .85,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }); };
-  return <div className="horizontal-rail"><div ref={track} className={className} onScroll={measure}>{children}</div><button className="rail-arrow rail-previous" disabled={edges.start} aria-label={`Scroll ${label} left`} onClick={() => page(-1)}><ChevronLeft size={24} /></button><button className="rail-arrow rail-next" disabled={edges.end} aria-label={`Scroll ${label} right`} onClick={() => page(1)}><ChevronRight size={24} /></button></div>;
+  const handleArrowClick = (direction: number) => (event: React.MouseEvent<HTMLButtonElement>) => {
+    page(direction);
+    // Pointer clicks leave focus behind, which keeps Home's :focus-within arrows visible
+    // after the pointer leaves the rail. Keep focus for keyboard activation.
+    if (event.detail > 0) event.currentTarget.blur();
+  };
+  return <div className="horizontal-rail"><div ref={track} className={className} onScroll={measure}>{children}</div><button className="rail-arrow rail-previous" disabled={edges.start} aria-label={`Scroll ${label} left`} onClick={handleArrowClick(-1)}><ChevronLeft size={24} /></button><button className="rail-arrow rail-next" disabled={edges.end} aria-label={`Scroll ${label} right`} onClick={handleArrowClick(1)}><ChevronRight size={24} /></button></div>;
 }

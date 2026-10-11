@@ -28,6 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -511,7 +512,7 @@ object SearchRepository {
 
         activeDiscoverJob = scope.launch {
             runCatching {
-                fetchCatalogPage(
+                fetchCatalogPageWithRetry(
                     manifestUrl = selectedCatalog.manifestUrl,
                     type = selectedCatalog.type,
                     catalogId = selectedCatalog.catalogId,
@@ -587,6 +588,40 @@ object SearchRepository {
                     )
                 },
             )
+        }
+    }
+
+    /** Retry transient catalog failures twice with a short backoff before showing the error state. */
+    private suspend fun fetchCatalogPageWithRetry(
+        manifestUrl: String,
+        type: String,
+        catalogId: String,
+        genre: String?,
+        skip: Int?,
+        forceRefresh: Boolean,
+    ): CatalogPage {
+        val retryDelays = listOf(500L, 1_000L)
+        var attempt = 0
+        while (true) {
+            try {
+                return fetchCatalogPage(
+                    manifestUrl = manifestUrl,
+                    type = type,
+                    catalogId = catalogId,
+                    genre = genre,
+                    skip = skip,
+                    forceRefresh = forceRefresh,
+                )
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                val waitBeforeRetry = retryDelays.getOrNull(attempt) ?: throw error
+                attempt += 1
+                log.w(error) {
+                    "Discover request attempt ${attempt} failed for catalog=$catalogId; retrying in ${waitBeforeRetry}ms"
+                }
+                delay(waitBeforeRetry)
+            }
         }
     }
 }

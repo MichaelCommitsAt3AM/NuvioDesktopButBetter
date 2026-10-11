@@ -45,6 +45,7 @@ object HomeRepository {
     private var currentRequestKey: String? = null
     private var currentDefinitions: List<HomeCatalogDefinition> = emptyList()
     private var cachedSections: Map<String, HomeCatalogSection> = emptyMap()
+    private var cachedSectionTimestamps: Map<String, Long> = emptyMap()
     private var cachedCollectionHeroItems: List<MetaPreview> = emptyList()
     private var collectionHeroJob: Job? = null
     private var collectionHeroRequestKey: String? = null
@@ -58,11 +59,20 @@ object HomeRepository {
         currentDefinitions = requests
         val requestCacheKeys = requests.mapTo(mutableSetOf(), HomeCatalogDefinition::cacheKey)
         cachedSections = cachedSections.filterKeys(requestCacheKeys::contains)
+        cachedSectionTimestamps = cachedSectionTimestamps.filterKeys(requestCacheKeys::contains)
         val requestKey = requests.joinToString(separator = "|", transform = HomeCatalogDefinition::cacheKey)
         currentRequestKey = requestKey
 
         if (!force && activeRequestKey == requestKey && _uiState.value.isLoading) return
-        activeRequestKey = requestKey
+
+        val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
+        val requestsToFetch = if (force) {
+            requests
+        } else {
+            requests.filter { request ->
+                !isHomeCatalogCacheFresh(cachedSectionTimestamps[request.cacheKey], now)
+            }
+        }
 
         if (requests.isEmpty()) {
             activeJob?.cancel()
@@ -83,11 +93,28 @@ object HomeRepository {
             return
         }
 
+        if (requestsToFetch.isEmpty()) {
+            activeJob?.cancel()
+            activeJob = null
+            activeRequestKey = null
+            lastErrorMessage = null
+            publishCurrentState(isLoading = false, requestKey = requestKey)
+            ensureCollectionHeroFallback(
+                addons = activeAddons,
+                forceRefresh = false,
+                refreshSources = false,
+                requestKey = requestKey,
+            )
+            return
+        }
+
+        activeRequestKey = requestKey
+
         activeJob?.cancel()
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         activeJob = scope.launch {
             val prioritizedRequests = prioritizeDefinitions(
-                definitions = requests,
+                definitions = requestsToFetch,
                 snapshot = HomeCatalogSettingsRepository.snapshot(),
             )
             val loadedSections = linkedMapOf<String, HomeCatalogSection>().apply {
@@ -112,6 +139,7 @@ object HomeRepository {
                     result.getOrNull()?.let { section -> request.cacheKey to section }
                 }.forEach { (cacheKey, section) ->
                     loadedSections[cacheKey] = section
+                    cachedSectionTimestamps = cachedSectionTimestamps + (cacheKey to kotlin.time.Clock.System.now().toEpochMilliseconds())
                 }
                 if (firstErrorMessage == null) {
                     firstErrorMessage = results.firstNotNullOfOrNull { (_, result) ->
@@ -167,6 +195,7 @@ object HomeRepository {
         currentRequestKey = null
         currentDefinitions = emptyList()
         cachedSections = emptyMap()
+        cachedSectionTimestamps = emptyMap()
         cachedCollectionHeroItems = emptyList()
         collectionHeroJob?.cancel()
         collectionHeroJob = null
@@ -512,10 +541,14 @@ private const val HOME_HERO_ITEM_LIMIT = 8
 private const val HOME_COLLECTION_HERO_SOURCE_LIMIT = 6
 private const val HOME_COLLECTION_HERO_SOURCE_ITEM_LIMIT = 8
 private const val HOME_CATALOG_FETCH_BATCH_SIZE = 4
+internal const val HOME_CATALOG_CACHE_TTL_MS = 20 * 60 * 1000L
 private const val HOME_CATALOG_PREVIEW_FETCH_LIMIT = 18
 private const val DESKTOP_HOME_CATALOG_PREVIEW_FETCH_LIMIT = 64
 private const val DESKTOP_HOME_CATALOG_PREVIEW_MAX_PAGES = 4
 private const val HOME_CATALOG_PUBLISH_INTERVAL = 2
+
+internal fun isHomeCatalogCacheFresh(fetchedAt: Long?, now: Long): Boolean =
+    fetchedAt != null && now >= fetchedAt && now - fetchedAt < HOME_CATALOG_CACHE_TTL_MS
 
 private fun prioritizeDefinitions(
     definitions: List<HomeCatalogDefinition>,

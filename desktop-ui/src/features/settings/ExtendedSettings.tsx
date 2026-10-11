@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, ChevronDown, ChevronRight, Clapperboard, Film, Gauge, HardDrive, LoaderCircle, Network, RotateCcw, Subtitles, Volume2 } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, ChevronRight, Clapperboard, Film, Gauge, GripVertical, HardDrive, LoaderCircle, Network, RotateCcw, Subtitles, Volume2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { Dialog } from '../../components/Dialog';
@@ -174,24 +174,76 @@ function SecureTextSetting({ title, configured, onSave }: { title: string; confi
 
 export function MetadataSettingsPage() {
   const { snapshot: s, loading, error, refresh, run } = useSettingsDomain<MetadataSnapshot>('metadataSettings');
+  const [draggedSection, setDraggedSection] = useState<string | null>(null);
   const set = (key: string, value: unknown) => void run('metadataSettings.set', { key, value }).catch(() => {});
   if (loading && !s) return <LoadingPage title="Details page" back="/settings" />;
   if (!s) return <SubPage title="Details page" back="/settings"><FeatureNotice error={error} retry={() => { void refresh(); }} /></SubPage>;
   const items = [...s.items].sort((a, b) => a.order - b.order);
   const groupCounts = items.reduce<Record<number, number>>((counts, item) => { if (item.tabGroup !== null) counts[item.tabGroup] = (counts[item.tabGroup] ?? 0) + 1; return counts; }, {});
+  const backgroundModes = [
+    { value: 'normal', label: 'Normal', description: 'Use the standard app background.' },
+    { value: 'cinematic', label: 'Cinematic', description: 'Show a soft blurred backdrop behind the page.' },
+    { value: 'dominant_color', label: 'Dominant Color', description: 'Match the page background to the main color from the backdrop.' },
+  ];
+  const moveSection = (fromSection: string, toSection?: string) => {
+    if (toSection && fromSection !== toSection) void run('metadataSettings.move', { fromSection, toSection }).catch(() => {});
+    setDraggedSection(null);
+  };
   return <SubPage title="Details page" back="/settings">{error && <FeatureNotice error={error} retry={() => { void refresh(); }} />}
     <SettingCard icon={Film} title="Appearance">
-      <Select title="Background mode" value={s.backgroundMode} values={['normal', 'cinematic', 'dominant_color']} labels={['Normal', 'Cinematic', 'Dominant color']} onChange={(value) => set('backgroundMode', value)} description="Choose how artwork appears behind metadata pages." />
+      <div className="metadata-settings-chip-row">
+        <div className="metadata-settings-copy"><strong>Background mode</strong><span>Choose how artwork appears behind metadata pages.</span></div>
+        <div className="metadata-chip-list" role="group" aria-label="Background mode">
+          {backgroundModes.map((mode) => <button type="button" key={mode.value} className={`metadata-chip ${s.backgroundMode === mode.value ? 'selected' : ''}`} aria-pressed={s.backgroundMode === mode.value} onClick={() => set('backgroundMode', mode.value)}>{mode.label}</button>)}
+        </div>
+        <small className="metadata-settings-hint">{backgroundModes.find((mode) => mode.value === s.backgroundMode)?.description}</small>
+      </div>
       <Toggle title="Hero trailer playback" description="Play trailer previews in the metadata hero when a trailer is available." checked={s.heroTrailerPlayback} onChange={(value) => set('heroTrailerPlayback', value)} />
       <Toggle title="Tab layout" description="Group sections into tabs like the TV app. Assign up to 3 sections per tab group." checked={s.tabLayout} onChange={(value) => set('tabLayout', value)} />
-      <Toggle title="Show overall ratings" checked={s.showOverallRatings} onChange={(value) => set('showOverallRatings', value)} />
-      <Select title="Episode ratings" value={s.episodeRatingsVisibility} values={['show_all', 'hide_episodes', 'hide_unwatched_episodes']} labels={['Show all', 'Hide episode ratings', 'Hide on unwatched episodes']} onChange={(value) => set('episodeRatingsVisibility', value)} />
-      <Select title="Episode cards" value={s.episodeCardStyle} values={['horizontal', 'list']} labels={['Horizontal', 'List']} onChange={(value) => set('episodeCardStyle', value)} description="Choose how episodes are rendered on the metadata screen." />
+      <Toggle title="Show overall ratings" description={s.showOverallRatings ? 'Standard and TMDB ratings are shown.' : 'Standard and TMDB ratings are Hidden. MDBList provider settings take priority on detail pages.'} checked={s.showOverallRatings} onChange={(value) => set('showOverallRatings', value)} />
+      <div className="metadata-settings-chip-row">
+        <div className="metadata-settings-copy"><strong>Episode Ratings</strong><span>Choose which episode ratings are visible.</span></div>
+        <div className="metadata-chip-list" role="group" aria-label="Episode ratings">
+          {[
+            { value: 'show_all', label: 'Show' },
+            { value: 'hide_episodes', label: 'Hide' },
+            { value: 'hide_unwatched_episodes', label: 'Hide Unwatched' },
+          ].map((choice) => <button type="button" key={choice.value} className={`metadata-chip ${s.episodeRatingsVisibility === choice.value ? 'selected' : ''}`} aria-pressed={s.episodeRatingsVisibility === choice.value} onClick={() => set('episodeRatingsVisibility', choice.value)}>{choice.label}</button>)}
+        </div>
+      </div>
+      <div className="metadata-episode-style">
+        <div className="metadata-settings-copy"><strong>Episode Cards</strong><span>Choose how episodes are rendered on the metadata screen.</span></div>
+        <div className="metadata-episode-options" role="radiogroup" aria-label="Episode cards">
+          {[
+            { value: 'horizontal', label: 'Horizontal', description: 'Backdrop-style row cards' },
+            { value: 'list', label: 'List', description: 'Detail-first stacked cards' },
+          ].map((style) => <button type="button" key={style.value} className={`metadata-episode-option ${s.episodeCardStyle === style.value ? 'selected' : ''}`} role="radio" aria-checked={s.episodeCardStyle === style.value} onClick={() => set('episodeCardStyle', style.value)}>
+            <span className="metadata-episode-preview" aria-hidden="true">
+              {style.value === 'horizontal' ? <span className="episode-preview-horizontal"><i /><b /><em /></span> : <span className="episode-preview-list"><i /><b><i /><i /><em /></b></span>}
+              {s.episodeCardStyle === style.value && <span className="metadata-episode-check"><Check size={14} /></span>}
+            </span>
+            <strong>{style.label}</strong><small>{style.description}</small>
+          </button>)}
+        </div>
+      </div>
       <Toggle title="Blur unwatched episodes" description="Blur episode thumbnails until watched to avoid spoilers." checked={s.blurUnwatchedEpisodes} onChange={(value) => set('blurUnwatchedEpisodes', value)} />
-      <Toggle title="Random episode" description="Allow random episode selection on supported series pages." checked={s.episodeShuffleAvailable} onChange={(value) => set('episodeShuffleAvailable', value)} />
+      <Toggle title="Random episode" description="Shuffle episodes from any series. Turning this off pauses shuffle." checked={s.episodeShuffleAvailable} onChange={(value) => set('episodeShuffleAvailable', value)} />
     </SettingCard>
-    <SettingCard icon={ChevronDown} title="Sections" action={<button className="text-button" onClick={() => void run('metadataSettings.reset').catch(() => {})}><RotateCcw size={13} /> Reset</button>}>
-      {items.map((item, index) => <div className="metadata-item-row" key={item.key}><span className="metadata-order"><button className="icon-button" disabled={!index} aria-label={`Move ${item.title} up`} title="Reorder" onClick={() => void run('metadataSettings.move', { fromSection: item.key, toSection: items[index - 1]?.key }).catch(() => {})}>↑</button><button className="icon-button" disabled={index === items.length - 1} aria-label={`Move ${item.title} down`} title="Reorder" onClick={() => void run('metadataSettings.move', { fromSection: item.key, toSection: items[index + 1]?.key }).catch(() => {})}>↓</button></span><span className="settings-control-copy"><strong>{item.title}</strong><span>{item.description}</span><small>{item.enabled ? 'Visible' : 'Hidden'}{s.tabLayout && item.tabGroup !== null ? ` · Tab Group ${item.tabGroup}` : ''}</small>{s.tabLayout && item.canBeTabbed && item.enabled && <div className="settings-chip-group"><button className={`settings-choice-chip ${item.tabGroup === null ? 'selected' : ''}`} onClick={() => void run('metadataSettings.setTabGroup', { section: item.key, groupId: null }).catch(() => {})}>None</button>{[1, 2, 3].map((group) => { const selected = item.tabGroup === group; const full = (groupCounts[group] ?? 0) >= 3 && !selected; return <button key={group} className={`settings-choice-chip ${selected ? 'selected' : ''}`} disabled={full} onClick={() => void run('metadataSettings.setTabGroup', { section: item.key, groupId: group }).catch(() => {})}>Group {group}</button>; })}</div>}</span><label className="switch" aria-label={`Show ${item.title}`}><input type="checkbox" checked={item.enabled} onChange={(event) => void run('metadataSettings.setSectionEnabled', { section: item.key, enabled: event.target.checked }).catch(() => {})} /><span /></label></div>)}
+    <SettingCard icon={ChevronDown} title="Sections" action={<button className="metadata-reset-button" type="button" onClick={() => void run('metadataSettings.reset').catch(() => {})}>Reset to Default</button>}>
+      <div className="metadata-sections-list" role="list">
+        {items.map((item) => <div
+          className={`metadata-item-row ${draggedSection === item.key ? 'dragging' : ''}`}
+          key={item.key}
+          role="listitem"
+          onDragOver={(event) => { if (draggedSection) event.preventDefault(); }}
+          onDrop={(event) => { event.preventDefault(); moveSection(draggedSection ?? '', item.key); }}
+        >
+          <span className="metadata-item-copy"><strong>{item.title}</strong><span>{item.description}</span><small>{item.enabled ? 'Visible' : 'Hidden'}{s.tabLayout && item.tabGroup !== null ? ` · Tab Group ${item.tabGroup}` : ''}</small></span>
+          {s.tabLayout && item.canBeTabbed && item.enabled && <div className="metadata-tab-groups"><button type="button" className={`metadata-chip ${item.tabGroup === null ? 'selected' : ''}`} aria-pressed={item.tabGroup === null} onClick={() => void run('metadataSettings.setTabGroup', { section: item.key, groupId: null }).catch(() => {})}>None</button>{[1, 2, 3].map((group) => { const selected = item.tabGroup === group; const full = (groupCounts[group] ?? 0) >= 3 && !selected; return <button type="button" key={group} className={`metadata-chip ${selected ? 'selected' : ''}`} disabled={full} aria-pressed={selected} onClick={() => void run('metadataSettings.setTabGroup', { section: item.key, groupId: group }).catch(() => {})}>Group {group}</button>; })}</div>}
+          <label className="switch" aria-label={`Show ${item.title}`}><input type="checkbox" checked={item.enabled} onChange={(event) => void run('metadataSettings.setSectionEnabled', { section: item.key, enabled: event.target.checked }).catch(() => {})} /><span /></label>
+          <button type="button" className="metadata-drag-handle" draggable aria-label={`Reorder ${item.title}`} title="Drag to reorder" onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', item.key); setDraggedSection(item.key); }} onDragEnd={() => setDraggedSection(null)} onKeyDown={(event) => { if (event.key === 'ArrowUp') { event.preventDefault(); moveSection(item.key, items[items.findIndex((candidate) => candidate.key === item.key) - 1]?.key); } else if (event.key === 'ArrowDown') { event.preventDefault(); moveSection(item.key, items[items.findIndex((candidate) => candidate.key === item.key) + 1]?.key); } }}><GripVertical size={22} /></button>
+        </div>)}
+      </div>
     </SettingCard>
   </SubPage>;
 }

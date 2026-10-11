@@ -39,6 +39,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Title action menus and Continue Watching action menus close with a coordinated fade and subtle movement.
 - Search displays each addon's results as they arrive; Downloads uses a more compact layout and controls.
 - Portable rewrite builds use bundled backend resources and Java without depending on the source checkout; Windows WebView2 is required.
+- The rewrite can also be packaged as a Windows setup executable with bundled Java, backend resources, Start Menu shortcuts, and automatic WebView2 installation when needed.
+- The rewrite's Windows backend starts in the background without opening a terminal window.
 
 - Home is being aligned against the installed Compose app: full-width hero, in-card Continue Watching details, poster actions/previews and hover arrows. See [the Home comparison](docs/DESKTOP_HOME_COMPARISON.md) for verified behavior and remaining differences.
 

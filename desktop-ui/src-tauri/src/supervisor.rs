@@ -287,7 +287,11 @@ impl BridgeManager {
             .canonicalize()
             .unwrap_or_else(|_| self.runtime_dir.clone())
             .join("native");
-        let mut child = match Command::new(&java)
+        let mut command = Command::new(&java);
+        // Preserve piped handshake/logging without opening a Windows console.
+        #[cfg(windows)]
+        command.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        let mut child = match command
             // Keep the backend's AWT access consistent with the upstream Compose
             // Desktop launcher. Native playback resolves the AWT peer/HWND through
             // reflection (java.awt.Component.peer and sun.awt.windows.WComponentPeer).

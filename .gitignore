@@ -55,4 +55,5 @@ dev/
 
 # Locally packaged portable rewrite build.
 /Nuvio-Rewrite.exe
+/Nuvio-Rewrite-Setup.exe
 /resources/backend/

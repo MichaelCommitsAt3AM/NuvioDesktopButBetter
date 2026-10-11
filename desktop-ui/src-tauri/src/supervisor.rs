@@ -183,12 +183,6 @@ struct BackendRequest<'a> {
 impl BridgeManager {
     pub fn new(app: AppHandle) -> Result<Self, String> {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let work_dir = manifest_dir
-            .parent()
-            .and_then(Path::parent)
-            .unwrap_or(&manifest_dir)
-            .canonicalize()
-            .unwrap_or_else(|_| manifest_dir.clone());
         let resource_default = if cfg!(debug_assertions) {
             manifest_dir.join("resources").join("backend")
         } else {
@@ -201,6 +195,18 @@ impl BridgeManager {
         let runtime_dir = env::var_os("NUVIO_BRIDGE_RUNTIME_DIR")
             .map(PathBuf::from)
             .unwrap_or(resource_default);
+        // A release must never depend on the checkout used to compile it.
+        // All backend assets are resolved from the packaged runtime directory.
+        let work_dir = if cfg!(debug_assertions) {
+            manifest_dir
+                .parent()
+                .and_then(Path::parent)
+                .unwrap_or(&manifest_dir)
+                .canonicalize()
+                .unwrap_or_else(|_| manifest_dir.clone())
+        } else {
+            runtime_dir.clone()
+        };
         let diagnostic_dir = app
             .path()
             .app_data_dir()

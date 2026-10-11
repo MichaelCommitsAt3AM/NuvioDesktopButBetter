@@ -1,10 +1,22 @@
 /* Kotlin-style cinematic title details */
+.details-layout{position:relative;z-index:1}
 .details-layout>.topbar,.details-layout>.side-nav{display:none}
 .details-layout>.main-area{height:100%;padding:0;scrollbar-color:#454950 transparent}
-.detail-page{position:relative;isolation:isolate;max-width:none;min-height:100%;margin:0 auto;padding:0 0 48px;background:#050505}
-.detail-page::before{content:"";position:fixed;z-index:-1;inset:0;background-image:linear-gradient(rgba(0,0,0,.65),rgba(0,0,0,.72)),var(--detail-backdrop);background-position:center;background-size:cover;background-repeat:no-repeat;opacity:.9;pointer-events:none}
+.detail-page{position:relative;max-width:none;min-height:100%;margin:0 auto;padding:0 0 48px;background:transparent}
+.detail-viewport-backdrop{position:fixed;z-index:0;inset:0;background-position:center;background-size:cover;background-repeat:no-repeat;opacity:.9;pointer-events:none;animation:detail-backdrop-reveal 420ms ease-out both}
 .detail-screen-controls{position:sticky;top:0;z-index:20;height:0;pointer-events:none}
-.detail-loading{position:absolute;z-index:4;top:24px;left:50%;display:flex;align-items:center;gap:10px;transform:translateX(-50%);padding:10px 14px;border-radius:999px;background:#171717;color:#ddd}
+.detail-content-arrive{animation:detail-content-reveal 280ms cubic-bezier(.2,.75,.25,1) both}
+.detail-loading-hero{background-image:linear-gradient(90deg,transparent,rgba(255,255,255,.035),transparent)!important;background-size:220% 100%;animation:detail-skeleton-shimmer 2.2s ease-in-out infinite}
+.detail-loading-placeholder{display:flex;width:min(633px,72vw);flex-direction:column;align-items:flex-start;gap:13px}
+.detail-loading-placeholder>span{display:block;border-radius:8px;background:linear-gradient(90deg,#ffffff0a,#ffffff17,#ffffff0a);background-size:220% 100%;animation:detail-skeleton-shimmer 2.2s ease-in-out infinite}
+.detail-skeleton-title{width:min(420px,72%);height:54px;margin-bottom:15px}
+.detail-skeleton-meta{width:150px;height:18px}
+.detail-skeleton-copy{width:min(580px,92%);height:14px}
+.detail-skeleton-copy.short{width:min(390px,68%)}
+.detail-skeleton-action{width:min(300px,65%);height:52px;margin-top:12px;border-radius:999px!important}
+@keyframes detail-content-reveal{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:translateY(0)}}
+@keyframes detail-backdrop-reveal{from{opacity:0}to{opacity:.9}}
+@keyframes detail-skeleton-shimmer{0%{background-position:100% 0}100%{background-position:-120% 0}}
 .detail-hero{position:relative;display:flex;align-items:flex-end;justify-content:flex-start;height:544px!important;min-height:544px!important;margin:0;padding:80px 27px 27px;overflow:hidden;background-color:transparent;background-position:center 38%;background-size:cover;background-repeat:no-repeat}
 .detail-back,.detail-fullscreen{position:absolute;z-index:2;top:16px;display:grid;place-items:center;width:42px;height:42px;padding:0;border:0;border-radius:50%;background:rgba(18,18,18,.24);color:#f5f5f5;pointer-events:auto;cursor:pointer;transition:background .16s ease,transform .16s ease}
 .detail-back{left:20px}.detail-fullscreen{right:22px}.detail-back:hover,.detail-fullscreen:hover{background:rgba(255,255,255,.13);transform:scale(1.04)}

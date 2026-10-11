@@ -1,8 +1,31 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PosterHoverPreview } from './PosterHoverPreview';
 
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+
 describe('PosterHoverPreview', () => {
+  it('retains the closing card for its exit and cancels dismissal when reopened', () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    const props = {
+      item: { id: 'movie', type: 'movie', name: 'Movie', poster: null, background: null, logo: null, description: '', releaseInfo: '2026', rating: null, genres: [] },
+      rect: { left: 100, top: 80 } as DOMRect, saved: false, watched: false,
+      onOpen: vi.fn(), onToggleWatched: vi.fn(), onToggleSaved: vi.fn(), onMouseEnter: vi.fn(), onMouseLeave: vi.fn(),
+    };
+    const view = render(<PosterHoverPreview {...props} visible />);
+    view.rerender(<PosterHoverPreview {...props} visible={false} />);
+    expect(document.querySelector('.poster-preview')).toHaveClass('is-closing');
+    expect(document.querySelector('.poster-preview')).toHaveAttribute('inert');
+    act(() => vi.advanceTimersByTime(80));
+    view.rerender(<PosterHoverPreview {...props} visible />);
+    act(() => vi.advanceTimersByTime(200));
+    expect(screen.getByRole('button', { name: /view details/i })).toBeInTheDocument();
+    expect(document.querySelector('.poster-preview')).not.toHaveClass('is-closing');
+    view.rerender(<PosterHoverPreview {...props} visible={false} />);
+    act(() => vi.advanceTimersByTime(160));
+    expect(document.querySelector('.poster-preview')).toBeNull();
+  });
   it('renders the shared expanded card actions without bubbling to its card', () => {
     const onOpen = vi.fn();
     const onCardClick = vi.fn();

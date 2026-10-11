@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, CircleCheck, LoaderCircle, Maximize, MoreHorizontal, Play, Plus } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ArrowLeft, Check, CircleCheck, Maximize, MoreHorizontal, Play, Plus } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { actions, call, refreshFeature, useSelector } from '../../bridge';
+import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { InlineError } from '../../components/Status';
 import { DetailsExtras, type ExtrasMeta } from './DetailsExtras';
 import './details.css';
@@ -11,6 +12,7 @@ export function DetailsPage() {
   const { type = '', id = '' } = useParams();
   const details = useSelector((current) => current.details);
   const library = useSelector((current) => current.library);
+  const playbackSettings = useFeatureSnapshot<{ streamAutoPlayMode?: string }>('playbackSettings');
   const navigate = useNavigate();
   const [actionsOpen, setActionsOpen] = useState(false);
   const [savedOverride, setSavedOverride] = useState<boolean | null>(null);
@@ -32,6 +34,7 @@ export function DetailsPage() {
     requestedDetailsKey.current = key;
     void actions.loadDetails(type, id);
   }, [type, id]);
+  useEffect(() => { if (!playbackSettings) void refreshFeature('playbackSettings', 'playbackSettings.snapshot').catch(() => {}); }, [playbackSettings]);
   useEffect(() => {
     setLoadTimedOut(false);
     if (!details.loading) return;
@@ -87,16 +90,25 @@ export function DetailsPage() {
     playHoldTimer.current = null;
   };
 
-  return <div className="detail-page" style={media?.background ? { '--detail-backdrop': `url("${media.background}")` } as CSSProperties : undefined}>
-    {media && <div className="detail-screen-controls">
+  return <>
+    {media?.background && createPortal(<div className="detail-viewport-backdrop" aria-hidden="true" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.65),rgba(0,0,0,.72)),url("${media.background}")` }} />, document.body)}
+    <div className="detail-page">
+    {(media || details.loading) && <div className="detail-screen-controls">
       <button className="detail-back" type="button" aria-label="Back" onClick={() => navigate(-1)}><ArrowLeft size={22} /></button>
-      <button className="detail-fullscreen" type="button" aria-label="Toggle fullscreen" onClick={() => { const window = getCurrentWindow(); void window.isFullscreen().then((fullscreen) => window.setFullscreen(!fullscreen)).catch(() => {}); }}><Maximize size={20} /></button>
+      {media && <button className="detail-fullscreen" type="button" aria-label="Toggle fullscreen" onClick={() => { const window = getCurrentWindow(); void window.isFullscreen().then((fullscreen) => window.setFullscreen(!fullscreen)).catch(() => {}); }}><Maximize size={20} /></button>}
     </div>}
-    {details.loading && (loadTimedOut
-      ? <InlineError message="This title is taking longer than expected to load." onRetry={() => { setLoadTimedOut(false); void actions.loadDetails(type, id); }} />
-      : <div className="detail-loading"><LoaderCircle className="spin" size={22} /><span>Loading title…</span></div>)}
+    {details.loading && loadTimedOut && <InlineError message="This title is taking longer than expected to load." onRetry={() => { setLoadTimedOut(false); void actions.loadDetails(type, id); }} />}
     {details.error && <InlineError message={details.error} onRetry={() => void actions.loadDetails(type, id)} />}
-    {media && <>
+    {!media && details.loading && <section className="detail-hero detail-loading-hero" role="status" aria-label="Loading title details" aria-busy="true">
+      <div className="detail-loading-placeholder">
+        <span className="detail-skeleton-title" />
+        <span className="detail-skeleton-meta" />
+        <span className="detail-skeleton-copy" />
+        <span className="detail-skeleton-copy short" />
+        <span className="detail-skeleton-action" />
+      </div>
+    </section>}
+    {media && <div className="detail-content-arrive" key={`${type}:${id}`}>
       <section className="detail-hero">
         <div className="detail-main">
           {media.logo ? <img className="detail-logo" src={media.logo} alt={media.name} /> : <h1>{media.name}</h1>}
@@ -125,8 +137,9 @@ export function DetailsPage() {
         </div>
       </section>
       <DetailsExtras type={type} id={id} onMetaLoaded={setExtraMeta} />
-    </>}
-  </div>;
+    </div>}
+    </div>
+  </>;
 }
 
 function formatRuntime(raw: string) {

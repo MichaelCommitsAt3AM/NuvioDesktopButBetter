@@ -89,6 +89,10 @@ button:focus-visible,a:focus-visible,input:focus-visible {
   scrollbar-color:#454950 transparent;
   padding:calc(104px * var(--ui-scale, 1)) clamp(calc(28px * var(--ui-scale, 1)),5.2vw,calc(88px * var(--ui-scale, 1))) calc(80px * var(--ui-scale, 1))
 }
+.main-area.route-enter-forward { animation:route-enter-forward 200ms cubic-bezier(.2,.75,.25,1) both; }
+.main-area.route-enter-back { animation:route-enter-back 200ms cubic-bezier(.2,.75,.25,1) both; }
+@keyframes route-enter-forward { from { opacity:.78; transform:translateX(10px); } to { opacity:1; transform:translateX(0); } }
+@keyframes route-enter-back { from { opacity:.78; transform:translateX(-10px); } to { opacity:1; transform:translateX(0); } }
 .page,.home-page,.detail-page {
   max-width:calc(1600px * var(--ui-scale, 1));
   margin:0 auto
@@ -619,10 +623,13 @@ button:focus-visible,a:focus-visible,input:focus-visible {
   display:flex;
   gap:calc(13px * var(--ui-scale, 1));
   overflow-x:auto;
+  overflow-y:hidden;
   padding:calc(2px * var(--ui-scale, 1)) calc(1px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1));
   scrollbar-width:thin;
   scrollbar-color:#3c3f44 transparent;
   overscroll-behavior-x:contain;
+  overscroll-behavior-y:auto;
+  touch-action:pan-x pan-y;
   scroll-snap-type:x proximity
 }
 .media-card {

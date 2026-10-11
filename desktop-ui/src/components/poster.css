@@ -5,3 +5,8 @@
 .poster-frame>img:not(.poster-clearlogo){position:relative;z-index:1;transition:opacity 120ms ease}
 .poster-frame>img.poster-image-loading{opacity:0}
 .poster-frame>img.poster-image-loaded{opacity:1}
+.poster-item .media-card{transform:scale(1);transform-origin:center;transition:transform 100ms ease-out}
+.poster-item .media-card:active{transform:scale(.985);transition-duration:80ms}
+.poster-preview.is-closing{pointer-events:none;animation:poster-preview-close 160ms ease-in forwards;transform-origin:center center}
+@keyframes poster-preview-close{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(.98)}}
+@media(prefers-reduced-motion:reduce){.poster-preview.is-closing{animation:none;opacity:0}}

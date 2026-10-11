@@ -112,6 +112,9 @@ object HomeRepository {
 
         activeJob?.cancel()
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        // Publish any definition-matching cached sections before refreshing
+        // expired or missing catalogs, so Home can paint immediately.
+        publishCurrentState(isLoading = true, requestKey = requestKey)
         activeJob = scope.launch {
             val prioritizedRequests = prioritizeDefinitions(
                 definitions = requestsToFetch,
@@ -188,14 +191,16 @@ object HomeRepository {
         )
     }
 
-    fun clear() {
+    fun clear(preserveCatalogCache: Boolean = false) {
         activeJob?.cancel()
         activeJob = null
         activeRequestKey = null
         currentRequestKey = null
         currentDefinitions = emptyList()
-        cachedSections = emptyMap()
-        cachedSectionTimestamps = emptyMap()
+        if (!preserveCatalogCache) {
+            cachedSections = emptyMap()
+            cachedSectionTimestamps = emptyMap()
+        }
         cachedCollectionHeroItems = emptyList()
         collectionHeroJob?.cancel()
         collectionHeroJob = null

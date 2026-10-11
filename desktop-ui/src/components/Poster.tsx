@@ -79,6 +79,10 @@ export function Poster({ item, compact = false, onClick, sizeScale = 1, showRati
   useEffect(() => () => clearTimeout(timer.current), []);
   useEffect(() => { const close = () => setHover(false); window.addEventListener('scroll',close,true); return () => window.removeEventListener('scroll',close,true); }, []);
   const open = onClick ?? (() => navigate(`/details/${encodeURIComponent(item.type)}/${encodeURIComponent(item.id)}`));
+  const openActions = () => {
+    setMenu(true);
+    setHover(false);
+  };
   const showPreview = () => {
     if (!cardStyle?.hoverPreviewEnabled || !window.matchMedia('(hover:hover)').matches) return;
     clearTimeout(timer.current);
@@ -87,17 +91,17 @@ export function Poster({ item, compact = false, onClick, sizeScale = 1, showRati
   const hidePreview = () => { clearTimeout(timer.current); timer.current = setTimeout(() => setHover(false),180); };
   const markWatched = async () => { try { const result = await call<{watched:boolean}>('details.watched.toggle', {id:item.id,type:item.type,name:item.name,poster:item.poster,background:item.background,logo:item.logo}); setWatched(result.watched); setError('');void refreshFeature('homeWatched','details.watched.snapshot');setMenu(false); } catch(cause){setError(cause instanceof Error?cause.message:String(cause));} };
   const toggleSaved=async()=>{try{await(saved?actions.removeFromLibrary(item.type,item.id):actions.addToLibrary(item.type,item.id));setMenu(false);}catch(cause){setError(String(cause));}};
-  const hold=useCardHold(()=>{clearTimeout(timer.current);setMenu(true);setHover(false);});
+  const hold=useCardHold(()=>{clearTimeout(timer.current);openActions();});
   const posterWidth = (cardStyle?.widthDp ?? 126) * 1.4;
   const posterRadius = cardStyle?.cornerRadiusDp ?? 12;
   const style = { '--poster-width': fixedDisplaySize ? `calc(${posterWidth}px / var(--content-scale,1.22))` : `calc(${posterWidth}px * var(--ui-scale,1) * ${sizeScale})`, '--poster-radius': fixedDisplaySize ? `calc(${posterRadius}px / var(--content-scale,1.22))` : `calc(${posterRadius}px * var(--ui-scale,1))`, '--poster-ratio': landscape ? '16/9' : `${cardStyle?.widthDp ?? 126}/${cardStyle?.heightDp ?? 189}` } as CSSProperties;
-  return <div className={`poster-item ${landscape?'landscape':''} ${appearance?.cardDepth.enabled && appearance.cardDepth.postersEnabled?'card-depth':''}`} style={style}>
-    <button {...hold} ref={button} className={`media-card ${compact?'compact':''}`} onClick={open} onContextMenu={event=>{event.preventDefault();setMenu(true);setHover(false);}} onMouseEnter={showPreview} onMouseLeave={hidePreview} aria-label={`Open ${item.name}`}>
+  return <div className={`poster-item ${landscape?'landscape':''} ${menu&&screen==='home'?'action-anchor-hidden':''} ${appearance?.cardDepth.enabled && appearance.cardDepth.postersEnabled?'card-depth':''}`} style={style}>
+    <button {...hold} ref={button} className={`media-card ${compact?'compact':''}`} onClick={open} onContextMenu={event=>{event.preventDefault();openActions();}} onMouseEnter={showPreview} onMouseLeave={hidePreview} aria-label={`Open ${item.name}`}>
       <span className="poster-frame">{(watched || isWatchedOnCard) && <span className="home-watched-badge" aria-label="Watched"><Check size={14}/></span>}{poster && <><PosterLoadingCard variant="poster" className="poster-art-loading"/><img className={posterLoaded ? 'poster-image-loaded' : 'poster-image-loading'} src={poster} alt="" loading="lazy" onLoad={event=>{const loaded=normalizePosterUrl(event.currentTarget.currentSrc||event.currentTarget.src);if(loaded===normalizedPoster){rememberPoster(loaded);setPosterLoadedUrl(loaded);}}} onError={event=>{const failed=normalizePosterUrl(event.currentTarget.currentSrc||event.currentTarget.src);if(failed===normalizedPoster){forgetPoster(failed);setPosterLoadedUrl(null);}}}/></>}{!poster && <PosterLoadingCard variant="poster" className="poster-art-loading"/>}{showRating && item.rating&&<span className="rating-chip">{item.rating}</span>}{landscape && cardStyle?.alwaysShowLandscapeClearlogo && item.logo && <img className="poster-clearlogo" src={item.logo} alt=""/>}</span>
       {!cardStyle?.hideLabelsEnabled && <><span className="card-title">{item.name}</span><span className="card-meta">{item.releaseInfo??item.type}</span></>}
     </button>
-    {screen !== 'search' && <button className="poster-menu-button" aria-label={`Actions for ${item.name}`} onClick={()=>{setMenu(true);setHover(false);}}><MoreHorizontal size={18}/></button>}
-    {hover&&rect&&expandedPreview&&<PosterHoverPreview item={item} rect={rect} saved={saved} watched={watched||isWatchedOnCard} onOpen={open} onToggleWatched={()=>void markWatched()} onToggleSaved={()=>void toggleSaved()} onMouseEnter={()=>clearTimeout(timer.current)} onMouseLeave={hidePreview} />}
+    {screen !== 'search' && <button className="poster-menu-button" aria-label={`Actions for ${item.name}`} onClick={openActions}><MoreHorizontal size={18}/></button>}
+    {rect&&expandedPreview&&<PosterHoverPreview visible={hover} item={item} rect={rect} saved={saved} watched={watched||isWatchedOnCard} onOpen={open} onToggleWatched={()=>void markWatched()} onToggleSaved={()=>void toggleSaved()} onMouseEnter={()=>clearTimeout(timer.current)} onMouseLeave={hidePreview} />}
     {hover&&rect&&!expandedPreview&&createPortal(<div className="poster-preview" style={{left:Math.max(12,Math.min(rect.left-40,window.innerWidth-372)),top:Math.max(12,Math.min(rect.top,window.innerHeight-380))}} onMouseEnter={()=>clearTimeout(timer.current)} onMouseLeave={hidePreview} onClick={event=>event.stopPropagation()}>
       {item.background&&<img src={item.background} alt=""/>}
       <div className="poster-preview-copy"><h3>{item.name}</h3><p>{[item.releaseInfo,item.rating,...item.genres.slice(0,3)].filter(Boolean).join(' · ')}</p>{item.description&&<p className="home-preview-description">{item.description.slice(0,360)}</p>}<div className="home-preview-actions"><button className="button primary" onClick={open}>More info</button><button className="button secondary" onClick={()=>{setMenu(true);setHover(false);}}>Manage title</button></div></div>

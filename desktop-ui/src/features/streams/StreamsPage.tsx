@@ -17,7 +17,7 @@ type Selection = {
   autoPlay: { enabled: boolean; overlayVisible: boolean; message: string | null };
   badges: { showFileSize: boolean; showAddonLogo: boolean; placement?: string };
 };
-type PlaybackLoadingSettings = { showPlayerLoadingStatus: boolean };
+type PlaybackSettings = { showPlayerLoadingStatus: boolean; streamAutoPlayMode?: string; streamAutoPlayRegex?: string };
 type Presentation = {
   resolvingDebrid?: boolean;
   providerLogo?: string | null;
@@ -42,12 +42,22 @@ export function streamAddonNames(addons: Addons | undefined, type: string) {
     .map(addon => addon.name))];
 }
 
+export function isAutomaticStreamSelectionEnabled(mode: string | undefined, regex: string | undefined) {
+  if (mode === 'FIRST_STREAM') return true;
+  if (mode !== 'REGEX_MATCH') return false;
+  const pattern = regex?.trim() ?? '';
+  if (!pattern || !/[\p{L}\p{N}]/u.test(pattern)) return false;
+  try { new RegExp(pattern, 'i'); return true; }
+  catch { return false; }
+}
+
 export function StreamsPage() {
   const { type = '', id = '', videoId = '' } = useParams();
   const streams = useSelector(current => current.streams);
   const details = useSelector(current => current.details);
   const selection = useFeatureSnapshot<Selection>('streamSelection');
-  const playbackLoadingSettings = useFeatureSnapshot<PlaybackLoadingSettings>('playbackSettings');
+  const playbackLoadingSettings = useFeatureSnapshot<PlaybackSettings>('playbackSettings');
+  const [playbackSettingsReady, setPlaybackSettingsReady] = useState(!!playbackLoadingSettings);
   const addons = useFeatureSnapshot<Addons>('addons');
   const lastAuto = useRef('');
   const cancelStartingPlayback = useRef(false);
@@ -119,7 +129,13 @@ export function StreamsPage() {
     } finally { setBusy(''); }
   };
   useEffect(() => { void refreshFeature('streamSelection', 'streams.snapshot').catch(() => {}); }, [streams.requestId]);
-  useEffect(() => { void refreshFeature('playbackSettings', 'playbackSettings.snapshot').catch(() => {}); }, []);
+  useEffect(() => {
+    let active = true;
+    void refreshFeature<PlaybackSettings>('playbackSettings', 'playbackSettings.snapshot')
+      .catch(() => {})
+      .finally(() => { if (active) setPlaybackSettingsReady(true); });
+    return () => { active = false; };
+  }, []);
   useEffect(() => {
     void refreshFeature<Addons>('addons', 'addons.snapshot').catch(() => {});
   }, []);
@@ -153,6 +169,11 @@ export function StreamsPage() {
   const groupsWithItems = groups.filter(group => group.streams.length || group.loading);
   const hasStreams = groupsWithItems.some(group => group.streams.length > 0);
   const isStreamsLoading = streams.loading || groups.some(group => group.loading);
+  const autoSelectionEnabled = isAutomaticStreamSelectionEnabled(playbackLoadingSettings?.streamAutoPlayMode, playbackLoadingSettings?.streamAutoPlayRegex);
+  const waitingForAutomaticSelection = !manual && (
+    (!playbackSettingsReady && isStreamsLoading)
+    || (autoSelectionEnabled && (isStreamsLoading || !!selection?.autoPlayStreamId || selection?.autoPlay.overlayVisible === true))
+  );
   const isDataSaver = (selection?.downloadFilterMode ?? 'best_quality').toLowerCase() === 'data_saver';
   const addonLoadingNames = groupsWithItems.filter(group => group.loading).map(group => group.name);
   const expectedLoadingNames = streamAddonNames(addons, type);
@@ -174,11 +195,11 @@ export function StreamsPage() {
   const isResolvingStage = playback.phase === 'resolving' || playbackStarting?.resolvingDebrid === true && playback.phase !== 'preparing' && playback.phase !== 'buffering';
   const cancelPlayerStart = () => { cancelStartingPlayback.current = true; setPlaybackStarting(null); navigate(-1); };
 
-  if (playbackStarting) return <div className="streams-page streams-opening-page">
+  if (playbackStarting || waitingForAutomaticSelection) return <div className="streams-page streams-opening-page">
     {heroArtwork && <img className="streams-backdrop-image" src={heroArtwork} alt="" />}
     <div className="streams-backdrop-shade" />
     <div className="streams-opening-overlay" role="status" aria-live="polite">
-      {isResolvingStage
+      {isResolvingStage || waitingForAutomaticSelection && !playbackStarting
         ? <button className="streams-opening-back" type="button" aria-label="Back" onClick={cancelPlayerStart}><ArrowLeft size={21} /></button>
         : <nav className="streams-opening-actions" aria-label="Player actions">
           <button className="streams-opening-back" type="button" aria-label="Toggle fullscreen" onClick={() => { const window = getCurrentWindow(); void window.isFullscreen().then(fullscreen => window.setFullscreen(!fullscreen)).catch(() => {}); }}><Maximize size={19} /></button>
@@ -186,7 +207,7 @@ export function StreamsPage() {
         </nav>}
       <div className={`streams-opening-content${playbackLoadingSettings?.showPlayerLoadingStatus === false ? ' no-status' : ''}`}>
         {titleLogo ? <img className="streams-opening-logo" src={titleLogo} alt="" /> : <h1>{title}</h1>}
-        {playbackLoadingSettings?.showPlayerLoadingStatus !== false && <p>{loadingMessage}</p>}
+        {playbackLoadingSettings?.showPlayerLoadingStatus !== false && <p>{playbackStarting ? loadingMessage : 'Finding streams…'}</p>}
       </div>
     </div>
   </div>;

@@ -34,6 +34,11 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - After profile selection, the preview shows the original-style centered Nuvio logo and animated loading arc over the profile backdrop until Home is ready, then fades into the app.
 - Downloads opens from Library. Hold the Settings navigation item to switch profiles; its icon shows the current avatar. Content is enlarged independently of the top bar, and horizontal card rows have scroll arrows.
 - While streams load, the stream-selection screen shows active scraper names and shimmer cards like the Kotlin desktop build.
+- Continue Watching shows saved progress immediately, updates as synchronization finishes, and uses the same shimmer placeholders as Search while its initial snapshot loads.
+- Expanded title previews close with a short fade and subtle shrink across Home, Search and Library.
+- Title action menus and Continue Watching action menus close with a coordinated fade and subtle movement.
+- Search displays each addon's results as they arrive; Downloads uses a more compact layout and controls.
+- Portable rewrite builds use bundled backend resources and Java without depending on the source checkout; Windows WebView2 is required.
 
 - Home is being aligned against the installed Compose app: full-width hero, in-card Continue Watching details, poster actions/previews and hover arrows. See [the Home comparison](docs/DESKTOP_HOME_COMPARISON.md) for verified behavior and remaining differences.
 

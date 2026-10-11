@@ -56,6 +56,7 @@ export function HomePage() {
   useLayoutEffect(()=>{const main=document.querySelector<HTMLElement>('.main-area');if(resetHomeScroll){consumedHomeScrollResets.add(location.key);if(main)main.scrollTop=0;}else if(main)main.scrollTop=homeViewPositions.get(viewKey)?.scrollTop??0;return()=>{if(main)homeViewPositions.set(viewKey,{scrollTop:main.scrollTop,heroIndex:heroIndexRef.current});};},[viewKey,resetHomeScroll,location.key]);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [extrasSnapshotState, setExtrasSnapshotState] = useState<{ profileId: number | null; settled: boolean }>({ profileId: null, settled: false });
   const generation = useRef(0);
   const swipeStart = useRef<number | null>(null);
   const hero = heroItems.length ? heroItems[heroIndex % heroItems.length] : undefined;
@@ -77,7 +78,17 @@ export function HomePage() {
 
   useEffect(() => {
     const current = ++generation.current;
-    void refreshFeature<HomeExtras>('homeExtras', 'home.extras.snapshot').catch(() => {});
+    setExtrasSnapshotState({ profileId, settled: false });
+    // Render the locally available progress entries immediately. Resolving
+    // Next Up requires remote metadata and can take much longer, so enrich in
+    // the background after the initial Continue Watching snapshot is applied.
+    void refreshFeature<HomeExtras>('homeExtras', 'home.extras.snapshot')
+      .then(() => {
+        if (generation.current === current) setExtrasSnapshotState({ profileId, settled: true });
+        if (generation.current === current) return refreshFeature<HomeExtras>('homeExtras', 'home.extras.refresh');
+        return undefined;
+      })
+      .catch(() => { if (generation.current === current) setExtrasSnapshotState({ profileId, settled: true }); });
     void refreshFeature('homeWatched', 'details.watched.snapshot').catch(() => {});
     return () => { if (generation.current === current) generation.current++; };
   }, [profileId]);
@@ -121,6 +132,10 @@ export function HomePage() {
   const continueItems=candidates.filter(item=>!isUpcoming(item));
   if(preferences?.sortMode.toLowerCase()==='streaming_style')continueItems.sort((a,b)=>{const future=(item:ContinueItem)=>!!item.isNextUp&&!!item.released&&new Date(item.released).getTime()>Date.now();return Number(future(a))-Number(future(b))||(future(a)&&future(b)?(a.released??'').localeCompare(b.released??''):0);});
   const upcoming=candidates.filter(isUpcoming).sort((a,b)=>(a.released??'').localeCompare(b.released??''));
+  // Once the local snapshot settles, remote sync and Next Up enrichment must
+  // not hide saved progress behind an indefinite loading state.
+  const continueWatchingLoading = !extrasSnapshotState.settled || extrasSnapshotState.profileId !== profileId;
+  const continueWatchingVisible = preferences?.isVisible ?? true;
 
   return <div className="home-page" style={heroStyle}>
     {hero && appearance?.home.heroEnabled!==false && <section ref={heroElement} className="home-hero" tabIndex={0} aria-label="Featured titles" onKeyDown={event=>{if(event.key==='ArrowRight'){event.preventDefault();moveHero(1);}if(event.key==='ArrowLeft'){event.preventDefault();moveHero(-1);}}} onPointerDown={event=>{if(event.button!==0||(event.target as HTMLElement).closest('button'))return;swipeStart.current=event.clientX;setHeroDragging(true);event.currentTarget.setPointerCapture(event.pointerId);}} onPointerUp={event=>{const start=swipeStart.current;swipeStart.current=null;setHeroDragging(false);if(start!=null&&Math.abs(event.clientX-start)>48)moveHero(start>event.clientX?1:-1);}} onPointerCancel={()=>{swipeStart.current=null;setHeroDragging(false);}}>
@@ -139,9 +154,11 @@ export function HomePage() {
     {home.error && <InlineError message={home.error} onRetry={() => void actions.homeRefresh()} />}
     {home.loading && !home.shelves.length && <HomeLoadingSkeleton showHero={!hero} />}
 
-    {preferences?.isVisible && continueItems.length > 0 && <section className="home-cw-section">
+    {continueWatchingVisible && (continueWatchingLoading || continueItems.length > 0) && <section className="home-cw-section" aria-busy={continueWatchingLoading}>
       <div className="home-cw-heading"><h2>Continue Watching</h2></div>
-      <HorizontalRail label="Continue Watching" className={`home-cw-rail style-${preferences.style.toLowerCase()}`}>{continueItems.map((item) => <ContinueCard key={`${item.parentMetaId}:${item.videoId}`} item={item} blurArtwork={preferences.blurNextUp&&!!item.isNextUp&&preferences.useEpisodeThumbnails&&!!item.episodeThumbnail} useEpisodeThumbnails={preferences.useEpisodeThumbnails} isBusy={busyKey === item.videoId} onResume={() => resume(item)} onManual={() => playManually(item)} onRemove={() => void runAction(item.videoId, item.isNextUp?'home.continueWatching.dismissUpNext':'home.continueWatching.remove', { contentId: item.parentMetaId, seasonNumber: item.isNextUp?item.nextUpSeedSeasonNumber:item.seasonNumber, episodeNumber: item.isNextUp?item.nextUpSeedEpisodeNumber:item.episodeNumber })} onDetails={()=>openTitle(item.parentMetaType,item.parentMetaId)} onReset={item.isNextUp?undefined:()=>navigate(playbackRoute(item, 'beginning'))} />)}</HorizontalRail>
+      <HorizontalRail label="Continue Watching" className={`home-cw-rail style-${preferences?.style.toLowerCase() ?? 'wide'}`}>
+        {continueWatchingLoading ? Array.from({ length: 5 }, (_, index) => <PosterLoadingCard key={index} variant="poster" className="home-cw-skeleton" />) : continueItems.map((item) => <ContinueCard key={`${item.parentMetaId}:${item.videoId}`} item={item} blurArtwork={preferences?.blurNextUp&&!!item.isNextUp&&preferences?.useEpisodeThumbnails&&!!item.episodeThumbnail} useEpisodeThumbnails={preferences?.useEpisodeThumbnails ?? true} isBusy={busyKey === item.videoId} onResume={() => resume(item)} onManual={() => playManually(item)} onRemove={() => void runAction(item.videoId, item.isNextUp?'home.continueWatching.dismissUpNext':'home.continueWatching.remove', { contentId: item.parentMetaId, seasonNumber: item.isNextUp?item.nextUpSeedSeasonNumber:item.seasonNumber, episodeNumber: item.isNextUp?item.nextUpSeedEpisodeNumber:item.episodeNumber })} onDetails={()=>openTitle(item.parentMetaType,item.parentMetaId)} onReset={item.isNextUp?undefined:()=>navigate(playbackRoute(item, 'beginning'))} />)}
+      </HorizontalRail>
     </section>}
     {preferences?.isVisible && upcoming.length > 0 && <section className="home-cw-section"><div className="home-cw-heading"><h2>Upcoming</h2></div>
       <HorizontalRail label="Upcoming" className={`home-cw-rail style-${preferences.style.toLowerCase()}`}>{upcoming.map((item) => <ContinueCard key={`${item.parentMetaId}:next:${item.videoId}`} item={item} blurArtwork={preferences.blurNextUp} useEpisodeThumbnails={preferences.useEpisodeThumbnails} onResume={() => resume(item)} onManual={() => playManually(item)} onDetails={()=>openTitle(item.parentMetaType,item.parentMetaId)} onDismiss={() => void runAction(`dismiss:${item.parentMetaId}`, 'home.continueWatching.dismissUpNext', { contentId: item.parentMetaId, seasonNumber: item.nextUpSeedSeasonNumber, episodeNumber: item.nextUpSeedEpisodeNumber })} />)}</HorizontalRail>
@@ -165,7 +182,8 @@ function ContinueCard({ item, isBusy, onResume, onManual, onRemove, onReset, onD
   item: ContinueItem; isBusy?: boolean; blurArtwork?: boolean; useEpisodeThumbnails?: boolean; onResume: () => void; onManual?: () => void; onRemove?: () => void; onReset?: () => void; onDismiss?: () => void; onDetails?:()=>void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const hold=useCardHold(()=>setMenuOpen(true));
+  const openActions = () => setMenuOpen(true);
+  const hold=useCardHold(openActions);
   const progress = Math.max(0, Math.min(100, item.progressPercent ?? item.progressFraction * 100));
   const artwork = (useEpisodeThumbnails ? item.episodeThumbnail : null) || item.imageUrl || item.background || item.poster;
   const remaining=Math.max(1,Math.floor((item.durationMs-item.resumePositionMs)/60000));
@@ -176,12 +194,12 @@ function ContinueCard({ item, isBusy, onResume, onManual, onRemove, onReset, onD
       <span className="home-cw-badge">{badge}</span>
       <span className="home-cw-art-copy">{item.seasonNumber!=null&&item.episodeNumber!=null&&<small>S{item.seasonNumber} E{item.episodeNumber}</small>}<strong>{item.title}</strong>{item.episodeTitle&&<small>{item.episodeTitle}</small>}</span>
   </>;
-  return <article className={`home-cw-card ${blurArtwork ? "blur-artwork" : ""}`}>
-    <button {...hold} className="home-cw-art" onClick={onResume} onContextMenu={event=>{event.preventDefault();setMenuOpen(true);}} aria-label={`Resume ${item.title}`} style={{ backgroundImage: artwork ? `linear-gradient(0deg,rgba(0,0,0,.82),transparent 60%),url("${artwork}")` : undefined }}>
+  return <article className={`home-cw-card ${menuOpen?'action-anchor-hidden':''} ${blurArtwork ? "blur-artwork" : ""}`}>
+    <button {...hold} className="home-cw-art" onClick={onResume} onContextMenu={event=>{event.preventDefault();openActions();}} aria-label={`Resume ${item.title}`} style={{ backgroundImage: artwork ? `linear-gradient(0deg,rgba(0,0,0,.82),transparent 60%),url("${artwork}")` : undefined }}>
       {blurArtwork&&<span className="home-cw-blurred-image" style={{backgroundImage:artwork?`url("${artwork}")`:undefined}}/>}{cardContent}
     </button>
     <div className="home-cw-copy"><div className="home-cw-text"><strong title={item.title}>{item.title}</strong><span>{item.subtitle || (item.isNextUp ? 'Next episode' : item.providerName || 'Continue watching')}</span></div>
-      <button className="home-icon-button" aria-label="More continue watching actions" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}><MoreHorizontal size={18} /></button>
+      <button className="home-icon-button" aria-label="More continue watching actions" aria-expanded={menuOpen} onClick={openActions}><MoreHorizontal size={18} /></button>
     </div>
     {menuOpen && <HomeActionDialog title={item.title} poster={item.poster} artwork={<div className="home-cw-art home-cw-zoom" style={{backgroundImage:artwork?`linear-gradient(0deg,rgba(0,0,0,.82),transparent 60%),url("${artwork}")`:undefined}}>{cardContent}</div>} subtitle={item.subtitle} onClose={()=>setMenuOpen(false)}>{onDetails&&<button onClick={onDetails}>Go to details <Info size={18}/></button>}{onManual&&<button onClick={onManual}>Play manually <Play size={18} fill="currentColor"/></button>}{onReset && <button disabled={isBusy} onClick={onReset}>Start from beginning <RotateCcw size={18} /></button>}{onRemove && <button disabled={isBusy} className="destructive" onClick={onRemove}>Remove <Trash2 size={18} /></button>}{onDismiss && <button disabled={isBusy} className="destructive" onClick={onDismiss}>Remove <Trash2 size={18} /></button>}</HomeActionDialog>}
   </article>;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { Home, LibraryBig, Search as SearchIcon, Settings as SettingsIcon } from 'lucide-react';
 import { actions, initialize, refreshFeature, useAppState, useFeatureSnapshot, useSelector } from './bridge';
 import { AuthPage } from './features/auth/AuthPage';
@@ -34,6 +34,19 @@ function Shell() {
   const session = useSelector((current) => current.session);
   const appearance = useFeatureSnapshot<{ navigationLayout: 'sidebar' | 'topbar'; navBarStyle: string; navBarGlowEnabled: boolean }>('appearance');
   const location = useLocation();
+  const navigationType = useNavigationType();
+  const previousPath = useRef<string | null>(null);
+  const fromPath = previousPath.current;
+  const isMovieDetailsRoute = (path: string) => /^\/details\/[^/]+\/[^/]+$/.test(path);
+  const isStreamsOrPlaybackRoute = (path: string) => path.includes('/streams/') || path === '/playback';
+  const isOpeningMovieDetails = fromPath !== null && !isMovieDetailsRoute(fromPath) && isMovieDetailsRoute(location.pathname);
+  const isReturningFromMovieDetails = isMovieDetailsRoute(fromPath ?? '') && !isStreamsOrPlaybackRoute(location.pathname);
+  const routeMotion = isOpeningMovieDetails
+    ? navigationType === 'POP' ? 'route-enter-back' : 'route-enter-forward'
+    : isReturningFromMovieDetails
+      ? navigationType === 'POP' ? 'route-enter-back' : 'route-enter-forward'
+      : '';
+  useEffect(() => { previousPath.current = location.pathname; }, [location.pathname]);
   const [profileOpen, setProfileOpen] = useState(false);
   const selected = navItems.find((item) => item.to === location.pathname || (item.to !== '/' && location.pathname.startsWith(`${item.to}/`)))?.label;
   useEffect(() => { if (!appearance) void refreshFeature('appearance').catch(() => {}); }, [appearance]);
@@ -63,7 +76,7 @@ function Shell() {
     </aside> : <header className="topbar">
       <nav className="floating-nav" aria-label="Main navigation">{navigation}</nav>
     </header>}
-    <main className="main-area" key={location.pathname}>
+    <main className={`main-area ${routeMotion}`} key={location.pathname}>
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/search" element={<SearchPage />} />

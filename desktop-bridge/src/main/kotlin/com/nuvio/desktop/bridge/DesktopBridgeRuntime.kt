@@ -369,8 +369,10 @@ class DesktopBridgeRuntime {
             playbackAdapter?.stop()
             advanceEpoch()
             ProfileRepository.switchToProfile(selected)
-            HomeRepository.clear()
-            HomeRepository.refresh(AddonRepository.uiState.value.addons, force = true)
+            // ProfileRepository has already reset profile-scoped state. Let Home
+            // reuse matching, fresh catalog entries instead of forcing every
+            // catalog request to hit the network on each profile selection.
+            HomeRepository.refresh(AddonRepository.uiState.value.addons)
             sessionJson()
         }
         "home.snapshot" -> homeJson()

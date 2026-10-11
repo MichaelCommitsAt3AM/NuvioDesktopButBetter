@@ -27,7 +27,11 @@ object HomeBridge {
     private var upcomingCache: List<JsonObject> = emptyList()
 
     suspend fun dispatch(method: String, params: JsonObject): JsonElement? = when (method) {
-        "home.extras.snapshot", "home.extras.refresh" -> refreshSnapshot()
+        // Continue Watching is available from the local progress snapshot and
+        // should not wait for the potentially slow Next Up metadata lookups.
+        // The UI requests `home.extras.refresh` separately for that enrichment.
+        "home.extras.snapshot" -> snapshot()
+        "home.extras.refresh" -> refreshSnapshot()
         "home.continueWatching.remove" -> {
             WatchProgressRepository.removeProgress(
                 contentId = params.str("contentId"),
@@ -73,7 +77,10 @@ object HomeBridge {
             .sortedByDescending(WatchProgressEntry::lastUpdatedEpochMs)
             .take(30)
         return buildJsonObject {
-            put("loading", !WatchProgressRepository.uiState.value.hasLoadedRemoteProgress)
+            // ensureLoaded() synchronously reads this profile's saved progress.
+            // Remote sync enriches local data and may fail or remain offline;
+            // it must not prevent displaying entries or settling an empty profile.
+            put("loading", false)
             put("continueWatching", JsonArray(progress.map(::progressJson)))
             put("upcoming", JsonArray(upcomingCache.filterNot { item ->
                 val id = item["parentMetaId"]?.jsonPrimitive?.contentOrNull ?: return@filterNot false

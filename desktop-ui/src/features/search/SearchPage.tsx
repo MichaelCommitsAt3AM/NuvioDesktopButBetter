@@ -139,17 +139,20 @@ export function SearchPage() {
         : discover.items.length ? <PosterGrid items={discover.items} />
           : <DiscoverEmpty discover={discover} />}
     </section> : <section className="search-results" aria-label="Search results">
-      {waitingForSearch || search.loading ? <SearchLoadingSkeleton /> : search.error ? <InlineError message={search.error} onRetry={() => void actions.searchStart(query.trim())} />
-        : search.shelves.length ? search.shelves.map((shelf) => <Shelf key={shelf.key} shelf={shelf} source="search" posterSizeScale={0.88} />)
-          : <EmptyState title={searchEmpty[0]} message={searchEmpty[1]} icon={<span>⌕</span>} />}
+      {waitingForSearch ? <SearchLoadingSkeleton /> : <>
+        {search.shelves.map((shelf) => <Shelf key={shelf.key} shelf={shelf} source="search" posterSizeScale={0.88} />)}
+        {search.loading && <SearchLoadingSkeleton rows={search.shelves.length ? 1 : 3} />}
+        {search.error && <InlineError message={search.error} onRetry={() => void actions.searchStart(query.trim())} />}
+        {!search.loading && !search.error && !search.shelves.length && <EmptyState title={searchEmpty[0]} message={searchEmpty[1]} icon={<span>⌕</span>} />}
+      </>}
     </section>}
   </div>;
 }
 
-function SearchLoadingSkeleton() {
+function SearchLoadingSkeleton({ rows = 3 }: { rows?: number }) {
   return <div className="search-loading-skeleton" role="status" aria-label="Searching" aria-busy="true">
     <span className="search-skeleton-sr-only">Searching…</span>
-    {Array.from({ length: 3 }, (_, shelf) => <section className="search-skeleton-shelf" key={shelf} aria-hidden="true">
+    {Array.from({ length: rows }, (_, shelf) => <section className="search-skeleton-shelf" key={shelf} aria-hidden="true">
       <div className="search-skeleton-heading search-skeleton-shimmer" />
       <div className="search-skeleton-grid">{Array.from({ length: 9 }, (_, card) => <PosterLoadingCard key={card} />)}</div>
     </section>)}

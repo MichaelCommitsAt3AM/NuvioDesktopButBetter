@@ -189,7 +189,10 @@ object ProfileRepository {
         StreamBadgeSettingsRepository.onProfileChanged()
         P2pSettingsRepository.onProfileChanged()
         HomeCatalogSettingsRepository.onProfileChanged()
-        HomeRepository.clear()
+        // Catalog responses are profile-independent when their definition keys
+        // match. Keep the in-memory catalog cache so Home can render immediately
+        // after switching profiles, then refresh entries whose TTL has expired.
+        HomeRepository.clear(preserveCatalogCache = true)
         MetaScreenSettingsRepository.onProfileChanged()
         com.nuvio.app.features.shuffle.EpisodeShuffleRepository.onProfileChanged()
         ContinueWatchingPreferencesRepository.onProfileChanged()

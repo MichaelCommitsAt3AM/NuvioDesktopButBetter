@@ -24,3 +24,28 @@
 .download-filter-reset:hover{background:color-mix(in srgb,var(--settings-surface,var(--app-surface,#191919)) 86%,white)}
 .download-filter-page .loading-block{padding:20px 0;color:#989da2}
 @media(max-width:650px){.download-filter-section{margin-top:29px}.download-filter-option{padding-inline:16px}.download-filter-slider{padding-inline:16px}.download-filter-option+.download-filter-option::before,.download-filter-slider+.download-filter-option::before{left:16px}}
+.shell .main-area:has(>.downloads-page){zoom:1.08;padding-top:96px;padding-bottom:40px}
+.downloads-page{max-width:1280px;padding-top:0;--desktop-font-scale:1}
+.downloads-page>.back-button{display:inline-flex;margin-bottom:18px;font-size:13px}
+.downloads-page .page-heading{align-items:center;gap:16px;margin:0 0 22px}
+.downloads-page .page-heading h1{font-size:28px;letter-spacing:-.025em}
+.downloads-page .page-heading p{font-size:14px;line-height:1.5;margin-top:6px}
+.downloads-page .button{min-height:40px;padding:9px 16px;font-size:14px;border-radius:10px}
+.downloads-page .downloads-tabs{gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.downloads-page .downloads-tabs .button{text-transform:capitalize}
+.downloads-page .download-search{gap:12px;margin-bottom:20px}
+.downloads-page .download-search input,.downloads-page .download-search select{min-height:42px;padding:10px 12px;font-size:14px;border-radius:10px}
+.downloads-page .downloads-empty{padding:44px 16px;max-width:560px;margin-inline:auto}
+.downloads-page .downloads-empty h2{font-size:21px;line-height:1.3;margin:16px 0 8px}
+.downloads-page .downloads-empty p{font-size:14px;line-height:1.6;margin:0;color:var(--muted)}
+.downloads-page .download-list{gap:12px}
+.downloads-page .download-group{padding:12px;border-radius:12px}
+.downloads-page .download-group summary{padding:8px;min-height:40px;font-size:14px}
+.downloads-page .download-card{padding:14px;gap:14px;border-radius:12px}
+.downloads-page .download-card>img,.downloads-page .download-art{width:68px;height:102px}
+.downloads-page .download-copy h2{font-size:17px;margin-bottom:6px}
+.downloads-page .download-copy p{font-size:13px;margin:6px 0}
+.downloads-page .download-actions .icon-button{width:36px;height:36px}
+.downloads-page .download-actions .icon-button svg{width:18px;height:18px}
+@media(max-width:760px){.downloads-page .page-heading{align-items:flex-start;flex-direction:column}.downloads-page .download-group summary span{display:block;margin:4px 0 0}}
+@media(pointer:coarse){.downloads-page .button,.downloads-page .download-actions .icon-button{min-width:44px;min-height:44px}}

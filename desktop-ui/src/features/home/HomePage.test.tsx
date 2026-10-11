@@ -1,0 +1,90 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { HomePage } from './HomePage';
+
+const bridge = vi.hoisted(() => ({
+  state: { session: { activeProfile: 1 }, home: { shelves: [], hero: [], loading: false } },
+  extras: undefined as unknown,
+  refresh: vi.fn(),
+}));
+vi.mock('../../bridge', () => ({
+  useSelector: (select: (state: unknown) => unknown) => select(bridge.state),
+  useFeatureSnapshot: (topic: string) => topic === 'homeExtras' ? bridge.extras : undefined,
+  refreshFeature: (...args: unknown[]) => bridge.refresh(...args),
+  actions: {}, call: vi.fn(),
+}));
+vi.mock('../collections/CollectionsPages', () => ({ HomeCollections: () => null }));
+vi.mock('./HomeActionDialog', () => ({ HomeActionDialog: () => null }));
+
+const item = {
+  parentMetaId: 'movie-1', parentMetaType: 'movie', videoId: 'movie-1',
+  title: 'Saved movie', subtitle: '', resumePositionMs: 10_000, durationMs: 100_000,
+  progressFraction: .1,
+};
+function snapshot(items: typeof item[], loading = false) {
+  return { loading, continueWatching: items, upcoming: [], preferences: { isVisible: true, style: 'LANDSCAPE', sortMode: 'LAST_WATCHED' } };
+}
+let resolveSnapshot: (value: unknown) => void;
+let rejectSnapshot: (reason: Error) => void;
+beforeEach(() => {
+  bridge.extras = undefined;
+  bridge.state.session.activeProfile = 1;
+  const pending = new Promise((resolve, reject) => { resolveSnapshot = resolve; rejectSnapshot = reject; });
+  bridge.refresh.mockImplementation((_: string, method: string) => {
+    if (method === 'home.extras.snapshot') return pending;
+    // Next Up can still be fetching when local progress becomes displayable.
+    if (method === 'home.extras.refresh') return new Promise(() => {});
+    return Promise.resolve();
+  });
+});
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
+
+describe('Continue Watching snapshot loading', () => {
+  it('shows shared shimmer cards, then displays local progress without waiting for remote readiness or Next Up', async () => {
+    render(<MemoryRouter><HomePage /></MemoryRouter>);
+    expect(screen.getByText('Continue Watching').closest('section')).toHaveAttribute('aria-busy', 'true');
+    expect(document.querySelectorAll('.home-cw-skeleton .poster-loading-art.poster-loading-shimmer')).toHaveLength(5);
+
+    await act(async () => {
+      bridge.extras = snapshot([item], true);
+      resolveSnapshot(bridge.extras);
+    });
+    expect(screen.getByRole('button', { name: 'Resume Saved movie' })).toBeInTheDocument();
+    expect(document.querySelector('.home-cw-skeleton')).toBeNull();
+  });
+
+  it('collapses after an empty local snapshot even if remote synchronization has not completed', async () => {
+    render(<MemoryRouter><HomePage /></MemoryRouter>);
+    await act(async () => {
+      bridge.extras = snapshot([], true);
+      resolveSnapshot(bridge.extras);
+    });
+    expect(screen.queryByText('Continue Watching')).toBeNull();
+  });
+
+  it('does not leave perpetual placeholders if the snapshot request fails', async () => {
+    render(<MemoryRouter><HomePage /></MemoryRouter>);
+    await act(async () => { rejectSnapshot(new Error('Bridge unavailable')); });
+    expect(document.querySelector('.home-cw-skeleton')).toBeNull();
+  });
+
+  it('hides the previous profile progress behind placeholders until the new snapshot settles', async () => {
+    const view = render(<MemoryRouter><HomePage /></MemoryRouter>);
+    await act(async () => {
+      bridge.extras = snapshot([item]);
+      resolveSnapshot(bridge.extras);
+    });
+    const nextSnapshot = new Promise(resolve => { resolveSnapshot = resolve; });
+    bridge.refresh.mockImplementation(() => nextSnapshot);
+    bridge.state.session.activeProfile = 2;
+    view.rerender(<MemoryRouter><HomePage /></MemoryRouter>);
+    expect(screen.queryByRole('button', { name: 'Resume Saved movie' })).toBeNull();
+    expect(document.querySelectorAll('.home-cw-skeleton')).toHaveLength(5);
+    await act(async () => {
+      bridge.extras = snapshot([]);
+      resolveSnapshot(bridge.extras);
+    });
+    expect(screen.queryByText('Continue Watching')).toBeNull();
+  });
+});

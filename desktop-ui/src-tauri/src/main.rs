@@ -140,6 +140,7 @@ const ALLOWED_METHODS: &[&str] = &[
     "details.watched.snapshot",
     "details.watched.toggle",
     "details.watched.toggleEpisode",
+    "details.watched.togglePreviousEpisodes",
     "details.watched.toggleSeason",
     "downloads.snapshot",
     "downloads.pause",

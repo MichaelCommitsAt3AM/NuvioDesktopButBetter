@@ -52,3 +52,7 @@ iosApp/Configuration/DeviceSigning.local.json
 .mpvkit-build.sparseimage
 
 dev/
+
+# Locally packaged portable rewrite build.
+/Nuvio-Rewrite.exe
+/resources/backend/

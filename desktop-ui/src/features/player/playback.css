@@ -1,0 +1,3 @@
+.playback-layout>.topbar,.playback-layout>.side-nav{display:none!important}
+.playback-layout>.main-area{position:relative;height:100%;margin:0;padding:0;overflow:hidden;zoom:1;background:#000}
+.playback-surface{position:absolute;inset:0;background:#000}

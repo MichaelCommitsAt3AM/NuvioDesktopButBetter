@@ -107,6 +107,7 @@ internal class NativePlayerHost : Canvas() {
     }
 
     override fun paint(graphics: Graphics) {
+        if (!firstPaintNotified) DesktopDiagnostics.record("bridge_player_host_first_paint", "size=${width}x$height displayable=$isDisplayable")
         graphics.color = Color.BLACK
         graphics.fillRect(0, 0, width, height)
         notifyFirstPaints()
@@ -114,12 +115,14 @@ internal class NativePlayerHost : Canvas() {
 
     override fun addNotify() {
         super.addNotify()
+        DesktopDiagnostics.record("bridge_player_host_peer_ready", "size=${width}x$height displayable=$isDisplayable")
         onDisplayableChanged?.invoke(true)
         repaint()
         onPeerReady?.invoke()
     }
 
     override fun removeNotify() {
+        DesktopDiagnostics.record("bridge_player_host_peer_removed", "size=${width}x$height displayable=$isDisplayable")
         DesktopDiagnostics.record("player_host_remove_notify_started", "displayable=$isDisplayable")
         // Native mpv and WebView2 resources target this Canvas' HWND. They must
         // be released before super.removeNotify() destroys that peer.

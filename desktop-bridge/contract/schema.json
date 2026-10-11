@@ -1,0 +1,1303 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nuvio.local/desktop/contract/v1",
+  "title": "Nuvio Desktop Bridge Protocol v1",
+  "description": "Stable fork-owned boundary. Upstream repository models are mapped explicitly in Kotlin adapters.",
+  "$defs": {
+    "Addons": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Addon"
+          }
+        }
+      }
+    },
+    "Media": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "name",
+        "poster",
+        "background",
+        "logo",
+        "description",
+        "releaseInfo",
+        "rating",
+        "genres"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "poster": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "background": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "logo": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "releaseInfo": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rating": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "genres": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "Shelf": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "title",
+        "subtitle",
+        "items",
+        "hasMore"
+      ],
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Media"
+          }
+        },
+        "hasMore": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Home": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "loading",
+        "error",
+        "hero",
+        "shelves"
+      ],
+      "properties": {
+        "loading": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hero": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Media"
+          }
+        },
+        "shelves": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Shelf"
+          }
+        },
+        "continueWatching": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Media"
+          }
+        }
+      }
+    },
+    "Library": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "loading",
+        "error",
+        "items"
+      ],
+      "properties": {
+        "loading": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Media"
+          }
+        }
+      }
+    },
+    "Addon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "manifestUrl",
+        "enabled",
+        "description",
+        "logo"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "manifestUrl": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "logo": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "refreshing": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "configurable": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "string"
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "types",
+              "idPrefixes"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "types": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "idPrefixes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "catalogCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "Profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "avatarUrl",
+        "color",
+        "locked"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "avatarUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "locked": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "email",
+        "version",
+        "activeProfile",
+        "profiles",
+        "capabilities",
+        "error"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "loading",
+            "signedOut",
+            "signedIn"
+          ]
+        },
+        "email": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "activeProfile": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "profiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Profile"
+          }
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "Settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "theme",
+        "themes"
+      ],
+      "properties": {
+        "theme": {
+          "type": "string"
+        },
+        "themes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label",
+              "background",
+              "accent",
+              "surface"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "background": {
+                "type": "string"
+              },
+              "accent": {
+                "type": "string"
+              },
+              "surface": {
+                "type": "string"
+              },
+              "settingsSurface": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "Search": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestId",
+        "query",
+        "loading",
+        "error",
+        "shelves"
+      ],
+      "properties": {
+        "requestId": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        },
+        "loading": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "shelves": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Shelf"
+          }
+        }
+      }
+    },
+    "Episode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "season",
+        "episode",
+        "thumbnail",
+        "overview"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "season": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "episode": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "thumbnail": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "overview": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "Details": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestId",
+        "loading",
+        "error",
+        "media",
+        "episodes",
+        "cast",
+        "related"
+      ],
+      "properties": {
+        "requestId": {
+          "type": "string"
+        },
+        "loading": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "media": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Media"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "episodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Episode"
+          }
+        },
+        "cast": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "photo"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "photo": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "related": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Media"
+          }
+        }
+      }
+    },
+    "Stream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "description",
+        "url",
+        "source",
+        "headers",
+        "infoHash",
+        "fileIndex",
+        "playable",
+        "downloadable"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "type": "string"
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "infoHash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fileIndex": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "playable": {
+          "type": "boolean"
+        },
+        "downloadable": {
+          "type": "boolean"
+        },
+        "presentation": {
+          "type": "object"
+        }
+      }
+    },
+    "Streams": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestId",
+        "loading",
+        "error",
+        "groups"
+      ],
+      "properties": {
+        "requestId": {
+          "type": "string"
+        },
+        "loading": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name",
+              "loading",
+              "error",
+              "streams"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "loading": {
+                "type": "boolean"
+              },
+              "error": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "streams": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/Stream"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "BridgeError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "Request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "method": {
+          "enum": [
+            "session.snapshot",
+            "session.signIn",
+            "session.signUp",
+            "session.guest",
+            "session.signOut",
+            "profiles.select",
+            "home.snapshot",
+            "home.refresh",
+            "addons.snapshot",
+            "addons.install",
+            "addons.toggle",
+            "addons.remove",
+            "library.snapshot",
+            "library.add",
+            "library.remove",
+            "settings.snapshot",
+            "settings.setTheme",
+            "search.start",
+            "details.load",
+            "streams.load",
+            "playback.start",
+            "playback.stop",
+            "app.visibility",
+            "app.shutdown",
+            "catalog.open",
+            "catalog.snapshot",
+            "catalog.loadMore",
+            "catalog.refresh",
+            "catalog.saveScrollPosition",
+            "discover.snapshot",
+            "discover.refresh",
+            "discover.selectType",
+            "discover.selectCatalog",
+            "discover.selectGenre",
+            "discover.loadMore",
+            "search.historySnapshot",
+            "search.historyRemove",
+            "search.historyUse",
+            "search.historyEnabled",
+            "search.historyRecord",
+            "profiles.snapshot",
+            "profiles.create",
+            "profiles.update",
+            "profiles.delete",
+            "profiles.pin.verify",
+            "profiles.pin.set",
+            "profiles.pin.clear",
+            "profiles.pin.clearWithPassword",
+            "profiles.rememberLast.set",
+            "profiles.avatars.refresh",
+            "appearance.snapshot",
+            "appearance.setTheme",
+            "appearance.setCustomTheme",
+            "appearance.setAmoled",
+            "appearance.setNavigationLayout",
+            "appearance.setNavBarStyle",
+            "appearance.setNavBarGlow",
+            "posters.snapshot",
+            "posters.setPattern",
+            "posters.clearPattern",
+            "posters.setScreenEnabled",
+            "posters.setCardStyle",
+            "posters.setCardDepth",
+            "homePreferences.snapshot",
+            "homePreferences.setHeroEnabled",
+            "homePreferences.setShowCatalogType",
+            "homePreferences.setHideUnreleasedContent",
+            "homePreferences.setHeroSourceEnabled",
+            "homePreferences.setEnabled",
+            "homePreferences.setCustomTitle",
+            "homePreferences.reset",
+            "homePreferences.move",
+            "continueWatching.snapshot",
+            "continueWatching.setVisible",
+            "continueWatching.setStyle",
+            "continueWatching.setUpNextFromFurthestEpisode",
+            "continueWatching.setUseEpisodeThumbnails",
+            "continueWatching.setShowUnairedNextUp",
+            "continueWatching.setBlurNextUp",
+            "continueWatching.setShowResumePromptOnLaunch",
+            "continueWatching.setSortMode",
+            "continueWatching.dismissNextUp",
+            "continueWatching.removeDismissedForContent",
+            "search.clear",
+            "streams.resolve",
+            "app.openExternal",
+            "downloads.enqueue",
+            "downloads.play",
+            "details.extras",
+            "details.person",
+            "details.entity",
+            "details.entity.page",
+            "details.watched.snapshot",
+            "details.watched.toggle",
+            "details.watched.toggleEpisode",
+            "details.watched.toggleSeason",
+            "downloads.snapshot",
+            "downloads.pause",
+            "downloads.resume",
+            "downloads.retry",
+            "downloads.cancel",
+            "downloads.remove",
+            "downloads.markSeen",
+            "downloads.filter.snapshot",
+            "downloads.filter.setMaxResolution",
+            "downloads.filter.setSourceAllowed",
+            "downloads.filter.setMaxSizeBytes",
+            "downloads.filter.setShowUnknownSize",
+            "downloads.filter.reset",
+            "cloud.play",
+            "home.extras.snapshot",
+            "home.extras.refresh",
+            "home.continueWatching.remove",
+            "home.continueWatching.reset",
+            "home.continueWatching.dismissUpNext",
+            "home.preferences.setVisible",
+            "home.preferences.setStyle",
+            "home.preferences.setUpNextFromFurthestEpisode",
+            "home.preferences.setUseEpisodeThumbnails",
+            "home.preferences.setShowUnairedNextUp",
+            "home.preferences.setBlurNextUp",
+            "home.preferences.setSortMode",
+            "library.extras",
+            "library.setLayout",
+            "library.setSort",
+            "library.membership",
+            "library.setMembership",
+            "cloud.snapshot",
+            "cloud.refresh",
+            "metadataSettings.snapshot",
+            "metadataSettings.set",
+            "metadataSettings.setSectionEnabled",
+            "metadataSettings.setTabGroup",
+            "metadataSettings.move",
+            "metadataSettings.reset",
+            "playbackSettings.snapshot",
+            "playbackSettings.set",
+            "plugins.snapshot",
+            "plugins.addRepository",
+            "plugins.removeRepository",
+            "plugins.refresh",
+            "plugins.refreshRepository",
+            "plugins.setEnabled",
+            "plugins.setGrouped",
+            "plugins.toggleScraper",
+            "plugins.testScraper",
+            "posters.resolve",
+            "authOptions.snapshot",
+            "authOptions.discoverServer",
+            "authOptions.connectServer",
+            "authOptions.useOfficialServer",
+            "authOptions.resetDiscovery",
+            "authOptions.deviceStart",
+            "authOptions.deviceCancel",
+            "integrations.snapshot",
+            "tmdb.snapshot",
+            "tmdb.set",
+            "mdblist.snapshot",
+            "mdblist.set",
+            "mdblist.setProviderEnabled",
+            "mdblist.connect",
+            "mdblist.cancel",
+            "mdblist.disconnect",
+            "mdblist.poll",
+            "debrid.snapshot",
+            "debrid.set",
+            "debrid.device.start",
+            "debrid.device.poll",
+            "debrid.device.cancel",
+            "debrid.validateKey",
+            "simkl.snapshot",
+            "simkl.connect",
+            "simkl.disconnect",
+            "trackingSettings.snapshot",
+            "trackingSettings.set",
+            "details.comments.page",
+            "collections.snapshot",
+            "collections.remove",
+            "collections.move",
+            "collections.editor.snapshot",
+            "collections.editor.open",
+            "collections.editor.setTitle",
+            "collections.editor.setBackdrop",
+            "collections.editor.setPinToTop",
+            "collections.editor.setViewMode",
+            "collections.editor.setShowAllTab",
+            "collections.editor.addFolder",
+            "collections.editor.editFolder",
+            "collections.editor.removeFolder",
+            "collections.editor.moveFolder",
+            "collections.editor.cancelFolder",
+            "collections.editor.saveFolder",
+            "collections.editor.save",
+            "collections.editor.cancel",
+            "collections.editor.updateFolder",
+            "collections.editor.showCatalogPicker",
+            "collections.editor.hideCatalogPicker",
+            "collections.editor.toggleCatalog",
+            "collections.editor.setCatalogGenre",
+            "collections.editor.showGenrePicker",
+            "collections.editor.hideGenrePicker",
+            "collections.editor.showTmdbPicker",
+            "collections.editor.hideTmdbPicker",
+            "collections.editor.tmdb.setMode",
+            "collections.editor.tmdb.setInput",
+            "collections.editor.tmdb.setTitle",
+            "collections.editor.tmdb.setMediaType",
+            "collections.editor.tmdb.setMediaBoth",
+            "collections.editor.tmdb.setSort",
+            "collections.editor.tmdb.setFilters",
+            "collections.editor.tmdb.searchCompanies",
+            "collections.editor.tmdb.searchCollections",
+            "collections.editor.tmdb.addInput",
+            "collections.editor.tmdb.addSource",
+            "collections.editor.tmdb.addSources",
+            "collections.editor.showTraktPicker",
+            "collections.editor.hideTraktPicker",
+            "collections.editor.editTraktSource",
+            "collections.editor.trakt.setInput",
+            "collections.editor.trakt.setTitle",
+            "collections.editor.trakt.setMediaType",
+            "collections.editor.trakt.setMediaBoth",
+            "collections.editor.trakt.setSort",
+            "collections.editor.trakt.setDirection",
+            "collections.editor.trakt.search",
+            "collections.editor.trakt.addInput",
+            "collections.editor.trakt.addResult",
+            "collections.editor.trakt.addSources",
+            "collections.folder.snapshot",
+            "collections.folder.open",
+            "collections.folder.selectTab",
+            "collections.folder.loadMore",
+            "collections.folder.refresh",
+            "about.snapshot",
+            "about.refreshCommunity",
+            "about.refreshMembership",
+            "about.setLanguage",
+            "about.checkUpdates",
+            "advanced.snapshot",
+            "advanced.clearContinueWatchingCache",
+            "advanced.setSentry",
+            "advanced.setDiscordPresence",
+            "streams.snapshot",
+            "streams.filter.set",
+            "streams.downloadFilter.set",
+            "streams.cancel",
+            "streams.autoplay.consume",
+            "streams.autoplay.skip",
+            "collections.export",
+            "collections.validateImport",
+            "collections.import",
+            "collections.editor.removeSource",
+            "collections.editor.tmdb.addPreset",
+            "details.shuffle.snapshot",
+            "details.shuffle.pick",
+            "details.shuffle.save",
+            "addons.refresh",
+            "addons.refreshAll",
+            "addons.move",
+            "advanced.setOpenGlRenderer",
+            "appearance.setAppIcon",
+            "plugins.scraperSettings",
+            "plugins.saveScraperSettings",
+            "streams.badges.setFileSizeEnabled",
+            "streams.badges.setAddonLogoEnabled",
+            "streams.badges.setPlacement",
+            "streams.badges.setBackgroundMode",
+            "streams.badges.rules.importFromUrl",
+            "streams.badges.rules.setActive",
+            "streams.badges.rules.remove",
+            "simkl.sync"
+          ]
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "Response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "epoch"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "result": {},
+        "error": {
+          "$ref": "#/$defs/BridgeError"
+        }
+      }
+    },
+    "Event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "topic",
+        "epoch",
+        "revision",
+        "data"
+      ],
+      "properties": {
+        "topic": {
+          "enum": [
+            "session",
+            "home",
+            "library",
+            "addons",
+            "settings",
+            "search",
+            "details",
+            "streams",
+            "playback",
+            "catalog",
+            "discover",
+            "searchHistory",
+            "profiles",
+            "appearance",
+            "posters",
+            "homePreferences",
+            "continueWatching",
+            "downloads",
+            "plugins",
+            "libraryExtras",
+            "cloud",
+            "playbackSettings",
+            "metadataSettings",
+            "p2p",
+            "homeExtras",
+            "authOptions",
+            "integrations",
+            "tmdb",
+            "mdblist",
+            "debrid",
+            "simkl",
+            "trackingSettings",
+            "collections",
+            "collectionEditor",
+            "folderDetail",
+            "about",
+            "advanced",
+            "streamSelection"
+          ]
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "data": {}
+      }
+    },
+    "Catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "source",
+        "title",
+        "subtitle",
+        "contentType",
+        "loading",
+        "hasMore",
+        "error",
+        "items",
+        "firstVisibleItemIndex",
+        "firstVisibleItemScrollOffset"
+      ],
+      "properties": {
+        "key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "contentType": {
+          "type": "string"
+        },
+        "loading": {
+          "type": "boolean"
+        },
+        "hasMore": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Media"
+          }
+        },
+        "firstVisibleItemIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "firstVisibleItemScrollOffset": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "Discover": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "loading",
+        "typeOptions",
+        "selectedType",
+        "catalogOptions",
+        "selectedCatalogKey",
+        "selectedGenre",
+        "genreOptions",
+        "items",
+        "hasMore",
+        "emptyStateReason",
+        "error"
+      ],
+      "properties": {
+        "loading": {
+          "type": "boolean"
+        },
+        "typeOptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "selectedType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "catalogOptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "key",
+              "addonName",
+              "type",
+              "catalogId",
+              "catalogName",
+              "genreOptions",
+              "genreRequired",
+              "supportsPagination"
+            ],
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "addonName": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "catalogId": {
+                "type": "string"
+              },
+              "catalogName": {
+                "type": "string"
+              },
+              "genreOptions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "genreRequired": {
+                "type": "boolean"
+              },
+              "supportsPagination": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "selectedCatalogKey": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "selectedGenre": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "genreOptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Media"
+          }
+        },
+        "hasMore": {
+          "type": "boolean"
+        },
+        "emptyStateReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "SearchHistory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "items"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "anyOf": [
+    {
+      "$ref": "#/$defs/Request"
+    },
+    {
+      "$ref": "#/$defs/Response"
+    },
+    {
+      "$ref": "#/$defs/Event"
+    }
+  ]
+}

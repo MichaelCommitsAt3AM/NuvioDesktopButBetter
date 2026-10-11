@@ -22,6 +22,11 @@ node_modules/
 logs/
 analysis/
 Docs
+# Keep the fork's desktop migration guide under version control on Windows too.
+!docs/
+docs/*
+!docs/DESKTOP_UI_REWRITE.md
+!docs/DESKTOP_UI_PARITY.md
 SUPPORTER_COSMETICS.md
 # NOTE: upstream ignores supabase/migrations/ (they keep their schema private).
 # This fork version-controls the backend -- see CLAUDE.md "Supabase backend is

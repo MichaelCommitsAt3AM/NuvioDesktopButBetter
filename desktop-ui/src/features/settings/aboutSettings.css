@@ -1,0 +1,320 @@
+.about-settings-page {
+  --about-muted: #858c95;
+  --about-border: rgba(255, 255, 255, .1);
+  --about-card: #101114;
+}
+
+.licenses-page .license-group {
+  width: 100%;
+  margin: 0 0 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.licenses-page .license-group-heading {
+  margin: 0 0 10px;
+  color: var(--about-muted);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  line-height: 1.35;
+}
+
+.licenses-page .license-attribution-row {
+  min-height: 0;
+  gap: 17.28px;
+  padding: 21.6px 4.3px;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, .07);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.licenses-page .license-attribution-row:last-child {
+  border-bottom: 0;
+}
+
+.licenses-page .license-attribution-row:hover {
+  background: rgba(255, 255, 255, .025);
+}
+
+.licenses-page .license-attribution-row > img {
+  width: 51.84px;
+  height: 51.84px;
+  flex: 0 0 51.84px;
+  object-fit: contain;
+}
+
+.licenses-page .license-attribution-row > span {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 6px;
+}
+
+.licenses-page .license-attribution-row strong {
+  color: #eceef1;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.licenses-page .license-attribution-row small {
+  color: #a0a6ae;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+.licenses-page .license-attribution-row .license-attribution-url {
+  color: #b9bec6;
+  font-family: "JetBrains Sans", "JetBrainsSans", sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.licenses-page .license-attribution-row > svg {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  margin-top: 2px;
+  color: #a2a8b0;
+}
+
+.supporter-membership-card,
+.donation-progress-card,
+.community-tabs-card,
+.community-results-card {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, .065);
+  border-radius: 16px;
+  background: var(--about-card);
+}
+
+.supporter-membership-card {
+  overflow: hidden;
+  padding: 28px 20px 20px;
+  background: #07080b;
+}
+
+.supporter-membership-main h2 {
+  margin: 0;
+  color: #f6f7f9;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.supporter-membership-main p {
+  margin: 12px 0 0;
+  color: rgba(255, 255, 255, .65);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.supporter-membership-error {
+  margin: 12px 0 0;
+  color: #ff9e9e;
+  font-size: 14px;
+}
+
+.supporter-membership-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, .1);
+}
+
+.supporter-membership-actions .button {
+  min-height: 44px;
+  padding: 10px 20px;
+}
+
+.donation-progress-card {
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+}
+
+.donation-progress-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #eceef1;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.donation-progress-card progress {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  accent-color: #e8eaf0;
+}
+
+.donation-progress-card progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .12);
+}
+
+.donation-progress-card progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: #e8eaf0;
+}
+
+.donation-progress-card small {
+  color: #a0a6ae;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.community-tabs-card {
+  padding: 8px;
+}
+
+.community-tabs {
+  display: flex;
+  gap: 10px;
+}
+
+.community-tabs button {
+  min-height: 48px;
+  flex: 1;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .055);
+  color: #b8bec7;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.community-tabs button.selected {
+  background: rgba(232, 234, 240, .14);
+  color: #f0f1f4;
+  font-weight: 600;
+}
+
+.community-results-card {
+  overflow: hidden;
+  padding: 10px 16px;
+}
+
+.community-list {
+  display: grid;
+  gap: 6px;
+}
+
+.community-row {
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 18px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.community-row:hover {
+  background: rgba(255, 255, 255, .035);
+}
+
+.community-avatar {
+  width: 54px;
+  height: 54px;
+  flex: 0 0 54px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #272a30;
+  color: #eceef1;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.community-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.community-row > span:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 4px;
+}
+
+.community-row strong {
+  overflow: hidden;
+  color: #f0f1f4;
+  font-size: 18px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.community-row small {
+  overflow: hidden;
+  color: #a0a6ae;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.community-row > svg {
+  flex: 0 0 20px;
+  color: #a0a6ae;
+}
+
+.community-empty {
+  margin: 0;
+  padding: 24px 0;
+  color: #a0a6ae;
+  font-size: 16px;
+  text-align: center;
+}
+
+.community-load-error {
+  display: grid;
+  gap: 10px;
+  padding: 12px 0;
+}
+
+.community-load-error h2 {
+  margin: 0;
+  color: #eceef1;
+  font-size: 18px;
+}
+
+@media (max-width: 720px) {
+  .licenses-page .license-attribution-row {
+    gap: 12px;
+    padding-block: 16px;
+  }
+
+  .licenses-page .license-attribution-row strong,
+  .community-row strong {
+    font-size: 16px;
+  }
+
+  .licenses-page .license-attribution-row small,
+  .community-row small {
+    font-size: 14px;
+  }
+}

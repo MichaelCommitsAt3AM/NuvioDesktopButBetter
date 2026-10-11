@@ -1,0 +1,34 @@
+{
+  "name": "nuvio-desktop-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "prebuild": "node ../scripts/desktop-ui/generate-contract.mjs && node scripts/generate-validators.mjs",
+    "build": "tsc -b && vite build",
+    "pretest": "node ../scripts/desktop-ui/generate-contract.mjs && node scripts/generate-validators.mjs",
+    "test": "vitest run",
+    "contract:check": "node ../scripts/desktop-ui/generate-contract.mjs --check"
+  },
+  "dependencies": {
+    "@tanstack/react-virtual": "^3.14.14",
+    "@tauri-apps/api": "^2.12.2",
+    "ajv": "^8.20.0",
+    "lucide-react": "^1.55.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "jsdom": "^25.0.1",
+    "typescript": "~5.9.3",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3"
+  }
+}

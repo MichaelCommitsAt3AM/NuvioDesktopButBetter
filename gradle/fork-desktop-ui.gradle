@@ -1,0 +1,72 @@
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.TaskAction
+
+// Applied scripts use Groovy so Kotlin plugin types need not be added to a second script classloader.
+def desktopKotlin = extensions.getByName('kotlin')
+desktopKotlin.sourceSets.getByName('desktopMain').kotlin.srcDir(rootProject.file('desktop-bridge/src/main/kotlin'))
+desktopKotlin.sourceSets.getByName('desktopTest').kotlin.srcDir(rootProject.file('desktop-bridge/src/test/kotlin'))
+def ktorVersion = extensions.getByName('versionCatalogs').named('libs').findVersion('ktor').get().requiredVersion
+['core', 'cio', 'websockets', 'content-negotiation'].each {
+    dependencies.add('desktopMainImplementation', "io.ktor:ktor-server-${it}:${ktorVersion}")
+}
+dependencies.add('desktopMainImplementation', "io.ktor:ktor-serialization-kotlinx-json:${ktorVersion}")
+dependencies.add('desktopTestImplementation', "io.ktor:ktor-server-test-host:${ktorVersion}")
+
+abstract class StageDesktopBridgeRuntime extends DefaultTask {
+    @InputFiles abstract ConfigurableFileCollection getRuntimeFiles()
+    @InputFiles abstract ConfigurableFileCollection getNativeResources()
+    @OutputDirectory abstract DirectoryProperty getRuntimeDirectory()
+
+    @TaskAction void stage() {
+        def destination = runtimeDirectory.get().asFile
+        def lib = new File(destination, 'lib')
+        lib.mkdirs()
+        def jars = runtimeFiles.files.findAll { it.isFile() && it.name.endsWith('.jar') }
+        def entries = jars.withIndex().collect { source, index -> [source: source, name: String.format('%03d-%s', index, source.name)] }
+        def names = entries.collect { it.name }
+        lib.listFiles()?.findAll { it.isFile() && it.name.endsWith('.jar') && !names.contains(it.name) }?.each { it.delete() }
+        entries.each { entry -> java.nio.file.Files.copy(entry.source.toPath(), new File(lib, entry.name).toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING) }
+        def nativeDirectory = new File(destination, 'native')
+        nativeResources.files.findAll { it.isDirectory() }.each { sourceRoot ->
+            sourceRoot.eachFileRecurse { source ->
+                if (source.isFile()) {
+                    def relative = sourceRoot.toPath().relativize(source.toPath())
+                    def target = nativeDirectory.toPath().resolve(relative)
+                    java.nio.file.Files.createDirectories(target.parent)
+                    java.nio.file.Files.copy(source.toPath(), target, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                }
+            }
+        }
+        new File(destination, 'classpath.txt').text = entries.collect { new File(lib, it.name).absolutePath }.join(File.pathSeparator)
+    }
+}
+
+def mainCompilation = desktopKotlin.targets.getByName('desktop').compilations.getByName('main')
+tasks.register('runDesktopBridge', JavaExec) {
+    group = 'desktop UI'
+    description = "Run the Kotlin bridge; stdin's first line must contain the launch token."
+    dependsOn('desktopJar')
+    mainClass.set('com.nuvio.desktop.bridge.MainKt')
+    classpath(mainCompilation.output.allOutputs, mainCompilation.runtimeDependencyFiles)
+    standardInput = System.in
+    jvmArgs('-Dswing.defaultlaf=javax.swing.plaf.metal.MetalLookAndFeel')
+}
+tasks.register('stageBridgeRuntime', StageDesktopBridgeRuntime) {
+    group = 'desktop UI'
+    description = 'Stage the backend JARs for Tauri development without launching the application.'
+    dependsOn('desktopJar')
+    runtimeFiles.from(tasks.named('desktopJar').flatMap { it.archiveFile }, mainCompilation.runtimeDependencyFiles)
+    def hostOs = System.getProperty('os.name').toLowerCase(Locale.ROOT)
+    if (hostOs.contains('win')) {
+        dependsOn('prepareWindowsAppResources')
+        nativeResources.from(tasks.named('prepareWindowsAppResources').map { it.destinationDir })
+    } else if (hostOs.contains('mac')) {
+        dependsOn('prepareMacosPlayerAppResources')
+        nativeResources.from(tasks.named('prepareMacosPlayerAppResources').map { it.destinationDir.parentFile.parentFile })
+    }
+    runtimeDirectory.set(rootProject.layout.projectDirectory.dir('desktop-ui/src-tauri/resources/backend'))
+}

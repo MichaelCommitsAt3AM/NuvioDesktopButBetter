@@ -62,7 +62,9 @@ internal class NativePlayerController(
     private val nativeDispose: (Long) -> Unit = NativePlayerBridge::dispose,
     private val nativeSeekTo: (Long, Long) -> Unit = NativePlayerBridge::seekTo,
     private val isHostDisplayable: () -> Boolean = { host.isDisplayable },
-    private val resolveHostView: () -> Long = { AwtNativeViewResolver.resolveNativeViewPointer(host) },
+    private val resolveHostView: () -> Long = {
+        EmbeddedTauriPlayerHost.nativeWindowHandle() ?: AwtNativeViewResolver.resolveNativeViewPointer(host)
+    },
     private val createWaitTimeoutMs: Long = 5_000L,
     private val releaseTimeoutMs: Long = 10_000L,
     private val onCreateWaitCompleted: () -> Unit = {},
@@ -199,12 +201,14 @@ internal class NativePlayerController(
                 "audioLanguages=${preferredAudioLanguages.joinToString(",")}"
         }
         host.onPeerReady = { attachPending() }
+        DesktopDiagnostics.record("bridge_player_attach_pending_registered", "displayable=${isHostDisplayable()} host=${host.width}x${host.height}")
         if (isHostDisplayable()) {
             attachPending()
         }
     }
 
     private fun attachPending() {
+        DesktopDiagnostics.record("bridge_player_attach_pending_called", "displayable=${isHostDisplayable()} host=${host.width}x${host.height}")
         val pending = pendingSource ?: return
         SwingUtilities.invokeLater {
             val terminalFailure = synchronized(lifecycleLock) { terminalReleaseFailure }
@@ -310,6 +314,7 @@ internal class NativePlayerController(
     }
 
     private fun createPlayer(pending: PendingSource) {
+        DesktopDiagnostics.record("bridge_player_create_enter", "displayable=${isHostDisplayable()} host=${host.width}x${host.height}")
         val terminalFailure = synchronized(lifecycleLock) { terminalReleaseFailure }
         if (terminalFailure != null) {
             if (!releaseRequested && pendingSource === pending) pending.onError(terminalFailure)
@@ -318,10 +323,12 @@ internal class NativePlayerController(
         // Resolving the AWT peer must happen on the EDT; everything after it must not.
         val hostViewPtr = runCatching { resolveHostView() }
             .getOrElse { error ->
+                DesktopDiagnostics.recordFailure("player_host_view_resolve_failed", error)
                 log.w(error) { "attach failed to resolve host source=${pending.sourceUrl.toPlaybackLogKey()}" }
                 if (!releaseRequested && pendingSource === pending) pending.onError(error.message)
                 return
             }
+        DesktopDiagnostics.record("bridge_player_host_view_resolved", "ptr=$hostViewPtr")
         val resolvedSource = if (pending.sourceUrl.startsWith("file:", ignoreCase = true)) {
             runCatching { java.io.File(java.net.URI(pending.sourceUrl)).absolutePath }.getOrElse {
                 val stripped = pending.sourceUrl.replaceFirst(Regex("^file:/{1,3}", RegexOption.IGNORE_CASE), "")
@@ -338,6 +345,7 @@ internal class NativePlayerController(
         // Create off the EDT and come back to it for the parts that touch Swing state.
         val createWorker = Thread({
             try {
+                DesktopDiagnostics.record("bridge_player_native_create_enter")
                 runCatching {
                     nativeCreate(
                         hostViewPtr,
@@ -354,6 +362,8 @@ internal class NativePlayerController(
                         eventSink,
                     ).also { if (it == 0L) error("Native player did not return a handle.") }
                 }.onSuccess { created ->
+                    DesktopDiagnostics.record("bridge_player_native_create_returned", "handle=$created")
+                    EmbeddedTauriPlayerHost.playerAttached()
                     val accepted = synchronized(lifecycleLock) {
                         if (!releaseRequested && terminalReleaseFailure == null && pendingSource === pending) {
                             handle = created
@@ -428,6 +438,10 @@ internal class NativePlayerController(
                 }
             }
         }
+        DesktopDiagnostics.record(
+            "bridge_player_create_worker_admission",
+            "admitted=$admitted releaseRequested=$releaseRequested pendingMatches=${pendingSource === pending} terminalFailure=${terminalReleaseFailure != null}",
+        )
         if (!admitted) {
             admissionFailure?.let { message ->
                 SwingUtilities.invokeLater {

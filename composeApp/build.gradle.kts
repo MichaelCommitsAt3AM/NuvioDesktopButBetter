@@ -1716,3 +1716,6 @@ configurations.all {
     exclude(group = "androidx.media3", module = "media3-exoplayer")
     exclude(group = "androidx.media3", module = "media3-ui")
 }
+
+// Fork-only React/Tauri bridge; upstream application entry points remain unchanged.
+apply(from = rootProject.file("gradle/fork-desktop-ui.gradle"))

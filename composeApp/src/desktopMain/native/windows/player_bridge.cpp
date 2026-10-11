@@ -1482,6 +1482,13 @@ private:
         LONG width = std::max<LONG>(1, bounds.right - bounds.left);
         LONG height = std::max<LONG>(1, bounds.bottom - bounds.top);
 
+        // The host may be the Tauri top-level HWND (rather than an AWT Canvas).
+        // Keep parent repaints from drawing over the native player child surface.
+        LONG_PTR hostStyle = GetWindowLongPtrW(hostHwnd, GWL_STYLE);
+        if ((hostStyle & WS_CLIPCHILDREN) == 0) {
+            SetWindowLongPtrW(hostHwnd, GWL_STYLE, hostStyle | WS_CLIPCHILDREN);
+        }
+
         containerHwnd = CreateWindowExW(
             0,
             kContainerWindowClass,

@@ -26,6 +26,16 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+**Desktop UI preview**
+- An opt-in React/Tauri desktop UI is being developed while keeping the existing Kotlin backend and native player. See [the migration notes](docs/DESKTOP_UI_REWRITE.md) for build instructions and remaining feature work.
+- The preview now includes profiles/PINs, catalog discovery, rich details, cloud library, collections, downloads and expanded settings. Full animation, language and release-delivery parity is still in progress; [the coverage checklist](docs/DESKTOP_UI_PARITY.md) tracks what remains.
+- Settings now follows the Kotlin category/sidebar and nested-page structure, with connected controls for appearance, playback, Home, posters, Continue Watching, addons, integrations, plugins, account, About and Advanced. Detailed screen-by-screen parity and remaining differences are tracked in [the Settings comparison notes](docs/DESKTOP_UI_PARITY.md).
+- The profile chooser now follows the original centered logo, gradient backdrop, circular avatars and in-place Manage Profiles mode. It opens on launch when Remember Last Profile is off, and is available through the profile menu.
+- After profile selection, the preview shows the original-style centered Nuvio logo and animated loading arc over the profile backdrop until Home is ready, then fades into the app.
+- Downloads opens from Library. Hold the Settings navigation item to switch profiles; its icon shows the current avatar. Content is enlarged independently of the top bar, and horizontal card rows have scroll arrows.
+
+- Home is being aligned against the installed Compose app: full-width hero, in-card Continue Watching details, poster actions/previews and hover arrows. See [the Home comparison](docs/DESKTOP_HOME_COMPARISON.md) for verified behavior and remaining differences.
+
 **Your account and sync**
 - Sign-in and sync run on this fork's own server, separate from the official Nuvio service.
 - Library changes sync between your devices faster and more reliably.

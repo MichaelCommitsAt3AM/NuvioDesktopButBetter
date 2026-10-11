@@ -99,18 +99,30 @@ object MetaDetailsRepository {
             )
 
             scope.launch {
-                val enrichedMeta = withContext(Dispatchers.Default) {
-                    enrichForMetaScreen(
-                        requestKey = requestKey,
-                        meta = cachedBaseMeta,
-                        fallbackItemId = id,
-                        fallbackItemType = type,
-                        settings = mdbListSettings,
-                        settingsFingerprint = metaScreenSettingsFingerprint,
-                    )
+                try {
+                    val enrichedMeta = withContext(Dispatchers.Default) {
+                        enrichForMetaScreen(
+                            requestKey = requestKey,
+                            meta = cachedBaseMeta,
+                            fallbackItemId = id,
+                            fallbackItemType = type,
+                            settings = mdbListSettings,
+                            settingsFingerprint = metaScreenSettingsFingerprint,
+                        )
+                    }
+                    if (activeRequestKey == requestKey) {
+                        _uiState.value = MetaDetailsUiState(meta = enrichedMeta.withUnreleasedFilter())
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    log.e(e) { "Failed to enrich cached details — type=$type id=$id" }
+                    if (activeRequestKey == requestKey) {
+                        _uiState.value = MetaDetailsUiState(meta = cachedBaseMeta.withUnreleasedFilter())
+                    }
+                } finally {
+                    if (activeRequestKey == requestKey) activeRequestKey = null
                 }
-                _uiState.value = MetaDetailsUiState(meta = enrichedMeta.withUnreleasedFilter())
-                activeRequestKey = requestKey
             }
             return
         }
@@ -130,6 +142,7 @@ object MetaDetailsRepository {
         _uiState.value = MetaDetailsUiState(isLoading = true)
 
         activeLoadJob = scope.launch {
+            try {
             val metaLookupId = resolveMetaLookupId(itemId = id, itemType = type)
             val manifests = findReadyMetaManifests(type = type, id = metaLookupId)
 
@@ -198,6 +211,18 @@ object MetaDetailsRepository {
                     errorMessage = getString(Res.string.details_load_failed_all_addons),
                 )
                 activeRequestKey = null
+            }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                log.e(e) { "Failed to load details — type=$type id=$id" }
+                if (activeRequestKey == requestKey) {
+                    _uiState.value = MetaDetailsUiState(
+                        errorMessage = e.message?.takeIf { it.isNotBlank() }
+                            ?: getString(Res.string.details_load_failed_all_addons),
+                    )
+                    activeRequestKey = null
+                }
             }
         }
     }

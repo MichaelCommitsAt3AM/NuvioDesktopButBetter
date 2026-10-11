@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.tsbuildinfo
+src-tauri/target/
+src-tauri/resources/backend/lib/
+src-tauri/resources/backend/native/
+src-tauri/resources/backend/runtime/
+src-tauri/resources/backend/classpath.txt
+src-tauri/gen/

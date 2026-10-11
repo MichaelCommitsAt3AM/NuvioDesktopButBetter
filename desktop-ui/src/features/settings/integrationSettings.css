@@ -1,0 +1,43 @@
+.integration-brand-logo{display:block;width:28px;height:28px;max-width:100%;max-height:100%;object-fit:contain}.integration-provider-row{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.05)}.integration-provider-row:last-child{border-bottom:0}.integration-api-entry{display:flex;gap:8px;align-items:center}.integration-api-entry input{min-width:160px;max-width:260px;padding:9px 10px;border:1px solid rgba(255,255,255,.09);border-radius:8px;background:#16181c;color:#e0e3e7;font-size:10px}.plugin-settings-dialog{max-width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 48px);overflow:auto}.plugin-settings-fields{display:grid;gap:12px;max-height:60vh;overflow:auto;padding:4px 0 12px}.plugin-settings-fields h3{margin:8px 0 0;color:var(--accent);font-size:16px}.plugin-settings-fields small{display:block;color:var(--muted);margin-top:5px}.plugin-test-results code{display:block;overflow-wrap:anywhere;color:var(--muted)}
+.integration-provider-choice{width:100%;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer}.integration-provider-choice:hover{background:rgba(255,255,255,.035)}.integration-provider-status{white-space:nowrap;color:var(--muted);font-size:10px}
+.plugin-scraper-logo{width:42px;height:42px;object-fit:contain;border-radius:8px;flex:none}.plugin-scraper{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.settings-language-row{display:grid;grid-template-columns:minmax(180px,1fr) minmax(140px,260px) auto;align-items:center;gap:14px;padding:16px 21px}
+.settings-language-row label{display:grid;gap:6px;color:#c6cbd0;font-size:14px}
+.settings-language-row input{width:100%;padding:10px 12px;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:#131417;color:var(--text)}
+.settings-tmdb-key-row{display:grid;grid-template-columns:minmax(180px,1fr) minmax(180px,360px) auto;align-items:center;gap:10px 14px;padding:16px 21px}
+.settings-tmdb-key-copy{display:grid;gap:4px}.settings-tmdb-key-copy strong{font-size:16px;font-weight:400;color:var(--text)}.settings-tmdb-key-copy span,.settings-tmdb-key-status{font-size:14px;line-height:20px;color:#989da2}
+.settings-tmdb-key-input{display:flex;align-items:center;min-width:0;border:1px solid rgba(255,255,255,.1);border-radius:9px;background:#131417}
+.settings-tmdb-key-input input{flex:1;min-width:0;padding:11px 12px;border:0;outline:0;background:transparent;color:var(--text)}
+.settings-tmdb-key-input .icon-button{flex:none}
+.settings-tmdb-key-status,.settings-tmdb-key-row>.form-error{grid-column:2/4;margin:0}
+@media(max-width:700px){.settings-tmdb-key-row{grid-template-columns:1fr}.settings-tmdb-key-status,.settings-tmdb-key-row>.form-error{grid-column:auto}.settings-tmdb-key-row>.button{justify-self:start}}
+@media(max-width:700px){.settings-language-row{grid-template-columns:1fr}.settings-language-row .button{justify-self:start}}
+.settings-desktop .settings-value-row{width:100%;text-align:left;color:inherit;background:transparent;cursor:pointer}
+.settings-desktop .settings-value-row:hover:not(:disabled){background:rgba(255,255,255,.035)}
+.settings-desktop .settings-value-row:disabled{opacity:.48;cursor:default}
+.settings-value-chevron{font-size:28px;line-height:1;color:#92969c}
+.settings-value-current{margin-top:4px;color:var(--accent)!important}
+.settings-choice-dialog{max-height:min(78vh,720px);overflow:auto}
+.settings-radio-list{display:grid;margin-top:8px}
+.settings-radio-option{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:54px;padding:12px 2px;border-bottom:1px solid rgba(255,255,255,.06);color:var(--text);cursor:pointer}
+.settings-radio-option:last-child{border-bottom:0}
+.settings-radio-option input{width:18px;height:18px;accent-color:var(--accent)}
+.settings-choice-dialog>input[type=password]{width:100%;margin:12px 0;padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:9px;background:#131417;color:#edf0f2}
+.plugin-overview-badges{display:flex;flex-wrap:wrap;gap:9px;padding:18px 21px}
+.plugin-overview-badges span{padding:7px 11px;border-radius:20px;background:rgba(255,255,255,.07);color:#c8cdd3;font-size:13px}
+.plugin-add-repository{display:grid;gap:10px;padding:20px 21px}
+.plugin-add-repository label{color:#c6cbd0;font-size:15px}
+.plugin-add-repository input{width:100%;padding:12px;border:1px solid rgba(255,255,255,.1);border-radius:9px;background:#131417;color:#edf0f2}
+.plugins-page .plugin-repository{padding:18px 21px}
+.plugins-page .plugin-repository-title{align-items:flex-start;flex-direction:column;gap:7px}
+.plugins-page .plugin-repository-title strong{font-size:18px;font-weight:500}
+.plugins-page .plugin-repository-title span,.plugins-page .plugin-repository p{font-size:15px}
+.plugins-page .plugin-repository-url{margin-top:10px;font-size:14px}
+.plugins-page .plugin-scraper{padding:18px 21px;min-height:90px}
+.plugins-page .plugin-scraper-copy strong{font-size:17px}
+.plugins-page .plugin-scraper-copy span,.plugins-page .plugin-scraper-copy small{font-size:14px;white-space:normal}
+.plugins-page .plugin-scraper-logo{width:48px;height:48px}
+.plugins-page .plugin-test-results{flex:0 0 100%;padding:12px 0;border-top:1px solid rgba(255,255,255,.06)}
+.plugins-page .plugin-test-results>div{display:flex;gap:9px;padding:8px 0}
+.plugins-page .plugin-test-results>div>span{display:grid;gap:4px;min-width:0}
+.plugins-page .plugin-test-results code{overflow-wrap:anywhere}

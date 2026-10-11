@@ -151,7 +151,7 @@ internal data class SupportersResult(
     val progress: DonationProgress?,
 )
 
-private object SupportersContributorsRepository {
+internal object SupportersContributorsRepository {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     suspend fun getContributors(): Result<List<CommunityContributor>> = runCatching {

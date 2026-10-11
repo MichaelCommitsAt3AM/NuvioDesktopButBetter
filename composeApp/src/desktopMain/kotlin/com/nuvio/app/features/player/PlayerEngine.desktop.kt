@@ -29,11 +29,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.diagnostics.StreamLoadTimeline
+import com.nuvio.app.core.diagnostics.DesktopDiagnostics
 import com.nuvio.app.core.ui.AppPresenceState
 import com.nuvio.app.core.ui.LocalNuvioPlatformDensity
 import com.nuvio.app.core.ui.PresenceSnapshot
 import com.nuvio.app.features.player.desktop.DesktopHostOs
 import com.nuvio.app.features.player.desktop.DesktopPlayerPictureInPicture
+import com.nuvio.app.features.player.desktop.EmbeddedTauriPlayerHost
 import com.nuvio.app.features.player.desktop.NativePlayerController
 import com.nuvio.app.features.player.desktop.NativePlayerHost
 import com.nuvio.app.features.player.desktop.desktopFullscreenChanges
@@ -136,6 +138,7 @@ private fun NativePlayerSurface(
     val controller = remember(host) { NativePlayerController(host) }
     val hostFirstPaintComplete = remember { mutableStateOf(false) }
     val hostFirstFullSizePaintComplete = remember { mutableStateOf(false) }
+    val hostPeerDisplayable = remember { mutableStateOf(false) }
     val playbackHeaders = remember(sourceHeaders) { sanitizePlaybackHeaders(sourceHeaders) }
     val latestOnPlayerControlsAction = rememberUpdatedState(onPlayerControlsAction)
     val latestOnPlayerControlsEvent = rememberUpdatedState(onPlayerControlsEvent)
@@ -147,6 +150,11 @@ private fun NativePlayerSurface(
     val playerSettings by PlayerSettingsRepository.uiState.collectAsState()
     val decoderPriority = playerSettings.decoderPriority
     val nvidiaRtxSuperResolutionEnabled = playerSettings.nvidiaRtxSuperResolutionEnabled
+    // The offscreen Compose window used by the Tauri shell intentionally keeps
+    // its Swing host at 1dp. Once its peer exists, create mpv directly under the
+    // real Tauri HWND instead of waiting for a full-size paint from this host.
+    val playerSurfaceReady = hostFirstFullSizePaintComplete.value ||
+        (EmbeddedTauriPlayerHost.isEmbedded() && hostPeerDisplayable.value)
 
     SideEffect {
         onControllerReady(controller)
@@ -156,20 +164,24 @@ private fun NativePlayerSurface(
         DesktopPlayerPictureInPicture.setHost(host)
         DesktopPlayerPictureInPicture.setController(controller)
         host.onDisplayableChanged = { displayable ->
+            hostPeerDisplayable.value = displayable
             if (!displayable) {
                 hostFirstPaintComplete.value = false
                 hostFirstFullSizePaintComplete.value = false
             }
         }
         host.onFirstPaint = {
+            DesktopDiagnostics.record("bridge_player_host_first_paint_callback")
             hostFirstPaintComplete.value = true
         }
         host.onFirstFullSizePaint = {
+            DesktopDiagnostics.record("bridge_player_host_full_size_paint_callback", "size=${host.width}x${host.height}")
             hostFirstFullSizePaintComplete.value = true
         }
         onDispose {
             DesktopPlayerPictureInPicture.release()
             host.onDisplayableChanged = null
+            hostPeerDisplayable.value = false
             host.onFirstPaint = null
             host.onFirstFullSizePaint = null
         }
@@ -192,8 +204,8 @@ private fun NativePlayerSurface(
     // window focus can return to the AWT/Compose host instead of the embedded
     // WebView, so explicitly hand keyboard focus back to the native controls
     // whenever the player window becomes active again.
-    DisposableEffect(controller, hostFirstFullSizePaintComplete.value) {
-        val uninstall = if (hostFirstFullSizePaintComplete.value) {
+    DisposableEffect(controller, playerSurfaceReady) {
+        val uninstall = if (playerSurfaceReady) {
             controller.installWindowFocusForwarding()
         } else {
             null
@@ -211,11 +223,12 @@ private fun NativePlayerSurface(
         subtitlesDisabledAtStartup,
         decoderPriority,
         nvidiaRtxSuperResolutionEnabled,
-        hostFirstFullSizePaintComplete.value,
+        playerSurfaceReady,
         initialPositionMs,
         initialPositionRequestKey,
     ) {
-        if (!sourceAvailable || !hostFirstFullSizePaintComplete.value) {
+        DesktopDiagnostics.record("bridge_player_attach_effect", "available=$sourceAvailable surfaceReady=$playerSurfaceReady fullSize=${hostFirstFullSizePaintComplete.value} embedded=${EmbeddedTauriPlayerHost.isEmbedded()} host=${host.width}x${host.height} displayable=${host.isDisplayable}")
+        if (!sourceAvailable || !playerSurfaceReady) {
             return@LaunchedEffect
         }
         delay(16L)

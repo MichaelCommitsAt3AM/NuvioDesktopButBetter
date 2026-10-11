@@ -1,0 +1,5 @@
+.catalog-actions{display:flex;align-items:center;gap:8px}
+.catalog-grid,.discover-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:20px 14px;margin-top:18px}
+.catalog-sentinel,.discover-sentinel{height:1px}
+.discover-end{padding:18px 0 4px;color:var(--muted,#85878d);text-align:center;font-size:13px}
+@media(max-width:700px){.catalog-grid,.discover-grid{grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:16px 10px}}

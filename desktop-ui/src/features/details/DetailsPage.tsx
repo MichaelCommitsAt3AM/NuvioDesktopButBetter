@@ -5,7 +5,7 @@ import { ArrowLeft, Check, CircleCheck, Maximize, MoreHorizontal, Play, Plus } f
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { InlineError } from '../../components/Status';
-import { DetailsExtras, type ExtrasMeta } from './DetailsExtras';
+import { DetailsExtras, type ExtrasMeta, type DetailsPrimaryAction } from './DetailsExtras';
 import './details.css';
 
 export function DetailsPage() {
@@ -18,7 +18,8 @@ export function DetailsPage() {
   const [savedOverride, setSavedOverride] = useState<boolean | null>(null);
   const [savedBusy, setSavedBusy] = useState(false);
   const [actionError, setActionError] = useState('');
-  const [watched, setWatched] = useState<{ loaded: boolean; watched?: boolean; fullyWatched?: boolean }>({ loaded: false });
+  const [watched, setWatched] = useState<{ loaded: boolean; watched?: boolean; fullyWatched?: boolean; primaryAction?: DetailsPrimaryAction | null; contentKey?: string }>({ loaded: false });
+  const homeExtras = useFeatureSnapshot('homeExtras');
   const [watchBusy, setWatchBusy] = useState(false);
   const [extraMeta, setExtraMeta] = useState<ExtrasMeta | null>(null);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
@@ -43,20 +44,21 @@ export function DetailsPage() {
   }, [type, id, details.loading, details.requestId]);
   useEffect(() => { setActionsOpen(false); setSavedOverride(null); setActionError(''); }, [type, id]);
   useEffect(() => () => { if (playHoldTimer.current !== null) window.clearTimeout(playHoldTimer.current); }, []);
-  const media = details.media;
+  const media = details.media?.id === id && details.media.type === type ? details.media : null;
+  const primaryAction = (watched.contentKey === `${type}:${id}` ? watched.primaryAction : null) ?? (extraMeta?.id === id && extraMeta.type === type ? extraMeta.primaryAction : undefined);
   const saved = savedOverride ?? library.items.some((item) => item.id === id && item.type === type);
   useEffect(() => { setExtraMeta(null); }, [type, id]);
   useEffect(() => {
     let active = true;
-    setWatched({ loaded: false });
-    void call<{ loaded: boolean; watched?: boolean; fullyWatched?: boolean }>('details.watched.snapshot', { type, id }).then((state) => { if (active) setWatched(state); }).catch(() => { if (active) setWatched({ loaded: true }); });
+    setWatched((current) => current.contentKey === `${type}:${id}` ? current : { loaded: false });
+    void call<{ loaded: boolean; watched?: boolean; fullyWatched?: boolean; primaryAction?: DetailsPrimaryAction | null }>('details.watched.snapshot', { type, id }).then((state) => { if (active) setWatched({ ...state, contentKey: `${type}:${id}` }); }).catch(() => { if (active) setWatched({ loaded: true }); });
     return () => { active = false; };
-  }, [type, id]);
+  }, [type, id, media?.id, homeExtras]);
   const toggleWatched = async () => {
     if (!media) return;
     setWatchBusy(true);
     setActionError('');
-    try { setWatched(await call<{ loaded: boolean; watched?: boolean; fullyWatched?: boolean }>('details.watched.toggle', { id: media.id, type: media.type, name: media.name, poster: media.poster, background: media.background, releaseInfo: media.releaseInfo, genres: media.genres, description: media.description })); }
+    try { setWatched({ ...await call<{ loaded: boolean; watched?: boolean; fullyWatched?: boolean; primaryAction?: DetailsPrimaryAction | null }>('details.watched.toggle', { id: media.id, type: media.type, name: media.name, poster: media.poster, background: media.background, releaseInfo: media.releaseInfo, genres: media.genres, description: media.description }), contentKey: `${type}:${id}` }); }
     catch (cause) { setActionError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setWatchBusy(false); }
   };
@@ -72,7 +74,18 @@ export function DetailsPage() {
     } catch (cause) { setActionError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setSavedBusy(false); }
   };
-  const openStreams = (manual = false) => navigate(`/details/${encodeURIComponent(media!.type)}/${encodeURIComponent(media!.id)}/streams/${encodeURIComponent(media!.id)}${manual ? '?manual=1' : ''}`);
+  const openStreams = (manual = false) => {
+    if (!media) return;
+    const query = new URLSearchParams();
+    if (manual) query.set('manual', '1');
+    for (const [key, value] of Object.entries({
+      title: media.name, background: media.background, poster: media.poster, logo: media.logo,
+      seasonNumber: primaryAction?.seasonNumber, episodeNumber: primaryAction?.episodeNumber,
+      episodeTitle: primaryAction?.episodeTitle, episodeThumbnail: primaryAction?.episodeThumbnail,
+      resumeMs: primaryAction?.resumePositionMs,
+    })) if (value != null && value !== '') query.set(key, String(value));
+    navigate(`/details/${encodeURIComponent(media.type)}/${encodeURIComponent(media.id)}/streams/${encodeURIComponent(primaryAction?.videoId ?? media.id)}?${query}`);
+  };
   const beginPlayHold = (event: ReactPointerEvent<HTMLButtonElement>) => {
     // Some embedded webviews do not populate `button` for pointerdown. Only
     // reject an explicitly non-primary button so long-press still works there.
@@ -126,7 +139,7 @@ export function DetailsPage() {
           {media.genres.length > 0 && <p className="detail-genres">{media.genres.slice(0, 4).join(' · ')}</p>}
           {media.description && <p className="detail-description">{media.description}</p>}
           <div className="detail-actions">
-            <button className="detail-play" type="button" onPointerDown={beginPlayHold} onPointerUp={cancelPlayHold} onPointerCancel={cancelPlayHold} onPointerLeave={cancelPlayHold} onContextMenu={(event) => event.preventDefault()} onClick={() => { if (longPlayTriggered.current) { longPlayTriggered.current = false; return; } openStreams(false); }}><Play size={19} fill="currentColor" />Play</button>
+            <button className="detail-play" type="button" onPointerDown={beginPlayHold} onPointerUp={cancelPlayHold} onPointerCancel={cancelPlayHold} onPointerLeave={cancelPlayHold} onContextMenu={(event) => event.preventDefault()} onClick={() => { if (longPlayTriggered.current) { longPlayTriggered.current = false; return; } openStreams(false); }}><Play size={19} fill="currentColor" />{primaryAction?.label ?? 'Play'}</button>
             <div className={`detail-action-expander ${actionsOpen ? 'expanded' : ''}`}>
               <span className="detail-inline-action-slot"><button className={`detail-inline-action ${watched.watched || watched.fullyWatched ? 'active' : ''}`} type="button" aria-label={watched.watched || watched.fullyWatched ? 'Mark unwatched' : 'Mark watched'} title={watched.watched || watched.fullyWatched ? 'Mark unwatched' : 'Mark watched'} disabled={watchBusy || !watched.loaded} onClick={() => void toggleWatched()}><CircleCheck size={21} /></button></span>
               <span className="detail-inline-action-slot"><button className={`detail-inline-action ${saved ? 'active' : ''}`} type="button" aria-label={saved ? 'Remove from library' : 'Add to library'} title={saved ? 'Remove from library' : 'Add to library'} disabled={savedBusy} onClick={() => void toggleSaved()}>{saved ? <Check size={21} /> : <Plus size={21} />}</button></span>
@@ -136,7 +149,7 @@ export function DetailsPage() {
           {actionError && <p className="detail-action-error" role="alert">{actionError}</p>}
         </div>
       </section>
-      <DetailsExtras type={type} id={id} onMetaLoaded={setExtraMeta} />
+      <DetailsExtras type={type} id={id} primaryAction={primaryAction} onMetaLoaded={setExtraMeta} />
     </div>}
     </div>
   </>;

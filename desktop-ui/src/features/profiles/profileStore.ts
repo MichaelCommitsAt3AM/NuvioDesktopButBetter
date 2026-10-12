@@ -12,6 +12,7 @@ export type ProfileRecord = {
   locked: boolean;
   pinLockedUntil: string | null;
   usesPrimaryAddons: boolean;
+  addonSyncProfileId?: number | null;
   usesPrimaryPlugins: boolean;
   primaryAddonsAllowlist: string[] | null;
 };

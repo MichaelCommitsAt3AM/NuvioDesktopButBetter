@@ -8,6 +8,11 @@ import com.nuvio.app.features.details.MetaPerson
 import com.nuvio.app.features.details.MetaTrailer
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.details.MetaDetailsRepository
+import com.nuvio.app.features.details.seriesPrimaryAction
+import com.nuvio.app.features.watchprogress.WatchProgressRepository
+import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesRepository
+import com.nuvio.app.features.watching.domain.playLabel
+import com.nuvio.app.features.watching.domain.resumeLabel
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.tmdb.TmdbEntityKind
 import com.nuvio.app.features.tmdb.TmdbEntityMediaType
@@ -206,6 +211,7 @@ object DetailsExtrasBridge {
             if (!type.isNullOrBlank() && !id.isNullOrBlank()) {
                 put("watched", WatchedRepository.isWatched(id, type))
                 put("fullyWatched", WatchedRepository.isFullyWatchedSeries(id, type))
+                put("primaryAction", MetaDetailsRepository.peek(type, id)?.let(::primaryActionJson) ?: JsonNull)
                 put("seriesKey", watchedItemKey(type, id))
                 put("episodes", JsonArray(watched.items.filter { item -> item.id == id && item.type == type && item.season != null && item.episode != null }.map { item -> buildJsonObject {
                     put("season", item.season)
@@ -218,6 +224,7 @@ object DetailsExtrasBridge {
     }
 
     private fun metaDetailsJson(meta: MetaDetails) = buildJsonObject {
+        put("primaryAction", primaryActionJson(meta))
         put("id", meta.id)
         put("type", meta.type)
         put("name", meta.name)
@@ -255,6 +262,32 @@ object DetailsExtrasBridge {
             meta.seasonPosters.forEach { (season, poster) -> put(season.toString(), poster) }
         })
         put("videos", JsonArray(meta.videos.map(::videoJson)))
+    }
+
+    private fun primaryActionJson(meta: MetaDetails): JsonObject {
+        WatchProgressRepository.ensureLoaded()
+        WatchedRepository.ensureLoaded()
+        ContinueWatchingPreferencesRepository.ensureLoaded()
+        val hasEpisodes = meta.videos.any { it.season != null || it.episode != null }
+        val action = if (meta.type == "series" || hasEpisodes) meta.seriesPrimaryAction(
+            entries = WatchProgressRepository.uiState.value.entries,
+            watchedItems = WatchedRepository.uiState.value.items,
+            todayIsoDate = CurrentDateProvider.todayIsoDate(),
+            preferFurthestEpisode = ContinueWatchingPreferencesRepository.uiState.value.upNextFromFurthestEpisode,
+            watchedKeys = WatchedRepository.uiState.value.watchedKeys,
+            allowRewatch = true,
+        ) else null
+        val movieProgress = if (meta.type != "series" && !hasEpisodes)
+            WatchProgressRepository.progressForVideo(meta.id, meta.id)?.takeUnless { it.isCompleted } else null
+        return buildJsonObject {
+            put("label", action?.label ?: if (movieProgress != null) resumeLabel(null, null) else playLabel(null, null))
+            put("videoId", action?.videoId ?: meta.id)
+            put("seasonNumber", action?.seasonNumber?.let(::JsonPrimitive) ?: JsonNull)
+            put("episodeNumber", action?.episodeNumber?.let(::JsonPrimitive) ?: JsonNull)
+            putNullable("episodeTitle", action?.episodeTitle)
+            putNullable("episodeThumbnail", action?.episodeThumbnail)
+            put("resumePositionMs", (action?.resumePositionMs ?: movieProgress?.lastPositionMs)?.let(::JsonPrimitive) ?: JsonNull)
+        }
     }
 
     private fun personDetailJson(person: com.nuvio.app.features.details.PersonDetail) = buildJsonObject {

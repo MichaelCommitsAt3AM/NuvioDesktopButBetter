@@ -85,8 +85,10 @@ export function StreamsPage() {
   const [playbackStarting, setPlaybackStarting] = useState<{ resolvingDebrid: boolean } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ stream: Stream; x: number; y: number } | null>(null);
   const playback = useSelector(current => current.playback);
-  const media = details.media;
-  const episode = details.episodes.find(item => item.id === videoId);
+  // The details snapshot survives navigation. Only use it for this title;
+  // Continue Watching can start playback without loading its details first.
+  const media = details.media?.id === id && details.media.type === type ? details.media : null;
+  const episode = media ? details.episodes.find(item => item.id === videoId) : undefined;
   const heroArtwork = episode?.thumbnail || routeEpisodeThumbnail || media?.background || routeBackground || media?.poster || routePoster || '';
   const title = media?.name ?? routeTitle ?? episode?.title ?? 'Available streams';
   const titleLogo = media?.logo || routeLogo;
@@ -110,7 +112,7 @@ export function StreamsPage() {
     setPlaybackStarting({ resolvingDebrid: selectedPresentation?.resolvingDebrid === true });
     try {
       if (enableP2p) await call('p2p.setEnabled', { enabled: true, consentAccepted: true });
-      const result = await actions.playback(streamId, type, id, episode?.title ?? media?.name ?? 'Nuvio', { videoId, startFromBeginning });
+      const result = await actions.playback(streamId, type, id, episodeTitle ?? title, { videoId, startFromBeginning });
       setConsent(null);
       if (cancelStartingPlayback.current) {
         if (result.started) await call('playback.stop').catch(() => {});
@@ -150,7 +152,7 @@ export function StreamsPage() {
     catch (cause) { setError(String(cause)); }
   };
   const setDownloadFilter = async (mode: string) => {
-    try { await call('streams.downloadFilter.set', { mode }); }
+    try { await call('streams.downloadFilter.set', { mode }); setError(''); }
     catch (cause) { setError(String(cause)); }
   };
   const refreshStreams = () => { setError(''); void actions.loadStreams(type, videoId, id, episode?.season ?? undefined, episode?.episode ?? undefined, manual); };
@@ -196,7 +198,7 @@ export function StreamsPage() {
   const cancelPlayerStart = () => { cancelStartingPlayback.current = true; setPlaybackStarting(null); navigate(-1); };
 
   if (playbackStarting || waitingForAutomaticSelection) return <div className="streams-page streams-opening-page">
-    {heroArtwork && <img className="streams-backdrop-image" src={heroArtwork} alt="" />}
+    {heroArtwork && <img key={`${type}:${id}:${heroArtwork}`} className="streams-backdrop-image" src={heroArtwork} alt="" />}
     <div className="streams-backdrop-shade" />
     <div className="streams-opening-overlay" role="status" aria-live="polite">
       {isResolvingStage || waitingForAutomaticSelection && !playbackStarting
@@ -206,14 +208,14 @@ export function StreamsPage() {
           <button className="streams-opening-back" type="button" aria-label="Close player" onClick={cancelPlayerStart}><X size={21} /></button>
         </nav>}
       <div className={`streams-opening-content${playbackLoadingSettings?.showPlayerLoadingStatus === false ? ' no-status' : ''}`}>
-        {titleLogo ? <img className="streams-opening-logo" src={titleLogo} alt="" /> : <h1>{title}</h1>}
+        {titleLogo ? <img key={`${type}:${id}:${titleLogo}`} className="streams-opening-logo" src={titleLogo} alt="" /> : <h1>{title}</h1>}
         {playbackLoadingSettings?.showPlayerLoadingStatus !== false && <p>{playbackStarting ? loadingMessage : 'Finding streams…'}</p>}
       </div>
     </div>
   </div>;
 
   return <div className="streams-page">
-    {heroArtwork && <img className="streams-backdrop-image" src={heroArtwork} alt="" />}
+    {heroArtwork && <img key={`${type}:${id}:${heroArtwork}`} className="streams-backdrop-image" src={heroArtwork} alt="" />}
     <div className="streams-backdrop-shade" />
     <div className="streams-tablet-layout">
       <section className="streams-title-panel" aria-label={title}>

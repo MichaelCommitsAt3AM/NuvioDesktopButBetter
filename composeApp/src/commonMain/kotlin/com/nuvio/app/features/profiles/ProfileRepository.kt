@@ -44,6 +44,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -83,6 +84,40 @@ object ProfileRepository {
     private var loadedCacheForUserId: String? = null
 
     val activeProfileId: Int get() = activeProfileIndex
+
+    suspend fun checkAddonLinkAvailable(target: Int?, source: Int?) {
+        validateAddonProfileLink(_state.value.profiles, target, source)
+        if (source != null && !AuthRepository.state.value.isAnonymous) {
+            // Fail before creating a profile if its server has not installed the migration.
+            SupabaseProvider.client.postgrest.rpc("sync_profile_addon_links_available")
+        }
+    }
+
+    suspend fun setAddonProfileLink(target: Int, source: Int?) {
+        validateAddonProfileLink(_state.value.profiles, target, source)
+        require(_state.value.profiles.any { it.profileIndex == target }) { "Profile no longer exists" }
+        val existing = _state.value.profiles.first { it.profileIndex == target }
+        if (existing.addonSyncProfileId == source) return
+        AddonRepository.flushPendingPushes()
+        var rows = if (AuthRepository.state.value.isAnonymous) source?.let { AddonRepository.readProfileAddonSnapshot(it) } else null
+        if (!AuthRepository.state.value.isAnonymous) {
+            val result = SupabaseProvider.client.postgrest.rpc("sync_set_profile_addon_link", buildJsonObject {
+                put("p_profile_id", target)
+                put("p_source_profile_id", source?.let { kotlinx.serialization.json.JsonPrimitive(it) }
+                    ?: kotlinx.serialization.json.JsonNull)
+                putSyncOriginClientId()
+            })
+            if (source != null) rows = result.decodeList<com.nuvio.app.features.addons.AddonRow>()
+        }
+        _state.update { state ->
+            val profiles = state.profiles.map {
+                if (it.profileIndex == target) it.copy(addonSyncProfileId = source, usesPrimaryAddons = false, primaryAddonsAllowlist = null) else it
+            }
+            state.copy(profiles = profiles, activeProfile = profiles.find { it.profileIndex == activeProfileIndex })
+        }
+        persist()
+        if (rows != null) AddonRepository.applyProfileAddonSnapshot(addonGroupMembers(_state.value.profiles, target), rows)
+    }
 
     fun setRememberLastProfileEnabled(enabled: Boolean) {
         if (_state.value.rememberLastProfileEnabled == enabled) return
@@ -275,7 +310,7 @@ object ProfileRepository {
             HomeCatalogSettingsSyncService.seedProfileFromCurrent(nextIndex)
         }
 
-        // One-time onboarding convenience, not an ongoing tie to the primary profile —
+        // One-time onboarding convenience, not an ongoing tie to the primary profile â€”
         // the new profile manages its own addon list independently from here on.
         if (usesPrimaryAddons && _state.value.profiles.any { it.profileIndex == nextIndex }) {
             AddonRepository.copyPrimaryAddonsToProfile(nextIndex, primaryAddonsAllowlist)
@@ -326,7 +361,7 @@ object ProfileRepository {
 
         pushProfiles(allPayloads)
 
-        // One-time onboarding convenience, not an ongoing tie to the primary profile —
+        // One-time onboarding convenience, not an ongoing tie to the primary profile â€”
         // re-copying on every save is safe since it only ever merges, never replaces.
         if (usesPrimaryAddons) {
             AddonRepository.copyPrimaryAddonsToProfile(profileIndex, primaryAddonsAllowlist)
@@ -336,11 +371,13 @@ object ProfileRepository {
     suspend fun deleteProfile(profileIndex: Int) {
         AddonRepository.clearLocalDataForDeletedProfile(profileIndex)
         if (AuthRepository.state.value.isAnonymous) {
-            val remaining = _state.value.profiles.filter { it.profileIndex != profileIndex }
+            val remaining = _state.value.profiles.filter { it.profileIndex != profileIndex }.map {
+                if (it.addonSyncProfileId == profileIndex) it.copy(addonSyncProfileId = null) else it
+            }
             ProfilePinCacheStorage.removePayload(profileIndex)
             _state.value = _state.value.copy(
                 profiles = remaining,
-                activeProfile = if (_state.value.activeProfile?.profileIndex == profileIndex) remaining.firstOrNull() else _state.value.activeProfile,
+                activeProfile = if (_state.value.activeProfile?.profileIndex == profileIndex) remaining.firstOrNull() else remaining.find { it.profileIndex == activeProfileIndex },
             )
             if (_state.value.activeProfile != null) {
                 activeProfileIndex = _state.value.activeProfile!!.profileIndex
@@ -362,6 +399,7 @@ object ProfileRepository {
     }
 
     suspend fun verifyPin(profileIndex: Int, pin: String): PinVerifyResult {
+        if (!pin.matches(Regex("[0-9]{4}"))) return PinVerifyResult(message = "Enter a four digit PIN.")
         if (AuthRepository.state.value !is AuthState.Authenticated) {
             return verifyPinLocally(profileIndex, pin)
         }
@@ -385,6 +423,7 @@ object ProfileRepository {
     }
 
     suspend fun setPin(profileIndex: Int, pin: String, currentPin: String? = null): PinVerifyResult {
+        if (!pin.matches(Regex("[0-9]{4}"))) return PinVerifyResult(message = "Enter a four digit PIN.")
         if (AuthRepository.state.value !is AuthState.Authenticated) {
             return PinVerifyResult(unlocked = false, message = getString(Res.string.profile_pin_set_requires_internet))
         }
@@ -396,6 +435,7 @@ object ProfileRepository {
                 currentPin?.let { put("p_current_pin", it) }
             }
             SupabaseProvider.client.postgrest.rpc("set_profile_pin", params)
+            updatePinState(profileIndex, true)
             pullProfiles()
             rememberVerifiedPin(profileIndex = profileIndex, pin = pin)
             PinVerifyResult(unlocked = true)
@@ -417,6 +457,7 @@ object ProfileRepository {
                 currentPin?.let { put("p_current_pin", it) }
             }
             SupabaseProvider.client.postgrest.rpc("clear_profile_pin", params)
+            updatePinState(profileIndex, false)
             pullProfiles()
             ProfilePinCacheStorage.removePayload(profileIndex)
             PinVerifyResult(unlocked = true)
@@ -427,18 +468,33 @@ object ProfileRepository {
         }
     }
 
-    suspend fun clearPinWithPassword(profileIndex: Int, accountPassword: String) {
-        runCatching {
+    suspend fun clearPinWithPassword(profileIndex: Int, accountPassword: String): PinVerifyResult {
+        if (AuthRepository.state.value.isAnonymous || accountPassword.isBlank()) {
+            return PinVerifyResult(message = "Enter your signed-in account password.")
+        }
+        return runCatching {
             val params = buildJsonObject {
                 put("p_account_password", accountPassword)
                 put("p_profile_id", profileIndex)
             }
             SupabaseProvider.client.postgrest.rpc("clear_profile_pin_with_account_password", params)
+            updatePinState(profileIndex, false)
             pullProfiles()
             ProfilePinCacheStorage.removePayload(profileIndex)
+            PinVerifyResult(unlocked = true)
         }.onFailure { e ->
             log.e(e) { "Failed to clear pin with password" }
+        }.getOrElse { PinVerifyResult(message = "Could not remove the PIN. Check your account password and connection.") }
+    }
+
+    private fun updatePinState(profileIndex: Int, enabled: Boolean) {
+        _state.update { state ->
+            val profiles = state.profiles.map {
+                if (it.profileIndex == profileIndex) it.copy(pinEnabled = enabled, pinLockedUntil = null, updatedAt = "") else it
+            }
+            state.copy(profiles = profiles, activeProfile = profiles.find { it.profileIndex == activeProfileIndex })
         }
+        persist()
     }
 
     suspend fun pullProfileLocks(): List<ProfileLockState> {
@@ -465,6 +521,7 @@ object ProfileRepository {
                 profileBackgroundId = p.profileBackgroundId,
                 profileBackgroundUrl = p.profileBackgroundUrl,
                 usesPrimaryAddons = p.usesPrimaryAddons,
+                addonSyncProfileId = _state.value.profiles.find { it.profileIndex == p.profileIndex }?.addonSyncProfileId,
                 usesPrimaryPlugins = p.usesPrimaryPlugins,
             )
         }.sortedBy { it.profileIndex }
@@ -516,7 +573,8 @@ object ProfileRepository {
 
     private fun verifyPinLocally(profileIndex: Int, pin: String): PinVerifyResult {
         val profile = _state.value.profiles.find { it.profileIndex == profileIndex }
-        if (profile?.pinEnabled != true) {
+        if (profile == null) return PinVerifyResult(message = "Profile not found")
+        if (!profile.pinEnabled) {
             return PinVerifyResult(unlocked = true)
         }
 

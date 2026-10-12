@@ -131,6 +131,23 @@ class DesktopBridgeRuntime {
     }
     private var loadedVideoId: String? = null
     private var lastDetails: MetaDetails? = null
+    @Volatile private var appVisible = true
+    private val syncLifecycle = BridgeSyncLifecycle(
+        startWatchSource = com.nuvio.app.features.watchprogress.WatchProgressSourceCoordinator::ensureStarted,
+        pullProfile = SyncManager::pullAllForProfile,
+        startPeriodic = SyncManager::startPeriodicNuvioSyncPull,
+        pullForeground = { SyncManager.requestForegroundPull(it) },
+        stopPeriodic = SyncManager::stopPeriodicNuvioSyncPull,
+    )
+
+    private fun updateProfileSync() {
+        val auth = AuthRepository.state.value as? AuthState.Authenticated
+        syncLifecycle.update(
+            userId = auth?.takeUnless { it.isAnonymous }?.userId,
+            profileId = ProfileRepository.state.value.activeProfile?.profileIndex,
+            visible = appVisible,
+        )
+    }
     private val requestJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
     private val requestQueries = java.util.concurrent.ConcurrentHashMap<String, String>()
 
@@ -284,6 +301,7 @@ class DesktopBridgeRuntime {
     }
 
     suspend fun stop() = lifecycle.withLock {
+        syncLifecycle.stop()
         runCatching { playbackAdapter?.stop() }
         server?.stop(250, 1_000)
         server = null
@@ -312,6 +330,9 @@ class DesktopBridgeRuntime {
             if (state is AuthState.Authenticated) {
                 runCatching {
                     ProfileRepository.ensureLoaded(state.userId)
+                    // Cached profile state is sufficient to schedule cloud sync;
+                    // a failed profile/addon request must not prevent progress pulls.
+                    updateProfileSync()
                     ProfileRepository.pullProfiles()
                     val profiles = ProfileRepository.state.value.profiles
                     val active = ProfileRepository.state.value.activeProfile
@@ -322,6 +343,7 @@ class DesktopBridgeRuntime {
                         ProfileRepository.switchToProfile(active.profileIndex)
                     }
                     val profileId = active?.profileIndex ?: ProfileRepository.activeProfileId
+                    updateProfileSync()
                     AddonRepository.onProfileChanged(profileId)
                     AddonRepository.pullFromServer(profileId)
                     if (AppFeaturePolicy.pluginsEnabled) PluginRepository.onProfileChanged(profileId)
@@ -338,7 +360,7 @@ class DesktopBridgeRuntime {
                     LibraryRepository.ensureLoaded()
                     sessionError = null
                 }.onFailure { sessionError = safeMessage(it) }
-            }
+            } else updateProfileSync()
             emit("session", sessionJson())
         }
     }
@@ -369,6 +391,7 @@ class DesktopBridgeRuntime {
             playbackAdapter?.stop()
             advanceEpoch()
             ProfileRepository.switchToProfile(selected)
+            updateProfileSync()
             // ProfileRepository has already reset profile-scoped state. Let Home
             // reuse matching, fresh catalog entries instead of forcing every
             // catalog request to hit the network on each profile selection.
@@ -515,17 +538,13 @@ class DesktopBridgeRuntime {
         }
         "app.visibility" -> {
             val visible = params.bool("visible")
+            appVisible = visible
             if (visible) {
                 NetworkStatusRepository.requestForegroundRefresh()
                 DeviceSessionRegistration.registerIfAuthenticated()
                 MemberAccessRepository.refreshIfStale()
-                val auth = AuthRepository.state.value as? AuthState.Authenticated
-                val profileId = ProfileRepository.state.value.activeProfile?.profileIndex
-                if (auth != null && !auth.isAnonymous && profileId != null) {
-                    SyncManager.startPeriodicNuvioSyncPull(profileId)
-                    SyncManager.requestForegroundPull(profileId)
-                } else SyncManager.stopPeriodicNuvioSyncPull()
-            } else SyncManager.stopPeriodicNuvioSyncPull()
+            }
+            updateProfileSync()
             buildJsonObject { put("visible", visible) }
         }
         "app.shutdown" -> {
@@ -588,6 +607,7 @@ class DesktopBridgeRuntime {
             ?: StreamSelectionBridge.dispatch(method, params) { id -> synchronized(streamRegistry) { streamRegistry[id]?.stream } }
             ?: return null
         if (previousProfile != ProfileRepository.activeProfileId) {
+            updateProfileSync()
             advanceEpoch()
             HomeRepository.clear()
             HomeRepository.refresh(AddonRepository.uiState.value.addons, force = true)

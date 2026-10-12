@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { SeriesEpisodes, type Props as SeriesEpisodesProps } from './SeriesEpisodes';
 
 const episode = {
@@ -18,9 +18,43 @@ function renderEpisodes(overrides: Partial<SeriesEpisodesProps> = {}) {
   return props;
 }
 
+beforeAll(() => { HTMLElement.prototype.scrollIntoView = vi.fn(); });
+
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+});
+
+describe('resume season selection', () => {
+  const videos = [1, 2, 3].map(season => ({ ...episode, id: `episode-${season}`, title: `Season ${season} episode`, season }));
+
+  it('opens the resume season instead of season one', () => {
+    renderEpisodes({ videos, preferredSeason: 3 });
+    expect(screen.getByRole('button', { name: 'Season 3' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Season 3 episode')).toBeInTheDocument();
+    expect(screen.queryByText('Season 1 episode')).not.toBeInTheDocument();
+  });
+
+  it('uses late progress but preserves a manual season choice on later updates', () => {
+    const props = { videos, poster: null, background: null, seasonPosters: {}, cardStyle: 'horizontal', blurUnwatched: false, showRatings: true, ratingsVisibility: 'show_all', isWatched: () => false, onEpisodeClick: vi.fn(), onEpisodeLongPress: vi.fn(), onToggleSeason: vi.fn(), mutationBusy: false } satisfies SeriesEpisodesProps;
+    const view = render(<SeriesEpisodes {...props} />);
+    view.rerender(<SeriesEpisodes {...props} preferredSeason={3} />);
+    expect(screen.getByRole('button', { name: 'Season 3' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Season 2' }));
+    view.rerender(<SeriesEpisodes {...props} preferredSeason={1} />);
+    expect(screen.getByRole('button', { name: 'Season 2' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('falls back safely when the resume season is missing', () => {
+    renderEpisodes({ videos, preferredSeason: 8 });
+    expect(screen.getByRole('button', { name: 'Season 1' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('can resume a Specials episode', () => {
+    renderEpisodes({ videos: [...videos, { ...episode, id: 'special', title: 'Special episode', season: 0 }], preferredSeason: 0 });
+    expect(screen.getByRole('button', { name: 'Specials' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Special episode')).toBeInTheDocument();
+  });
 });
 
 describe('episode card actions', () => {

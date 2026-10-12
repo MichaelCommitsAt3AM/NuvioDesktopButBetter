@@ -29,6 +29,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 **Desktop UI preview**
 - An opt-in React/Tauri desktop UI is being developed while keeping the existing Kotlin backend and native player. See [the migration notes](docs/DESKTOP_UI_REWRITE.md) for build instructions and remaining feature work.
 - The preview now includes profiles/PINs, catalog discovery, rich details, cloud library, collections, downloads and expanded settings. Full animation, language and release-delivery parity is still in progress; [the coverage checklist](docs/DESKTOP_UI_PARITY.md) tracks what remains.
+- Profile PINs use a four-dot keypad with automatic submission, visible errors and lockout feedback. Cloud PIN setup, verification, removal and account-password recovery have been repaired.
 - Settings now follows the Kotlin category/sidebar and nested-page structure, with connected controls for appearance, playback, Home, posters, Continue Watching, addons, integrations, plugins, account, About and Advanced. Detailed screen-by-screen parity and remaining differences are tracked in [the Settings comparison notes](docs/DESKTOP_UI_PARITY.md).
 - The profile chooser now follows the original centered logo, gradient backdrop, circular avatars and in-place Manage Profiles mode. It opens on launch when Remember Last Profile is off, and is available through the profile menu.
 - After profile selection, the preview shows the original-style centered Nuvio logo and animated loading arc over the profile backdrop until Home is ready, then fades into the app.
@@ -41,6 +42,10 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Portable rewrite builds use bundled backend resources and Java without depending on the source checkout; Windows WebView2 is required.
 - The rewrite can also be packaged as a Windows setup executable with bundled Java, backend resources, Start Menu shortcuts, and automatic WebView2 installation when needed.
 - The rewrite's Windows backend starts in the background without opening a terminal window.
+- Details playback buttons use the Kotlin resume and episode-selection logic, and playback loading artwork follows the selected title when resuming from Continue Watching.
+  Series episodes open on the season containing the resolved playback episode, while allowing manual season changes.
+  Continue Watching starts the shared Kotlin cloud sync on sign-in and profile selection, so progress from other devices can populate Home without a window focus change.
+- The preview profile editor can sync add-ons with any other profile. Linked profiles share additions, removals, ordering and enabled states; unlinking keeps the current list. The cloud migration is installed on the linked backend.
 
 - Home is being aligned against the installed Compose app: full-width hero, in-card Continue Watching details, poster actions/previews and hover arrows. See [the Home comparison](docs/DESKTOP_HOME_COMPARISON.md) for verified behavior and remaining differences.
 
@@ -60,6 +65,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - 20 more languages to choose from in debrid language preferences.
 - You can paste a debrid API key (for example Torbox) instead of signing in through the browser.
 - New **Data saver** mode on the streams list hides very large files (like 4K remuxes). You set the maximum quality, source type and file size.
+  The rewrite’s quality switch uses the same Kotlin filter and correctly handles switching to Data saver and back.
 
 **Watching**
 - Subtitles are ready when playback starts, so the first subtitle switch no longer freezes the video.

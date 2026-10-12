@@ -5,6 +5,7 @@ import './series-episodes.css';
 
 type SeasonView = 'posters' | 'text';
 export type Props = {
+  preferredSeason?: number | null;
   videos: Video[];
   poster: string | null;
   background: string | null;
@@ -22,7 +23,7 @@ export type Props = {
 
 const seasonViewKey = 'nuvio.details.seasonViewMode';
 
-export function SeriesEpisodes({ videos, poster, background, seasonPosters, cardStyle, blurUnwatched, showRatings, ratingsVisibility, isWatched, onEpisodeClick, onEpisodeLongPress, onToggleSeason, mutationBusy }: Props) {
+export function SeriesEpisodes({ videos, preferredSeason, poster, background, seasonPosters, cardStyle, blurUnwatched, showRatings, ratingsVisibility, isWatched, onEpisodeClick, onEpisodeLongPress, onToggleSeason, mutationBusy }: Props) {
   const grouped = useMemo(() => {
     const groups = new Map<number, Video[]>();
     for (const video of videos.filter((item) => item.season != null || item.episode != null)) {
@@ -36,7 +37,10 @@ export function SeriesEpisodes({ videos, poster, background, seasonPosters, card
       .sort(([a], [b]) => (a === 0 ? Number.MAX_SAFE_INTEGER : a) - (b === 0 ? Number.MAX_SAFE_INTEGER : b));
   }, [videos]);
   const seasons = grouped.map(([season]) => season);
-  const defaultSeason = seasons.find((season) => season > 0) ?? seasons[0] ?? 0;
+  // Follow Kotlin's resolved playback episode until the user chooses a season.
+  // Progress can arrive after episode metadata without overriding manual browsing.
+  const defaultSeason = preferredSeason != null && seasons.includes(preferredSeason)
+    ? preferredSeason : seasons.find((season) => season > 0) ?? seasons[0] ?? 0;
   const [chosenSeason, setChosenSeason] = useState<number | null>(null);
   const currentSeason = chosenSeason != null && seasons.includes(chosenSeason) ? chosenSeason : defaultSeason;
   const [seasonView, setSeasonView] = useState<SeasonView>(() => {

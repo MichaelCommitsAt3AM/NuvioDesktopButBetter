@@ -168,7 +168,12 @@ object StreamSelectionBridge {
     }?.let { if (it.startsWith('#')) it else "#$it" } ?: ""
 }
 
-private fun JsonElement.str(name: String): String = jsonPrimitive.content
+private fun JsonObject.str(name: String): String =
+    this[name]?.str(name) ?: throw BridgeFeatureException("INVALID_ARGUMENT", "$name is required")
+
+private fun JsonElement.str(name: String): String =
+    (this as? JsonPrimitive)?.takeIf { it.isString }?.content
+        ?: throw BridgeFeatureException("INVALID_ARGUMENT", "$name must be a string")
 
 private fun JsonObject.bool(key: String): Boolean =
     this[key]?.jsonPrimitive?.booleanOrNull ?: throw BridgeFeatureException("INVALID_ARGUMENT", "$key must be a boolean")

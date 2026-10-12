@@ -1,18 +1,17 @@
 import { useState } from 'react';
-import { Check, LockKeyhole, LogOut, Plus, Settings2, UsersRound, X } from 'lucide-react';
+import { Check, LockKeyhole, LogOut, Plus, Settings2, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { actions, useSelector } from '../../bridge';
 import type { Profile } from '../../generated/contract';
 import { Avatar } from '../../components/ui';
-import { Dialog } from '../../components/Dialog';
+import { ProfileUnlockDialog } from './PinDialogs';
 
 export function ProfileMenu({ onClose }: { onClose: () => void }) {
   const session = useSelector((current) => current.session);
   const [pinProfile, setPinProfile] = useState<Profile | null>(null);
-  const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   async function select(profile: Profile, pinValue?: string) {
-    try { await actions.selectProfile(profile.id, pinValue); setPinProfile(null); setPin(''); onClose(); }
+    try { await actions.selectProfile(profile.id, pinValue); setPinProfile(null); onClose(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not switch profile.'); }
   }
   return <><button className="menu-scrim" aria-label="Close profile menu" onClick={onClose} /><div className="profile-menu" role="menu">
@@ -25,5 +24,5 @@ export function ProfileMenu({ onClose }: { onClose: () => void }) {
     <div className="menu-separator" />
     <div className="signed-in-as">{session.email ?? 'Guest session'}</div>
     <button className="profile-option danger-text" role="menuitem" onClick={() => void actions.signOut()}><LogOut size={15} /><span>Sign out</span></button>
-  </div>{pinProfile && <Dialog label={`Unlock ${pinProfile.name}`} onClose={() => setPinProfile(null)}><div className="dialog-head"><strong>Unlock {pinProfile.name}</strong><button className="icon-button" onClick={() => setPinProfile(null)} aria-label="Close"><X size={16} /></button></div><label>Profile PIN<input inputMode="numeric" type="password" value={pin} onChange={(event) => setPin(event.target.value)} /></label>{error && <p className="form-error">{error}</p>}<button className="button primary full" onClick={() => void select(pinProfile, pin)}>Unlock</button></Dialog>}</>;
+  {error && <p className="form-error" role="alert">{error}</p>}</div>{pinProfile && <ProfileUnlockDialog profile={pinProfile} onClose={() => setPinProfile(null)} onSelected={() => { setPinProfile(null); onClose(); }} />}</>;
 }

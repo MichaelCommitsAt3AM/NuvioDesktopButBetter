@@ -130,7 +130,7 @@ internal fun MetaDetails.nextReleasedEpisodeAfter(
     return candidates.firstOrNull { normalizeSeasonNumber(it.season) > 0 }
 }
 
-internal data class SeriesPrimaryAction(
+data class SeriesPrimaryAction(
     val label: String,
     val videoId: String,
     val seasonNumber: Int?,
@@ -140,7 +140,7 @@ internal data class SeriesPrimaryAction(
     val resumePositionMs: Long?,
 )
 
-internal fun MetaDetails.seriesPrimaryAction(
+fun MetaDetails.seriesPrimaryAction(
     entries: List<WatchProgressEntry>,
     watchedItems: List<WatchedItem>,
     todayIsoDate: String,

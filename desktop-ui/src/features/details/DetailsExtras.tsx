@@ -13,6 +13,7 @@ type Company = { name: string; logo: string | null; tmdbId: number | null };
 type Trailer = { id: string; key: string; name: string; displayName: string | null; site: string; type: string; official: boolean; seasonNumber: number | null; youtubeUrl: string };
 export type Video = { id: string; title: string; released: string | null; available: boolean; thumbnail: string | null; season: number | null; seasonPoster?: string | null; episode: number | null; overview: string | null; runtime: number | null; rating: number | null };
 export type ExtrasMeta = {
+  primaryAction?: DetailsPrimaryAction;
   id: string; type: string; name: string; poster: string | null; background: string | null; logo: string | null; description: string | null; releaseInfo: string | null; lastAirDate: string | null; status: string | null;
   imdbId: string | null; rating: string | null; ageRating: string | null; runtime: string | null; country: string | null; awards: string | null; language: string | null; website: string | null;
   externalRatings: Array<{ source: string; value: number; certified: boolean }>;
@@ -20,6 +21,7 @@ export type ExtrasMeta = {
   moreLikeThis: Media[]; moreLikeThisSource: string | null; collectionName: string | null; collectionItems: Media[]; trailers: Trailer[]; links: Array<{ name: string; category: string; url: string }>;
   seasonPosters: Record<string, string>; videos: Video[];
 };
+export type DetailsPrimaryAction = { label: string; videoId: string; seasonNumber: number | null; episodeNumber: number | null; episodeTitle: string | null; episodeThumbnail: string | null; resumePositionMs: number | null };
 type WatchedSnapshot = { loaded: boolean; watchedKeys: string[]; watched?: boolean; fullyWatched?: boolean; episodes?: Array<{ season: number | null; episode: number | null; videoId: string | null; key: string }> };
 type PersonDetail = { tmdbId: number; name: string; biography: string | null; birthday: string | null; deathday: string | null; placeOfBirth: string | null; profilePhoto: string | null; knownFor: string | null; movieCredits: Media[]; tvCredits: Media[] };
 type EntityBrowse = { header: { id: number; kind: string; name: string; logo: string | null; originCountry: string | null; secondaryLabel: string | null; description: string | null }; rails: Array<{ mediaType: string; railType: string; currentPage: number; hasMore: boolean; items: Media[] }> };
@@ -35,7 +37,7 @@ type MetadataSettings = {
 const sectionStyle = { marginTop: 28 } as const;
 const headingStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 } as const;
 
-export function DetailsExtras({ type, id, onMetaLoaded }: { type: string; id: string; onMetaLoaded?: (meta: ExtrasMeta) => void }) {
+export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type: string; id: string; primaryAction?: DetailsPrimaryAction | null; onMetaLoaded?: (meta: ExtrasMeta) => void }) {
   const navigate = useNavigate();
   const settings = useFeatureSnapshot<MetadataSettings>('metadataSettings');
   const loadGeneration = useRef(0);
@@ -230,6 +232,8 @@ export function DetailsExtras({ type, id, onMetaLoaded }: { type: string; id: st
     CAST: meta.cast.length > 0 ? <section style={sectionStyle}><div style={headingStyle}><h2>Cast</h2></div><div className="details-extras-people">{meta.cast.map((member, index) => <button className="details-extras-person" key={`${member.name}:${member.tmdbId ?? index}`} type="button" disabled={member.tmdbId == null} onClick={() => member.tmdbId != null && void openPerson(member.tmdbId, member.name, member.role)}>{member.photo ? <img src={member.photo} alt="" loading="lazy" /> : <span className="details-extras-placeholder">{initials(member.name)}</span>}<span><strong>{member.name}</strong>{member.role && member.role.toLowerCase() !== 'cast' && <small>{member.role}</small>}</span></button>)}</div></section> : null,
     TRAILERS: meta.trailers.length > 0 ? <section style={sectionStyle} className="details-extras-trailer-section"><div style={headingStyle}><h2>Trailers</h2><select className="details-trailer-select" aria-label="Trailer category" value={selectedTrailerCategory} onChange={(event) => setSelectedTrailerCategory(event.target.value)}>{[...new Set(meta.trailers.map((trailer) => trailer.type || 'Trailer'))].map((category) => <option key={category}>{category}</option>)}</select></div><div className="details-extras-trailers">{meta.trailers.filter((trailer) => (trailer.type || 'Trailer') === selectedTrailerCategory).map((trailer) => <button className="details-extras-trailer" type="button" key={trailer.id} onClick={() => void openTrailer(trailer.youtubeUrl)}><span className="details-extras-trailer-image"><img src={`https://img.youtube.com/vi/${trailer.key}/hqdefault.jpg`} alt="" loading="lazy" onError={(event) => { event.currentTarget.style.display = 'none'; }} /><Play size={22} fill="currentColor" /></span><span><strong>{trailer.displayName ?? trailer.name}</strong></span></button>)}</div>{trailerError && <InlineError message={trailerError} />}</section> : null,
     EPISODES: groupedVideos.length > 0 ? <SeriesEpisodes
+      key={`${meta.type}:${meta.id}`}
+      preferredSeason={(primaryAction ?? meta.primaryAction)?.seasonNumber}
       videos={meta.videos}
       poster={meta.poster}
       background={meta.background}

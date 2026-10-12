@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { ArrowLeft, Check, Eye, EyeOff, LockKeyhole, Save, Shield, Sparkles, UserRound, WandSparkles, X } from 'lucide-react';
+import { ArrowLeft, Check, LockKeyhole, Save, Shield, Sparkles, UserRound, WandSparkles, X } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Avatar, PageHeader } from '../../components/ui';
-import { Dialog } from '../../components/Dialog';
+import { ProfilePinManager } from './PinDialogs';
 import { InlineError } from '../../components/Status';
 import { useProfiles, type AvatarChoice, type ProfileRecord } from './profileStore';
 
@@ -20,8 +20,10 @@ export function ProfileEditorPage() {
   const [color, setColor] = useState(defaultColor);
   const [backgroundId, setBackgroundId] = useState<string | null>(null);
   const [backgroundUrl, setBackgroundUrl] = useState('');
-  const [usesPrimaryAddons, setUsesPrimaryAddons] = useState(false);
-  const [allowlistText, setAllowlistText] = useState('');
+  const [syncAddons, setSyncAddons] = useState(false);
+  const [addonSyncProfileId, setAddonSyncProfileId] = useState<number | null>(null);
+  const availableProfiles = (snapshot?.items ?? []).filter((item) => item.id !== editingId);
+  const validAddonSource = !syncAddons || availableProfiles.some((item) => item.id === addonSyncProfileId);
   const [saving, setSaving] = useState(false);
   const [pinAction, setPinAction] = useState<'set' | 'clear' | null>(null);
   const avatars = snapshot?.avatars ?? [];
@@ -38,8 +40,8 @@ export function ProfileEditorPage() {
     setColor(profile?.avatarColorHex ?? avatars[0]?.color ?? defaultColor);
     setBackgroundId(profile?.backgroundId ?? null);
     setBackgroundUrl(profile?.backgroundUrl ?? '');
-    setUsesPrimaryAddons(profile?.usesPrimaryAddons ?? false);
-    setAllowlistText(profile?.primaryAddonsAllowlist?.join('\n') ?? '');
+    setSyncAddons(profile?.addonSyncProfileId != null);
+    setAddonSyncProfileId(profile?.addonSyncProfileId ?? null);
   }, [snapshot, editingId, profile?.id]);
 
   function chooseAvatar(avatar: AvatarChoice) {
@@ -49,7 +51,7 @@ export function ProfileEditorPage() {
   }
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (!name.trim() || urlInvalid) return;
+    if (!name.trim() || urlInvalid || !validAddonSource) return;
     setSaving(true); setError('');
     const params: Record<string, unknown> = {
       ...(editingId !== null ? { id: editingId } : {}),
@@ -59,9 +61,10 @@ export function ProfileEditorPage() {
       avatarUrl: safeAvatarUrl || null,
       backgroundId,
       backgroundUrl: backgroundUrl.trim() || null,
-      usesPrimaryAddons,
+      usesPrimaryAddons: false,
+      addonSyncProfileId: syncAddons ? addonSyncProfileId : null,
       usesPrimaryPlugins: profile?.usesPrimaryPlugins ?? false,
-      primaryAddonsAllowlist: usesPrimaryAddons ? allowlistText.split(/[\n,]/).map((value) => value.trim()).filter(Boolean) : null,
+      primaryAddonsAllowlist: null,
     };
     try {
       await run(editingId === null ? 'profiles.create' : 'profiles.update', params);
@@ -70,9 +73,9 @@ export function ProfileEditorPage() {
     finally { setSaving(false); }
   }
   const visibleAvatarUrl = safeAvatarUrl || selectedAvatar?.url || null;
-  const preview: ProfileRecord = profile ?? { id: 0, name: name || 'New profile', avatarColorHex: color, avatarId, avatarUrl: safeAvatarUrl || null, backgroundId, backgroundUrl: backgroundUrl || null, locked: false, pinLockedUntil: null, usesPrimaryAddons, usesPrimaryPlugins: false, primaryAddonsAllowlist: null };
+  const preview: ProfileRecord = profile ?? { id: 0, name: name || 'New profile', avatarColorHex: color, avatarId, avatarUrl: safeAvatarUrl || null, backgroundId, backgroundUrl: backgroundUrl || null, locked: false, pinLockedUntil: null, usesPrimaryAddons: false, usesPrimaryPlugins: false, primaryAddonsAllowlist: null };
 
-  if (loading && !snapshot) return <div className="loading-block"><span className="spin" /> Loading profile settings…</div>;
+  if (loading && !snapshot) return <div className="loading-block"><span className="spin" /> Loading profile settingsâ€¦</div>;
   if (editingId !== null && snapshot && !profile) return <div className="page profiles-page"><PageHeader title="Profile not found" action={<Link className="button secondary" to="/profiles"><ArrowLeft size={15} /> Profiles</Link>} /><p className="muted">This profile may have been removed.</p></div>;
 
   return <div className="page profile-editor-page">
@@ -103,9 +106,10 @@ export function ProfileEditorPage() {
       </section>}
 
       <section className="settings-section profile-sharing-section">
-        <div className="settings-section-heading"><span className="settings-icon"><Shield size={18} /></span><div><h2>Content and privacy</h2><p>Keep profile add-ons personal or reuse your primary profile setup.</p></div></div>
-        <div className="settings-row-card"><span className="settings-row-copy"><strong>Use primary profile add-ons</strong><span>Share the add-ons installed on your primary profile.</span></span><label className="switch" aria-label="Use primary profile addons"><input type="checkbox" checked={usesPrimaryAddons} onChange={(event) => setUsesPrimaryAddons(event.target.checked)} /><span /></label></div>
-        {usesPrimaryAddons && <label className="profile-url-field">Add-on allowlist <small>Leave blank to use all primary profile add-ons. Enter manifest IDs, one per line.</small><textarea value={allowlistText} onChange={(event) => setAllowlistText(event.target.value)} rows={3} placeholder="com.example.catalog" /></label>}
+        <div className="settings-section-heading"><span className="settings-icon"><Shield size={18} /></span><div><h2>Content and privacy</h2><p>Keep add-ons separate or sync them with another profile.</p></div></div>
+        <div className="settings-row-card"><span className="settings-row-copy"><strong>Sync add-ons with another profile</strong><span>Keep additions, removals, and add-on settings in sync between both profiles.</span></span><label className="switch" aria-label="Sync add-ons with another profile"><input type="checkbox" checked={syncAddons} disabled={!availableProfiles.length} onChange={(event) => setSyncAddons(event.target.checked)} /><span /></label></div>
+        {!availableProfiles.length && <p className="muted">Create another profile to enable add-on syncing.</p>}
+        {syncAddons && <label className="profile-url-field">Sync with profile<select value={addonSyncProfileId ?? ''} onChange={(event) => setAddonSyncProfileId(event.target.value ? Number(event.target.value) : null)} required><option value="" disabled>Select a profile</option>{availableProfiles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small>This profile will use the selected profile's current add-ons. Future changes from either profile are shared. Turning sync off keeps the current add-ons.</small></label>}
       </section>
 
       {profile && <section className="settings-section profile-pin-section">
@@ -113,44 +117,8 @@ export function ProfileEditorPage() {
         <button type="button" className={profile.locked ? 'button secondary' : 'button secondary'} onClick={() => setPinAction(profile.locked ? 'clear' : 'set')}>{profile.locked ? <X size={15} /> : <LockKeyhole size={15} />}{profile.locked ? 'Remove PIN' : 'Set a PIN'}</button>
       </section>}
 
-      <div className="profile-editor-footer"><span>{editingId === null ? 'You can change these details later.' : `Profile ${profile?.id ?? ''}`}</span><button className="button primary" disabled={saving || !name.trim() || urlInvalid}>{saving ? <span className="spin" /> : <Save size={15} />}{saving ? 'Saving…' : editingId === null ? 'Create profile' : 'Save changes'}</button></div>
+      <div className="profile-editor-footer"><span>{editingId === null ? 'You can change these details later.' : `Profile ${profile?.id ?? ''}`}</span><button className="button primary" disabled={saving || !name.trim() || urlInvalid || !validAddonSource}>{saving ? <span className="spin" /> : <Save size={15} />}{saving ? 'Savingâ€¦' : editingId === null ? 'Create profile' : 'Save changes'}</button></div>
     </form>
-    {pinAction && profile && <PinDialog action={pinAction} profile={profile} onClose={() => setPinAction(null)} onDone={async (method, params) => { await run(method, params); setPinAction(null); }} />}
+    {pinAction && profile && <ProfilePinManager action={pinAction} profile={profile} onClose={() => setPinAction(null)} onDone={() => setPinAction(null)} />}
   </div>;
-}
-
-function PinDialog({ action, profile, onClose, onDone }: { action: 'set' | 'clear'; profile: ProfileRecord; onClose: () => void; onDone: (method: string, params: Record<string, unknown>) => Promise<void> }) {
-  const [pin, setPin] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [currentPin, setCurrentPin] = useState('');
-  const [accountPassword, setAccountPassword] = useState('');
-  const [usePassword, setUsePassword] = useState(false);
-  const [visible, setVisible] = useState(false);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  async function submit(event: FormEvent) {
-    event.preventDefault(); setError('');
-    if (profile.locked && action === 'set' && currentPin.length !== 4) { setError('Enter the current four digit PIN.'); return; }
-    if (action === 'clear' && usePassword && !accountPassword) { setError('Enter your account password.'); return; }
-    if (action === 'clear' && profile.locked && !usePassword && currentPin.length !== 4) { setError('Enter the current four digit PIN.'); return; }
-    if (action === 'set' && (!/^\d{4}$/.test(pin) || pin !== confirm)) { setError(pin !== confirm ? 'The PINs do not match.' : 'Enter a four digit PIN.'); return; }
-    setBusy(true);
-    try {
-      const method = action === 'clear' && usePassword ? 'profiles.pin.clearWithPassword' : `profiles.pin.${action}`;
-      const params = action === 'set' ? { id: profile.id, pin, ...(profile.locked ? { currentPin } : {}) } : usePassword ? { id: profile.id, accountPassword } : { id: profile.id, ...(profile.locked ? { currentPin } : {}) };
-      await onDone(method, params);
-    }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not update the profile PIN.'); }
-    finally { setBusy(false); }
-  }
-  return <Dialog label={action === 'set' ? 'Set profile PIN' : 'Remove profile PIN'} onClose={onClose}><form onSubmit={(event) => void submit(event)}>
-    <div className="dialog-head"><strong>{action === 'set' ? `Protect ${profile.name}` : `Remove PIN for ${profile.name}`}</strong><button type="button" className="icon-button" onClick={onClose} aria-label="Close"><X size={16} /></button></div>
-    <p className="muted">{action === 'set' ? 'Choose a four digit code that is easy for you to remember.' : 'Anyone with access to this account will be able to open this profile.'}</p>
-    {profile.locked && (!usePassword || action === 'set') && <label>Current PIN<input autoFocus inputMode="numeric" type={visible ? 'text' : 'password'} autoComplete="off" maxLength={4} value={currentPin} onChange={(event) => setCurrentPin(event.target.value.replace(/\D/g, ''))} /></label>}
-    {action === 'clear' && profile.locked && <button type="button" className="text-button" onClick={() => { setUsePassword((value) => !value); setError(''); }}>{usePassword ? 'Use the profile PIN instead' : 'Use account password instead'}</button>}
-    {action === 'clear' && profile.locked && usePassword && <label>Account password<input autoFocus type="password" autoComplete="current-password" value={accountPassword} onChange={(event) => setAccountPassword(event.target.value)} /></label>}
-    {action === 'set' && <><label>New PIN<span className="password-input-wrap"><input autoFocus={!profile.locked} inputMode="numeric" type={visible ? 'text' : 'password'} autoComplete="new-password" maxLength={4} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))} /><button type="button" className="icon-button" onClick={() => setVisible((current) => !current)} aria-label={visible ? 'Hide PIN' : 'Show PIN'}>{visible ? <EyeOff size={16} /> : <Eye size={16} />}</button></span></label><label>Confirm PIN<input inputMode="numeric" type={visible ? 'text' : 'password'} autoComplete="new-password" maxLength={4} value={confirm} onChange={(event) => setConfirm(event.target.value.replace(/\D/g, ''))} /></label></>}
-    {error && <p className="form-error" role="alert">{error}</p>}
-    <div className="dialog-actions"><button type="button" className="button secondary" onClick={onClose} disabled={busy}>Cancel</button><button className="button primary" disabled={busy}>{busy ? 'Saving…' : action === 'set' ? 'Set PIN' : 'Remove PIN'}</button></div>
-  </form></Dialog>;
 }

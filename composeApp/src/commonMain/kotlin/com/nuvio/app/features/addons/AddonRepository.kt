@@ -6,6 +6,7 @@ import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.auth.isAnonymous
 import com.nuvio.app.core.sync.putSyncOriginClientId
 import com.nuvio.app.features.profiles.ProfileRepository
+import com.nuvio.app.features.profiles.addonGroupMembers
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.rpc
@@ -35,7 +36,7 @@ import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 
 @Serializable
-private data class AddonRow(
+data class AddonRow(
     val url: String,
     val name: String? = null,
     val enabled: Boolean = true,
@@ -424,7 +425,11 @@ object AddonRepository {
                     sortOrder = index,
                 )
             }
-        pushJobsByProfile[profileId]?.cancel()
+        // A newer edit on another group member supersedes this device's older
+        // debounced snapshot too; otherwise quick switches can undo the edit.
+        addonGroupMembers(ProfileRepository.state.value.profiles, profileId).forEach {
+            pushJobsByProfile[it]?.cancel()
+        }
         var pushJob: Job? = null
         pushJob = scope.launch {
             try {
@@ -469,14 +474,52 @@ object AddonRepository {
 
     private fun persist() {
         val addons = _uiState.value.addons
-        AddonStorage.saveInstalledAddonUrls(
-            currentProfileId,
-            dedupeManifestUrls(addons.map { it.manifestUrl }),
-        )
-        AddonStorage.saveAddonEnabledStates(
-            currentProfileId,
-            addons.associate { it.manifestUrl to it.enabled },
-        )
+        addonGroupMembers(ProfileRepository.state.value.profiles, currentProfileId).forEach { profileId ->
+            AddonStorage.saveInstalledAddonUrls(
+                profileId,
+                dedupeManifestUrls(addons.map { it.manifestUrl }),
+            )
+            AddonStorage.saveAddonEnabledStates(
+                profileId,
+                addons.associate { it.manifestUrl to it.enabled },
+            )
+        }
+    }
+
+    suspend fun flushPendingPushes() {
+        pushJobsByProfile.values.toList().forEach { it.join() }
+    }
+
+    suspend fun readProfileAddonSnapshot(profileId: Int): List<AddonRow> {
+        if (!AuthRepository.state.value.isAnonymous) {
+            return SupabaseProvider.client.postgrest.from("addons").select {
+                filter { eq("profile_id", profileId) }
+                order("sort_order", Order.ASCENDING)
+            }.decodeList<AddonRow>()
+        }
+        val enabled = AddonStorage.loadAddonEnabledStates(profileId)
+        return AddonStorage.loadInstalledAddonUrls(profileId).mapIndexed { index, url ->
+            AddonRow(url, enabled = enabled[url] ?: true, sortOrder = index)
+        }
+    }
+
+    fun applyProfileAddonSnapshot(profileIds: List<Int>, rows: List<AddonRow>) {
+        val normalized = rows.sortedBy { it.sortOrder }.map { it.copy(url = ensureManifestSuffix(it.url)) }.distinctBy { it.url }
+        profileIds.forEach { profileId ->
+            AddonStorage.saveInstalledAddonUrls(profileId, normalized.map { it.url })
+            AddonStorage.saveAddonEnabledStates(profileId, normalized.associate { it.url to it.enabled })
+        }
+        if (currentProfileId in profileIds) {
+            synchronized(stateLock) {
+                cancelActiveRefreshesLocked()
+                val existing = _uiState.value.addons.associateBy { it.manifestUrl }
+                _uiState.value = AddonsUiState(addons = normalized.map { row ->
+                    existing[row.url].toPendingAddon(row.url, row.name, row.enabled).copy(isRefreshing = false)
+                })
+                initialized = true
+            }
+            _uiState.value.addons.filter { it.enabled && it.manifest == null }.forEach { refreshAddon(it.manifestUrl) }
+        }
     }
 
     private fun loadLocalEnabledStates(): Map<String, Boolean> =

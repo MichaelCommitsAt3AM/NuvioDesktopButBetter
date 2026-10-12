@@ -19,6 +19,7 @@ data class NuvioProfile(
     @SerialName("profile_background_id") val profileBackgroundId: String? = null,
     @SerialName("profile_background_url") val profileBackgroundUrl: String? = null,
     @SerialName("uses_primary_addons") val usesPrimaryAddons: Boolean = false,
+    @SerialName("addon_sync_profile_id") val addonSyncProfileId: Int? = null,
     @SerialName("uses_primary_plugins") val usesPrimaryPlugins: Boolean = false,
     @SerialName("primary_addons_allowlist") val primaryAddonsAllowlist: List<String>? = null,
     @SerialName("pin_enabled") val pinEnabled: Boolean = false,

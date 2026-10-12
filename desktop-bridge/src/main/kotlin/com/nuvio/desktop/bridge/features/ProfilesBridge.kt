@@ -75,6 +75,7 @@ object ProfilesBridge {
         val profile = requireProfile(profileIndex)
         if (!profile.pinEnabled) return
         if (pin.isNullOrBlank()) throw BridgeFeatureException("PROFILE_PIN_REQUIRED", "This profile requires a PIN")
+        requireFourDigitPin(pin)
         val result = ProfileRepository.verifyPin(profileIndex, pin)
         if (!result.unlocked) {
             throw BridgeFeatureException("PROFILE_PIN_REJECTED", result.message ?: "The profile PIN is incorrect")
@@ -88,6 +89,8 @@ object ProfilesBridge {
         validateCosmetics(params.optionalStr("avatarId"), params.optionalStr("avatarUrl"), params.optionalStr("backgroundId"), params.optionalStr("backgroundUrl"))
         val primaryAddons = params.optionalBool("usesPrimaryAddons") ?: false
         val allowlist = params.optionalStringList("primaryAddonsAllowlist")
+        val addonSource = params.optionalProfileIndex("addonSyncProfileId")
+        ProfileRepository.checkAddonLinkAvailable(null, addonSource)
         ProfileRepository.createProfile(
             name = name,
             avatarColorHex = color,
@@ -121,12 +124,15 @@ object ProfilesBridge {
                 throw BridgeFeatureException("PROFILE_UPDATE_FAILED", "Profile was created, but some requested settings were not saved")
             }
         }
+        if (addonSource != null) ProfileRepository.setAddonProfileLink(created.profileIndex, addonSource)
         return snapshot()
     }
 
     private suspend fun update(params: JsonObject): JsonElement {
         val index = params.int("id")
         val profile = requireProfile(index)
+        val addonSource = if (params.has("addonSyncProfileId")) params.optionalProfileIndex("addonSyncProfileId") else profile.addonSyncProfileId
+        if (addonSource != profile.addonSyncProfileId) ProfileRepository.checkAddonLinkAvailable(index, addonSource)
         val name = params.optionalStr("name")?.trim()?.requireValidName() ?: profile.name
         val addons = params.optionalBool("usesPrimaryAddons") ?: profile.usesPrimaryAddons
         val plugins = params.optionalBool("usesPrimaryPlugins") ?: profile.usesPrimaryPlugins
@@ -162,6 +168,7 @@ object ProfilesBridge {
         ) {
             throw BridgeFeatureException("PROFILE_UPDATE_FAILED", "Profile changes were not saved")
         }
+        if (params.has("addonSyncProfileId")) ProfileRepository.setAddonProfileLink(index, addonSource)
         return snapshot()
     }
 
@@ -177,7 +184,15 @@ object ProfilesBridge {
 
     private suspend fun pin(params: JsonObject, operation: String): JsonElement {
         val index = params.int("id")
-        requireProfile(index)
+        val profile = requireProfile(index)
+        if (operation == "verify" || operation == "set") requireFourDigitPin(params.str("pin"))
+        if ((operation == "set" || operation == "clear") && profile.pinEnabled) {
+            val current = params.optionalStr("currentPin")
+                ?: throw BridgeFeatureException("PROFILE_PIN_REQUIRED", "Enter the current four digit PIN")
+            requireFourDigitPin(current)
+            val verified = ProfileRepository.verifyPin(index, current)
+            if (!verified.unlocked) throw BridgeFeatureException("PROFILE_PIN_REJECTED", verified.message ?: "The profile PIN is incorrect")
+        }
         val result = when (operation) {
             "verify" -> ProfileRepository.verifyPin(index, params.str("pin"))
             "set" -> ProfileRepository.setPin(index, params.str("pin"), params.optionalStr("currentPin"))
@@ -187,11 +202,13 @@ object ProfilesBridge {
                 if (authenticated !is com.nuvio.app.core.auth.AuthState.Authenticated || authenticated.isAnonymous) {
                     throw BridgeFeatureException("PROFILE_PIN_PASSWORD_UNAVAILABLE", "Account password verification requires a signed-in account")
                 }
-                ProfileRepository.clearPinWithPassword(index, params.str("accountPassword"))
-                val stillEnabled = ProfileRepository.state.value.profiles.firstOrNull { it.profileIndex == index }?.pinEnabled == true
-                if (stillEnabled) throw BridgeFeatureException("PROFILE_PIN_CLEAR_FAILED", "The profile PIN could not be cleared")
+                val cleared = ProfileRepository.clearPinWithPassword(index, params.str("accountPassword"))
+                if (!cleared.unlocked) throw BridgeFeatureException("PROFILE_PIN_CLEAR_FAILED", cleared.message ?: "The profile PIN could not be cleared")
                 return snapshot()
             }
+        }
+        if (operation != "verify" && !result.unlocked) {
+            throw BridgeFeatureException("PROFILE_PIN_UPDATE_FAILED", result.message ?: "The profile PIN could not be updated")
         }
         return buildJsonObject {
             put("unlocked", result.unlocked); put("retryAfterSeconds", result.retryAfterSeconds)
@@ -203,6 +220,10 @@ object ProfilesBridge {
     private fun requireProfile(index: Int): NuvioProfile = ProfileRepository.state.value.profiles
         .firstOrNull { it.profileIndex == index }
         ?: throw BridgeFeatureException("PROFILE_NOT_FOUND", "Profile does not exist")
+
+    internal fun requireFourDigitPin(pin: String) {
+        if (!pin.matches(Regex("[0-9]{4}"))) throw BridgeFeatureException("INVALID_PROFILE_PIN", "Enter a four digit PIN")
+    }
 
     private fun ensurePluginsAllowed(enabled: Boolean) {
         if (enabled && !AppFeaturePolicy.pluginsEnabled) {
@@ -247,10 +268,17 @@ object ProfilesBridge {
         putNullable("backgroundId", profile.profileBackgroundId); putNullable("backgroundUrl", profile.profileBackgroundUrl)
         put("locked", profile.pinEnabled); putNullable("pinLockedUntil", profile.pinLockedUntil)
         put("usesPrimaryAddons", profile.usesPrimaryAddons); put("usesPrimaryPlugins", profile.usesPrimaryPlugins)
+        put("addonSyncProfileId", profile.addonSyncProfileId?.let(::JsonPrimitive) ?: JsonNull)
         put("primaryAddonsAllowlist", profile.primaryAddonsAllowlist?.let { JsonArray(it.map(::JsonPrimitive)) } ?: JsonNull)
     }
 
     private fun JsonObject.has(key: String) = containsKey(key)
+    private fun JsonObject.optionalProfileIndex(key: String): Int? {
+        val value = this[key] ?: return null
+        if (value == JsonNull) return null
+        return (value as? JsonPrimitive)?.intOrNull?.takeIf { it in 1..MAX_PROFILES }
+            ?: throw BridgeFeatureException("INVALID_ARGUMENT", "$key must be an available profile")
+    }
     private fun JsonObject.str(key: String): String = optionalStr(key) ?: throw BridgeFeatureException("INVALID_ARGUMENT", "$key is required")
     private fun JsonObject.int(key: String): Int = this[key]?.jsonPrimitive?.intOrNull ?: throw BridgeFeatureException("INVALID_ARGUMENT", "$key must be an integer")
     private fun JsonObject.bool(key: String): Boolean = optionalBool(key) ?: throw BridgeFeatureException("INVALID_ARGUMENT", "$key must be a boolean")

@@ -72,7 +72,6 @@ export function StreamsPage() {
   const routeBackground = searchParams.get('background');
   const routeLogo = searchParams.get('logo');
   const routeEpisodeTitle = searchParams.get('episodeTitle');
-  const routeEpisodeThumbnail = searchParams.get('episodeThumbnail');
   const routeSeason = searchParams.get('seasonNumber');
   const routeEpisode = searchParams.get('episodeNumber');
   const [error, setError] = useState('');
@@ -89,7 +88,7 @@ export function StreamsPage() {
   // Continue Watching can start playback without loading its details first.
   const media = details.media?.id === id && details.media.type === type ? details.media : null;
   const episode = media ? details.episodes.find(item => item.id === videoId) : undefined;
-  const heroArtwork = episode?.thumbnail || routeEpisodeThumbnail || media?.background || routeBackground || media?.poster || routePoster || '';
+  const heroArtwork = media?.background || routeBackground || media?.poster || routePoster || '';
   const title = media?.name ?? routeTitle ?? episode?.title ?? 'Available streams';
   const titleLogo = media?.logo || routeLogo;
   const episodeTitle = episode?.title || routeEpisodeTitle;
@@ -143,9 +142,9 @@ export function StreamsPage() {
   }, []);
   useEffect(() => {
     const streamId = selection?.autoPlayStreamId;
-    if (!streamId || streamId === lastAuto.current || busy || consent) return;
+    if (manual || !streamId || streamId === lastAuto.current || busy || consent) return;
     lastAuto.current = streamId; void play(streamId, false, true);
-  }, [selection?.autoPlayStreamId, busy, consent]);
+  }, [selection?.autoPlayStreamId, busy, consent, manual]);
   const setFilter = async (addonId: string) => {
     setProvider(addonId);
     try { await call('streams.filter.set', { addonId: addonId === 'all' ? null : addonId }); }

@@ -58,6 +58,19 @@ describe('resume season selection', () => {
 });
 
 describe('episode card actions', () => {
+  it('shows the saved fraction for unfinished episodes in either card layout', () => {
+    const props = renderEpisodes({ progressByVideoId: { 'episode-1': .625 }, cardStyle: 'list' });
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '63');
+    expect(screen.getByRole('progressbar').firstElementChild).toHaveStyle({ width: '62.5%' });
+    cleanup(); renderEpisodes({ ...props, cardStyle: 'horizontal' });
+    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+  });
+  it('omits progress for watched, completed, unstarted and invalid entries', () => {
+    for (const [progress, watched] of [[.5, true], [1, false], [0, false], [NaN, false]] as const) {
+      renderEpisodes({ progressByVideoId: { 'episode-1': progress }, isWatched: () => watched });
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument(); cleanup();
+    }
+  });
   it('opens the action menu callback on right-click without playing the episode', () => {
     const props = renderEpisodes();
     const card = document.querySelector('.series-episode-card')!;

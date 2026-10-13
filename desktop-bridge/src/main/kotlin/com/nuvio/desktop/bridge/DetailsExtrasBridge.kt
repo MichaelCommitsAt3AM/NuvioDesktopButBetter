@@ -204,6 +204,7 @@ object DetailsExtrasBridge {
 
     private fun watchedSnapshot(type: String?, id: String?): JsonObject {
         WatchedRepository.ensureLoaded()
+        WatchProgressRepository.ensureLoaded()
         val watched = WatchedRepository.uiState.value
         return buildJsonObject {
             put("loaded", watched.isLoaded)
@@ -213,6 +214,14 @@ object DetailsExtrasBridge {
                 put("fullyWatched", WatchedRepository.isFullyWatchedSeries(id, type))
                 put("primaryAction", MetaDetailsRepository.peek(type, id)?.let(::primaryActionJson) ?: JsonNull)
                 put("seriesKey", watchedItemKey(type, id))
+                put("episodeProgress", buildJsonObject {
+                    MetaDetailsRepository.peek(type, id)?.videos.orEmpty().forEach { video ->
+                        val progress = WatchProgressRepository.progressForVideo(video.id, id, video.season, video.episode)
+                        if (progress != null && progress.durationMs > 0L && !progress.isCompleted) {
+                            put(video.id, progress.progressFraction)
+                        }
+                    }
+                })
                 put("episodes", JsonArray(watched.items.filter { item -> item.id == id && item.type == type && item.season != null && item.episode != null }.map { item -> buildJsonObject {
                     put("season", item.season)
                     put("episode", item.episode)

@@ -30,6 +30,11 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - An opt-in React/Tauri desktop UI is being developed while keeping the existing Kotlin backend and native player. See [the migration notes](docs/DESKTOP_UI_REWRITE.md) for build instructions and remaining feature work.
 - The preview now includes profiles/PINs, catalog discovery, rich details, cloud library, collections, downloads and expanded settings. Full animation, language and release-delivery parity is still in progress; [the coverage checklist](docs/DESKTOP_UI_PARITY.md) tracks what remains.
 - Profile PINs use a four-dot keypad with automatic submission, visible errors and lockout feedback. Cloud PIN setup, verification, removal and account-password recovery have been repaired.
+- The edit profile screen includes a Delete profile button with confirmation for secondary profiles.
+- The streams selection screen uses the same background dimming as title details.
+- Holding Settings opens Kotlin-style profile avatar tiles with opening/closing transitions. Unfinished episodes show saved progress on their thumbnails; stream loading keeps the title background throughout.
+- Stream selection and autoplay fetch fresh sources on every entry, without reusing local stream results. Expanded Home catalogs use the same circular back arrow as title details.
+- Emoji in stream descriptions no longer break search results. Sources appear with settled debrid labels and ordering; requests time out and diagnostic logs record search failures.
 - Settings now follows the Kotlin category/sidebar and nested-page structure, with connected controls for appearance, playback, Home, posters, Continue Watching, addons, integrations, plugins, account, About and Advanced. Detailed screen-by-screen parity and remaining differences are tracked in [the Settings comparison notes](docs/DESKTOP_UI_PARITY.md).
 - The profile chooser now follows the original centered logo, gradient backdrop, circular avatars and in-place Manage Profiles mode. It opens on launch when Remember Last Profile is off, and is available through the profile menu.
 - After profile selection, the preview shows the original-style centered Nuvio logo and animated loading arc over the profile backdrop until Home is ready, then fades into the app.

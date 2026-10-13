@@ -64,7 +64,7 @@ function Shell() {
       onContextMenu={event => { event.preventDefault(); clearHold(); setProfileOpen(true); }}
       onKeyDown={event => { if (event.key === 'ArrowDown' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); setProfileOpen(true); } }}>
       <Avatar profile={selectedProfile} size="sm" /><span>Settings</span>
-    </Link>{profileOpen && <ProfileMenu onClose={() => setProfileOpen(false)} />}
+    </Link>{profileOpen && <ProfileMenu holdGesture={held} onClose={() => setProfileOpen(false)} />}
   </div> : <Link key={to} to={to} state={to === '/' ? { resetHomeScroll: true } : undefined} className={`nav-link ${selected === label ? 'active' : ''}`} aria-current={selected === label ? 'page' : undefined} title={label}><Icon size={19} strokeWidth={1.9} /><span>{label}</span></Link>)}</>;
   const sidebar = appearance?.navigationLayout === 'sidebar';
   const isDetailsRoute = /^\/details\/[^/]+\/[^/]+$/.test(location.pathname);

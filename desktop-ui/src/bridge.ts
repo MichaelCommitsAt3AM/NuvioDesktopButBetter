@@ -123,6 +123,7 @@ function acceptEvent(event: Event) {
       update((current) => (data as Details).requestId === current.details.requestId ? { ...current, details: data as Details } : current);
       break;
     case 'streams':
+      reportDiagnostic(`Streams event request=${(data as Streams).requestId} matches=${(data as Streams).requestId === state.streams.requestId} loading=${(data as Streams).loading} groups=${(data as Streams).groups.length} error=${Boolean((data as Streams).error)}`);
       update((current) => (data as Streams).requestId === current.streams.requestId ? { ...current, streams: data as Streams } : current);
       break;
     case 'playback':
@@ -159,6 +160,7 @@ export async function initialize() {
         }
         acceptEvent(payload);
       } catch (error) {
+        reportDiagnostic(`Bridge event rejected topic=${payload.topic}: ${errorMessage(error)}`);
         console.error(errorMessage(error));
       }
     });
@@ -357,8 +359,14 @@ export const actions = {
   },
   async loadStreams(type: string, videoId: string, parentMetaId: string, season?: number, episode?: number, manualSelection = false) {
     const rid = requestId();
-    update((current) => ({ ...current, streams: { requestId: rid, loading: true, error: null, groups: [] } }));
-    try { await call('streams.load', { type, videoId, parentMetaId, season, episode, manualSelection }, true, rid); }
+    const pending: Streams = { requestId: rid, loading: true, error: null, groups: [] };
+    update((current) => ({ ...current, streams: pending, featureSnapshots: { ...current.featureSnapshots, streamSelection: undefined } }));
+    try {
+      const streams = await call<Streams>('streams.load', { type, videoId, parentMetaId, season, episode, manualSelection }, true, rid);
+      // Kotlin can reuse completed results without emitting a new StateFlow event.
+      // Accept the RPC snapshot unless a newer request or event already replaced it.
+      update((current) => current.streams === pending ? { ...current, streams } : current);
+    }
     catch (error) { update((current) => current.streams.requestId === rid ? { ...current, streams: { ...current.streams, loading: false, error: errorMessage(error) } } : current); }
   },
   async playback(streamId: string, type: string, id: string, title: string, extras: Record<string, unknown> = {}) {

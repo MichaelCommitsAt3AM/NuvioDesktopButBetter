@@ -5,6 +5,7 @@ import com.nuvio.app.core.network.DesktopIPv4FirstDns
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import nuvio.composeapp.generated.resources.Res
@@ -48,6 +49,8 @@ private val desktopHttpClient = OkHttpClient.Builder()
     .connectTimeout(60, TimeUnit.SECONDS)
     .readTimeout(60, TimeUnit.SECONDS)
     .writeTimeout(60, TimeUnit.SECONDS)
+    // Bound the whole exchange, including redirects and slowly arriving response bodies.
+    .callTimeout(60, TimeUnit.SECONDS)
     .followRedirects(true)
     .followSslRedirects(true)
     .build()
@@ -136,18 +139,30 @@ private suspend fun executeTextRequest(
     url: String,
     headers: Map<String, String> = emptyMap(),
     body: String = "",
-): String = withContext(Dispatchers.IO) {
+): String = suspendCancellableCoroutine { continuation ->
     val request = buildDesktopRequest(method, url, headers, body)
-    desktopHttpClient.newCall(request).execute().use { response ->
-        val payload = readResponseBody(response.body)
-        if (!response.isSuccessful) {
-            error(runBlocking { getString(Res.string.network_request_failed_http, response.code) })
+    val call = desktopHttpClient.newCall(request)
+    continuation.invokeOnCancellation { call.cancel() }
+    call.enqueue(object : okhttp3.Callback {
+        override fun onFailure(call: okhttp3.Call, error: java.io.IOException) {
+            continuation.resumeWith(Result.failure(error))
         }
-        if (payload.isBlank()) {
-            throw IllegalStateException(runBlocking { getString(Res.string.network_empty_response_body) })
+
+        override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
+            continuation.resumeWith(runCatching {
+                response.use {
+                    val payload = readResponseBody(it.body)
+                    if (!it.isSuccessful) {
+                        error(runBlocking { getString(Res.string.network_request_failed_http, it.code) })
+                    }
+                    if (payload.isBlank()) {
+                        throw IllegalStateException(runBlocking { getString(Res.string.network_empty_response_body) })
+                    }
+                    payload
+                }
+            })
         }
-        payload
-    }
+    })
 }
 
 private fun buildDesktopRequest(

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { ArrowLeft, Check, LockKeyhole, Save, Shield, Sparkles, UserRound, WandSparkles, X } from 'lucide-react';
+import { ArrowLeft, Check, LockKeyhole, Save, Shield, Sparkles, Trash2, UserRound, WandSparkles, X } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Avatar, PageHeader } from '../../components/ui';
+import { Dialog } from '../../components/Dialog';
 import { ProfilePinManager } from './PinDialogs';
 import { InlineError } from '../../components/Status';
 import { useProfiles, type AvatarChoice, type ProfileRecord } from './profileStore';
@@ -25,6 +26,9 @@ export function ProfileEditorPage() {
   const availableProfiles = (snapshot?.items ?? []).filter((item) => item.id !== editingId);
   const validAddonSource = !syncAddons || availableProfiles.some((item) => item.id === addonSyncProfileId);
   const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const [pinAction, setPinAction] = useState<'set' | 'clear' | null>(null);
   const avatars = snapshot?.avatars ?? [];
   const selectedAvatar = useMemo(() => avatars.find((avatar) => avatar.id === avatarId) ?? null, [avatars, avatarId]);
@@ -48,6 +52,13 @@ export function ProfileEditorPage() {
     if (avatar.memberOnly) return;
     setAvatarId(avatar.id); setAvatarUrl('');
     if (avatar.color) setColor(avatar.color);
+  }
+  async function removeProfile() {
+    if (!profile || profile.id <= 1 || deleting || saving) return;
+    setDeleting(true); setDeleteError('');
+    try { await run('profiles.delete', { id: profile.id }); navigate('/profiles'); }
+    catch (cause) { setDeleteError(cause instanceof Error ? cause.message : 'Could not delete profile.'); }
+    finally { setDeleting(false); }
   }
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -119,6 +130,8 @@ export function ProfileEditorPage() {
 
       <div className="profile-editor-footer"><span>{editingId === null ? 'You can change these details later.' : `Profile ${profile?.id ?? ''}`}</span><button className="button primary" disabled={saving || !name.trim() || urlInvalid || !validAddonSource}>{saving ? <span className="spin" /> : <Save size={15} />}{saving ? 'Savingâ€¦' : editingId === null ? 'Create profile' : 'Save changes'}</button></div>
     </form>
+    {profile && profile.id > 1 && <button type="button" className="button destructive" disabled={saving || deleting} onClick={() => { setDeleteError(''); setConfirmDelete(true); }}><Trash2 size={15} />Delete profile</button>}
+    {confirmDelete && profile && <Dialog label={`Delete ${profile.name}`} onClose={() => { if (!deleting) setConfirmDelete(false); }}><div className="dialog-head"><strong>Delete {profile.name}?</strong></div><p className="muted">This permanently removes this profile and its profile-specific settings.</p>{deleteError && <p className="form-error" role="alert">{deleteError}</p>}<div className="dialog-actions"><button type="button" className="button secondary" disabled={deleting} onClick={() => setConfirmDelete(false)}>Cancel</button><button type="button" className="button destructive" disabled={deleting} onClick={() => void removeProfile()}><Trash2 size={15} />{deleting ? 'Deleting…' : 'Delete profile'}</button></div></Dialog>}
     {pinAction && profile && <ProfilePinManager action={pinAction} profile={profile} onClose={() => setPinAction(null)} onDone={() => setPinAction(null)} />}
   </div>;
 }

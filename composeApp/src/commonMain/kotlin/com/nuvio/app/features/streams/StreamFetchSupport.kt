@@ -7,6 +7,10 @@ import com.nuvio.app.features.plugins.PluginRuntimeResult
 import com.nuvio.app.features.plugins.PluginScraper
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.streams_plugin_repository_fallback
 import org.jetbrains.compose.resources.getString
@@ -81,6 +85,21 @@ internal suspend fun <T> runCatchingUnlessCancelled(block: suspend () -> T): Res
     } catch (error: Throwable) {
         Result.failure(error)
     }
+
+/** A source timeout is a failed result; navigation cancellation still cancels the search. */
+internal suspend fun <T> runStreamSourceTask(
+    timeoutMillis: Long = 60_000L,
+    block: suspend () -> T,
+): Result<T> = try {
+    Result.success(withTimeout(timeoutMillis) { block() })
+} catch (error: TimeoutCancellationException) {
+    currentCoroutineContext().ensureActive()
+    Result.failure(IllegalStateException("Stream source timed out. Please try again."))
+} catch (error: CancellationException) {
+    throw error
+} catch (error: Throwable) {
+    Result.failure(error)
+}
 
 internal fun PluginRuntimeResult.toStreamItem(
     scraper: PluginScraper,

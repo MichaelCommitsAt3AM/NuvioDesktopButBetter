@@ -4,6 +4,12 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Stream search failure recovery and diagnostics
+
+The rewrite's stream metadata truncation preserves UTF-16 surrogate pairs. Previously a description ending at the first half of an emoji produced invalid Unicode, preventing delivery of the stream results (reproduced with Unabomber and Spider-Man: Brand New Day). Optional missing descriptions are projected as empty strings to match the bridge contract.
+
+Stream source tasks and desktop HTTP exchanges have a 60-second deadline. Navigating away cancels HTTP requests. Each source keeps its shimmer until optional debrid availability enrichment and presentation finish, then publishes its settled labels and ordering once. This prevents a temporary P2P list from flashing before TB Instant results. Availability enrichment has a 20-second deadline and falls back to unknown availability; other sources can finish independently. Processing failures settle loading state without allowing cancelled searches to overwrite newer requests. The rewrite stream-event subscription survives serialization failures and returns a visible error. Search phases, elapsed times, counts, and event delivery are recorded in `%APPDATA%/com.nuvio.media.desktop.preview/logs/bridge-diagnostics.log`; diagnostics exclude request URLs, response payloads, and credentials. Searches still fetch fresh sources on every entry.
+
 ## Baseline and how to regenerate
 
 - **Upstream branch:** `NuvioMedia/NuvioDesktop` → `Dev`
@@ -26,6 +32,12 @@ git diff --stat $(git merge-base HEAD upstream/Dev) HEAD  # full fork diff vs. u
 Keep this file current: when a fork-only feature or fix lands, add it to the matching section below.
 
 ## React/Tauri desktop preview
+
+Every rewrite stream entry, including autoplay and Continue Watching, calls `StreamsRepository.reload` to cancel the old search and fetch fresh source results. Add-on requests send `Cache-Control: no-cache, no-store`; desktop HTTP has no local disk response cache. Request-scoped RPC snapshots and explicit post-activation events prevent stuck loading, while newer events/requests take precedence over late replies. Starting a request clears stale selection state; explicit manual selection ignores autoplay candidates. Regression coverage includes repeated manual entry and autoplay starts for the same title. Expanded Home catalogs replace header Back/Refresh buttons with a reusable top-left circular `BackButton`, also used by title details; failed catalog loads retain their inline retry action.
+
+Details and stream selection share the same 65% → 72% black backdrop gradient. Stream artwork brightness matches the details backdrop's 90% compositing strength; the playback loading screen retains its existing shading.
+
+The edit profile screen includes a bottom Delete profile button for secondary profiles, using the existing `profiles.delete` bridge operation. Confirmation supports cancellation, prevents duplicate submissions and remains open on failures; successful deletion returns to Profiles. The primary profile remains protected. Editor tests cover cancellation, success, errors and primary-profile protection.
 
 Profile PINs use a shared Kotlin-style four-dot numeric keypad in the chooser, profile menu and editor, with automatic submission after four digits, visible failures and a server lockout countdown. Failed setup/removal now throws a bridge error instead of appearing successful. Successful mutations update cached lock flags immediately; account-password recovery reports errors explicitly. `20261012130000_profile_pin_repairs.sql` qualifies bcrypt calls using pgcrypto's installed schema, enforces four-digit PINs, retains account isolation and five failures → five-minute lockout, denies changes/removal during lockout, and broadcasts successful PIN changes to other devices. The repair was applied to NuvioSync on 2026-10-12 with user approval. SQL behavioral assertions passed in an isolated database with pgcrypto installed in both `extensions` and `public`; nine profile UI tests, TypeScript checking and the Kotlin backend build passed. Deployed database lint is clean, resolving the four PIN errors noted in the earlier add-on migration check. No release build was made; live cross-device and visual testing remain separate user checks.
 
@@ -404,6 +416,8 @@ Commits: `ebfe83f5`…`010ad2a2` (bumps), `679f78e2`, `5f320e3e`, `9b67e4e3`, `8
 ---
 
 ## Housekeeping notes
+
+The React rewrite's Settings hold popup follows Kotlin `ProfilePopupContent`: responsive avatar grid (two columns for four tiles), active check badge, Add Profile tile, inline PIN verification and hold/drag selection. It uses the Kotlin 0.96-to-1 scale and fade timing (180 ms enter; 140 ms fade/160 ms scale exit), retaining the popup until dismissal completes. Positioning chooses above/below the Settings trigger with viewport clamping. Episode thumbnails show white progress bars using `WatchProgressRepository.progressForVideo`, excluding completed/watched entries, in both list and horizontal layouts. Stream discovery and debrid resolution use parent-title artwork rather than episode thumbnails, consistent with the native player's opening artwork.
 
 - `scratch_debrid.diff` at the repo root is a leftover working diff (committed in `eee2644f`), not part of
   the app. Safe to delete.

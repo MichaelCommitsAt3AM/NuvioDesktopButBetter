@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { ArrowLeft, Compass, LoaderCircle, RotateCw } from 'lucide-react';
+import { Compass, LoaderCircle } from 'lucide-react';
+import { BackButton } from '../../components/BackButton';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { call, refreshFeature, useSelector } from '../../bridge';
 import type { Media } from '../../generated/contract';
@@ -84,7 +85,8 @@ export function CatalogPage() {
   };
 
   return <div className="page catalog-page" onScroll={savePosition}>
-    <PageHeader title={catalog.title || 'Catalog'} subtitle={catalog.subtitle || catalog.contentType} action={<div className="catalog-actions"><button className="button secondary" type="button" onClick={() => navigate(-1)}><ArrowLeft size={16} /> Back</button><button className="button secondary" type="button" disabled={catalog.loading} onClick={() => void call('catalog.refresh', {}).catch(() => {})}><RotateCw size={15} /> Refresh</button></div>} />
+    <BackButton className="catalog-back" onClick={() => navigate(-1)} />
+    <PageHeader title={catalog.title || 'Catalog'} subtitle={catalog.subtitle || catalog.contentType} />
     {catalog.error && <InlineError message={catalog.error} onRetry={() => void call('catalog.refresh', {}).catch(() => {})} />}
     {catalog.loading && catalog.items.length === 0 && <div className="loading-block"><LoaderCircle className="spin" size={22} /><span>Loading {catalog.title || 'catalog'}…</span></div>}
     {!catalog.loading && !catalog.error && catalog.items.length === 0 && <EmptyState title="No titles found" message="This catalog did not return any titles." icon={<Compass size={22} />} />}

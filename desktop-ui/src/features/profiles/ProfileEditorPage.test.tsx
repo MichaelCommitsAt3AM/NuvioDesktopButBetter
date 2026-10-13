@@ -1,13 +1,35 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ProfileEditorPage } from './ProfileEditorPage';
 
 const store = vi.hoisted(() => ({ snapshot: {} as any, run: vi.fn(async () => {}), setError: vi.fn() }));
 vi.mock('./profileStore', () => ({ useProfiles: () => ({ ...store, loading: false, error: '', refresh: vi.fn() }) }));
 beforeEach(() => {
-  store.run.mockClear();
+  store.run.mockReset();
+  store.run.mockResolvedValue(undefined);
   store.snapshot = { items: [{ id: 1, name: 'Main' }, { id: 2, name: 'Family', addonSyncProfileId: 1 }], avatars: [], backgrounds: [] };
+});
+it('confirms deletion, supports cancellation, and returns to profiles after success', async () => {
+  editor('/profiles/2/edit');
+  fireEvent.click(screen.getByRole('button', { name: 'Delete profile' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(store.run).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Delete profile' }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete profile' }));
+  await screen.findByText('Saved');
+  expect(store.run).toHaveBeenCalledWith('profiles.delete', { id: 2 });
+});
+it('keeps failed deletion visible and protects the primary profile', async () => {
+  store.run.mockRejectedValueOnce(new Error('Could not delete profile.'));
+  editor('/profiles/2/edit');
+  fireEvent.click(screen.getByRole('button', { name: 'Delete profile' }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete profile' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not delete profile.');
+  expect(screen.queryByText('Saved')).not.toBeInTheDocument();
+  cleanup();
+  editor('/profiles/1/edit');
+  expect(screen.queryByRole('button', { name: 'Delete profile' })).not.toBeInTheDocument();
 });
 afterEach(cleanup);
 function editor(path = '/profiles/new') {

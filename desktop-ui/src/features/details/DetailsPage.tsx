@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Check, CircleCheck, Maximize, MoreHorizontal, Play, Plus } from 'lucide-react';
+import { Check, CircleCheck, Maximize, MoreHorizontal, Play, Plus } from 'lucide-react';
+import { BackButton } from '../../components/BackButton';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { InlineError } from '../../components/Status';
@@ -104,10 +105,10 @@ export function DetailsPage() {
   };
 
   return <>
-    {media?.background && createPortal(<div className="detail-viewport-backdrop" aria-hidden="true" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.65),rgba(0,0,0,.72)),url("${media.background}")` }} />, document.body)}
+    {media?.background && createPortal(<div className="detail-viewport-backdrop" aria-hidden="true" style={{ backgroundImage: `var(--title-backdrop-shade),url("${media.background}")` }} />, document.body)}
     <div className="detail-page">
     {(media || details.loading) && <div className="detail-screen-controls">
-      <button className="detail-back" type="button" aria-label="Back" onClick={() => navigate(-1)}><ArrowLeft size={22} /></button>
+      <BackButton className="detail-back" onClick={() => navigate(-1)} />
       {media && <button className="detail-fullscreen" type="button" aria-label="Toggle fullscreen" onClick={() => { const window = getCurrentWindow(); void window.isFullscreen().then((fullscreen) => window.setFullscreen(!fullscreen)).catch(() => {}); }}><Maximize size={20} /></button>}
     </div>}
     {details.loading && loadTimedOut && <InlineError message="This title is taking longer than expected to load." onRetry={() => { setLoadTimedOut(false); void actions.loadDetails(type, id); }} />}

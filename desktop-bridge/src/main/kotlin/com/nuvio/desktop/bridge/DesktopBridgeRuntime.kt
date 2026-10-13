@@ -219,7 +219,27 @@ class DesktopBridgeRuntime {
         if (AppFeaturePolicy.pluginsEnabled) scope.launch { PluginRepository.uiState.collect { emit("plugins", PluginsBridge.snapshot()) } }
         scope.launch { SearchRepository.uiState.collect { latestRequest["search"]?.let { id -> emit("search", searchJson(id, requestQueries["search"].orEmpty())) } } }
         scope.launch { MetaDetailsRepository.uiState.collect { latestRequest["details"]?.let { id -> emit("details", detailsJson(id)) } } }
-        scope.launch { StreamsRepository.uiState.collect { latestRequest["streams"]?.let { id -> emit("streams", streamsJson(id)); emit("streamSelection", streamSelectionJson()) } } }
+        scope.launch {
+            StreamsRepository.uiState.collect { state ->
+                latestRequest["streams"]?.let { id ->
+                    try {
+                        emit("streams", streamsJson(id))
+                        emit("streamSelection", streamSelectionJson())
+                        System.err.println("[StreamsBridge] snapshot request=$id loading=${state.isAnyLoading} groups=${state.groups.size} streams=${state.groups.sumOf { it.streams.size }}")
+                    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                        throw cancelled
+                    } catch (failure: Throwable) {
+                        // Keep this subscription alive so one bad result cannot break future searches.
+                        System.err.println("[StreamsBridge] snapshot failed request=$id kind=${failure::class.simpleName}")
+                        emit("streams", buildJsonObject {
+                            put("requestId", id); put("loading", false)
+                            put("error", "Could not display stream results. Please try again.")
+                            put("groups", JsonArray(emptyList()))
+                        })
+                    }
+                }
+            }
+        }
         val running = embeddedServer(CIO, host = "127.0.0.1", port = 0) {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = true }) }
             install(WebSockets)
@@ -466,9 +486,16 @@ class DesktopBridgeRuntime {
             val season = params.optionalInt("season") ?: video?.season
             val episode = params.optionalInt("episode") ?: video?.episode
             streamContext[requestId] = meta to videoId
-            StreamsRepository.load(type, videoId, parentId, season, episode, manualSelection = params["manualSelection"]?.jsonPrimitive?.booleanOrNull ?: false, contentTitle = streamContext[requestId]?.first?.name)
+            // Every rewrite entry (manual or autoplay) starts a new source search,
+            // cancelling the previous one and bypassing unchanged-request reuse.
+            StreamsRepository.reload(type, videoId, parentId, season, episode, manualSelection = params["manualSelection"]?.jsonPrimitive?.booleanOrNull ?: false, contentTitle = streamContext[requestId]?.first?.name)
             activateRequest("streams", requestId)
-            streamsJson(requestId)
+            // Publish after activation so early repository events cannot leave
+            // the frontend waiting under the previous request identity.
+            val snapshot = streamsJson(requestId)
+            emit("streams", snapshot)
+            emit("streamSelection", streamSelectionJson())
+            snapshot
         }
         "streams.resolve" -> resolveStream(params.str("streamId"))
         "playback.start" -> {
@@ -731,7 +758,23 @@ class DesktopBridgeRuntime {
             eventMutex.withLock {
                 if (emittedEpoch != epoch) return@withLock
                 val message = eventJson(topic, data)
-                eventClients.forEach { client -> runCatching { client(message) } }
+                eventClients.forEach { client ->
+                    try {
+                        client(message)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (failure: Throwable) {
+                        System.err.println("[BridgeEvents] delivery failed topic=$topic kind=${failure::class.simpleName}")
+                        if (topic == "streams") {
+                            val fallback = buildJsonObject {
+                                put("requestId", data["requestId"] ?: JsonPrimitive("idle"))
+                                put("loading", false); put("error", "Could not display stream results. Please try again.")
+                                put("groups", JsonArray(emptyList()))
+                            }
+                            runCatching { client(eventJson(topic, fallback)) }
+                        }
+                    }
+                }
             }
         }
     }
@@ -879,7 +922,7 @@ class DesktopBridgeRuntime {
                     val (meta, videoId) = requestId?.let(streamContext::get) ?: (lastDetails to loadedVideoId)
                     streamRegistry[streamId] = StreamRecord(stream, meta, videoId)
                     buildJsonObject {
-                        put("id", streamId); put("name", stream.streamLabel); putNullable("description", stream.description)
+                        put("id", streamId); put("name", stream.streamLabel); put("description", stream.description.orEmpty())
                         put("url", JsonNull); put("source", stream.addonName)
                         put("headers", JsonObject(emptyMap()))
                         put("playable", stream.playableDirectUrl != null || stream.p2pInfoHash != null || DirectDebridPlaybackResolver.shouldResolveToPlayableStream(stream))

@@ -1,0 +1,20 @@
+.profile-popup-scrim{position:fixed;inset:0;z-index:100;border:0;background:transparent;cursor:default}
+.profile-popup{--s:var(--ui-scale,1);position:fixed;z-index:101;box-sizing:border-box;width:calc((24px + 80px * var(--profile-columns)) * var(--s));max-width:calc(100vw - 32px);max-height:min(65vh,420px);overflow:auto;padding:calc(12px * var(--s));border:calc(.5px * var(--s)) solid #ffffff12;border-radius:calc(22px * var(--s));background:#1c1c1ef0;box-shadow:0 calc(12px * var(--s)) calc(24px * var(--s)) #0005;backdrop-filter:blur(24px);animation:profile-popup-open 180ms cubic-bezier(.4,0,.2,1) both;will-change:transform,opacity}
+.profile-popup.closing{pointer-events:none;animation:profile-popup-close-scale 160ms cubic-bezier(.4,0,.2,1) both,profile-popup-close-fade 140ms cubic-bezier(.4,0,.2,1) both}
+.profile-popup-grid{display:grid;grid-template-columns:repeat(var(--profile-columns),minmax(0,1fr));gap:calc(4px * var(--s))}
+.profile-popup-tile{display:flex;flex-direction:column;align-items:center;gap:calc(6px * var(--s));padding:calc(8px * var(--s)) calc(4px * var(--s));border:0;border-radius:calc(8px * var(--s));background:transparent;color:#969ca3;transition:transform 90ms,background-color 90ms;cursor:pointer;min-width:0}
+.profile-popup-tile[aria-checked=true]{color:#f5f5f5}
+.profile-popup-tile:hover:not([aria-checked=true]),.profile-popup-tile.held-hover:not([aria-checked=true]){transform:scale(1.04);background:#ffffff24;color:#f5f5f5}
+.profile-popup-avatar,.profile-popup-add{position:relative;display:grid;place-items:center;width:calc(40px * var(--s));height:calc(40px * var(--s));flex:none}
+.profile-popup-avatar .avatar.md{box-sizing:border-box;width:100%;height:100%;border:calc(1.5px * var(--s)) solid color-mix(in srgb,var(--profile-color) 50%,transparent)}
+.profile-popup-avatar .avatar.placeholder{background:color-mix(in srgb,var(--profile-color) 15%,transparent)!important;color:var(--profile-color);font-size:calc(18px * var(--s));font-weight:700}
+.profile-popup-tile[aria-checked=true] .avatar,.profile-popup-tile:hover .avatar,.profile-popup-tile.held-hover .avatar{border-color:#b8bec5}
+.profile-popup-badge{position:absolute;right:0;bottom:0;display:grid;place-items:center;width:calc(16px * var(--s));height:calc(16px * var(--s));border-radius:50%;background:#242424;color:#969ca3}
+.profile-popup-badge.active{background:#f5f5f5;color:#111}.profile-popup-badge svg{width:calc(11px * var(--s));height:calc(11px * var(--s))}
+.profile-popup-add{border-radius:50%;background:#242424}.profile-popup-add svg{width:calc(22px * var(--s));height:calc(22px * var(--s))}
+.profile-popup-name{width:100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:calc(12px * var(--s));font-weight:500;line-height:1.4;text-align:center;letter-spacing:.02em}.profile-popup-tile[aria-checked=true] .profile-popup-name{font-weight:600}
+.profile-popup.pin-mode{width:calc(264px * var(--s))}.profile-popup .pin-entry{animation:profile-pin-enter 180ms 20ms both}.profile-popup .pin-keypad{grid-template-columns:repeat(3,48px);gap:8px}.profile-popup .pin-keypad button{width:48px;height:48px;font-size:22px}.profile-popup .pin-entry h2{font-size:20px}.profile-popup .pin-profile-name{margin-bottom:16px}
+@keyframes profile-popup-open{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+@keyframes profile-popup-close-scale{from{transform:scale(1)}to{transform:scale(.96)}}
+@keyframes profile-popup-close-fade{from{opacity:1}to{opacity:0}}
+@keyframes profile-pin-enter{from{opacity:0}to{opacity:1}}

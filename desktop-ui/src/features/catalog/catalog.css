@@ -1,4 +1,4 @@
-.catalog-actions{display:flex;align-items:center;gap:8px}
+.catalog-back{position:fixed;z-index:30;top:16px;left:20px}
 .catalog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--catalog-card-width,176px)),var(--catalog-card-width,176px)));justify-content:start;align-items:start;column-gap:12px;row-gap:18px;margin-top:18px}
 .catalog-grid>.poster-item{width:100%;min-width:0}
 .catalog-grid .media-card{width:100%;min-width:0}

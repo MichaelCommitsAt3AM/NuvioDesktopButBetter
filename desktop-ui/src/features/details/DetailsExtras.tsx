@@ -22,7 +22,7 @@ export type ExtrasMeta = {
   seasonPosters: Record<string, string>; videos: Video[];
 };
 export type DetailsPrimaryAction = { label: string; videoId: string; seasonNumber: number | null; episodeNumber: number | null; episodeTitle: string | null; episodeThumbnail: string | null; resumePositionMs: number | null };
-type WatchedSnapshot = { loaded: boolean; watchedKeys: string[]; watched?: boolean; fullyWatched?: boolean; episodes?: Array<{ season: number | null; episode: number | null; videoId: string | null; key: string }> };
+type WatchedSnapshot = { loaded: boolean; episodeProgress?: Record<string, number>; watchedKeys: string[]; watched?: boolean; fullyWatched?: boolean; episodes?: Array<{ season: number | null; episode: number | null; videoId: string | null; key: string }> };
 type PersonDetail = { tmdbId: number; name: string; biography: string | null; birthday: string | null; deathday: string | null; placeOfBirth: string | null; profilePhoto: string | null; knownFor: string | null; movieCredits: Media[]; tvCredits: Media[] };
 type EntityBrowse = { header: { id: number; kind: string; name: string; logo: string | null; originCountry: string | null; secondaryLabel: string | null; description: string | null }; rails: Array<{ mediaType: string; railType: string; currentPage: number; hasMore: boolean; items: Media[] }> };
 type EntityRailPage = { page: number; hasMore: boolean; items: Media[] };
@@ -40,6 +40,7 @@ const headingStyle = { display: 'flex', alignItems: 'center', justifyContent: 's
 export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type: string; id: string; primaryAction?: DetailsPrimaryAction | null; onMetaLoaded?: (meta: ExtrasMeta) => void }) {
   const navigate = useNavigate();
   const settings = useFeatureSnapshot<MetadataSettings>('metadataSettings');
+  const progressUpdates = useFeatureSnapshot('homeExtras');
   const loadGeneration = useRef(0);
   const [meta, setMeta] = useState<ExtrasMeta | null>(null);
   const [watched, setWatched] = useState<WatchedSnapshot | null>(null);
@@ -78,9 +79,6 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
       onMetaLoaded?.(result);
       setSelectedTrailerCategory(result.trailers[0]?.type || 'Trailer');
       setLoading(false);
-      void call<WatchedSnapshot>('details.watched.snapshot', { type, id }).then((snapshot) => {
-        if (loadGeneration.current === generation) setWatched(snapshot);
-      }).catch(() => {});
     }).catch((cause) => {
       if (loadGeneration.current !== generation) return;
       setLoading(false);
@@ -88,6 +86,14 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
     });
     return () => { loadGeneration.current += 1; };
   }, [type, id]);
+  useEffect(() => {
+    if (!meta || meta.id !== id || meta.type !== type) return;
+    let active = true;
+    void call<WatchedSnapshot>('details.watched.snapshot', { type, id }).then(snapshot => {
+      if (active) setWatched(snapshot);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [type, id, meta, progressUpdates]);
   useEffect(() => { if (!settings) void refreshFeature<MetadataSettings>('metadataSettings', 'metadataSettings.snapshot').catch(() => {}); }, [settings]);
   useEffect(() => {
     const generation = loadGeneration.current;
@@ -243,6 +249,7 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
       showRatings={settings?.showOverallRatings !== false}
       ratingsVisibility={settings?.episodeRatingsVisibility ?? 'show_all'}
       isWatched={watchedVideo}
+      progressByVideoId={watched?.episodeProgress}
       onEpisodeClick={(video) => navigate(`/details/${encodeURIComponent(meta.type)}/${encodeURIComponent(meta.id)}/streams/${encodeURIComponent(video.id)}`)}
       onEpisodeLongPress={setSelectedEpisode}
       onToggleSeason={(season) => void toggleSeason(season)}

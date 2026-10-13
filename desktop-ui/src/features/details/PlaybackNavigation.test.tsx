@@ -80,6 +80,11 @@ describe('details playback action', () => {
 });
 
 describe('loading artwork identity', () => {
+  it('uses the series background rather than episode artwork during stream discovery', () => {
+    bridge.state.details = { media: media('ted', 'series'), episodes: [{ id: 'ted:3:3', title: 'Episode', thumbnail: 'episode.jpg', season: 3, episode: 3 }] };
+    const view = render(<MemoryRouter initialEntries={['/details/series/ted/streams/ted%3A3%3A3?episodeThumbnail=route-episode.jpg&background=ted-background.jpg']}><Routes><Route path="/details/:type/:id/streams/:videoId" element={<StreamsPage />} /></Routes></MemoryRouter>);
+    expect(view.container.querySelector('.streams-backdrop-image')).toHaveAttribute('src', 'ted-background.jpg');
+  });
   it('uses Continue Watching artwork immediately even when another title remains in details', async () => {
     bridge.state.details = { media: media('spiderman'), episodes: [{ id: 'ted', title: 'Wrong episode', thumbnail: 'wrong.jpg', season: 9, episode: 9 }], loading: false };
     const view = renderStreams('?title=Ted+2&background=ted-background.jpg&logo=ted-logo.png');

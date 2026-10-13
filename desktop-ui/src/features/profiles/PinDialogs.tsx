@@ -6,9 +6,9 @@ import './pinDialogs.css';
 
 export type PinResult = { unlocked: boolean; retryAfterSeconds?: number; message?: string | null };
 
-export function PinEntryDialog({ profileName, onVerify, onVerified, onClose, onForgotPin }: {
+export function PinEntryDialog({ profileName, onVerify, onVerified, onClose, onForgotPin, inline = false }: {
   profileName: string; onVerify: (pin: string) => Promise<PinResult>;
-  onVerified?: (pin: string) => void | Promise<void>; onClose: () => void; onForgotPin?: () => void;
+  onVerified?: (pin: string) => void | Promise<void>; onClose: () => void; onForgotPin?: () => void; inline?: boolean;
 }) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
@@ -44,7 +44,7 @@ export function PinEntryDialog({ profileName, onVerify, onVerified, onClose, onF
       if (mounted.current) setBusy(false);
     }
   }
-  return <Dialog label="Enter PIN" className="profile-pin-dialog" onClose={() => { if (!pending.current) onClose(); }}>
+  const content = <>
     <section className={`pin-entry ${error ? 'has-error' : ''}`} onKeyDown={(event) => {
       if (/^[0-9]$/.test(event.key)) { event.preventDefault(); void enter(pin + event.key); }
       else if (event.key === 'Backspace' || event.key === 'Delete') { event.preventDefault(); void enter(pin.slice(0, -1)); }
@@ -56,8 +56,10 @@ export function PinEntryDialog({ profileName, onVerify, onVerified, onClose, onF
       {busy && <span className="pin-verifying" role="status">Verifying…</span>}
       <div className="pin-keypad">{['1','2','3','4','5','6','7','8','9','','0','delete'].map(key => key ? <button key={key} type="button" disabled={busy || seconds > 0} aria-label={key === 'delete' ? 'Delete digit' : key} onClick={() => void enter(key === 'delete' ? pin.slice(0, -1) : pin + key)}>{key === 'delete' ? <Delete size={24} /> : key}</button> : <span key="empty" />)}</div>
       {onForgotPin && <button type="button" className="text-button pin-forgot" disabled={busy} onClick={onForgotPin}>Forgot PIN?</button>}
+      {inline && <button type="button" className="text-button pin-forgot" disabled={busy} onClick={onClose}>Cancel</button>}
     </section>
-  </Dialog>;
+  </>;
+  return inline ? content : <Dialog label="Enter PIN" className="profile-pin-dialog" onClose={() => { if (!pending.current) onClose(); }}>{content}</Dialog>;
 }
 
 export function ProfilePinManager({ profile, action, passwordRecovery = false, onClose, onDone }: {

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AppRoot from './App';
-import { actions, disposeBridge } from './bridge';
+import { actions, disposeBridge, getSnapshot } from './bridge';
 import { isAutomaticStreamSelectionEnabled, streamAddonNames } from './features/streams/StreamsPage';
 import type { Addons } from './generated/contract';
 
@@ -21,6 +21,10 @@ vi.mock('@tauri-apps/api/core', () => ({
     const request = args!.request!;
     bridgeMock.requests.push(request);
     if (request.method === 'details.load') return { id: request.id, epoch: bridgeMock.epoch, result: { requestId: request.id, loading: true, error: null, media: null, episodes: [], cast: [], related: [] } };
+    if (request.method === 'streams.load') {
+      if (request.params.videoId === 'event-first') emit({ topic: 'streams', epoch: bridgeMock.epoch, revision: 500, data: { requestId: request.id, loading: false, error: null, groups: [] } });
+      return { id: request.id, epoch: bridgeMock.epoch, result: { requestId: request.id, loading: bridgeMock.streamAutoPlayMode !== 'MANUAL', error: null, groups: [] } };
+    }
     if (request.method === 'session.snapshot' && bridgeMock.failSessionSnapshot) throw new Error('Bridge request timed out');
     if (request.method === 'profiles.select' && bridgeMock.rejectSelection) throw new Error('Selection failed');
     const defaults: Record<string, unknown> = {
@@ -69,6 +73,40 @@ describe('desktop bridge UI workflow', () => {
     expect(bridgeMock.requests.some(request => request.method === 'profiles.select' && request.params.id === 7)).toBe(true);
   });
   afterEach(() => { cleanup(); disposeBridge(); });
+
+  it('issues a new stream request on every manual entry and accepts its snapshot without events', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    for (const title of ['ted', 'ted', 'spider']) {
+      await act(async () => { await actions.loadStreams('movie', title, title, undefined, undefined, true); });
+      expect(getSnapshot().streams.loading).toBe(false);
+      const request = bridgeMock.requests.filter(item => item.method === 'streams.load').at(-1)!;
+      expect(getSnapshot().streams.requestId).toBe(request.id);
+      expect(request.params.manualSelection).toBe(true);
+    }
+    const ids = bridgeMock.requests.filter(item => item.method === 'streams.load').map(item => item.id);
+    expect(new Set(ids).size).toBe(3);
+  });
+
+  it('issues a new stream request for every autoplay start of the same movie', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await act(async () => { await actions.loadStreams('movie', 'ted', 'ted'); });
+      const requests = bridgeMock.requests.filter(item => item.method === 'streams.load');
+      expect(requests).toHaveLength(attempt + 1);
+      expect(requests.at(-1)!.params.manualSelection).toBe(false);
+      expect(getSnapshot().streams.requestId).toBe(requests.at(-1)!.id);
+    }
+  });
+
+  it('keeps a completed stream event when an older loading response arrives afterwards', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    bridgeMock.streamAutoPlayMode = 'FIRST_STREAM';
+    await act(async () => { await actions.loadStreams('movie', 'event-first', 'event-first'); });
+    expect(getSnapshot().streams.loading).toBe(false);
+  });
 
   it('opens Home with shimmer cards while the home snapshot is still loading', async () => {
     render(<AppRoot />);

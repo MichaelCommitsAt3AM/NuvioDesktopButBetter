@@ -12,6 +12,19 @@ import kotlinx.serialization.json.put
 fun main() {
     val token = System.`in`.bufferedReader().readLine()?.trim()
     require(!token.isNullOrBlank()) { "Missing bridge token on stdin" }
+    // The shell persists stderr to bridge-diagnostics.log. Record stream phases,
+    // never request URLs, payloads, credentials, or exception messages.
+    co.touchlab.kermit.Logger.addLogWriter(object : co.touchlab.kermit.LogWriter() {
+        override fun isLoggable(tag: String, severity: co.touchlab.kermit.Severity) =
+            tag == "StreamsRepo" && severity >= co.touchlab.kermit.Severity.Info
+
+        override fun log(severity: co.touchlab.kermit.Severity, message: String, tag: String, throwable: Throwable?) {
+            val safe = message.replace(Regex("https?://\\S+"), "[URL redacted]")
+                .replace(token, "[redacted]")
+                .replace(Regex("[\\r\\n]+"), " ")
+            System.err.println("[$tag] $safe")
+        }
+    })
     application(exitProcessOnExit = false) {
         // Keep a Compose Desktop application scope alive for native player windows.
         // ComposeWindow.setContent from the bridge's plain AWT event loop leaves the

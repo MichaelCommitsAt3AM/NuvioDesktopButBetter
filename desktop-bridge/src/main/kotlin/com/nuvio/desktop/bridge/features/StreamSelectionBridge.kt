@@ -162,6 +162,9 @@ object StreamSelectionBridge {
         .replace(Regex("[\\r\\n\\t]+"), " ")
         .trim()
         .take(240)
+        // Kotlin String limits count UTF-16 units. Do not split an emoji's surrogate pair:
+        // the resulting invalid Unicode can reject the entire stream event in the shell.
+        .dropLastWhile { it.isHighSurrogate() }
 
     private fun safeColor(value: String): String = value.trim().takeIf {
         it.matches(Regex("#?(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})"))

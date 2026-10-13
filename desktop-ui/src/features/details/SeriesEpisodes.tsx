@@ -5,6 +5,7 @@ import './series-episodes.css';
 
 type SeasonView = 'posters' | 'text';
 export type Props = {
+  progressByVideoId?: Record<string, number>;
   preferredSeason?: number | null;
   videos: Video[];
   poster: string | null;
@@ -23,7 +24,7 @@ export type Props = {
 
 const seasonViewKey = 'nuvio.details.seasonViewMode';
 
-export function SeriesEpisodes({ videos, preferredSeason, poster, background, seasonPosters, cardStyle, blurUnwatched, showRatings, ratingsVisibility, isWatched, onEpisodeClick, onEpisodeLongPress, onToggleSeason, mutationBusy }: Props) {
+export function SeriesEpisodes({ videos, preferredSeason, poster, background, seasonPosters, cardStyle, blurUnwatched, showRatings, ratingsVisibility, isWatched, onEpisodeClick, onEpisodeLongPress, onToggleSeason, mutationBusy, progressByVideoId }: Props) {
   const grouped = useMemo(() => {
     const groups = new Map<number, Video[]>();
     for (const video of videos.filter((item) => item.season != null || item.episode != null)) {
@@ -96,15 +97,16 @@ export function SeriesEpisodes({ videos, preferredSeason, poster, background, se
       </div>
     </div>}
     <div className={`series-episode-content ${cardStyle === 'list' ? 'list-style' : 'horizontal-style'}`}>
-      {outgoingSeason != null && <div className="series-episode-season outgoing" aria-hidden="true" style={{ '--season-direction': `${direction * -1 * 20}px` } as CSSProperties}><EpisodeCollection episodes={oldEpisodes} season={outgoingSeason} cardStyle={cardStyle} fallbackImage={fallbackImage} blurUnwatched={blurUnwatched} showRatings={showRatings} ratingsVisibility={ratingsVisibility} isWatched={isWatched} onEpisodeClick={onEpisodeClick} onEpisodeLongPress={onEpisodeLongPress} onToggleSeason={onToggleSeason} mutationBusy={mutationBusy} /></div>}
+      {outgoingSeason != null && <div className="series-episode-season outgoing" aria-hidden="true" style={{ '--season-direction': `${direction * -1 * 20}px` } as CSSProperties}><EpisodeCollection progressByVideoId={progressByVideoId} episodes={oldEpisodes} season={outgoingSeason} cardStyle={cardStyle} fallbackImage={fallbackImage} blurUnwatched={blurUnwatched} showRatings={showRatings} ratingsVisibility={ratingsVisibility} isWatched={isWatched} onEpisodeClick={onEpisodeClick} onEpisodeLongPress={onEpisodeLongPress} onToggleSeason={onToggleSeason} mutationBusy={mutationBusy} /></div>}
       <div className="series-episode-season incoming" key={currentSeason} style={{ '--season-direction': `${direction * 20}px` } as CSSProperties}>
-        <EpisodeCollection episodes={currentEpisodes} season={currentSeason} cardStyle={cardStyle} fallbackImage={fallbackImage} blurUnwatched={blurUnwatched} showRatings={showRatings} ratingsVisibility={ratingsVisibility} isWatched={isWatched} onEpisodeClick={onEpisodeClick} onEpisodeLongPress={onEpisodeLongPress} onToggleSeason={onToggleSeason} mutationBusy={mutationBusy} />
+        <EpisodeCollection progressByVideoId={progressByVideoId} episodes={currentEpisodes} season={currentSeason} cardStyle={cardStyle} fallbackImage={fallbackImage} blurUnwatched={blurUnwatched} showRatings={showRatings} ratingsVisibility={ratingsVisibility} isWatched={isWatched} onEpisodeClick={onEpisodeClick} onEpisodeLongPress={onEpisodeLongPress} onToggleSeason={onToggleSeason} mutationBusy={mutationBusy} />
       </div>
     </div>
   </section>;
 }
 
-function EpisodeCollection({ episodes, season, cardStyle, fallbackImage, blurUnwatched, showRatings, ratingsVisibility, isWatched, onEpisodeClick, onEpisodeLongPress, onToggleSeason, mutationBusy }: {
+function EpisodeCollection({ episodes, season, cardStyle, fallbackImage, blurUnwatched, showRatings, ratingsVisibility, isWatched, onEpisodeClick, onEpisodeLongPress, onToggleSeason, mutationBusy, progressByVideoId }: {
+  progressByVideoId?: Record<string, number>;
   episodes: Video[]; season: number; cardStyle: Props['cardStyle']; fallbackImage: string | null; blurUnwatched: boolean; showRatings: boolean; ratingsVisibility: Props['ratingsVisibility']; isWatched: Props['isWatched']; onEpisodeClick: Props['onEpisodeClick']; onEpisodeLongPress: Props['onEpisodeLongPress']; onToggleSeason: Props['onToggleSeason']; mutationBusy: boolean;
 }) {
   const episodeLongPressTimer = useRef<number | null>(null);
@@ -116,6 +118,7 @@ function EpisodeCollection({ episodes, season, cardStyle, fallbackImage, blurUnw
     <div className="series-episode-cards">
       {episodes.map((video, index) => {
         const watched = isWatched(video);
+        const progress = progressByVideoId?.[video.id] ?? 0;
         const showRating = showRatings && (ratingsVisibility === 'show_all' || (ratingsVisibility === 'hide_unwatched_episodes' && watched));
         const click = () => video.available && onEpisodeClick(video);
         return <button type="button" key={`${video.id}:${index}`} className={`series-episode-card ${video.available ? '' : 'unavailable'}`} aria-disabled={!video.available} onPointerDown={(event) => {
@@ -130,7 +133,7 @@ function EpisodeCollection({ episodes, season, cardStyle, fallbackImage, blurUnw
           if (longPressTriggered.current) { event.preventDefault(); event.stopPropagation(); longPressTriggered.current = false; return; }
           click();
         }} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); if (episodeLongPressTimer.current != null) window.clearTimeout(episodeLongPressTimer.current); episodeLongPressTimer.current = null; longPressTriggered.current = true; onEpisodeLongPress(video); }} title={video.available ? 'Click to find streams · Right-click or hold for episode actions' : 'Right-click or hold for episode actions'}>
-          <span className="series-episode-art">{(video.thumbnail || fallbackImage) && <img src={video.thumbnail || fallbackImage || ''} alt="" loading="lazy" style={{ filter: blurUnwatched && !watched ? 'blur(18px)' : undefined }} />}<span className="series-episode-code">{episodeCode(video)}</span>{watched && <span className="series-episode-watched"><Check size={14} /></span>}</span>
+          <span className="series-episode-art">{(video.thumbnail || fallbackImage) && <img src={video.thumbnail || fallbackImage || ''} alt="" loading="lazy" style={{ filter: blurUnwatched && !watched ? 'blur(18px)' : undefined }} />}<span className="series-episode-code">{episodeCode(video)}</span>{watched && <span className="series-episode-watched"><Check size={14} /></span>}{!watched && Number.isFinite(progress) && progress > 0 && progress < 1 && <span className="series-episode-progress" role="progressbar" aria-label={`${video.title} playback progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}><span style={{ width: `${progress * 100}%` }} /></span>}</span>
           <span className="series-episode-copy"><strong>{video.title}</strong><small>{formatReleaseDate(video.released)}{showRating && video.rating != null && video.rating > 0 ? ` · ★ ${video.rating.toFixed(1)}` : ''}{video.runtime && cardStyle === 'horizontal' ? ` · ${video.runtime} min` : ''}</small>{video.overview && <span className="series-episode-overview">{video.overview}</span>}</span>
         </button>;
       })}

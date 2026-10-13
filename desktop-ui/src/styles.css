@@ -20,6 +20,7 @@
 }
 
 :root {
+  --title-backdrop-shade:linear-gradient(rgba(0,0,0,.65),rgba(0,0,0,.72));
   font-family:'JetBrains Sans',Inter,system-ui,sans-serif;
   color:#f5f7f8;
   background:#0d0d0d;

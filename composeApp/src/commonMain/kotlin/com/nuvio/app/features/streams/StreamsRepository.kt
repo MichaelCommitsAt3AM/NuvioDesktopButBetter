@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.update
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 import kotlinx.coroutines.launch
+import kotlin.time.TimeSource
 
 object StreamsRepository {
     private val log = Logger.withTag("StreamsRepo")
@@ -236,8 +237,11 @@ object StreamsRepository {
             showDirectAutoPlayOverlay = isDirectAutoPlayFlow,
         )
 
-        activeJob = scope.launch {
-            val completions = Channel<StreamLoadCompletion>(capacity = Channel.BUFFERED)
+        val searchStarted = TimeSource.Monotonic.markNow()
+        log.i { "Stream search started: type=$type video=$videoId sources=${initialGroups.size} fresh=$forceRefresh" }
+        val searchJob = scope.launch {
+            // One completion per registered source; never drop a result when many finish together.
+            val completions = Channel<StreamLoadCompletion>(capacity = Channel.UNLIMITED)
             val pluginRemainingByAddonId = pluginProviderGroups
                 .associate { it.addonId to it.scrapers.size }
                 .toMutableMap()
@@ -318,6 +322,7 @@ object StreamsRepository {
             }
 
             fun presentStreamGroup(group: AddonStreamGroup): AddonStreamGroup {
+                log.i { "Stream presentation started: video=$videoId source=${group.addonName} count=${group.streams.size}" }
                 val badgeGroup = StreamBadgePresentation.apply(
                     groups = listOf(group),
                     rules = streamBadgeRules,
@@ -330,6 +335,7 @@ object StreamsRepository {
             }
 
             fun publishAddonGroup(group: AddonStreamGroup) {
+                log.i { "Stream results published: video=$videoId source=${group.addonName} count=${group.streams.size} loading=${group.isLoading} failed=${group.error != null} elapsedMs=${searchStarted.elapsedNow().inWholeMilliseconds}" }
                 _uiState.update { current ->
                     val updated = StreamAutoPlaySelector.orderAddonStreams(
                         groups = current.groups.map { currentGroup ->
@@ -368,11 +374,24 @@ object StreamsRepository {
                     eligibleGroupIds = eligibleGroupIds,
                 ).firstOrNull() ?: group
 
+                // Keep this source's shimmer until availability and presentation are settled.
+                // Publishing CHECKING results here flashes P2P labels and then reorders the list.
+
                 val availabilityJob = launch {
-                    val availabilityGroup = LocalDebridAvailabilityService.annotateCachedAvailability(
-                        groups = listOf(checkingGroup),
-                        eligibleGroupIds = eligibleGroupIds,
-                    ).firstOrNull() ?: checkingGroup
+                    log.i { "Stream availability started: video=$videoId source=${group.addonName}" }
+                    val availabilityGroup = runStreamSourceTask(timeoutMillis = 20_000L) {
+                        LocalDebridAvailabilityService.annotateCachedAvailability(
+                            groups = listOf(checkingGroup),
+                            eligibleGroupIds = eligibleGroupIds,
+                        ).firstOrNull() ?: checkingGroup
+                    }.getOrElse { failure ->
+                        log.w { "Stream availability failed: video=$videoId source=${group.addonName} kind=${failure::class.simpleName}" }
+                        checkingGroup.copy(streams = checkingGroup.streams.map { stream ->
+                            if (stream.debridCacheStatus?.state == StreamDebridCacheState.CHECKING) {
+                                stream.copy(debridCacheStatus = stream.debridCacheStatus.copy(state = StreamDebridCacheState.UNKNOWN))
+                            } else stream
+                        })
+                    }
                     publishAddonGroup(presentStreamGroup(availabilityGroup))
                 }
                 debridAvailabilityJobs += availabilityJob
@@ -423,20 +442,20 @@ object StreamsRepository {
 
             streamAddons.forEach { addon ->
                 launch {
-                    val url = buildAddonResourceUrl(
-                        manifestUrl = addon.manifest.transportUrl,
-                        resource = "stream",
-                        type = type,
-                        id = videoId,
-                    )
-                    log.d { "Fetching streams from: $url" }
-
                     val displayName = addon.addonName
-                    val group = runCatchingUnlessCancelled {
+                    val group = runStreamSourceTask {
+                        val url = buildAddonResourceUrl(
+                            manifestUrl = addon.manifest.transportUrl,
+                            resource = "stream",
+                            type = type,
+                            id = videoId,
+                        )
+                        log.i { "Stream fetch started: video=$videoId source=$displayName" }
                         val payload = fetchAddonResponseText(
                             url = url,
                             forceRefresh = forceRefresh,
                         )
+                        log.i { "Stream response received: video=$videoId source=$displayName chars=${payload.length} elapsedMs=${searchStarted.elapsedNow().inWholeMilliseconds}" }
                         StreamParser.parse(
                             payload = payload,
                             addonName = displayName,
@@ -445,7 +464,7 @@ object StreamsRepository {
                         )
                     }.fold(
                         onSuccess = { streams ->
-                            log.d { "Got ${streams.size} streams from ${displayName}" }
+                            log.i { "Stream response parsed: video=$videoId source=$displayName count=${streams.size}" }
                             AddonStreamGroup(
                                 addonName = displayName,
                                 addonId = addon.addonId,
@@ -454,13 +473,13 @@ object StreamsRepository {
                             )
                         },
                         onFailure = { err ->
-                            log.w(err) { "Failed to fetch streams from ${displayName}" }
+                            log.w { "Stream fetch failed: video=$videoId source=$displayName kind=${err::class.simpleName} elapsedMs=${searchStarted.elapsedNow().inWholeMilliseconds}" }
                             AddonStreamGroup(
                                 addonName = displayName,
                                 addonId = addon.addonId,
                                 streams = emptyList(),
                                 isLoading = false,
-                                error = err.message,
+                                error = if (err.message == "Stream source timed out. Please try again.") err.message else "Could not load streams from this source. Please try again.",
                             )
                         },
                     )
@@ -472,7 +491,8 @@ object StreamsRepository {
                 val includeScraperNameInSubtitle = false
                 providerGroup.scrapers.forEach { scraper ->
                     launch {
-                        val completion = PluginRepository.executeScraper(
+                        val completion = runStreamSourceTask {
+                            PluginRepository.executeScraper(
                             scraper = scraper,
                             tmdbId = pluginContentId(
                                 videoId = videoId,
@@ -482,7 +502,8 @@ object StreamsRepository {
                             mediaType = type,
                             season = season,
                             episode = episode,
-                        ).fold(
+                            ).getOrThrow()
+                        }.fold(
                             onSuccess = { results ->
                                 StreamLoadCompletion.PluginScraper(
                                     addonId = providerGroup.addonId,
@@ -597,6 +618,22 @@ object StreamsRepository {
                 settleAutoPlay(evaluateAutoPlay())
             }
             timeoutJob?.cancel()
+        }
+        activeJob = searchJob
+        searchJob.invokeOnCompletion { failure ->
+            log.i { "Stream search finished: video=$videoId kind=${failure?.let { it::class.simpleName } ?: "success"} elapsedMs=${searchStarted.elapsedNow().inWholeMilliseconds}" }
+            // An exception in parsing/presentation/enrichment must not strand the UI.
+            // A cancelled older search must never settle a replacement request.
+            if (failure != null && failure !is kotlinx.coroutines.CancellationException && activeJob === searchJob) {
+                _uiState.update { current ->
+                    val groups = current.groups.map { group ->
+                        if (group.isLoading) group.copy(isLoading = false, error = "Could not process streams. Please try again.") else group
+                    }
+                    current.copy(groups = groups, isAnyLoading = false,
+                        emptyStateReason = groups.toEmptyStateReason(false),
+                        showDirectAutoPlayOverlay = false, isDirectAutoPlayFlow = false)
+                }
+            }
         }
     }
 

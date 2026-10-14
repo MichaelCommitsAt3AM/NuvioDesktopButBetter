@@ -214,10 +214,14 @@ jobs:
           NUVIO_VALIDATE_TAURI_SCHEMA=1 node --test ../scripts/desktop-ui/release.test.mjs
       - name: Stage Kotlin backend
         run: |
+          gradle_args=(:composeApp:stageBridgeRuntime :composeApp:desktopTest --tests 'com.nuvio.desktop.bridge.*' --no-configuration-cache --no-daemon --stacktrace)
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            gradle_args+=("-Pnuvio.webview2.dir=$WEBVIEW2_ROOT")
+          fi
           if [[ "$RUNNER_OS" == Linux ]]; then
-            xvfb-run -a ./gradlew :composeApp:stageBridgeRuntime :composeApp:desktopTest --tests 'com.nuvio.desktop.bridge.*' --no-configuration-cache --no-daemon --stacktrace
+            xvfb-run -a ./gradlew "${gradle_args[@]}"
           else
-            ./gradlew :composeApp:stageBridgeRuntime :composeApp:desktopTest --tests 'com.nuvio.desktop.bridge.*' --no-configuration-cache --no-daemon --stacktrace
+            ./gradlew "${gradle_args[@]}"
           fi
           node scripts/desktop-ui/bundle-java.mjs
       - name: Check Rust shell

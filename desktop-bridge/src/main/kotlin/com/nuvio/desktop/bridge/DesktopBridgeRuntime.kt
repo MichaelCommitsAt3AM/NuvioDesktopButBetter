@@ -16,6 +16,7 @@ import com.nuvio.desktop.bridge.features.DownloadEnqueueBridgeResult
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.downloads.DownloadEnqueueResult
 import com.nuvio.app.features.details.MetaVideo
+import com.nuvio.app.features.player.desktop.notifyDesktopWindowGainedFocus
 import com.nuvio.app.features.debrid.DirectDebridPlaybackResolver
 import com.nuvio.app.features.debrid.DirectDebridPlayableResult
 import com.nuvio.app.features.catalog.CatalogRepository
@@ -567,6 +568,9 @@ class DesktopBridgeRuntime {
             val visible = params.bool("visible")
             appVisible = visible
             if (visible) {
+                // Tauri owns the visible player window; the offscreen Compose host
+                // never receives its OS focus events.
+                notifyDesktopWindowGainedFocus()
                 NetworkStatusRepository.requestForegroundRefresh()
                 DeviceSessionRegistration.registerIfAuthenticated()
                 MemberAccessRepository.refreshIfStale()

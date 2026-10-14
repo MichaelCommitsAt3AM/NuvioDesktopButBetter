@@ -47,6 +47,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Portable rewrite builds use bundled backend resources and Java without depending on the source checkout; Windows WebView2 is required.
 - The rewrite can also be packaged as a Windows setup executable with bundled Java, backend resources, Start Menu shortcuts, and automatic WebView2 installation when needed.
 - The rewrite's Windows backend starts in the background without opening a terminal window.
+- Player keyboard shortcuts work when the rewrite window is focused, including after Alt-Tab, without clicking the video first.
 - Details playback buttons use the Kotlin resume and episode-selection logic, and playback loading artwork follows the selected title when resuming from Continue Watching.
   Series episodes open on the season containing the resolved playback episode, while allowing manual season changes.
   Continue Watching starts the shared Kotlin cloud sync on sign-in and profile selection, so progress from other devices can populate Home without a window focus change.

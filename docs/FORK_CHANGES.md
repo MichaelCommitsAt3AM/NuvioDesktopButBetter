@@ -238,6 +238,7 @@ Commit: `93678608`.
 
 ## 6. Desktop player
 
+- **Rewrite keyboard focus:** Tauri's foreground events now reach the existing native-player focus handler. The transparent Compose lifecycle window cannot take keyboard focus, and focus restoration skips its offscreen Canvas. Windows controls restore native and DOM focus when their page finishes loading; delayed focus requests only apply while the player's visible root window is foreground. This covers first playback and Alt-Tab without requiring a click on the video.
 - ~~Hold Space for 2× speed~~: added by the fork in `9d6f9407`, then **superseded by upstream's own
   hold-to-speed gesture** (`6406c2f8`, `945869a8`), which replaced the fork's `controls.js` code in a sync. The
   fork's `KeyboardHoldSpeedStart/End` actions remain in Kotlin but nothing sends them any more (see

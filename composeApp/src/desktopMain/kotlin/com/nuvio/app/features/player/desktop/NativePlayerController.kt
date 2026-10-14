@@ -562,7 +562,9 @@ internal class NativePlayerController(
                 return@invokeLater
             }
             if (!isHostDisplayable()) return@invokeLater
-            host.requestFocusInWindow()
+            // In the rewrite this Canvas lives in a transparent offscreen window.
+            // Only the native child of Tauri should receive keyboard focus.
+            if (!EmbeddedTauriPlayerHost.isEmbedded()) host.requestFocusInWindow()
             NativePlayerBridge.requestFocus(current)
         }
     }

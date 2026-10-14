@@ -138,6 +138,7 @@ class NativePlayback(
                 // this transparent host visible to AWT preserves the Canvas peer and player
                 // lifecycle while video is shown in the Tauri window.
                 window.type = java.awt.Window.Type.UTILITY
+                window.focusableWindowState = false
                 runCatching { window.opacity = 0f }
                 window.setLocation(-32_000, -32_000)
                 // Keep this offscreen transparent host visible to AWT so its

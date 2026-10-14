@@ -1681,7 +1681,7 @@ private:
                                     controllerSelf->layoutNativeSubviews();
                                     std::wstring url = toWide(controlsUrl);
                                     controllerSelf->webView->Navigate(url.c_str());
-                                    createdController->MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
+                                    controllerSelf->focusNativeControls();
                                 }
                                 return S_OK;
                             }
@@ -1855,6 +1855,10 @@ private:
     }
 
     void focusNativeControls() {
+        // Focus requests can arrive after an async bridge round-trip. Do not
+        // activate the player if the user has already switched to another app.
+        HWND rootWindow = containerHwnd ? GetAncestor(containerHwnd, GA_ROOT) : nullptr;
+        if (!rootWindow || GetForegroundWindow() != rootWindow) return;
         if (containerHwnd && IsWindow(containerHwnd)) {
             SetFocus(containerHwnd);
         }
@@ -1920,6 +1924,9 @@ private:
             controlsWebReady.store(true);
             flushPendingControlsJsonIfReady();
             syncControls();
+            // Navigation resets DOM focus after the controller's initial MoveFocus.
+            // Restore it once the keyboard handlers and playerRoot are ready.
+            focusNativeControls();
             sendPlayerEvent("nativeControlsReady", 0.0);
             return;
         }

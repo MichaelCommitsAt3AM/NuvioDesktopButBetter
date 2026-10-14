@@ -23,4 +23,8 @@ mkdirSync(native, { recursive: true });
 const nativeFiles = readdirSync(native, { recursive: true }).map(String);
 const expected = process.platform === 'win32' ? ['player_bridge.dll', 'libmpv-2.dll', 'WebView2Loader.dll'] : process.platform === 'darwin' ? ['libplayer_bridge.dylib', 'libmpv.2.dylib'] : [];
 for (const name of expected) if (!nativeFiles.some(file => path.basename(file) === name)) throw new Error(`Packaged native runtime is missing ${name}`);
+// Empty stdin must reach the entry point and fail its token guard. This checks
+// the actual staged JARs without starting a UI, account session or HTTP server.
+const smoke = spawnSync(java, ['-cp', jars.map(name => path.join(backend, 'lib', name)).join(path.delimiter), 'com.nuvio.desktop.bridge.MainKt'], { input: '', encoding: 'utf8', timeout: 15000 });
+if (smoke.error || smoke.status === 0 || !smoke.stderr?.includes('Missing bridge token on stdin')) throw new Error('Packaged Kotlin bridge entry point cannot load: ' + (smoke.error?.message ?? smoke.stderr));
 console.log(`Staged ${jars.length} backend JARs and a private Java runtime.`);

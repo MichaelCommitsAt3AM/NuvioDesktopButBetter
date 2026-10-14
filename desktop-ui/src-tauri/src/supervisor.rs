@@ -293,9 +293,7 @@ impl BridgeManager {
             &format!("launching Kotlin bridge using {}", java.display()),
         );
         let token = new_token();
-        let compose_resources = self
-            .runtime_dir
-            .canonicalize()
+        let compose_resources = dunce::canonicalize(&self.runtime_dir)
             .unwrap_or_else(|_| self.runtime_dir.clone())
             .join("native");
         let mut command = Command::new(&java);
@@ -992,8 +990,9 @@ async fn event_loop(
 }
 
 fn validated_classpath(runtime_dir: &Path, contents: &str) -> Result<PathBuf, String> {
-    let root = runtime_dir
-        .canonicalize()
+    // Java's Windows class loader cannot open Rust's verbatim (\\?\) paths.
+    // Resolve symlinks for containment, then retain ordinary Win32 paths for Java.
+    let root = dunce::canonicalize(runtime_dir)
         .map_err(|_| "staged bridge runtime directory is missing".to_string())?;
     let contents = contents.trim();
     if contents.is_empty() {
@@ -1010,8 +1009,7 @@ fn validated_classpath(runtime_dir: &Path, contents: &str) -> Result<PathBuf, St
         } else {
             root.join(entry)
         };
-        let resolved = candidate
-            .canonicalize()
+        let resolved = dunce::canonicalize(&candidate)
             .map_err(|_| "bridge runtime classpath entry is missing".to_string())?;
         if !resolved.starts_with(&root) || !resolved.is_file() {
             return Err("bridge runtime classpath entry is outside staged resources".into());
@@ -1338,7 +1336,13 @@ mod tests {
         fs::write(&inside, b"runtime").unwrap();
         fs::write(&outside, b"outside").unwrap();
         let inside_classpath = std::env::join_paths([inside.as_os_str()]).unwrap();
-        assert!(validated_classpath(&runtime, inside_classpath.to_str().unwrap()).is_ok());
+        let validated = validated_classpath(&runtime, inside_classpath.to_str().unwrap()).unwrap();
+        #[cfg(windows)]
+        for entry in std::env::split_paths(&validated) {
+            assert!(!entry.to_string_lossy().starts_with(r"\\?\"));
+        }
+        #[cfg(not(windows))]
+        assert!(!validated.as_os_str().is_empty());
         let outside_classpath = std::env::join_paths([outside.as_os_str()]).unwrap();
         assert!(validated_classpath(&runtime, outside_classpath.to_str().unwrap()).is_err());
         assert!(validated_classpath(&runtime, "").is_err());

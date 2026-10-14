@@ -29,6 +29,7 @@ test('selected CI targets build only their platforms', () => {
   assert.equal(releaseMatrix('windows').include.length, 1);
   assert.equal(releaseMatrix('macos').include.length, 2);
   assert.equal(releaseMatrix('linux').include.length, 4);
+  assert.deepEqual(releaseMatrix('flatpak').include, builds.filter(build => build.format === 'flatpak'));
   assert.throws(() => releaseMatrix('android'));
 });
 const assets = Object.entries(updateTargets).map(([target, suffix]) => ({ name: `Nuvio-${target}-${version.name}${suffix}`, signature: `signed-${target}` }));

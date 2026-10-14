@@ -111,6 +111,8 @@ modules:
             sources:
               - type: archive
                 url: https://www.freedesktop.org/software/uchardet/releases/uchardet-0.0.8.tar.xz
+                mirror-urls:
+                  - https://deb.debian.org/debian/pool/main/u/uchardet/uchardet_0.0.8.orig.tar.xz
                 sha256: e97a60cfc00a1c147a674b097bb1422abd9fa78a2d9ce3f3fdcc2e78a34ac5f0
                 x-checker-data:
                   type: anitya

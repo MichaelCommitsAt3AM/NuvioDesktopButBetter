@@ -5,7 +5,7 @@ export const builds = [
   ...['appimage', 'deb', 'rpm', 'flatpak'].map(format => ({ platform: 'linux', runner: 'ubuntu-24.04', arch: 'x86_64', format })),
 ];
 export function releaseMatrix(target) {
-  if (!['all', 'windows', 'macos', 'linux'].includes(target)) throw new Error('Unknown release target');
-  return { include: builds.filter(build => target === 'all' || build.platform === target) };
+  if (!['all', 'windows', 'macos', 'linux', 'flatpak'].includes(target)) throw new Error('Unknown release target');
+  return { include: builds.filter(build => target === 'all' || build.platform === target || (target === 'flatpak' && build.format === 'flatpak')) };
 }
 if (process.argv[2]) console.log(JSON.stringify(releaseMatrix(process.argv[2])));

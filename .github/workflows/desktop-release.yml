@@ -231,7 +231,13 @@ jobs:
           cargo test --locked
       - name: Build signed rewrite packages
         working-directory: desktop-ui
-        run: node node_modules/@tauri-apps/cli/tauri.js build --ci --config src-tauri/tauri.release.conf.json
+        run: |
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            export DEPLOY_GTK_VERSION=3
+            java_runtime="$PWD/src-tauri/resources/backend/runtime"
+            export LD_LIBRARY_PATH="$java_runtime/lib:$java_runtime/lib/server${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          fi
+          node node_modules/@tauri-apps/cli/tauri.js build --verbose --ci --config src-tauri/tauri.release.conf.json
       - name: Build Flatpak
         if: matrix.format == 'flatpak'
         run: |

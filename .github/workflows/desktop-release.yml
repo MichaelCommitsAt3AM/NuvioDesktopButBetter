@@ -98,7 +98,7 @@ jobs:
 
             unexpected_changes="$(
               git diff --name-only "${CURRENT_BUMP}..${RELEASE_COMMIT}" \
-                | grep -Ev '^(\.github/workflows/desktop-release\.yml|scripts/(generate-release-notes|release-metadata)\.sh|.*\.md)$' \
+                | grep -Ev '^(\.github/workflows/desktop-release\.yml|scripts/(generate-release-notes|release-metadata)\.sh|scripts/desktop-ui/(release-(config|manifest|matrix)\.mjs|release\.test\.mjs|bundle-java\.mjs|collect-release-assets\.mjs|configure-runtime\.mjs|configure-updater-signing\.ps1|package-flatpak\.sh|package-windows-setup\.ps1|verify-windows-msi\.ps1)|.*\.md)$' \
                 || true
             )"
             if [[ -n "${unexpected_changes}" ]]; then

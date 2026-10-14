@@ -21,6 +21,6 @@ if (result.error || result.status !== 0) throw new Error('The bundled Java runti
 const native = path.join(backend, 'native');
 mkdirSync(native, { recursive: true });
 const nativeFiles = readdirSync(native, { recursive: true }).map(String);
-const expected = process.platform === 'win32' ? ['player_bridge.dll', 'libmpv-2.dll', 'WebView2Loader.dll'] : process.platform === 'darwin' ? ['libplayer_bridge.dylib', 'libmpv.dylib'] : [];
+const expected = process.platform === 'win32' ? ['player_bridge.dll', 'libmpv-2.dll', 'WebView2Loader.dll'] : process.platform === 'darwin' ? ['libplayer_bridge.dylib', 'libmpv.2.dylib'] : [];
 for (const name of expected) if (!nativeFiles.some(file => path.basename(file) === name)) throw new Error(`Packaged native runtime is missing ${name}`);
 console.log(`Staged ${jars.length} backend JARs and a private Java runtime.`);

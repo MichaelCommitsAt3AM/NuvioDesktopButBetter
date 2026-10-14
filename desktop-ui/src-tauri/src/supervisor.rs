@@ -258,6 +258,13 @@ impl BridgeManager {
         self.start_locked().await
     }
 
+    // Only the updater calls this after its installer returned an error.
+    // Normal shutdown remains terminal; an aborted update must restore browsing.
+    pub async fn recover_failed_update(self: &Arc<Self>) -> Result<(), String> {
+        self.shutting_down.store(false, Ordering::Release);
+        self.restart().await
+    }
+
     async fn start_locked(self: &Arc<Self>) -> Result<(), String> {
         if self.shutting_down.load(Ordering::Acquire) {
             return Err("The application is shutting down.".into());

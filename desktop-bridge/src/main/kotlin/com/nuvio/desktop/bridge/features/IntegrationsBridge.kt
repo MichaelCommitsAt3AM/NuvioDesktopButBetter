@@ -83,6 +83,8 @@ object IntegrationsBridge {
         "mdblist.cancel" -> cancelMdb()
         "mdblist.disconnect" -> disconnectMdb()
         "mdblist.poll" -> pollMdb()
+        "mdblist.resume" -> resumeMdb()
+        "mdblist.sync" -> syncMdb()
         "debrid.snapshot" -> debridSnapshot()
         "debrid.set" -> setDebrid(params)
         "debrid.device.start" -> startDebridDevice(params)
@@ -92,9 +94,12 @@ object IntegrationsBridge {
         "simkl.snapshot" -> simklSnapshot()
         "simkl.connect" -> connectSimkl()
         "simkl.disconnect" -> disconnectSimkl()
+        "simkl.resume" -> resumeSimkl()
+        "simkl.cancel" -> cancelSimkl()
         "simkl.sync" -> syncSimkl()
         "trackingSettings.snapshot" -> trackingSnapshot()
         "trackingSettings.set" -> setTracking(params)
+        "trackingSettings.refreshProgress" -> refreshTrackingProgress()
         else -> null
     }
 
@@ -161,7 +166,8 @@ object IntegrationsBridge {
         MdbListTracker.ensureLoaded()
         val settings = MdbListSettingsRepository.snapshot()
         val auth = MdbListTracker.auth.state.value
-        val status = MdbListTracker.account.status.value
+        val status = MdbListTracker.account.status.value.takeIf { it.scope == auth.scope }
+        val sync = MdbListTracker.sync.state.value.takeIf { it.scope == auth.scope }
         return buildJsonObject {
             put("enabled", settings.enabled); put("hasApiKey", settings.hasApiKey)
             put("hasAccount", auth.isAuthenticated); put("hasCredentials", settings.hasCredentials); put("isActive", settings.isActive)
@@ -179,9 +185,12 @@ object IntegrationsBridge {
                 putNullable("verificationUrlComplete", auth.session?.verificationUriComplete)
                 putNullable("expiresAtEpochMs", auth.session?.expiresAtEpochMs)
                 put("pollIntervalSeconds", auth.session?.intervalSeconds ?: 0)
-                put("isBusy", status.isBusy)
-                putNullable("error", status.authError?.name ?: status.error?.name)
-                put("revokeFailed", status.revokeFailed)
+                put("credentialsConfigured", MdbListTracker.auth.hasRequiredCredentials())
+                put("isBusy", status?.isBusy == true)
+                putNullable("error", auth.error?.name ?: status?.authError?.name ?: status?.error?.name ?: sync?.error?.name)
+                put("revokeFailed", status?.revokeFailed == true)
+                put("isSyncing", sync?.isLoading == true)
+                putNullable("lastSyncedAtEpochMs", sync?.snapshot?.checkedAtEpochMs)
             })
         }
     }
@@ -221,6 +230,30 @@ object IntegrationsBridge {
             put("snapshot", mdbSnapshot())
             putNullable("verificationUrl", verificationUrl)
         }
+    }
+
+    private fun resumeMdb(): JsonObject {
+        MdbListTracker.ensureLoaded()
+        val url = MdbListTracker.account.resumePolling()
+        return buildJsonObject { putNullable("verificationUrl", url); put("snapshot", mdbSnapshot()) }
+    }
+
+    private suspend fun syncMdb(): JsonObject {
+        MdbListTracker.ensureLoaded()
+        if (!MdbListTracker.isAuthenticated.value) {
+            throw BridgeFeatureException("ACCOUNT_REQUIRED", "Connect MDBList before syncing your library")
+        }
+        val authScope = MdbListTracker.auth.state.value.scope
+        val success = WatchProgressSourceCoordinator.refreshProviderAndActiveSource(
+            profileId = authScope.profileId,
+            providerId = TrackingProviderId.MDBLIST,
+            refreshProvider = {
+                MdbListTracker.store.checkScope(authScope)
+                MdbListTracker.sync.refresh(TrackingRefreshIntent.USER_INITIATED)
+                MdbListTracker.sync.state.value.let { it.scope == authScope && it.hasLoaded && it.error == null }
+            },
+        )
+        return buildJsonObject { put("success", success); put("mdblist", mdbSnapshot()) }
     }
 
     private fun cancelMdb(): JsonObject {
@@ -392,6 +425,8 @@ object IntegrationsBridge {
 
     fun simklSnapshot(): JsonObject {
         val state = SimklAuthRepository.snapshot()
+        SimklSyncRepository.ensureLoaded()
+        val sync = SimklSyncRepository.state.value
         return buildJsonObject {
             put("mode", state.mode.name.lowercase()); put("connected", state.mode == SimklConnectionMode.CONNECTED)
             put("credentialsConfigured", state.credentialsConfigured); put("isLoading", state.isLoading); put("usesPinFlow", state.usesPinFlow)
@@ -401,6 +436,8 @@ object IntegrationsBridge {
             putNullable("pendingPinUserCode", state.pendingPinUserCode); putNullable("pendingPinVerificationUrl", state.pendingPinVerificationUrl)
             putNullable("pendingPinExpiresAtEpochMs", state.pendingPinExpiresAtEpochMs)
             putNullable("error", state.error?.name)
+            put("isSyncing", sync.isLoading)
+            putNullable("syncErrorMessage", sync.errorMessage)
         }
     }
 
@@ -413,6 +450,17 @@ object IntegrationsBridge {
             throw BridgeFeatureException("SIMKL_AUTH_START_FAILED", state["error"]?.jsonPrimitive?.contentOrNull ?: "Simkl authorization could not be started")
         }
         return buildJsonObject { put("snapshot", state); putNullable("authorizationUrl", url) }
+    }
+
+    private fun resumeSimkl(): JsonObject {
+        SimklAuthRepository.ensureLoaded()
+        val url = SimklAuthRepository.pendingAuthorizationUrl() ?: SimklAuthRepository.onConnectRequested()
+        return buildJsonObject { putNullable("authorizationUrl", url); put("snapshot", simklSnapshot()) }
+    }
+
+    private fun cancelSimkl(): JsonObject {
+        SimklAuthRepository.onCancelAuthorization()
+        return simklSnapshot()
     }
 
     private suspend fun syncSimkl(): JsonObject {
@@ -453,10 +501,13 @@ object IntegrationsBridge {
             put("moreLikeThisSource", state.moreLikeThisSource.name); put("effectiveMoreLikeThisSource", effectiveMoreLikeThis.name)
             put("simklAnimeIdPreference", state.simklAnimeIdPreference.name)
             put("simklConnected", simklConnected); put("mdblistConnected", mdbConnected); put("traktAvailable", false)
+            val transition = WatchProgressSourceCoordinator.uiState.value
+            put("isRefreshingProgress", transition.isRefreshing)
+            put("lastProgressRefreshSucceeded", transition.lastRefreshSucceeded?.let(::JsonPrimitive) ?: JsonNull)
         }
     }
 
-    private fun setTracking(params: JsonObject): JsonObject {
+    private suspend fun setTracking(params: JsonObject): JsonObject {
         TrackingSettingsRepository.ensureLoaded()
         val key = params.str("key")
         val value = params.value()
@@ -473,7 +524,7 @@ object IntegrationsBridge {
                 val source = enumValue<WatchProgressSource>(value.asString(key))
                 requireTrackingProvider(source.name, source != WatchProgressSource.NUVIO_SYNC, simklConnected, mdbConnected)
                 if (source == WatchProgressSource.TRAKT) unsupported("Trakt tracking is disabled in this app build")
-                TrackingSettingsRepository.setWatchProgressSource(source, ProfileRepository.activeProfileId)
+                WatchProgressSourceCoordinator.selectSource(ProfileRepository.activeProfileId, source)
             }
             "moreLikeThisSource" -> {
                 val source = enumValue<MoreLikeThisSourcePreference>(value.asString(key))
@@ -487,6 +538,11 @@ object IntegrationsBridge {
             }
             else -> throw BridgeFeatureException("UNKNOWN_SETTING", "Unknown tracking setting: $key")
         }
+        return trackingSnapshot()
+    }
+
+    private suspend fun refreshTrackingProgress(): JsonObject {
+        WatchProgressSourceCoordinator.refreshActiveSource(ProfileRepository.activeProfileId)
         return trackingSnapshot()
     }
 

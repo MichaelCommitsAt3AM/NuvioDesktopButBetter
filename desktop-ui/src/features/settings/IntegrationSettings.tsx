@@ -302,42 +302,4 @@ export function SimklSettingsPage() {
   return <SubPage title="Simkl">{error && <SettingsError error={error} refresh={refresh} />}<section className="settings-section"><div className="settings-section-heading"><span className="settings-icon"><img src="/images/attributions/simkl.svg" alt="" className="integration-brand-logo" /></span><div><h2>Simkl account</h2><p>Use Simkl for watch progress, library, and recommendations.</p></div></div><div className="settings-row-card"><span className="settings-row-copy"><strong>{s.connected ? `Connected${s.username ? ` as ${s.username}` : ''}` : s.mode === 'connecting' ? 'Waiting for authorization' : 'Not connected'}</strong><span>{s.credentialsConfigured ? 'Client credentials are configured.' : 'The built-in desktop authorization is available.'}</span></span>{s.connected ? <button className="button secondary" onClick={() => void run('simkl.disconnect')}>Disconnect</button> : <button className="button primary" onClick={() => void connect()} disabled={busy || s.isLoading}>{busy || s.isLoading ? 'Connecting…' : 'Connect Simkl'}</button>}</div>{s.pendingPinUserCode && <div className="device-auth-card"><strong>Approve Simkl sign-in</strong><p>Enter this code in the Simkl device authorization page.</p><code className="auth-device-code">{s.pendingPinUserCode}</code>{s.pendingPinVerificationUrl && <button className="button secondary" onClick={() => void call('app.openExternal', { url: s.pendingPinVerificationUrl }).catch(() => {})}>Open approval page</button>}</div>}{s.error && <p className="form-error">Connection status: {s.error}</p>}</section></SubPage>;
 }
 
-type Tracking = { librarySourceMode: string; effectiveLibrarySourceMode: string; watchProgressSource: string; effectiveWatchProgressSource: string; moreLikeThisSource: string; effectiveMoreLikeThisSource: string; simklAnimeIdPreference: string; simklConnected: boolean; mdblistConnected: boolean; traktAvailable: boolean };
-export function TrackingSettingsPage() {
-  const { snapshot: s, loading, error, refresh, run } = useDomain<Tracking>('trackingSettings');
-  const set = (key: string, value: string) => void run('trackingSettings.set', { key, value }).catch(() => {});
-  const [simklSyncing, setSimklSyncing] = useState(false);
-  const [simklSyncMessage, setSimklSyncMessage] = useState('');
-  async function syncSimkl() {
-    setSimklSyncing(true);
-    setSimklSyncMessage('');
-    try {
-      const result = await call<{ success: boolean }>('simkl.sync');
-      await refreshFeature<Tracking>('trackingSettings');
-      setSimklSyncMessage(result.success ? 'Simkl sync completed.' : 'Simkl could not refresh all tracking data.');
-    } catch (cause) {
-      setSimklSyncMessage(cause instanceof Error ? cause.message : 'Could not sync Simkl.');
-    } finally {
-      setSimklSyncing(false);
-    }
-  }
-  if (loading && !s) return <Loading title="Library and tracking" />;
-  if (!s) return <SubPage title="Library and tracking"><SettingsError error={error} refresh={refresh} /></SubPage>;
-  return <SubPage title="Library and tracking">{error && <SettingsError error={error} refresh={refresh} />}
-    <h2 className="settings-group-title">ACCOUNTS</h2><section className="settings-section">
-      <div className="settings-row-card"><span className="settings-icon"><img src="/images/attributions/simkl.svg" alt="" className="integration-brand-logo" /></span><span className="settings-row-copy"><strong>Simkl</strong><span>{s.simklConnected ? 'Connected and available.' : 'Connect Simkl to use it as a source.'}</span></span><div className="plugin-row-actions"><Link className="button secondary" to="/settings/integrations/simkl">Manage Simkl</Link>{s.simklConnected && <button className="button secondary" onClick={() => void syncSimkl()} disabled={simklSyncing}>{simklSyncing ? <LoaderCircle size={14} className="spin" /> : <RotateCcw size={14} />} {simklSyncing ? 'Syncing…' : 'Sync now'}</button>}</div></div>
-      {simklSyncMessage && <p className={simklSyncMessage.includes('completed') ? 'success-message' : 'form-error'}>{simklSyncMessage}</p>}
-      <div className="settings-row-card"><span className="settings-icon"><img src="/images/attributions/mdblist.svg" alt="" className="integration-brand-logo" /></span><span className="settings-row-copy"><strong>MDBList</strong><span>{s.mdblistConnected ? 'Connected and available.' : 'Connect MDBList to use it as a source.'}</span></span></div>
-      {!s.traktAvailable && <p className="muted small">Trakt sync is unavailable in this desktop build.</p>}
-    </section>
-    <h2 className="settings-group-title">SOURCES</h2><section className="settings-section">
-      <Select title="Library Source" description="Choose which source Nuvio reads for your Library" value={s.effectiveLibrarySourceMode} values={['LOCAL', 'SIMKL', 'MDBLIST']} labels={['Nuvio', 'Simkl', 'MDBList']} disabledValues={[...(!s.simklConnected ? ['SIMKL'] : []), ...(!s.mdblistConnected ? ['MDBLIST'] : [])]} onChange={(value) => set('librarySourceMode', value)} />
-      {s.librarySourceMode !== s.effectiveLibrarySourceMode && <p className="muted small">{displaySource(s.librarySourceMode)} is unavailable. Using {displaySource(s.effectiveLibrarySourceMode)} until it is connected.</p>}
-      <Select title="Watch Progress" description="Choose which progress source powers resume and continue watching" value={s.effectiveWatchProgressSource} values={['NUVIO_SYNC', 'SIMKL', 'MDBLIST']} labels={['Nuvio sync', 'Simkl', 'MDBList']} disabledValues={[...(!s.simklConnected ? ['SIMKL'] : []), ...(!s.mdblistConnected ? ['MDBLIST'] : [])]} onChange={(value) => set('watchProgressSource', value)} />
-      {s.watchProgressSource !== s.effectiveWatchProgressSource && <p className="muted small">{displaySource(s.watchProgressSource)} is unavailable. Using {displaySource(s.effectiveWatchProgressSource)} until it is connected.</p>}
-      {(s.simklConnected || s.traktAvailable) && <><Select title="More Like This source" description="Choose where recommendations come from on detail pages" value={s.effectiveMoreLikeThisSource} values={['TMDB', 'SIMKL']} labels={['TMDB', 'Simkl']} disabledValues={s.simklConnected ? [] : ['SIMKL']} onChange={(value) => set('moreLikeThisSource', value)} />{s.moreLikeThisSource !== s.effectiveMoreLikeThisSource && <p className="muted small">Using {displaySource(s.effectiveMoreLikeThisSource)} because {displaySource(s.moreLikeThisSource)} is unavailable.</p>}</>}
-    </section>
-    {s.simklConnected && <><h2 className="settings-group-title">SIMKL FEATURES</h2><section className="settings-section"><Select title="Anime ID preference" value={s.simklAnimeIdPreference} values={['IMDB', 'MAL', 'KITSU', 'TVDB']} onChange={(value) => set('simklAnimeIdPreference', value)} /></section></>}
-  </SubPage>;
-}
-function displaySource(source: string) { return ({ LOCAL: 'Nuvio', NUVIO_SYNC: 'Nuvio sync', MDBLIST: 'MDBList', SIMKL: 'Simkl', TMDB: 'TMDB' } as Record<string, string>)[source] ?? source; }
+export { TrackingSettingsPage } from './TrackingSettings';

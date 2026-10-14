@@ -37,9 +37,7 @@ type ContinueItem = {
 
 const homeViewPositions=new Map<string,{scrollTop:number;heroIndex:number}>();
 const consumedHomeScrollResets=new Set<string>();
-// Mirrors HOME_HERO_ITEM_LIMIT in HomeRepository: the backend never sends more
-// than this many heroes, so the shelf fallback below must not either —
-// otherwise the hero dot indicators explode into dozens.
+// Mirrors HOME_HERO_ITEM_LIMIT in HomeRepository.
 const MAX_HERO_ITEMS = 8;
 
 export function HomePage() {
@@ -49,10 +47,9 @@ export function HomePage() {
   const appearance = useFeatureSnapshot<AppearanceSnapshot>('appearance');
   const profileId = useSelector((current) => current.session.activeProfile);
   const extras = useFeatureSnapshot<HomeExtras>('homeExtras');
-  // The preferred hero sources can temporarily be empty while catalogs load or fail.
-  // Reuse visible shelf results as a resilient fallback so the featured area does not
-  // disappear while Home still has usable titles to show.
-  const heroItems = (home.hero?.length ? home.hero : home.shelves.flatMap(shelf => shelf.items ?? [])).slice(0, MAX_HERO_ITEMS);
+  // Kotlin owns source selection, release filtering and collection fallback.
+  // An empty hero is intentional; shelves may belong to unselected catalogs.
+  const heroItems = (home.hero ?? []).slice(0, MAX_HERO_ITEMS);
   const viewKey=String(profileId??'default');
   const [heroIndex, setHeroIndex] = useState(()=>homeViewPositions.get(viewKey)?.heroIndex??0);
   const heroIndexRef=useRef(heroIndex);heroIndexRef.current=heroIndex;
@@ -156,7 +153,7 @@ export function HomePage() {
     </section>}
     {actionError && <InlineError message={actionError} onRetry={() => setActionError(null)} />}
     {home.error && <InlineError message={home.error} onRetry={() => void actions.homeRefresh()} />}
-    {home.loading && !home.shelves.length && <HomeLoadingSkeleton showHero={!hero} />}
+    {home.loading && !home.shelves.length && <HomeLoadingSkeleton showHero={!hero && appearance?.home.heroEnabled !== false} />}
 
     {continueWatchingVisible && (continueWatchingLoading || continueItems.length > 0) && <section className="home-cw-section" aria-busy={continueWatchingLoading}>
       <div className="home-cw-heading"><h2>Continue Watching</h2></div>

@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod supervisor;
+mod updater;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -318,6 +319,13 @@ const ALLOWED_METHODS: &[&str] = &[
     "streams.badges.rules.remove",
     "simkl.sync",
     "playback.hostFullscreenChanged",
+    "mdblist.resume",
+    "mdblist.sync",
+    "simkl.resume",
+    "simkl.cancel",
+    "trackingSettings.refreshProgress",
+    "playbackSettings.setAutoSkipType",
+    "playbackSettings.saveSkipCredential",
 ];
 
 fn request_is_allowed(request: &BridgeRequest) -> bool {
@@ -500,6 +508,8 @@ async fn bridge_restart(state: tauri::State<'_, Arc<BridgeManager>>) -> Result<(
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updater::UpdateState::default())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
@@ -554,7 +564,10 @@ fn main() {
             bridge_request,
             bridge_status,
             bridge_restart,
-            bridge_report_diagnostic
+            bridge_report_diagnostic,
+            updater::update_check,
+            updater::update_download,
+            updater::update_install
         ])
         .build(tauri::generate_context!())
         .expect("failed to build Nuvio desktop shell")

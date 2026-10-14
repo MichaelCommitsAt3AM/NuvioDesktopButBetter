@@ -11,6 +11,7 @@ import { DetailsPage } from './features/details/DetailsPage';
 import { StreamsPage } from './features/streams/StreamsPage';
 import { PlaybackSurfacePage } from './features/player/PlaybackSurfacePage';
 import { ProfilesPage } from './features/profiles/ProfilesPage';
+import { UpdateBanner } from './features/updater/UpdateBanner';
 import { ProfileEditorPage } from './features/profiles/ProfileEditorPage';
 import { ProfileChooser } from './features/profiles/ProfileChooser';
 import { ProfileLoadingScreen } from './features/profiles/ProfileLoadingScreen';
@@ -21,6 +22,8 @@ import { SettingsPage } from './features/settings/SettingsPage';
 import { Avatar } from './components/ui';
 import { ConnectionNotice, InlineError } from './components/Status';
 import './features/features.css';
+import { LiquidNavigation } from './components/navigation/LiquidNavigation';
+import { KotlinNavigationIcon } from './components/navigation/KotlinNavigationIcon';
 
 const navItems = [
   { to: '/', label: 'Home', Icon: Home },
@@ -31,8 +34,9 @@ const navItems = [
 
 function Shell() {
   const session = useSelector((current) => current.session);
-  const appearance = useFeatureSnapshot<{ navigationLayout: 'sidebar' | 'topbar'; navBarStyle: string; navBarGlowEnabled: boolean }>('appearance');
+  const appearance = useFeatureSnapshot<{ navigationLayout: 'sidebar' | 'topbar'; navBarStyle: string; navBarGlowEnabled: boolean; home?: { heroEnabled?: boolean } }>('appearance');
   const location = useLocation();
+  const navigate = useNavigate();
   const navigationType = useNavigationType();
   const previousPath = useRef<string | null>(null);
   const fromPath = previousPath.current;
@@ -73,7 +77,7 @@ function Shell() {
     {sidebar ? <aside className="side-nav">
       <nav className="side-nav-links" aria-label="Main navigation">{navigation}</nav>
     </aside> : <header className="topbar">
-      <nav className="floating-nav" aria-label="Main navigation">{navigation}</nav>
+      <LiquidNavigation labels={navItems.map(item => item.label)} visuals={navItems.map(item => <KotlinNavigationIcon key={item.label} label={item.label} />)} selectedIndex={navItems.findIndex(item => item.label === selected)} style={appearance?.navBarStyle ?? 'adaptive'} heroEnabled={appearance?.home?.heroEnabled !== false} profileOpen={profileOpen} glowEnabled={appearance?.navBarGlowEnabled !== false} routeKey={location.pathname} onDragStart={clearHold} onDragSelect={index => { const item = navItems[index]; if (item) { held.current = false; navigate(item.to, { state: item.to === '/' ? { resetHomeScroll: true } : undefined }); } }}>{navigation}</LiquidNavigation>
     </header>}
     <main className={`main-area ${routeMotion}`} key={location.pathname}>
       <Routes>
@@ -148,6 +152,7 @@ function AppContent() {
     if (!editable) event.preventDefault();
   }}>
     {state.status !== 'ready' && <ConnectionNotice status={state.status} />}
+    <UpdateBanner />
     {state.session.status === 'loading' && state.status === 'disconnected'
       ? <div className="boot"><InlineError message={startupError ?? 'The Kotlin backend could not start.'} onRetry={() => { void actions.restartBridge().catch(() => {}); }} /></div>
       : startupLoading

@@ -41,7 +41,7 @@ abstract class StageDesktopBridgeRuntime extends DefaultTask {
                 }
             }
         }
-        new File(destination, 'classpath.txt').text = entries.collect { new File(lib, it.name).absolutePath }.join(File.pathSeparator)
+        new File(destination, 'classpath.txt').text = entries.collect { 'lib/' + it.name }.join(File.pathSeparator)
     }
 }
 

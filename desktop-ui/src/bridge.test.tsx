@@ -15,6 +15,7 @@ vi.mock('@tauri-apps/api/event', () => ({
   }),
 }));
 vi.mock('@tauri-apps/api/core', () => ({
+  isTauri: () => false,
   invoke: vi.fn(async (command: string, args?: { request?: { id: string; method: string; params: Record<string, unknown> } }) => {
     if (command === 'bridge_status') return { status: 'ready' };
     if (command === 'bridge_report_diagnostic') return undefined;
@@ -207,12 +208,31 @@ describe('desktop bridge UI workflow', () => {
     expect(await screen.findByText('Your home is ready for content')).toBeInTheDocument();
   });
 
-  it('caps fallback hero dots when the backend sends no heroes', async () => {
+  it('returns to the previous search results after viewing a title', async () => {
+    window.history.pushState({}, '', '/search');
+    render(<AppRoot />);
+    const input = await screen.findByRole('searchbox', { name: 'Search movies and shows' });
+    fireEvent.change(input, { target: { value: 'Arrival' } });
+    await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'search.start')).toBe(true));
+    const searchRequest = bridgeMock.requests.find((request) => request.method === 'search.start')!;
+    await act(async () => { emit({ topic: 'search', epoch: bridgeMock.epoch, revision: 965, data: { requestId: searchRequest.id, query: 'Arrival', loading: false, error: null, shelves: [{ key: 'results', title: 'Search results', subtitle: '', items: [media('arrival', 'Arrival')], hasMore: false }] } }); });
+    expect(await screen.findByText('Search results')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Arrival' }));
+    await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'details.load')).toBe(true));
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    const restored = await screen.findByRole('searchbox', { name: 'Search movies and shows' });
+    expect((restored as HTMLInputElement).value).toBe('Arrival');
+    expect(await screen.findByText('Search results')).toBeInTheDocument();
+    expect(bridgeMock.requests.filter((request) => request.method === 'search.start')).toHaveLength(1);
+  });
+
+  it('preserves an empty selected hero when unrelated shelf titles are available', async () => {
     render(<AppRoot />);
     await screen.findByText('Your home is ready for content');
     const items = Array.from({ length: 20 }, (_, index) => media(`shelf-${index}`, `Shelf title ${index}`));
     await act(async () => { emit({ topic: 'home', epoch: bridgeMock.epoch, revision: 960, data: { loading: false, error: null, hero: [], shelves: [{ key: 'shelf', title: 'Shelf', subtitle: '', items, hasMore: false }] } }); });
-    await waitFor(() => expect(document.querySelectorAll('.home-hero-dots button').length).toBe(8));
+    expect(await screen.findByText('Shelf')).toBeInTheDocument();
+    expect(document.querySelector('.home-hero')).toBeNull();
   });
 
   it('accepts epoch-changing responses instead of discarding them', async () => {

@@ -11,6 +11,7 @@ import com.nuvio.app.features.player.subtitleColorFromStorage
 import com.nuvio.app.features.player.toStorageHexString
 import com.nuvio.app.features.player.skip.AutoSkipSegmentType
 import com.nuvio.app.features.player.skip.NextEpisodeThresholdMode
+import com.nuvio.app.features.player.skip.SkipIntroRepository
 import com.nuvio.app.isWindows
 import com.nuvio.app.features.p2p.P2pCacheSize
 import com.nuvio.app.features.p2p.P2pSettingsRepository
@@ -39,6 +40,11 @@ object PlaybackSettingsBridge {
     suspend fun dispatch(method: String, params: JsonObject): JsonElement? = when (method) {
         "playbackSettings.snapshot" -> snapshot()
         "playbackSettings.set" -> set(params)
+        "playbackSettings.setAutoSkipType" -> {
+            PlayerSettingsRepository.setAutoSkipSegmentTypeEnabled(enumValue<AutoSkipSegmentType>(params.str("type")), params.bool("enabled"))
+            snapshot()
+        }
+        "playbackSettings.saveSkipCredential" -> saveSkipCredential(params)
         "p2p.snapshot" -> p2pSnapshot()
         "p2p.setEnabled" -> {
             ensureP2pAvailable()
@@ -106,6 +112,9 @@ object PlaybackSettingsBridge {
             put("animeSkipEnabled", state.animeSkipEnabled)
             put("animeSkipClientIdConfigured", state.animeSkipClientId.isNotBlank())
             put("introDbApiKeyConfigured", state.introDbApiKey.isNotBlank())
+            // These two editable fields mirror the Kotlin settings rows/dialogs.
+            put("animeSkipClientId", state.animeSkipClientId)
+            put("introDbApiKey", state.introDbApiKey)
             put("introSubmitEnabled", state.introSubmitEnabled)
             put("streamAutoPlayNextEpisodeEnabled", state.streamAutoPlayNextEpisodeEnabled)
             put("streamAutoPlayNextEpisodeFallbackEnabled", state.streamAutoPlayNextEpisodeFallbackEnabled)
@@ -119,6 +128,26 @@ object PlaybackSettingsBridge {
             put("nvidiaRtxSuperResolutionEnabled", state.nvidiaRtxSuperResolutionEnabled)
             put("nvidiaRtxSuperResolutionSupported", isWindows)
         }
+    }
+
+    internal suspend fun saveSkipCredential(
+        params: JsonObject,
+        verifyIntroDb: suspend (String) -> Boolean = SkipIntroRepository::verifyIntroDbApiKey,
+    ): JsonObject {
+        PlayerSettingsRepository.ensureLoaded()
+        val value = params.str("value").trim()
+        when (params.str("key")) {
+            "animeSkipClientId" -> PlayerSettingsRepository.setAnimeSkipClientId(value)
+            "introDbApiKey" -> {
+                val previous = PlayerSettingsRepository.uiState.value.introDbApiKey
+                if (value.isNotEmpty() && value != previous && !verifyIntroDb(value)) {
+                    throw BridgeFeatureException("INVALID_API_KEY", "Invalid API Key or connection failed")
+                }
+                PlayerSettingsRepository.setIntroDbApiKey(value)
+            }
+            else -> throw BridgeFeatureException("INVALID_ARGUMENT", "Unknown skip credential")
+        }
+        return snapshot()
     }
 
     private fun set(params: JsonObject): JsonObject {

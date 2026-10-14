@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { HomePage } from './HomePage';
 
 const bridge = vi.hoisted(() => ({
-  state: { session: { activeProfile: 1 }, home: { shelves: [], hero: [], loading: false } },
+  state: { session: { activeProfile: 1 }, home: { shelves: [] as any[], hero: [] as any[], loading: false } },
   extras: undefined as unknown,
   refresh: vi.fn(),
 }));
@@ -29,6 +29,7 @@ let resolveSnapshot: (value: unknown) => void;
 let rejectSnapshot: (reason: Error) => void;
 beforeEach(() => {
   bridge.extras = undefined;
+  bridge.state.home = { shelves: [], hero: [], loading: false };
   bridge.state.session.activeProfile = 1;
   const pending = new Promise((resolve, reject) => { resolveSnapshot = resolve; rejectSnapshot = reject; });
   bridge.refresh.mockImplementation((_: string, method: string) => {
@@ -41,6 +42,17 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('Continue Watching snapshot loading', () => {
+  it('does not substitute unselected shelf titles for an empty Kotlin hero', () => {
+    bridge.state.home.shelves = [{ key: 'unselected', items: [{ id: 'movie', type: 'movie', name: 'Unselected title', genres: [] }] }];
+    render(<MemoryRouter><HomePage /></MemoryRouter>);
+    expect(screen.queryByRole('region', { name: 'Featured titles' })).toBeNull();
+  });
+
+  it('uses the selected Kotlin hero even when it belongs to a hidden catalog', () => {
+    bridge.state.home.hero = [{ id: 'movie', type: 'movie', name: 'Selected title', genres: [] }];
+    render(<MemoryRouter><HomePage /></MemoryRouter>);
+    expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('Selected title');
+  });
   it('shows shared shimmer cards, then displays local progress without waiting for remote readiness or Next Up', async () => {
     render(<MemoryRouter><HomePage /></MemoryRouter>);
     expect(screen.getByText('Continue Watching').closest('section')).toHaveAttribute('aria-busy', 'true');

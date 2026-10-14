@@ -79,6 +79,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.swing.Swing
@@ -179,6 +180,23 @@ class DesktopBridgeRuntime {
         CollectionRepository.initialize()
         if (AppFeaturePolicy.pluginsEnabled) PluginRepository.initialize()
 
+        val homeCatalogLifecycle = BridgeHomeCatalogLifecycle(
+            syncCatalogs = HomeCatalogSettingsRepository::syncCatalogs,
+            syncCollections = { collections, addons -> HomeCatalogSettingsRepository.syncCollections(collections, addons) },
+            refreshHome = { HomeRepository.refresh(it) },
+        )
+        scope.launch {
+            combine(AddonRepository.uiState, CollectionRepository.collections) { _, _ -> Unit }
+                .collect {
+                    rpcMutex.withLock {
+                        // Read after acquiring the lock: a profile switch may have
+                        // replaced both repositories while this observer waited.
+                        homeCatalogLifecycle.update(epoch, AddonRepository.uiState.value.addons, CollectionRepository.collections.value)
+                        emit("appearance", AppearanceBridge.snapshot())
+                    }
+                }
+        }
+
         scope.launch { observeAuthentication() }
         scope.launch { HomeRepository.uiState.collect { emit("home", homeJson()) } }
         scope.launch { WatchProgressRepository.uiState.collect { emit("home", homeJson()) } }
@@ -197,14 +215,17 @@ class DesktopBridgeRuntime {
         scope.launch { com.nuvio.app.features.debrid.DebridSettingsRepository.uiState.collect { emitIntegrations() } }
         scope.launch { com.nuvio.app.features.simkl.SimklAuthRepository.uiState.collect { emitIntegrations() } }
         scope.launch { com.nuvio.app.features.tracking.TrackingSettingsRepository.uiState.collect { emitIntegrations() } }
-        scope.launch { com.nuvio.app.features.collection.CollectionRepository.collections.collect { emit("collections", CollectionsBridge.snapshot("collections")!!); HomeRepository.applyCurrentSettings() } }
+        scope.launch { com.nuvio.app.features.simkl.SimklSyncRepository.state.collect { emitIntegrations() } }
+        scope.launch { com.nuvio.app.features.mdblist.MdbListTracker.sync.state.collect { emitIntegrations() } }
+        scope.launch { com.nuvio.app.features.watchprogress.WatchProgressSourceCoordinator.uiState.collect { emitIntegrations() } }
+        scope.launch { com.nuvio.app.features.collection.CollectionRepository.collections.collect { emit("collections", CollectionsBridge.snapshot("collections")!!) } }
         scope.launch { com.nuvio.app.features.collection.CollectionEditorRepository.uiState.collect { emit("collectionEditor", CollectionsBridge.snapshot("collectionEditor")!!) } }
         scope.launch { com.nuvio.app.features.collection.FolderDetailRepository.uiState.collect { emit("folderDetail", CollectionsBridge.snapshot("folderDetail")!!) } }
         scope.launch { LibraryRepository.uiState.collect { emit("library", libraryJson()) } }
         scope.launch { LibraryRepository.uiState.collect { emit("libraryExtras", LibraryExtrasBridge.snapshot()) } }
         scope.launch { com.nuvio.app.features.library.LibraryDisplaySettingsRepository.uiState.collect { emit("libraryExtras", LibraryExtrasBridge.snapshot()) } }
         scope.launch { com.nuvio.app.features.cloud.CloudLibraryRepository.uiState.collect { emit("cloud", LibraryExtrasBridge.cloudSnapshot()) } }
-        scope.launch { AddonRepository.uiState.collect { emit("addons", addonsJson()) } }
+        scope.launch { AddonRepository.uiState.collect { emit("addons", addonsJson()); emit("appearance", AppearanceBridge.snapshot()) } }
         scope.launch { ThemeSettingsRepository.selectedTheme.collect { emit("settings", settingsJson()) } }
         scope.launch { ThemeSettingsRepository.customThemeColors.collect { emit("appearance", AppearanceBridge.snapshot()) } }
         scope.launch { ThemeSettingsRepository.amoledEnabled.collect { emit("appearance", AppearanceBridge.snapshot()) } }
@@ -215,7 +236,15 @@ class DesktopBridgeRuntime {
         scope.launch { com.nuvio.app.core.ui.CardDepthStyleRepository.uiState.collect { emit("appearance", AppearanceBridge.snapshot()) } }
         scope.launch { com.nuvio.app.core.poster.CustomPosterUrlRepository.pattern.collect { emit("appearance", AppearanceBridge.snapshot()) } }
         scope.launch { com.nuvio.app.core.poster.CustomPosterUrlRepository.enabledScreens.collect { emit("appearance", AppearanceBridge.snapshot()) } }
-        scope.launch { com.nuvio.app.features.home.HomeCatalogSettingsRepository.uiState.collect { HomeRepository.applyCurrentSettings(); emit("home", homeJson()); emit("appearance", AppearanceBridge.snapshot()) } }
+        scope.launch {
+            HomeCatalogSettingsRepository.uiState.collect {
+                rpcMutex.withLock {
+                    HomeRepository.applyCurrentSettings()
+                    emit("home", homeJson())
+                    emit("appearance", AppearanceBridge.snapshot())
+                }
+            }
+        }
         scope.launch { ProfileRepository.state.collect {
             emit("profiles", ProfilesBridge.snapshot())
             // The picker uses session profiles; publish cloud changes there too.
@@ -470,7 +499,7 @@ class DesktopBridgeRuntime {
             // ProfileRepository has already reset profile-scoped state. Let Home
             // reuse matching, fresh catalog entries instead of forcing every
             // catalog request to hit the network on each profile selection.
-            HomeRepository.refresh(AddonRepository.uiState.value.addons)
+            refreshHomeAfterAddonChange()
             sessionJson()
         }
         "home.snapshot" -> homeJson()
@@ -704,6 +733,7 @@ class DesktopBridgeRuntime {
             updateProfileSync()
             advanceEpoch()
             HomeRepository.clear()
+            AppearanceBridge.synchronizeHomeCatalogs()
             HomeRepository.refresh(AddonRepository.uiState.value.addons, force = true)
         }
         val topic = when {

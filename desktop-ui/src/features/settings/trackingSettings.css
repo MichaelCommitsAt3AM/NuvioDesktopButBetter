@@ -1,0 +1,49 @@
+.tracking-provider-cards{display:grid;gap:17.28px;margin-bottom:22px}
+.tracking-provider-card{position:relative;overflow:hidden;border:1px solid #fff3;border-radius:17.28px;background:linear-gradient(135deg,#050505,#292929,#111);color:#fff}
+.tracking-provider-card.mdblist{background:linear-gradient(135deg,#173d69,#225c97,#16385d)}
+.tracking-provider-content{position:relative;padding:19.44px;display:flex;flex-direction:column;gap:15.12px}
+.tracking-provider-card.connected .tracking-provider-content{padding:21.6px}
+.tracking-provider-wordmark{display:block;width:133.92px;height:32.4px;object-fit:contain;object-position:left center}
+.mdblist .tracking-provider-wordmark{width:140.4px;height:34.56px}
+.tracking-provider-watermark{position:absolute;right:12.96px;bottom:12.96px;width:162px;height:162px;object-fit:contain;opacity:.08;pointer-events:none}
+.tracking-provider-card p{margin:0;font-size:16px;line-height:24px;color:#ffffffd1}
+.tracking-provider-identity{display:grid;gap:4.32px}
+.tracking-provider-identity strong{font-size:18px;line-height:26px;font-weight:600}
+.tracking-provider-identity p{font-size:14px;line-height:20px;color:#ffffffc2}
+.tracking-provider-primary,.tracking-provider-cancel{display:flex;align-items:center;justify-content:center;gap:8.64px;width:100%;min-height:51.84px;padding:10px 24px;border:0;border-radius:28px;background:#fff;color:#171717;font:inherit;font-size:16px;font-weight:500;cursor:pointer}
+.tracking-provider-primary:disabled{background:#ffffff57;color:#ffffffb3;cursor:default}
+.tracking-provider-primary:hover:not(:disabled){background:#f0f0f0}
+.tracking-provider-cancel{border:1px solid #ffffff70;background:none;color:#fff}
+.tracking-provider-cancel:disabled{opacity:.45;cursor:default}
+.tracking-provider-footer{display:flex;align-items:center;gap:2.16px}
+.tracking-provider-footer button{background:none;border:0;color:#fff;min-height:43.2px;padding:0 2.16px;font:inherit;font-size:14px;line-height:20px;cursor:pointer;flex:.95}
+.tracking-provider-footer button:only-child{flex:none}
+.tracking-provider-footer button:nth-child(2){flex:1.05;color:#ffffffd6}
+.tracking-provider-footer button:nth-child(3){flex:1.55}
+.tracking-provider-footer button:disabled{color:#ffffff61;cursor:default}
+.tracking-provider-footer button:hover:not(:disabled){background:#ffffff0a;border-radius:24px}
+.tracking-provider-message{border-radius:12px;padding:10.8px 12.96px;background:#ffffff1a;color:#ffffffd1;font-size:14px;line-height:20px}
+.tracking-provider-message.error{background:#ffdad624;color:#ffdad6}
+.tracking-approval-title{font-size:18px;line-height:26px;font-weight:600}
+.tracking-approval-code{width:100%;display:grid;gap:5px;border:0;border-radius:12px;padding:13px;background:#ffffff1f;color:#fff;text-align:center;font:inherit;cursor:pointer}
+.tracking-approval-code strong{font-size:26px;line-height:34px;font-weight:700;letter-spacing:2px}
+.tracking-approval-code small{font-size:14px;line-height:20px;color:#ffffffc2;overflow-wrap:anywhere}
+.settings-desktop .tracking-preference-row,.tracking-preference-row{display:flex;width:100%;align-items:center;text-align:left;color:inherit;background:none;cursor:pointer;border:0;border-bottom:1px solid #ffffff04}
+.tracking-preference-row .settings-control-copy{flex:1;min-width:0}
+.tracking-preference-value{display:flex;align-items:center;gap:8.64px;max-width:35%;flex:none;text-align:right;margin-left:12px;color:var(--app-accent);font-size:16px;line-height:22px;font-weight:500}
+.tracking-progress-error{display:flex;align-items:center;gap:10.8px;padding:15px 21.6px;color:var(--danger,#ffb4ab);font-size:14px;line-height:20px;border-bottom:1px solid #ffffff04}
+.tracking-progress-error span{flex:1}.tracking-progress-error button{background:none;border:0;border-radius:24px;padding:10px 14px;color:var(--app-accent);font:inherit;cursor:pointer}
+body:has(.settings-desktop) .tracking-picker .dialog-surface{width:min(480px,90vw);padding:26px 0;border-radius:30px;background:var(--settings-surface,var(--app-surface));color:var(--text)}
+body:has(.settings-desktop) .tracking-picker h2,body:has(.settings-desktop) .tracking-picker .tracking-picker-subtitle{padding:0 26px;margin:0 0 6.48px}
+body:has(.settings-desktop) .tracking-picker h2{font-size:24px;line-height:31px;font-weight:600}
+body:has(.settings-desktop) .tracking-picker .tracking-picker-subtitle{font-size:16px;line-height:24px;color:#989da2;margin-bottom:12.96px}
+.tracking-picker-options{max-height:520px;overflow:auto}
+.tracking-picker-options button{width:100%;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px 26px;background:none;border:0;border-top:1px solid #ffffff08;color:inherit;text-align:left;font:inherit;cursor:pointer}
+.tracking-picker-options button:first-child{border-top:0}.tracking-picker-options button:disabled{opacity:.5;cursor:default}
+.tracking-picker-options button:not(:disabled):hover{background:#ffffff05}.tracking-picker-options button>span{display:grid;gap:4.32px;flex:1}
+.tracking-picker-options strong{font-size:18px;line-height:24px;font-weight:400}.tracking-picker-options small{font-size:16px;line-height:22px;color:#989da2}.tracking-picker-options svg{flex:none;color:var(--app-accent)}
+.tracking-picker .dialog-actions{display:flex;justify-content:flex-end;padding:13px 26px 0;gap:10px}
+.tracking-dialog .dialog-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:18px}
+.tracking-dialog .button.danger{background:none;color:var(--danger,#ffb4ab)}
+.tracking-provider-card button:focus-visible,.tracking-preference-row:focus-visible,.tracking-picker-options button:focus-visible{outline:2px solid var(--app-accent);outline-offset:-3px}
+@media(max-width:650px){.tracking-provider-content,.tracking-provider-card.connected .tracking-provider-content{padding:18px}.tracking-provider-cards{gap:12px}.tracking-preference-value{max-width:32%;font-size:14px}body:has(.settings-desktop) .tracking-picker{align-items:flex-end}body:has(.settings-desktop) .tracking-picker .dialog-surface{width:100%;max-height:90vh;border-radius:28px 28px 0 0}}

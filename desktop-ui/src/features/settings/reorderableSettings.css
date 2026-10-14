@@ -1,0 +1,26 @@
+/* Kotlin's 20/18dp tablet insets and 48dp handles at desktop density 1.08. */
+.settings-desktop .settings-reorder-list{padding:0!important;border:1px solid #ffffff08;border-radius:17.28px;background:var(--app-surface)}
+.settings-desktop .detail-sections-title{display:flex;align-items:center;justify-content:space-between}
+.settings-desktop .settings-reorder-row{display:block;width:100%;padding:0;position:relative;background:var(--app-surface);border:0;transition:box-shadow .15s,opacity .15s;touch-action:pan-y}
+.settings-desktop .settings-reorder-row+.settings-reorder-row:before{content:'';position:absolute;top:0;left:84.24px;right:0;border-top:1px solid #ffffff08}
+.settings-desktop .settings-reorder-row.dragging{box-shadow:0 4.32px 16px #0006;z-index:2;cursor:grabbing}
+.settings-desktop .settings-reorder-row.drop-target{box-shadow:inset 0 2px var(--app-accent)}
+.settings-desktop .settings-reorder-row .settings-reorder-summary{display:flex;width:100%;min-height:0;padding:19.44px 21.6px;gap:0;align-items:flex-start}
+.settings-desktop .settings-reorder-row .align-center{align-items:center}
+.settings-desktop .settings-reorder-row .settings-reorder-copy{display:grid;gap:4.32px;flex:1;min-width:0;padding:0 12.96px 0 0;border:0;background:none;color:var(--text);text-align:left}
+.settings-reorder-copy:is(button){cursor:pointer}
+.settings-desktop .settings-reorder-row .settings-reorder-copy>strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:18px;line-height:25px;font-weight:600}
+.settings-desktop .settings-reorder-row .align-center .settings-reorder-copy>strong{-webkit-line-clamp:1}
+.settings-desktop .settings-reorder-row .settings-reorder-copy>span{font-size:16px;line-height:23px;color:var(--text-muted,#989da2);overflow-wrap:anywhere}
+.settings-desktop .settings-reorder-row .settings-reorder-copy>small{font-size:14px;line-height:20px;color:var(--text-muted,#989da2)}
+.settings-reorder-copy .settings-row-group{color:var(--app-accent);font-weight:500}
+.settings-desktop .settings-reorder-row .settings-reorder-actions{display:flex;align-items:center;gap:8.64px;flex:none}
+.settings-desktop .settings-reorder-row .settings-reorder-handle{display:grid;place-items:center;width:51.84px;height:51.84px;flex:none;border:0;border-radius:50%;padding:0;background:none;color:var(--text-muted,#989da2);cursor:grab;touch-action:none;user-select:none}
+.settings-reorder-handle:has(.lucide-lock){opacity:.5;cursor:pointer!important}
+.settings-reorder-handle:hover{background:#ffffff08!important}
+.settings-reorder-handle:active{cursor:grabbing}
+.settings-reorder-handle:disabled{opacity:.5;cursor:default}
+.settings-desktop .settings-reorder-detail{padding:0 21.6px 19.44px}
+.settings-desktop .settings-reorder-detail .home-title-field{display:block;max-width:none;margin:0}
+.settings-desktop .settings-reorder-detail .metadata-tab-groups{display:flex;flex-wrap:wrap;gap:8.64px;padding:0}
+@media(max-width:720px){.settings-desktop .settings-reorder-row .settings-reorder-summary{padding:17.28px}.settings-desktop .settings-reorder-detail{padding:0 17.28px 17.28px}}

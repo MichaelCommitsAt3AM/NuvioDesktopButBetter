@@ -989,7 +989,14 @@
             "streams.badges.rules.setActive",
             "streams.badges.rules.remove",
             "simkl.sync",
-            "playback.hostFullscreenChanged"
+            "playback.hostFullscreenChanged",
+            "mdblist.resume",
+            "mdblist.sync",
+            "simkl.resume",
+            "simkl.cancel",
+            "trackingSettings.refreshProgress",
+            "playbackSettings.setAutoSkipType",
+            "playbackSettings.saveSkipCredential"
           ]
         },
         "params": {

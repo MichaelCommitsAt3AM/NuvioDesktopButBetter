@@ -19,7 +19,7 @@ export function SearchPage() {
   const addons = useSelector((current) => current.addons) as Addon[];
   const appearance = useFeatureSnapshot<AppearanceSnapshot>('appearance');
   const history = useSelector((current) => current.searchHistory) as SearchHistory | null;
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(search.query);
   const [queryPending, setQueryPending] = useState(false);
   const [focused, setFocused] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -52,6 +52,12 @@ export function SearchPage() {
         setQueryPending(false);
         void call('search.clear').catch(() => {});
         paging.current = false;
+        return;
+      }
+      // Returning from a title keeps the previous results without refetching.
+      // `search` is intentionally the mount-time snapshot, not a dependency.
+      if (search.query.trim() === normalized && search.shelves.length > 0) {
+        setQueryPending(false);
         return;
       }
       setQueryPending(false);

@@ -1,0 +1,34 @@
+/* DesktopNavigationBar.kt + JellyDrawing.kt; keep these rules stronger than page overrides. */
+@property --nav-label-fraction{syntax:'<number>';inherits:true;initial-value:1}
+@property --nav-glow-strength{syntax:'<number>';inherits:true;initial-value:1}
+.shell.topbar-layout .topbar{padding-top:calc(10px * var(--ui-scale,1));padding-inline:calc(16px * var(--ui-scale,1))}
+.shell.topbar-layout .topbar .floating-nav.liquid-nav{--nav-icon-size:calc(28px * var(--ui-scale,1));position:relative;display:block;flex:none;width:calc((var(--nav-icon-size) + 20px * var(--ui-scale,1) + 64px * var(--ui-scale,1) * var(--nav-label-fraction)) * var(--nav-count) + 8px * var(--ui-scale,1));max-width:100%;height:calc(var(--nav-icon-size) + 20px * var(--ui-scale,1));padding:0;gap:0;border:0;border-radius:999px;background:none;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;transition:--nav-label-fraction 320ms cubic-bezier(.4,0,.2,1),--nav-glow-strength 420ms cubic-bezier(.2,0,0,1);touch-action:none;user-select:none}
+.liquid-nav-track,.liquid-nav-distortion,.liquid-nav-panel{position:absolute;inset:0}
+.liquid-nav-surface{position:absolute;inset:0;border-radius:999px;overflow:hidden;background:rgba(15,15,17,.20);transition:background-color 320ms cubic-bezier(.4,0,.2,1)}
+.liquid-nav-surface::before{content:'';position:absolute;inset:0;border-radius:inherit;background:linear-gradient(to bottom,rgba(255,255,255,.14),rgba(255,255,255,.03) 50%,transparent);opacity:0;transition:opacity 320ms cubic-bezier(.4,0,.2,1)}
+.liquid-nav.frosted .liquid-nav-surface{background:rgba(28,28,30,.30);backdrop-filter:blur(calc(14px * var(--ui-scale,1)));-webkit-backdrop-filter:blur(calc(14px * var(--ui-scale,1)))}
+.liquid-nav.frosted .liquid-nav-surface::before{opacity:1}
+.liquid-nav-glow{position:absolute;inset:calc(-16px * var(--ui-scale,1)) calc(-48px * var(--ui-scale,1));background:radial-gradient(circle calc(300px * var(--ui-scale,1)) at calc(var(--nav-glow-x,0px) + 48px * var(--ui-scale,1)) calc(var(--nav-glow-y,0px) + 16px * var(--ui-scale,1)),color-mix(in srgb,var(--app-accent) 15%,transparent),color-mix(in srgb,var(--app-accent) 6.45%,transparent) 45%,transparent);opacity:calc(var(--nav-glow-opacity,0) * var(--nav-glow-strength,1));pointer-events:none}
+
+.liquid-nav-paint{position:absolute;inset:0;pointer-events:none;color:#969ca3}
+.liquid-nav-paint.selected{background:color-mix(in srgb,var(--app-accent) 15%,transparent);color:#f5f7f8;visibility:hidden}
+.liquid-nav-row{position:absolute;inset:0;display:flex;padding:calc(4px * var(--ui-scale,1));align-items:stretch}
+.liquid-nav-item{display:flex;align-items:center;justify-content:center;flex:1;min-width:0}
+.liquid-nav-content{display:flex;align-items:center;justify-content:center;gap:calc(6px * var(--ui-scale,1) * var(--nav-label-fraction));max-width:100%;padding-inline:calc(8px * var(--ui-scale,1));overflow:hidden}
+.liquid-nav-paint.selected .liquid-nav-content{transform:scale(var(--nav-content-scale,1));overflow:visible}
+.liquid-nav-icon{width:var(--nav-icon-size);height:var(--nav-icon-size);display:grid;place-items:center;flex:none}
+.liquid-nav-icon svg{display:block;width:calc(var(--nav-icon-size) - 10px * var(--ui-scale,1));height:calc(var(--nav-icon-size) - 10px * var(--ui-scale,1));fill:currentColor}
+.liquid-nav-paint.selected .liquid-nav-icon{color:#fff}
+.liquid-nav-label{display:block;max-width:calc(64px * var(--ui-scale,1) * var(--nav-label-fraction));overflow:hidden;opacity:var(--nav-label-fraction);min-width:0}
+.liquid-nav-label>span{display:block;white-space:nowrap;font-size:calc(14px * var(--desktop-font-scale,1.08) * var(--ui-scale,1));line-height:calc(18px * var(--desktop-font-scale,1.08) * var(--ui-scale,1));font-weight:500;letter-spacing:0}
+.liquid-nav-targets{position:absolute;inset:0;display:flex;padding-inline:calc(4px * var(--ui-scale,1))}
+.shell.topbar-layout .topbar .liquid-nav-targets>.nav-link,.shell.topbar-layout .topbar .liquid-nav-targets>.settings-profile-anchor{flex:1;min-width:0;width:0;height:100%;position:relative;top:auto;right:auto}
+.shell.topbar-layout .topbar .liquid-nav-targets .nav-link{height:100%;width:100%;min-width:0;padding:0;gap:calc(6px * var(--ui-scale,1) * var(--nav-label-fraction));border-radius:999px;border:0;background:none;color:transparent;box-shadow:none;transition:none}
+.shell.topbar-layout .topbar .liquid-nav-targets .nav-link>svg{opacity:0;position:absolute}
+.shell.topbar-layout .topbar .liquid-nav-targets .nav-link>span:not(.avatar){display:block;max-width:calc(64px * var(--ui-scale,1) * var(--nav-label-fraction));overflow:hidden;opacity:0;white-space:nowrap;font-size:calc(14px * var(--desktop-font-scale,1.08) * var(--ui-scale,1));line-height:calc(18px * var(--desktop-font-scale,1.08) * var(--ui-scale,1));font-weight:500}
+.shell.topbar-layout .topbar .liquid-nav-targets .nav-link .avatar.sm{width:var(--nav-icon-size);height:var(--nav-icon-size);font-size:calc(13px * var(--ui-scale,1));flex:none;transform:scale(var(--nav-profile-scale,1))}
+.shell.topbar-layout .topbar .liquid-nav-targets .nav-link:focus-visible{outline:2px solid var(--app-accent);outline-offset:-2px}
+.liquid-nav[data-reduced-motion=true]{transition:none!important}
+.liquid-nav[data-reduced-motion=true] .liquid-nav-surface,.liquid-nav[data-reduced-motion=true] .liquid-nav-surface::before,.liquid-nav[data-reduced-motion=true] .liquid-nav-glow{transition:none}
+@media(max-width:799px){.shell.topbar-layout .topbar .floating-nav.liquid-nav{--nav-icon-size:calc(26px * var(--ui-scale,1))}}
+@media(min-width:1601px){.shell.topbar-layout .topbar .floating-nav.liquid-nav{--nav-icon-size:calc(30px * var(--ui-scale,1))}}

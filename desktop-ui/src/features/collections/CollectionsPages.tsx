@@ -53,45 +53,7 @@ function HomeFolderTile({ collectionId,folder }: { collectionId: string; folder:
   return <Link className={`home-folder-tile shape-${folder.tileShape ?? 'poster'}`} to={`/collections/${collectionId}/folders/${folder.id}`} onMouseEnter={() => setFocused(true)} onMouseLeave={() => setFocused(false)} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}><span className="home-folder-art">{artwork ? <img src={artwork} alt="" /> : <span>{folder.coverEmoji || <Grid2X2 size={36} />}</span>}</span>{!folder.hideTitle && <strong>{folder.title}</strong>}</Link>;
 }
 
-function CollectionTransfer({ onClose }: { onClose: () => void }) {
-  const [text, setText] = useState('');
-  const [error, setError] = useState('');
-  const [validation, setValidation] = useState<{ valid: boolean; error?: string; collectionCount: number; folderCount: number } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const act = async (operation: 'export' | 'validateImport' | 'import') => {
-    setBusy(true); setError('');
-    try {
-      if (operation === 'export') { const result = await call<{ json: string }>('collections.export'); if (result) { setText(result.json); setValidation(null); } }
-      else if (operation === 'validateImport') { const result = await call<typeof validation>('collections.validateImport', { json: text }); setValidation(result ?? null); }
-      else { await call('collections.import', { json: text, confirmed: true }); await refreshFeature('collections'); onClose(); }
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
-  };
-  return <Dialog label="Import or export collections" onClose={onClose}><h2>Import / export collections</h2><p>Export your collection settings, or paste an export to restore them. Import replaces this profile’s current collections.</p><label className="collection-field">Collection JSON<textarea rows={12} value={text} onChange={e => { setText(e.target.value); setValidation(null); }} /></label>{error && <InlineError message={error} />}{validation && <p>{validation.valid ? `${validation.collectionCount} collections and ${validation.folderCount} folders. Ready to replace current collections.` : validation.error}</p>}<div className="dialog-actions"><button className="button secondary" disabled={busy} onClick={() => void act('export')}>Export to text</button><button className="button secondary" disabled={busy || !text.trim()} onClick={() => void act('validateImport')}>Validate import</button><button className="button primary" disabled={busy || !validation?.valid} onClick={() => void act('import')}>Replace collections</button></div></Dialog>;
-}
-
-export function CollectionsPage() {
-  const state = (useFeatureSnapshot<{ items: Collection[] }>('collections') ?? { items: [] });
-  const [error, setError] = useState('');
-  const [removing, setRemoving] = useState<Collection | null>(null);
-  const [transfer, setTransfer] = useState(false);
-  const navigate = useNavigate();
-  useEffect(() => { void refreshFeature('collections').catch(e => setError(String(e))); }, []);
-  const run = async (method: string, params: Record<string, unknown>) => { setError(''); try { await featureAction(method, params, 'collections'); return true; } catch (e) { setError(e instanceof Error ? e.message : String(e)); return false; } };
-  const openEditor = async (id: string | null) => { if (await run('collections.editor.open', { collectionId: id })) navigate(`/collections/${id ?? 'new'}/edit`); };
-  return <div className="page collections-page">
-    <PageHeader title="Collections" subtitle="Organize catalogs and lists into your own spaces." action={<div className="catalog-actions"><button className="button secondary" onClick={() => setTransfer(true)}>Import / export</button><button className="button primary" onClick={() => void openEditor(null)}><Plus size={16} /> New collection</button></div>} />
-    {error && <InlineError message={error} />}
-    {state.items.length === 0 ? <EmptyState icon={<Film />} title="No collections yet" message="Create a collection to group catalogs, TMDB discoveries, and Trakt lists." action={<button className="button primary" onClick={() => { void openEditor(null); }}><Plus size={16} /> Create collection</button>} /> : <div className="collection-list">{state.items.map((collection, index) => <article className="collection-card" key={collection.id}>
-      <div className="collection-cover" style={collection.backdropImageUrl ? { backgroundImage: `linear-gradient(90deg,rgba(10,12,18,.95),rgba(10,12,18,.38)),url(${collection.backdropImageUrl})` } : undefined}>
-        <div><span className="collection-eyebrow">{collection.pinToTop ? 'Pinned collection' : 'Collection'} · {collection.folders.length} {collection.folders.length === 1 ? 'folder' : 'folders'}</span><h2>{collection.title}</h2><p>{collection.folders.map((f) => f.title).join(' · ') || 'Add folders to start organizing.'}</p></div>
-        <div className="collection-card-actions"><button title="Move up" disabled={index === 0} onClick={() => void run('collections.move', { from: index, to: index - 1 })}><ArrowUp size={16} /></button><button title="Move down" disabled={index === state.items.length - 1} onClick={() => void run('collections.move', { from: index, to: index + 1 })}><ArrowDown size={16} /></button><button title="Edit" onClick={() => { void openEditor(collection.id); }}><Pencil size={16} /></button><button title="Remove" onClick={() => setRemoving(collection)}><Trash2 size={16} /></button></div>
-      </div>
-      {collection.folders.length > 0 && <div className="collection-folder-links">{collection.folders.map((folder) => <Link key={folder.id} to={`/collections/${collection.id}/folders/${folder.id}`} className="collection-folder-link">{folder.coverEmoji || <Grid2X2 size={17} />}<span>{folder.title}</span><ChevronRight size={14} /></Link>)}</div>}
-    </article>)}</div>}
-    {transfer && <CollectionTransfer onClose={() => setTransfer(false)} />}
-    {removing && <Dialog label="Remove collection" onClose={() => setRemoving(null)}><h2>Remove {removing.title}?</h2><p>This removes the collection and its folders from this profile.</p><div className="dialog-actions"><button className="button secondary" onClick={() => setRemoving(null)}>Keep collection</button><button className="button primary" onClick={() => void run('collections.remove', { id: removing.id }).then(ok => { if (ok) setRemoving(null); })}>Remove collection</button></div></Dialog>}
-  </div>;
-}
+export { CollectionsPage } from './CollectionManagementPage';
 
 export function CollectionEditorPage() {
   const { collectionId = 'new' } = useParams(); const navigate = useNavigate();

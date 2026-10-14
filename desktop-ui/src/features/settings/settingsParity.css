@@ -50,7 +50,7 @@
 .settings-attribution img{height:32.4px;display:block;margin:0 auto 10.8px}
 .settings-desktop .account-section{padding:21.6px;display:grid;gap:14px}
 .settings-desktop .account-section h2{margin:0;font-size:24px}
-.account-info-row{display:flex;justify-content:space-between;gap:16px;font-size:18px;color:#999}.account-info-row strong{font-weight:500;color:var(--text)}
+.account-info-row{display:flex;justify-content:flex-start;align-items:baseline;gap:12px;font-size:18px;color:#999}.account-info-row>span{flex:none;min-width:4.2em}.account-info-row strong{font-weight:500;color:var(--text)}
 @keyframes settings-page-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @media(max-width:900px){.settings-sidebar{width:210px}.settings-sidebar h1{font-size:34px}.settings-pane-inner{padding-inline:24px}.settings-sidebar nav>a{font-size:16px}}
 @media(max-width:650px){.settings-desktop{display:block}.settings-sidebar{height:auto;width:100%;padding:85px 16px 12px}.settings-sidebar h1{font-size:30px;margin:0 0 8px;line-height:38px}.settings-sidebar nav{display:flex;overflow:auto}.settings-sidebar nav>a{margin:0;min-height:44px;gap:6px;padding:8px;white-space:nowrap}.settings-sidebar nav>a>span{display:none}.settings-pane{height:calc(100% - 179px)}.settings-pane-inner{padding:24px 16px}.settings-attribution{padding-bottom:24px}}

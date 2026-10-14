@@ -7,6 +7,12 @@ import com.nuvio.app.core.ui.CardDepthStyleRepository
 import com.nuvio.app.core.ui.CustomThemeColors
 import com.nuvio.app.core.ui.NuvioCardDepthSurface
 import com.nuvio.app.core.ui.PosterCardStyleRepository
+import com.nuvio.app.features.addons.AddonRepository
+import com.nuvio.app.features.addons.enabledAddons
+import com.nuvio.app.features.addons.isWaitingForFirstEnabledManifest
+import com.nuvio.app.features.collection.CollectionRepository
+import com.nuvio.app.features.addons.ManagedAddon
+import com.nuvio.app.features.collection.Collection
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
 import com.nuvio.app.features.membership.MemberAccessRepository
 import com.nuvio.app.features.settings.DesktopNavigationLayout
@@ -31,7 +37,7 @@ import kotlinx.serialization.json.put
 
 object AppearanceBridge {
     suspend fun dispatch(method: String, params: JsonObject): JsonElement? = when (method) {
-        "appearance.snapshot" -> snapshot()
+        "appearance.snapshot" -> { synchronizeHomeCatalogs(); snapshot() }
         "appearance.setTheme" -> {
             ThemeSettingsRepository.setTheme(enumValue<AppTheme>(params.str("theme")))
             snapshot()
@@ -71,7 +77,7 @@ object AppearanceBridge {
         }
         "posters.setCardStyle" -> posterStyle(params)
         "posters.setCardDepth" -> cardDepth(params)
-        "homePreferences.snapshot" -> homePreferencesSnapshot()
+        "homePreferences.snapshot" -> { synchronizeHomeCatalogs(); homePreferencesSnapshot() }
         "homePreferences.setHeroEnabled" -> { HomeCatalogSettingsRepository.setHeroEnabled(params.bool("enabled")); homePreferencesSnapshot() }
         "homePreferences.setShowCatalogType" -> { HomeCatalogSettingsRepository.setShowCatalogType(params.bool("enabled")); homePreferencesSnapshot() }
         "homePreferences.setHideUnreleasedContent" -> { HomeCatalogSettingsRepository.setHideUnreleasedContent(params.bool("enabled")); homePreferencesSnapshot() }
@@ -80,7 +86,17 @@ object AppearanceBridge {
         "homePreferences.setCustomTitle" -> { HomeCatalogSettingsRepository.setCustomTitle(params.str("key"), params.str("title")); homePreferencesSnapshot() }
         "homePreferences.reset" -> { HomeCatalogSettingsRepository.resetToDefaults(); homePreferencesSnapshot() }
         "homePreferences.move" -> {
-            when (params.str("direction").lowercase()) {
+            val targetKey = params["targetKey"]?.jsonPrimitive?.contentOrNull
+            if (targetKey != null) {
+                val items = HomeCatalogSettingsRepository.uiState.value.items
+                val from = items.indexOfFirst { it.key == params.str("key") }
+                val to = items.indexOfFirst { it.key == targetKey }
+                if (from < 0 || to < 0) throw BridgeFeatureException("INVALID_ARGUMENT", "Unknown Home catalog")
+                if (items[from].isPinnedToTop || items[to].isPinnedToTop) {
+                    throw BridgeFeatureException("INVALID_ARGUMENT", "Remove pin to top from collection to move")
+                }
+                HomeCatalogSettingsRepository.moveByIndex(from, to)
+            } else when (params.str("direction").lowercase()) {
                 "up" -> HomeCatalogSettingsRepository.moveUp(params.str("key"))
                 "down" -> HomeCatalogSettingsRepository.moveDown(params.str("key"))
                 else -> throw BridgeFeatureException("INVALID_ARGUMENT", "direction must be up or down")
@@ -99,6 +115,18 @@ object AppearanceBridge {
         "continueWatching.dismissNextUp" -> { ContinueWatchingPreferencesRepository.addDismissedNextUpKey(params.str("key")); continueWatchingSnapshot() }
         "continueWatching.removeDismissedForContent" -> { ContinueWatchingPreferencesRepository.removeDismissedNextUpKeysForContent(params.str("contentId")); continueWatchingSnapshot() }
         else -> null
+    }
+
+    internal suspend fun synchronizeHomeCatalogs(
+        addons: List<ManagedAddon> = AddonRepository.uiState.value.addons,
+        collections: List<Collection> = CollectionRepository.collections.value,
+    ) {
+        val enabled = addons.enabledAddons()
+        if (enabled.isWaitingForFirstEnabledManifest()) return
+        // Like entering SettingsScreen: rebuild definitions even when installed
+        // addons are unchanged after ProfileRepository reset this repository.
+        HomeCatalogSettingsRepository.syncCatalogs(enabled)
+        HomeCatalogSettingsRepository.syncCollections(collections, enabled)
     }
 
     fun snapshot(): JsonObject = buildJsonObject {
@@ -132,11 +160,18 @@ object AppearanceBridge {
     }
 
     fun homePreferencesSnapshot(): JsonObject {
+        // SettingsScreen initializes saved preferences even before manifests arrive.
+        HomeCatalogSettingsRepository.snapshot()
         val state = HomeCatalogSettingsRepository.uiState.value
         return buildJsonObject {
             put("heroEnabled", state.heroEnabled); put("showCatalogType", state.showCatalogType); put("hideUnreleasedContent", state.hideUnreleasedContent)
+            val addons = AddonRepository.uiState.value.addons.filter { it.enabled }
+            put("isCatalogLoading", addons.any { it.isRefreshing })
+            putNullable("catalogErrorMessage", addons.firstOrNull { it.manifest == null && !it.errorMessage.isNullOrBlank() }?.errorMessage)
+            put("heroSourceSelectionLimit", HomeCatalogSettingsRepository.HERO_SOURCE_SELECTION_LIMIT)
             put("items", JsonArray(state.items.map { item -> buildJsonObject {
                 put("key", item.key); put("title", item.displayTitle); put("defaultTitle", item.defaultTitle)
+                put("addonName", item.addonName); put("isPinnedToTop", item.isPinnedToTop)
                 put("customTitle", item.customTitle); put("enabled", item.enabled); put("heroSourceEnabled", item.heroSourceEnabled)
                 put("order", item.order); put("isCollection", item.isCollection); putNullable("collectionId", item.collectionId)
             } }))

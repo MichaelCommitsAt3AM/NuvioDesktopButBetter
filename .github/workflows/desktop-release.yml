@@ -182,12 +182,18 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: false
       - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: desktop-ui/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-ui/src-tauri -> target
+          cache-on-failure: true
       - name: Configure release inputs
         run: |
           test -n "$NUVIO_UPDATER_PUBLIC_KEY" || { echo 'Set desktop-release variable NUVIO_UPDATER_PUBLIC_KEY.' >&2; exit 1; }
@@ -247,6 +253,7 @@ jobs:
           sudo flatpak install -y --system flathub org.gnome.Platform//50 org.gnome.Sdk//50
           bash scripts/desktop-ui/package-flatpak.sh
       - name: Verify and collect release assets
+        id: collect
         env:
           RELEASE_ARCH: ${{ matrix.arch }}
         run: node scripts/desktop-ui/collect-release-assets.mjs "$NUVIO_PACKAGE_FORMAT" "$RELEASE_ARCH"
@@ -266,6 +273,7 @@ jobs:
             test "$(rpm -qp --queryformat '%{NAME}' release-assets/*.rpm)" == nuvio
           fi
       - uses: actions/upload-artifact@v7
+        if: always() && !cancelled() && steps.collect.outcome == 'success'
         with:
           name: nuvio-desktop-${{ needs.metadata.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.format }}
           path: release-assets/*

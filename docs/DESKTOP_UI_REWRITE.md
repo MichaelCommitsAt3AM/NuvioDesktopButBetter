@@ -64,6 +64,8 @@ Close the original Compose app before using the source preview: the two implemen
 
 `Build Desktop Release` keeps the existing build-only/dry-run/draft/publish modes. It now builds Windows x64 MSI, macOS arm64 and Intel DMGs plus signed app archives, and Linux x86_64 AppImage, DEB, RPM and Flatpak. Every package includes the staged Kotlin backend and a private Java runtime. The Linux AppImage bundles the native player dependencies; DEB/RPM declare system dependencies. Flatpak uses the existing sandbox identity and external update ownership.
 
+Build-only supports `all`, `windows`, `macos`, `linux` and `flatpak` targets. Draft/publish require `all`. The Flatpak manifest includes a checksum-preserving Debian mirror for uchardet when its primary download host fails.
+
 `composeApp/Configuration/DesktopVersion.properties` remains the version source. `release-config.mjs` maps `VERSION_CODE` to `1.0.<code>` for MSI and Tauri SemVer, preserving the original monotonic MSI convention. The marketing version remains the GitHub tag and displayed version. Use `scripts/set-version.sh` for a release bump, commit it after application changes, then push and run required backend CI before releasing.
 
 The release environment needs the existing `NUVIO_DESKTOP_LOCAL_PROPERTIES_BASE64` secret, `NUVIO_UPDATER_PRIVATE_KEY` and `NUVIO_UPDATER_PRIVATE_KEY_PASSWORD` secrets, and the matching `NUVIO_UPDATER_PUBLIC_KEY` variable. Signing was configured for this repository using `configure-updater-signing.ps1`; the protected local backup is under `%USERPROFILE%/.codex/keys/nuvio-desktop-updater`. Retain that key for all subsequent releases. Updater signing is independent of OS code signing/notarization, which remains disabled in this pipeline as in the previous fork workflow.

@@ -14,7 +14,6 @@ import { ProfilesPage } from './features/profiles/ProfilesPage';
 import { ProfileEditorPage } from './features/profiles/ProfileEditorPage';
 import { ProfileChooser } from './features/profiles/ProfileChooser';
 import { ProfileLoadingScreen } from './features/profiles/ProfileLoadingScreen';
-import type { ProfilesSnapshot } from './features/profiles/profileStore';
 import { CatalogPage } from './features/catalog/CatalogPage';
 import { DownloadsPage } from './features/downloads/DownloadsPage';
 import { CollectionsPage, CollectionEditorPage, CollectionFolderPage } from './features/collections/CollectionsPages';
@@ -109,9 +108,11 @@ function AppContent() {
     if(state.session.status==='signedOut'){setLaunchPicker(null);return;}
     if(state.session.status!=='signedIn'||launchPicker!==null)return;
     let active=true;
-    void refreshFeature<ProfilesSnapshot>('profiles').then(async profiles=>{
+    void (async()=>{
       if(!active)return;
-      const available=profiles?.items??[];
+      // Session already contains account-scoped cached profiles. Cosmetic
+      // catalogs are refreshed by the picker/editor without delaying startup.
+      const available=state.session.profiles;
       if(available.length===1&&!available[0].locked){
         if(state.session.activeProfile===available[0].id){setLaunchPicker(false);return;}
         try {
@@ -123,7 +124,7 @@ function AppContent() {
         return;
       }
       setLaunchPicker(true);
-    }).catch(()=>{if(active)setLaunchPicker(true);});
+    })().catch(()=>{if(active)setLaunchPicker(true);});
     return ()=>{active=false;};
   },[state.session.status,launchPicker]);
   const appearance = useFeatureSnapshot<{ theme?: string; customThemeColors?: string[]; amoledEnabled?: boolean }>('appearance');
@@ -138,7 +139,14 @@ function AppContent() {
   const explicitPicker=location.pathname==='/profiles/choose';
   const showPicker=explicitPicker||(!profileSetupRoute&&launchPicker===true);
   const startupLoading = (state.session.status === 'loading' && state.status !== 'disconnected') || (state.session.status === 'signedIn' && launchPicker === null && !profileSetupRoute);
-  return <div className="app" style={style}>
+  return <div className="app" style={style} onContextMenu={event => {
+    const target = event.target;
+    const editable = target instanceof Element && (
+      target.closest('input, textarea') !== null ||
+      (target instanceof HTMLElement && target.isContentEditable)
+    );
+    if (!editable) event.preventDefault();
+  }}>
     {state.status !== 'ready' && <ConnectionNotice status={state.status} />}
     {state.session.status === 'loading' && state.status === 'disconnected'
       ? <div className="boot"><InlineError message={startupError ?? 'The Kotlin backend could not start.'} onRetry={() => { void actions.restartBridge().catch(() => {}); }} /></div>

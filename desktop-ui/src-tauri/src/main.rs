@@ -317,6 +317,7 @@ const ALLOWED_METHODS: &[&str] = &[
     "streams.badges.rules.setActive",
     "streams.badges.rules.remove",
     "simkl.sync",
+    "playback.hostFullscreenChanged",
 ];
 
 fn request_is_allowed(request: &BridgeRequest) -> bool {
@@ -386,6 +387,10 @@ async fn bridge_request(
         request.params.insert(
             "tauriHostWindow".into(),
             serde_json::json!(hwnd.0 as usize as u64),
+        );
+        request.params.insert(
+            "tauriHostFullscreen".into(),
+            Value::Bool(window.is_fullscreen().map_err(|error| error.to_string())?),
         );
     }
 
@@ -513,6 +518,15 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            #[cfg(windows)]
+            if matches!(event, WindowEvent::Resized(_)) {
+                if let Some(bridge) = window.app_handle().try_state::<Arc<BridgeManager>>() {
+                    let bridge = bridge.inner().clone();
+                    tauri::async_runtime::spawn(async move {
+                        let _ = bridge.sync_host_fullscreen().await;
+                    });
+                }
+            }
             if let WindowEvent::Focused(visible) = event {
                 let visible = *visible;
                 if let Some(bridge) = window.app_handle().try_state::<Arc<BridgeManager>>() {

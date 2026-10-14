@@ -31,7 +31,7 @@ object ProfilesBridge {
     suspend fun dispatch(method: String, params: JsonObject): JsonElement? = when (method) {
         "profiles.snapshot" -> {
             MemberAccessRepository.ensureStarted()
-            AvatarRepository.fetchAvatars()
+            AvatarRepository.ensureLoaded()
             ProfileBackgroundRepository.ensureLoaded()
             snapshot()
         }

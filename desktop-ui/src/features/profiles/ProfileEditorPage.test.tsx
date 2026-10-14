@@ -10,6 +10,13 @@ beforeEach(() => {
   store.run.mockResolvedValue(undefined);
   store.snapshot = { items: [{ id: 1, name: 'Main' }, { id: 2, name: 'Family', addonSyncProfileId: 1 }], avatars: [], backgrounds: [] };
 });
+it('preserves draft fields when the background avatar catalog arrives', () => {
+  const view = editor('/profiles/2/edit');
+  fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'Draft name' } });
+  store.snapshot = { ...store.snapshot, avatars: [{ id: 'fresh', name: 'Fresh avatar', category: 'Standard', color: '#FFFFFF', url: null, memberOnly: false }] };
+  view.rerender(<MemoryRouter initialEntries={['/profiles/2/edit']}><Routes><Route path="/profiles/:id/edit" element={<ProfileEditorPage />} /></Routes></MemoryRouter>);
+  expect(screen.getByLabelText('Profile name')).toHaveValue('Draft name');
+});
 it('confirms deletion, supports cancellation, and returns to profiles after success', async () => {
   editor('/profiles/2/edit');
   fireEvent.click(screen.getByRole('button', { name: 'Delete profile' }));
@@ -33,7 +40,7 @@ it('keeps failed deletion visible and protects the primary profile', async () =>
 });
 afterEach(cleanup);
 function editor(path = '/profiles/new') {
-  render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/profiles/new" element={<ProfileEditorPage />} /><Route path="/profiles/:id/edit" element={<ProfileEditorPage />} /><Route path="/profiles" element={<p>Saved</p>} /></Routes></MemoryRouter>);
+  return render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/profiles/new" element={<ProfileEditorPage />} /><Route path="/profiles/:id/edit" element={<ProfileEditorPage />} /><Route path="/profiles" element={<p>Saved</p>} /></Routes></MemoryRouter>);
 }
 it('requires a profile selection and saves a persistent link instead of a primary copy', async () => {
   editor();

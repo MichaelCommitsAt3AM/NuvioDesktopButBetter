@@ -1,6 +1,7 @@
 package com.nuvio.desktop.bridge
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -37,7 +38,10 @@ import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import javax.swing.SwingUtilities
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
 import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -67,6 +71,7 @@ class NativePlayback(
         var requestBack: (() -> Unit)? = null
     }
     private val mutex = Mutex()
+    @Volatile private var startingJob: Job? = null
     @Volatile private var session: Session? = null
     @Volatile private var playbackState: String = "idle"
     @Volatile private var playbackPhase: String = "idle"
@@ -87,7 +92,10 @@ class NativePlayback(
         videoId: String?,
         startFromBeginning: Boolean,
         nativeHostWindow: Long?,
+        nativeHostFullscreen: Boolean,
     ): JsonObject = mutex.withLock {
+        val startJob = currentCoroutineContext().job
+        startingJob = startJob
         playbackState = "starting"
         playbackPhase = if (DirectDebridPlaybackResolver.shouldResolveToPlayableStream(stream)) "resolving" else "preparing"
         playbackError = null
@@ -103,156 +111,173 @@ class NativePlayback(
             return@withLock buildJsonObject { put("started", true); put("host", "external") }
         }
         val episode = videoId?.let { id -> meta.videos.firstOrNull { it.id == id } }
-        val playable = if (!DirectDebridPlaybackResolver.shouldResolveToPlayableStream(stream)) stream else when (val resolved = DirectDebridPlaybackResolver.resolveToPlayableStream(stream, episode?.season, episode?.episode)) {
-            is DirectDebridPlayableResult.Success -> resolved.stream
-            DirectDebridPlayableResult.MissingApiKey -> error("Connect the required debrid service before playback.")
-            DirectDebridPlayableResult.NotCached -> error("This stream is not cached by your debrid service.")
-            DirectDebridPlayableResult.Stale -> error("The selected stream expired. Refresh the stream list.")
-            else -> error("The selected stream could not be resolved.")
-        }
-        if (playbackPhase == "resolving") {
-            playbackPhase = "preparing"
-            publishState()
-        }
-        val torrentHash = playable.p2pInfoHash.takeIf { playable.playableDirectUrl == null }
-        if (torrentHash != null) {
-            P2pSettingsRepository.ensureLoaded()
-            if (!P2pSettingsRepository.isVisible) throw BridgeFeatureException("CAPABILITY_UNAVAILABLE", "Torrent playback is unavailable in this build.")
-            if (!P2pSettingsRepository.uiState.value.p2pEnabled) throw BridgeFeatureException("P2P_CONSENT_REQUIRED", "Enable peer-to-peer playback before opening this torrent.")
-        }
-        val url = playable.playableDirectUrl ?: torrentHash?.let { "torrent://$it${playable.p2pFileIdx?.let { index -> "?index=$index" }.orEmpty()}" }
-            ?: throw BridgeFeatureException("UNAVAILABLE", "The selected stream has no playable source.")
-        stopLocked()
-        val playbackVideoId = videoId ?: meta.defaultVideoId ?: meta.id
         val embeddedInTauri = DesktopHostOs.current == DesktopHostOs.WINDOWS && nativeHostWindow != null
-        val progress = WatchProgressRepository.progressForVideo(playbackVideoId, meta.id, episode?.season, episode?.episode)
-        cacheForReuseIfEnabled(playable, meta, playbackVideoId, episode?.season, episode?.episode)
-        withContext(Dispatchers.Swing) {
-            val window = ComposeWindow()
-            val current = Session(window)
-            session = current
-            window.title = meta.name
-            if (embeddedInTauri) {
-                // The Compose window keeps the upstream player controller alive offscreen. The
-                // actual mpv + controls HWNDs are created directly under Tauri's HWND; keeping
-                // this transparent host visible to AWT preserves the Canvas peer and player
-                // lifecycle while video is shown in the Tauri window.
-                window.type = java.awt.Window.Type.UTILITY
-                window.focusableWindowState = false
-                runCatching { window.opacity = 0f }
-                window.setLocation(-32_000, -32_000)
-                // Keep this offscreen transparent host visible to AWT so its
-                // Canvas peer and PlayerScreen lifetime survive playback start.
-                // Hiding it after attach triggers removeNotify(), which disposes
-                // the native player hosted in the separate Tauri HWND.
-                EmbeddedTauriPlayerHost.begin(nativeHostWindow)
-            } else {
-                window.setLocationRelativeTo(null)
-                EmbeddedTauriPlayerHost.begin(null)
-            }
-            window.minimumSize = Dimension(640, 360)
-            window.setSize(1280, 720)
-            window.defaultCloseOperation = javax.swing.WindowConstants.DO_NOTHING_ON_CLOSE
-            window.addWindowListener(object : WindowAdapter() {
-                override fun windowClosing(event: WindowEvent) {
-                    // Upstream handles progress persistence and native release before navigation.
-                    current.requestBack?.invoke()
+        withPreparedPlaybackHost(
+            dispatcher = Dispatchers.Swing,
+            prepare = { prepareWindow(meta.name, embeddedInTauri) },
+            resolve = {
+                val playable = if (!DirectDebridPlaybackResolver.shouldResolveToPlayableStream(stream)) stream else when (val resolved = DirectDebridPlaybackResolver.resolveToPlayableStream(stream, episode?.season, episode?.episode)) {
+                    is DirectDebridPlayableResult.Success -> resolved.stream
+                    DirectDebridPlayableResult.MissingApiKey -> error("Connect the required debrid service before playback.")
+                    DirectDebridPlayableResult.NotCached -> error("This stream is not cached by your debrid service.")
+                    DirectDebridPlayableResult.Stale -> error("The selected stream expired. Refresh the stream list.")
+                    else -> error("The selected stream could not be resolved.")
                 }
-            })
-            window.addWindowFocusListener(object : WindowAdapter() {
-                override fun windowGainedFocus(event: WindowEvent) = notifyDesktopWindowGainedFocus()
-            })
-            window.setContent {
-                val theme by ThemeSettingsRepository.selectedTheme.collectAsState()
-                val custom by ThemeSettingsRepository.customThemeColors.collectAsState()
-                val amoled by ThemeSettingsRepository.amoledEnabled.collectAsState()
-                val state = androidx.compose.runtime.remember { WindowState() }
-                val fullscreen = androidx.compose.runtime.remember { DesktopAppFullscreenController() }
-                LaunchedEffect(state.placement) { window.placement = state.placement }
-                DisposableEffect(window) {
-                    val unregister = registerDesktopAppFullscreenToggle(
-                        handler = { target ->
-                            if (target == null || target === window) {
-                                if (embeddedInTauri) EmbeddedTauriPlayerHost.toggleFullscreen()
-                                else fullscreen.toggle(window, state)
-                            }
-                        },
-                        isFullscreen = { target ->
-                            (target == null || target === window) &&
-                                if (embeddedInTauri) EmbeddedTauriPlayerHost.isFullscreen()
-                                else fullscreen.isFullscreen(window, state)
-                        },
-                    )
-                    val uninstall = installDesktopAppFullscreenShortcuts(window)
-                    onDispose {
-                        fullscreen.dispose(window)
-                        if (embeddedInTauri) EmbeddedTauriPlayerHost.clear()
-                        uninstall()
-                        unregister()
-                    }
+                if (playbackPhase == "resolving") {
+                    playbackPhase = "preparing"
+                    publishState()
                 }
-                NuvioTheme(appTheme = theme, customThemeColors = custom, amoled = amoled) {
-                    ProvideDesktopWindowInsets(isFullscreen = fullscreen.isFullscreen(window, state)) {
-                        PlayerScreen(
-                            profileId = ProfileRepository.activeProfileId,
-                            title = meta.name,
-                            sourceUrl = url,
-                            torrentInfoHash = torrentHash,
-                            torrentFileIdx = playable.p2pFileIdx.takeIf { torrentHash != null },
-                            torrentFilename = playable.behaviorHints.filename.takeIf { torrentHash != null },
-                            torrentTrackers = if (torrentHash != null) playable.p2pTrackers else emptyList(),
-                            sourceHeaders = sanitizePlaybackHeaders(playable.behaviorHints.proxyHeaders?.request),
-                            sourceResponseHeaders = sanitizePlaybackResponseHeaders(playable.behaviorHints.proxyHeaders?.response),
-                            externalSubtitles = playable.externalSubtitles,
-                            streamType = playable.streamType,
-                            providerName = playable.addonName,
-                            providerAddonId = playable.addonId,
-                            streamTitle = playable.streamLabel,
-                            streamSubtitle = playable.streamSubtitle,
-                            initialBingeGroup = playable.behaviorHints.bingeGroup,
-                            parentMetaId = meta.id,
-                            parentMetaType = meta.type,
-                            contentType = meta.type,
-                            videoId = playbackVideoId,
-                            logo = meta.logo,
-                            poster = meta.poster,
-                            background = meta.background,
-                            seasonNumber = episode?.season,
-                            episodeNumber = episode?.episode,
-                            episodeTitle = episode?.title,
-                            episodeThumbnail = episode?.thumbnail,
-                            initialPositionMs = if (startFromBeginning) 0L else progress?.takeIf { it.isResumable }?.lastPositionMs ?: 0L,
-                            initialProgressFraction = if (startFromBeginning) null else progress?.takeIf { it.isResumable }?.progressFraction,
-                            contentLanguage = meta.language,
-                            onSystemBackHandlerChanged = { current.requestBack = it },
-                            onOpenExternalUrl = ::openExternalUrl,
-                            onBack = { release ->
-                                release(
-                                    { SwingUtilities.invokeLater {
-                                        window.dispose()
-                                        if (session === current) {
-                                            session = null
-                                            playbackState = "stopped"
-                                            playbackPhase = "idle"
-                                            publishState()
-                                        }
-                                        current.closed.complete(Unit)
-                                    } },
-                                    { message -> current.closed.completeExceptionally(IllegalStateException(message)) },
-                                )
+                playable
+            },
+            attach = { window, playable ->
+                val torrentHash = playable.p2pInfoHash.takeIf { playable.playableDirectUrl == null }
+                if (torrentHash != null) {
+                    P2pSettingsRepository.ensureLoaded()
+                    if (!P2pSettingsRepository.isVisible) throw BridgeFeatureException("CAPABILITY_UNAVAILABLE", "Torrent playback is unavailable in this build.")
+                    if (!P2pSettingsRepository.uiState.value.p2pEnabled) throw BridgeFeatureException("P2P_CONSENT_REQUIRED", "Enable peer-to-peer playback before opening this torrent.")
+                }
+                val url = playable.playableDirectUrl ?: torrentHash?.let { "torrent://$it${playable.p2pFileIdx?.let { index -> "?index=$index" }.orEmpty()}" }
+                    ?: throw BridgeFeatureException("UNAVAILABLE", "The selected stream has no playable source.")
+                stopLocked()
+                val playbackVideoId = videoId ?: meta.defaultVideoId ?: meta.id
+                val progress = WatchProgressRepository.progressForVideo(playbackVideoId, meta.id, episode?.season, episode?.episode)
+                cacheForReuseIfEnabled(playable, meta, playbackVideoId, episode?.season, episode?.episode)
+                withContext(Dispatchers.Swing) {
+                    val current = Session(window)
+                    session = current
+                    window.title = meta.name
+                    if (embeddedInTauri) {
+                        // The Compose window keeps the upstream player controller alive offscreen. The
+                        // actual mpv + controls HWNDs are created directly under Tauri's HWND; keeping
+                        // this transparent host visible to AWT preserves the Canvas peer and player
+                        // lifecycle while video is shown in the Tauri window.
+                        // Keep this offscreen transparent host visible to AWT so its
+                        // Canvas peer and PlayerScreen lifetime survive playback start.
+                        // Hiding it after attach triggers removeNotify(), which disposes
+                        // the native player hosted in the separate Tauri HWND.
+                        EmbeddedTauriPlayerHost.begin(
+                            nativeHostWindow,
+                            initialFullscreen = nativeHostFullscreen,
+                            toggleFullscreen = {
+                                onPlaybackStateChanged(buildJsonObject {
+                                    snapshot().forEach { (key, value) -> put(key, value) }
+                                    put("toggleHostFullscreen", true)
+                                })
                             },
-                            modifier = Modifier.fillMaxSize(),
                         )
+                    } else {
+                        window.setLocationRelativeTo(null)
+                        EmbeddedTauriPlayerHost.begin(null)
                     }
+                    window.minimumSize = Dimension(640, 360)
+                    window.setSize(1280, 720)
+                    window.defaultCloseOperation = javax.swing.WindowConstants.DO_NOTHING_ON_CLOSE
+                    window.addWindowListener(object : WindowAdapter() {
+                        override fun windowClosing(event: WindowEvent) {
+                            // Upstream handles progress persistence and native release before navigation.
+                            current.requestBack?.invoke()
+                        }
+                    })
+                    window.addWindowFocusListener(object : WindowAdapter() {
+                        override fun windowGainedFocus(event: WindowEvent) = notifyDesktopWindowGainedFocus()
+                    })
+                    window.setContent {
+                        val theme by ThemeSettingsRepository.selectedTheme.collectAsState()
+                        val custom by ThemeSettingsRepository.customThemeColors.collectAsState()
+                        val amoled by ThemeSettingsRepository.amoledEnabled.collectAsState()
+                        val state = androidx.compose.runtime.remember { WindowState() }
+                        val fullscreen = androidx.compose.runtime.remember { DesktopAppFullscreenController() }
+                        LaunchedEffect(state.placement) { window.placement = state.placement }
+                        DisposableEffect(window) {
+                            val unregister = registerDesktopAppFullscreenToggle(
+                                handler = { target ->
+                                    if (target == null || target === window) {
+                                        if (embeddedInTauri) EmbeddedTauriPlayerHost.toggleFullscreen()
+                                        else fullscreen.toggle(window, state)
+                                    }
+                                },
+                                isFullscreen = { target ->
+                                    (target == null || target === window) &&
+                                        if (embeddedInTauri) EmbeddedTauriPlayerHost.isFullscreen()
+                                        else fullscreen.isFullscreen(window, state)
+                                },
+                            )
+                            val uninstall = installDesktopAppFullscreenShortcuts(window)
+                            onDispose {
+                                fullscreen.dispose(window)
+                                if (embeddedInTauri) EmbeddedTauriPlayerHost.clear()
+                                uninstall()
+                                unregister()
+                            }
+                        }
+                        NuvioTheme(appTheme = theme, customThemeColors = custom, amoled = amoled) {
+                            ProvideDesktopWindowInsets(isFullscreen = fullscreen.isFullscreen(window, state)) {
+                                PlayerScreen(
+                                    profileId = ProfileRepository.activeProfileId,
+                                    title = meta.name,
+                                    sourceUrl = url,
+                                    torrentInfoHash = torrentHash,
+                                    torrentFileIdx = playable.p2pFileIdx.takeIf { torrentHash != null },
+                                    torrentFilename = playable.behaviorHints.filename.takeIf { torrentHash != null },
+                                    torrentTrackers = if (torrentHash != null) playable.p2pTrackers else emptyList(),
+                                    sourceHeaders = sanitizePlaybackHeaders(playable.behaviorHints.proxyHeaders?.request),
+                                    sourceResponseHeaders = sanitizePlaybackResponseHeaders(playable.behaviorHints.proxyHeaders?.response),
+                                    externalSubtitles = playable.externalSubtitles,
+                                    streamType = playable.streamType,
+                                    providerName = playable.addonName,
+                                    providerAddonId = playable.addonId,
+                                    streamTitle = playable.streamLabel,
+                                    streamSubtitle = playable.streamSubtitle,
+                                    initialBingeGroup = playable.behaviorHints.bingeGroup,
+                                    parentMetaId = meta.id,
+                                    parentMetaType = meta.type,
+                                    contentType = meta.type,
+                                    videoId = playbackVideoId,
+                                    logo = meta.logo,
+                                    poster = meta.poster,
+                                    background = meta.background,
+                                    seasonNumber = episode?.season,
+                                    episodeNumber = episode?.episode,
+                                    episodeTitle = episode?.title,
+                                    episodeThumbnail = episode?.thumbnail,
+                                    initialPositionMs = if (startFromBeginning) 0L else progress?.takeIf { it.isResumable }?.lastPositionMs ?: 0L,
+                                    initialProgressFraction = if (startFromBeginning) null else progress?.takeIf { it.isResumable }?.progressFraction,
+                                    contentLanguage = meta.language,
+                                    onSystemBackHandlerChanged = { current.requestBack = it },
+                                    onOpenExternalUrl = ::openExternalUrl,
+                                    onBack = { release ->
+                                        release(
+                                            { SwingUtilities.invokeLater {
+                                                window.dispose()
+                                                if (session === current) {
+                                                    session = null
+                                                    playbackState = "stopped"
+                                                    playbackPhase = "idle"
+                                                    publishState()
+                                                }
+                                                current.closed.complete(Unit)
+                                            } },
+                                            { message -> current.closed.completeExceptionally(IllegalStateException(message)) },
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                        }
+                    }
+                    applyNativeDesktopWindowChrome(window)
+                    window.isVisible = true
                 }
-            }
-            applyNativeDesktopWindowChrome(window)
-            window.isVisible = true
-        }
-        playbackState = "playing"
-        playbackPhase = "buffering"
-        publishState()
-        buildJsonObject { put("started", true); put("host", if (embeddedInTauri) "tauri-window" else "native-window") }
+                playbackState = "playing"
+                playbackPhase = "buffering"
+                publishState()
+                buildJsonObject { put("started", true); put("host", if (embeddedInTauri) "tauri-window" else "native-window") }
+            },
+            discard = { window ->
+                if (session?.window === window) stopLocked()
+                else withContext(Dispatchers.Swing) { window.dispose() }
+            },
+        )
         } catch (error: Throwable) {
             playbackState = if (error is kotlinx.coroutines.CancellationException) "cancelled" else "failed"
             playbackPhase = "failed"
@@ -263,10 +288,46 @@ class NativePlayback(
             }
             publishState()
             throw error
+        } finally {
+            if (startingJob === startJob) startingJob = null
         }
     }
 
-    override suspend fun stop() = mutex.withLock { stopLocked() }
+    private fun prepareWindow(title: String, embedded: Boolean): ComposeWindow {
+        val window = ComposeWindow()
+        try {
+            window.title = title
+            window.minimumSize = Dimension(640, 360)
+            window.setSize(1280, 720)
+            if (embedded) {
+                window.type = java.awt.Window.Type.UTILITY
+                window.focusableWindowState = false
+                // If transparency is unavailable, keep the host invisible until handoff.
+                val transparent = runCatching { window.opacity = 0f }.isSuccess
+                window.setLocation(-32_000, -32_000)
+                window.setContent {
+                    val theme by ThemeSettingsRepository.selectedTheme.collectAsState()
+                    val custom by ThemeSettingsRepository.customThemeColors.collectAsState()
+                    val amoled by ThemeSettingsRepository.amoledEnabled.collectAsState()
+                    NuvioTheme(appTheme = theme, customThemeColors = custom, amoled = amoled) {
+                        Box(Modifier.fillMaxSize())
+                    }
+                }
+                // Start Compose/Skia without creating mpv, loading media or attaching
+                // native children to Tauri before stream resolution has succeeded.
+                if (transparent) window.isVisible = true
+            }
+            return window
+        } catch (error: Throwable) {
+            window.dispose()
+            throw error
+        }
+    }
+
+    override suspend fun stop() {
+        startingJob?.cancel()
+        mutex.withLock { stopLocked() }
+    }
 
     private suspend fun stopLocked() {
         val current = session ?: return

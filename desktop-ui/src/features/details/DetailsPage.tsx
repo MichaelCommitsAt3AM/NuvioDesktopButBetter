@@ -24,6 +24,8 @@ export function DetailsPage() {
   const [watchBusy, setWatchBusy] = useState(false);
   const [extraMeta, setExtraMeta] = useState<ExtrasMeta | null>(null);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
+  const [backdropFailed, setBackdropFailed] = useState(false);
   const requestedDetailsKey = useRef<string | null>(null);
   const playHoldTimer = useRef<number | null>(null);
   const longPlayTriggered = useRef(false);
@@ -49,6 +51,20 @@ export function DetailsPage() {
   const primaryAction = (watched.contentKey === `${type}:${id}` ? watched.primaryAction : null) ?? (extraMeta?.id === id && extraMeta.type === type ? extraMeta.primaryAction : undefined);
   const saved = savedOverride ?? library.items.some((item) => item.id === id && item.type === type);
   useEffect(() => { setExtraMeta(null); }, [type, id]);
+  useEffect(() => { setLogoFailed(false); setBackdropFailed(false); }, [type, id]);
+  useEffect(() => {
+    // Addon artwork can die for individual titles while the catalog copy still
+    // works. Probe the backdrop like the original UI tolerates image failures:
+    // drop it when it cannot load instead of showing an empty shade.
+    setBackdropFailed(false);
+    if (!media?.background) return;
+    const probe = new Image();
+    let cancelled = false;
+    probe.onload = () => { if (!cancelled) setBackdropFailed(false); };
+    probe.onerror = () => { if (!cancelled) setBackdropFailed(true); };
+    probe.src = media.background;
+    return () => { cancelled = true; probe.onload = null; probe.onerror = null; };
+  }, [media?.background]);
   useEffect(() => {
     let active = true;
     setWatched((current) => current.contentKey === `${type}:${id}` ? current : { loaded: false });
@@ -105,7 +121,7 @@ export function DetailsPage() {
   };
 
   return <>
-    {media?.background && createPortal(<div className="detail-viewport-backdrop" aria-hidden="true" style={{ backgroundImage: `var(--title-backdrop-shade),url("${media.background}")` }} />, document.body)}
+    {media?.background && !backdropFailed && createPortal(<div className="detail-viewport-backdrop" aria-hidden="true" style={{ backgroundImage: `var(--title-backdrop-shade),url("${media.background}")` }} />, document.body)}
     <div className="detail-page">
     {(media || details.loading) && <div className="detail-screen-controls">
       <BackButton className="detail-back" onClick={() => navigate(-1)} />
@@ -125,7 +141,7 @@ export function DetailsPage() {
     {media && <div className="detail-content-arrive" key={`${type}:${id}`}>
       <section className="detail-hero">
         <div className="detail-main">
-          {media.logo ? <img className="detail-logo" src={media.logo} alt={media.name} /> : <h1>{media.name}</h1>}
+          {media.logo && !logoFailed ? <img className="detail-logo" src={media.logo} alt={media.name} onError={() => setLogoFailed(true)} /> : <h1>{media.name}</h1>}
           <div className="detail-meta-line">
             {(extraMeta?.releaseInfo ?? media.releaseInfo) && <strong>{(extraMeta?.releaseInfo ?? media.releaseInfo)!.slice(0, 4)}</strong>}
             {extraMeta?.runtime && <strong>{formatRuntime(extraMeta.runtime)}</strong>}

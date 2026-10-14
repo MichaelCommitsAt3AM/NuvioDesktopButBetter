@@ -988,7 +988,8 @@
             "streams.badges.rules.importFromUrl",
             "streams.badges.rules.setActive",
             "streams.badges.rules.remove",
-            "simkl.sync"
+            "simkl.sync",
+            "playback.hostFullscreenChanged"
           ]
         },
         "params": {

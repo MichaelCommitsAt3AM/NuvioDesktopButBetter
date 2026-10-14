@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AppRoot from './App';
-import { actions, disposeBridge, getSnapshot } from './bridge';
+import { actions, call, disposeBridge, getSnapshot } from './bridge';
 import { isAutomaticStreamSelectionEnabled, streamAddonNames } from './features/streams/StreamsPage';
 import type { Addons } from './generated/contract';
 
-const bridgeMock = vi.hoisted(() => ({ homeLoading:false, rejectSelection:false, failSessionSnapshot:false, streamAutoPlayMode:'MANUAL', epoch:5,activeProfile:7 as number|null,sessionStatus:'signedIn',listeners: new Map<string, (event: { payload: unknown }) => void>(), requests: [] as Array<{ id: string; method: string; params: Record<string, unknown> }> }));
+const bridgeMock = vi.hoisted(() => ({ deferPlayback:false, deferProfiles:false, multipleProfiles:false, homeLoading:false, rejectSelection:false, failSessionSnapshot:false, failSignOut:false, streamAutoPlayMode:'MANUAL', epoch:5,activeProfile:7 as number|null,sessionStatus:'signedIn',listeners: new Map<string, (event: { payload: unknown }) => void>(), requests: [] as Array<{ id: string; method: string; params: Record<string, unknown> }> }));
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(async (name: string, callback: (event: { payload: unknown }) => void) => {
@@ -26,9 +26,22 @@ vi.mock('@tauri-apps/api/core', () => ({
       return { id: request.id, epoch: bridgeMock.epoch, result: { requestId: request.id, loading: bridgeMock.streamAutoPlayMode !== 'MANUAL', error: null, groups: [] } };
     }
     if (request.method === 'session.snapshot' && bridgeMock.failSessionSnapshot) throw new Error('Bridge request timed out');
+    if ((request.method === 'profiles.select' || request.method === 'profiles.delete') && !bridgeMock.rejectSelection) {
+      bridgeMock.epoch += 1;
+      return { id: request.id, epoch: bridgeMock.epoch, result: null };
+    }
+    if (request.method === 'session.signOut') {
+      bridgeMock.sessionStatus = 'signedOut';
+      bridgeMock.epoch += 1;
+      if (bridgeMock.failSignOut) return { id: request.id, epoch: bridgeMock.epoch, error: { code: 'BRIDGE_ERROR', message: 'The operation could not be completed.' } };
+      return { id: request.id, epoch: bridgeMock.epoch, result: { status: 'signedOut', email: null, version: '1.0', activeProfile: null, profiles: [], capabilities: [], error: null } };
+    }
     if (request.method === 'profiles.select' && bridgeMock.rejectSelection) throw new Error('Selection failed');
+    if (request.method === 'playback.start') return bridgeMock.deferPlayback ? new Promise(() => {}) : { id: request.id, epoch: bridgeMock.epoch, result: { started: true, host: 'tauri-window' } };
+    if (request.method === 'profiles.snapshot' && bridgeMock.deferProfiles) return new Promise(() => {});
+    const cachedProfiles = [{id:7,name:'Michael',color:'#1E88E5',avatarUrl:null,locked:false}, ...(bridgeMock.multipleProfiles ? [{id:8,name:'Guest',color:'#FF0000',avatarUrl:null,locked:true}] : [])];
     const defaults: Record<string, unknown> = {
-      'session.snapshot': { status: bridgeMock.sessionStatus, email: 'person@example.com', version: '1.0', activeProfile: bridgeMock.activeProfile, profiles: [{id:7,name:'Michael',color:'#1E88E5',avatarUrl:null,locked:false}], capabilities: [], error: null },
+      'session.snapshot': { status: bridgeMock.sessionStatus, email: 'person@example.com', version: '1.0', activeProfile: bridgeMock.activeProfile, profiles: cachedProfiles, capabilities: [], error: null },
       'details.watched.snapshot': { loaded: true, watched: false, fullyWatched: false },
       'details.watched.toggle': { loaded: true, watched: true, fullyWatched: false },
       'profiles.snapshot': { items: [{id:7,name:'Michael',avatarColorHex:'#1E88E5',avatarId:null,avatarUrl:null,backgroundId:null,backgroundUrl:null,locked:false,pinLockedUntil:null,usesPrimaryAddons:false,usesPrimaryPlugins:false,primaryAddonsAllowlist:null}], activeProfile:7, rememberLastProfileEnabled:false, maxProfiles:6, avatars:[], backgrounds:[] },
@@ -48,9 +61,83 @@ vi.mock('@tauri-apps/api/core', () => ({
 function emit(event: unknown) { bridgeMock.listeners.get('bridge:event')?.({ payload: event }); }
 const media = (id: string, name: string) => ({ id, type: 'movie', name, poster: null, background: null, logo: null, description: null, releaseInfo: null, rating: null, genres: [] });
 
-describe('desktop bridge UI workflow', () => {
-  beforeEach(() => { window.history.replaceState({}, '', '/'); bridgeMock.homeLoading=false;bridgeMock.rejectSelection=false;bridgeMock.failSessionSnapshot=false;bridgeMock.streamAutoPlayMode='MANUAL';bridgeMock.epoch=5;bridgeMock.activeProfile=7;bridgeMock.sessionStatus='signedIn';bridgeMock.listeners.clear(); bridgeMock.requests.length = 0; });
+async function openPreparedStream() {
+  window.history.pushState({}, '', '/details/movie/warmup/streams/warmup?manual=true');
+  const view = render(<AppRoot />);
+  await waitFor(() => expect(bridgeMock.requests.some(request => request.method === 'streams.load')).toBe(true));
+  const request = bridgeMock.requests.find(request => request.method === 'streams.load')!;
+  await act(async () => emit({ topic: 'streams', epoch: bridgeMock.epoch, revision: 900, data: {
+    requestId: request.id, loading: false, error: null,
+    groups: [{ id: 'source', name: 'Source', loading: false, error: null, streams: [{
+      id: 'prepared', name: 'Warmup stream', description: '', url: 'https://example.invalid/media', source: 'Source',
+      headers: {}, infoHash: null, fileIndex: null, playable: true, downloadable: false,
+      presentation: { resolvingDebrid: true },
+    }] }],
+  } }));
+  fireEvent.click(await screen.findByRole('button', { name: /Warmup stream/ }));
+  await waitFor(() => expect(bridgeMock.requests.some(request => request.method === 'playback.start')).toBe(true));
+  return view;
+}
 
+describe('desktop bridge UI workflow', () => {
+  beforeEach(() => { window.history.replaceState({}, '', '/'); bridgeMock.deferPlayback=false;bridgeMock.deferProfiles=false;bridgeMock.multipleProfiles=false;bridgeMock.homeLoading=false;bridgeMock.rejectSelection=false;bridgeMock.failSessionSnapshot=false;bridgeMock.failSignOut=false;bridgeMock.streamAutoPlayMode='MANUAL';bridgeMock.epoch=5;bridgeMock.activeProfile=7;bridgeMock.sessionStatus='signedIn';bridgeMock.listeners.clear(); bridgeMock.requests.length = 0; });
+
+  it('cancels a resolving player immediately when Back is pressed', async () => {
+    bridgeMock.deferPlayback = true;
+    await openPreparedStream();
+    fireEvent.click(await screen.findByRole('button', { name: 'Back' }));
+    await waitFor(() => expect(bridgeMock.requests.filter(request => request.method === 'playback.stop')).toHaveLength(1));
+  });
+
+  it('cancels a prepared player if the stream page is unmounted', async () => {
+    bridgeMock.deferPlayback = true;
+    const view = await openPreparedStream();
+    view.unmount();
+    await waitFor(() => expect(bridgeMock.requests.filter(request => request.method === 'playback.stop')).toHaveLength(1));
+  });
+
+  it('keeps the player running when successful handoff unmounts the stream page', async () => {
+    await openPreparedStream();
+    expect(await screen.findByLabelText('Player')).toBeInTheDocument();
+    expect(bridgeMock.requests.some(request => request.method === 'playback.stop')).toBe(false);
+  });
+
+  it('shows cached profiles while the cosmetic snapshot is still pending and accepts cloud profile updates', async () => {
+    bridgeMock.multipleProfiles = true;
+    bridgeMock.deferProfiles = true;
+    render(<AppRoot />);
+    expect(await screen.findByText("Who's watching?")).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Guest/ })).toBeInTheDocument();
+    await waitFor(() => expect(bridgeMock.requests.some(request => request.method === 'profiles.snapshot')).toBe(true));
+    await act(async () => emit({ topic: 'session', epoch: bridgeMock.epoch, revision: 700,
+      data: { ...getSnapshot().session, profiles: [{ ...getSnapshot().session.profiles[0], name: 'Updated name' }] } }));
+    expect(await screen.findByRole('button', { name: /Updated name/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Guest/ })).not.toBeInTheDocument();
+  });
+
+  it('opens the only cached profile without waiting for avatar choices', async () => {
+    bridgeMock.deferProfiles = true;
+    render(<AppRoot />);
+    expect(await screen.findByText('Your home is ready for content')).toBeInTheDocument();
+    expect(screen.queryByText("Who's watching?")).not.toBeInTheDocument();
+  });
+
+  it('routes to the login screen after sign out', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    await act(async () => { await actions.signOut(); });
+    expect(await screen.findByText('Welcome Back')).toBeInTheDocument();
+    expect(getSnapshot().session.status).toBe('signedOut');
+  });
+
+  it('still routes to the login screen when sign-out reports an error but cleared the session', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    bridgeMock.failSignOut = true;
+    await act(async () => { await actions.signOut(); });
+    expect(await screen.findByText('Welcome Back')).toBeInTheDocument();
+    expect(getSnapshot().session.status).toBe('signedOut');
+  });
   it('leaves the startup screen and reports an error when session restoration fails', async () => {
     bridgeMock.failSessionSnapshot=true;
     render(<AppRoot />);
@@ -116,8 +203,40 @@ describe('desktop bridge UI workflow', () => {
     expect(await screen.findByRole('status',{name:'Loading titles'})).toBeInTheDocument();
     await waitFor(()=>expect(screen.queryByRole('status',{name:'Loading profile'})).not.toBeInTheDocument());
     expect(screen.queryByText('Loading your home…')).not.toBeInTheDocument();
-    await act(async()=>{emit({topic:'home',epoch:5,revision:10,data:{loading:false,error:null,hero:[],shelves:[]}});});
+    await act(async()=>{emit({topic:'home',epoch:bridgeMock.epoch,revision:10,data:{loading:false,error:null,hero:[],shelves:[]}});});
     expect(await screen.findByText('Your home is ready for content')).toBeInTheDocument();
+  });
+
+  it('caps fallback hero dots when the backend sends no heroes', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    const items = Array.from({ length: 20 }, (_, index) => media(`shelf-${index}`, `Shelf title ${index}`));
+    await act(async () => { emit({ topic: 'home', epoch: bridgeMock.epoch, revision: 960, data: { loading: false, error: null, hero: [], shelves: [{ key: 'shelf', title: 'Shelf', subtitle: '', items, hasMore: false }] } }); });
+    await waitFor(() => expect(document.querySelectorAll('.home-hero-dots button').length).toBe(8));
+  });
+
+  it('accepts epoch-changing responses instead of discarding them', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    await act(async () => {
+      await call('profiles.select', { id: 7 });
+      await call('session.signOut', {});
+    });
+    const select = bridgeMock.requests.find((request) => request.method === 'profiles.select') as unknown as { epoch?: number };
+    expect(select.epoch).toBe(5);
+    const signOut = bridgeMock.requests.find((request) => request.method === 'session.signOut') as unknown as { epoch?: number };
+    expect(signOut.epoch).toBe(6);
+    expect(getSnapshot().session.error).toBeNull();
+  });
+
+  it('forwards the new epoch after profile selection', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    await act(async () => { await actions.selectProfile(7); });
+    expect(getSnapshot().session.error).toBeNull();
+    const snapshots = bridgeMock.requests.filter((request) => request.method === 'home.snapshot') as unknown as Array<{ epoch?: number }>;
+    expect(snapshots.length).toBeGreaterThan(1);
+    expect(snapshots.at(-1)?.epoch).toBe(bridgeMock.epoch);
   });
 
   it('dismisses the profile overlay and preserves the session on selection failure', async () => {
@@ -311,5 +430,42 @@ describe('desktop bridge UI workflow', () => {
     fireEvent.click(document.querySelector('[data-filter="genre"] .discover-filter-chip')!);
     fireEvent.click(await screen.findByRole('option', { name: 'Action' }));
     await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'discover.selectGenre' && request.params.genre === 'Action')).toBe(true));
+  });
+
+  function stubProbe(failProbe: boolean) {
+    class FakeImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_value: string) {
+        const self = this;
+        queueMicrotask(() => { (failProbe ? self.onerror : self.onload)?.(); });
+      }
+    }
+    vi.stubGlobal('Image', FakeImage);
+  }
+
+  async function openDetailsWithArt() {
+    window.history.pushState({}, '', '/details/movie/tt9174288');
+    render(<AppRoot />);
+    await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'details.load')).toBe(true));
+    const loadRequest = bridgeMock.requests.find((request) => request.method === 'details.load')!;
+    const art = { id: 'tt9174288', type: 'movie', name: "Let's Have Kids!", poster: null, background: 'https://example.invalid/bg.jpg', logo: 'https://example.invalid/logo.png', description: null, releaseInfo: '2026', rating: null, genres: [] };
+    await act(async () => { emit({ topic: 'details', epoch: bridgeMock.epoch, revision: 950, data: { requestId: loadRequest.id, loading: false, error: null, media: art, episodes: [], cast: [], related: [] } }); });
+  }
+
+  it('falls back to title text and drops the backdrop when details art fails', async () => {
+    stubProbe(true);
+    await openDetailsWithArt();
+    fireEvent.error(await screen.findByAltText("Let's Have Kids!"));
+    expect(await screen.findByRole('heading', { name: "Let's Have Kids!" })).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector('.detail-viewport-backdrop')).toBeNull());
+  });
+
+  it('keeps the logo and backdrop while details art loads', async () => {
+    stubProbe(false);
+    await openDetailsWithArt();
+    expect(await screen.findByAltText("Let's Have Kids!")).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: "Let's Have Kids!" })).toBeNull();
+    await waitFor(() => expect(document.querySelector('.detail-viewport-backdrop')).not.toBeNull());
   });
 });

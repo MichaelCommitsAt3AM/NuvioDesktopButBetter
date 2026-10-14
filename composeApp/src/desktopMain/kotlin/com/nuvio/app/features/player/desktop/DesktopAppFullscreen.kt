@@ -56,7 +56,7 @@ private object DesktopAppFullscreen {
     fun isFullscreen(window: Window? = null): Boolean =
         fullscreenStateProvider?.invoke(window) == true
 
-    private fun notifyChanged() {
+    fun notifyChanged() {
         _changes.value += 1
     }
 }
@@ -73,6 +73,8 @@ internal fun toggleDesktopAppFullscreen(window: Window? = null) {
 
 internal fun isDesktopAppFullscreen(window: Window? = null): Boolean =
     DesktopAppFullscreen.isFullscreen(window)
+
+internal fun notifyDesktopAppFullscreenChanged() = DesktopAppFullscreen.notifyChanged()
 
 internal val desktopFullscreenChanges: StateFlow<Int>
     get() = DesktopAppFullscreen.changes

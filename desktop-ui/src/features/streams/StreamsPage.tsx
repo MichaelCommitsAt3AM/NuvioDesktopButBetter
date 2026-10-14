@@ -61,6 +61,12 @@ export function StreamsPage() {
   const addons = useFeatureSnapshot<Addons>('addons');
   const lastAuto = useRef('');
   const cancelStartingPlayback = useRef(false);
+  const pendingPlayback = useRef(false);
+  useEffect(() => () => {
+    if (!pendingPlayback.current) return;
+    cancelStartingPlayback.current = true;
+    void call('playback.stop').catch(() => {});
+  }, []);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const manual = searchParams.get('manual') === '1';
@@ -106,11 +112,13 @@ export function StreamsPage() {
   const play = async (streamId: string, enableP2p = false, automatic = false) => {
     setBusy(streamId); setError('');
     cancelStartingPlayback.current = false;
+    pendingPlayback.current = true;
     const selectedStream = streams.groups.flatMap(group => group.streams).find(item => item.id === streamId);
     const selectedPresentation = selectedStream?.presentation as Presentation | undefined;
     setPlaybackStarting({ resolvingDebrid: selectedPresentation?.resolvingDebrid === true });
     try {
       if (enableP2p) await call('p2p.setEnabled', { enabled: true, consentAccepted: true });
+      if (cancelStartingPlayback.current) return;
       const result = await actions.playback(streamId, type, id, episodeTitle ?? title, { videoId, startFromBeginning });
       setConsent(null);
       if (cancelStartingPlayback.current) {
@@ -118,16 +126,18 @@ export function StreamsPage() {
         return;
       }
       if (result.started) {
+        pendingPlayback.current = false;
         if (result.host === 'tauri-window') navigate('/playback', { replace: true });
         else navigate(-1);
       }
       else setPlaybackStarting(null);
       await call('streams.autoplay.consume').catch(() => {});
     } catch (cause) {
+      if (cancelStartingPlayback.current) return;
       setPlaybackStarting(null);
       if (cause instanceof BridgeError && cause.code === 'P2P_CONSENT_REQUIRED') setConsent(streamId);
       else { setError(cause instanceof Error ? cause.message : String(cause)); if (automatic) await call('streams.autoplay.skip', { streamId }).catch(() => {}); }
-    } finally { setBusy(''); }
+    } finally { pendingPlayback.current = false; setBusy(''); }
   };
   useEffect(() => { void refreshFeature('streamSelection', 'streams.snapshot').catch(() => {}); }, [streams.requestId]);
   useEffect(() => {
@@ -194,7 +204,15 @@ export function StreamsPage() {
     ? 'Resolving debrid stream'
     : playback.phase === 'buffering' ? 'Buffering…' : 'Building player…';
   const isResolvingStage = playback.phase === 'resolving' || playbackStarting?.resolvingDebrid === true && playback.phase !== 'preparing' && playback.phase !== 'buffering';
-  const cancelPlayerStart = () => { cancelStartingPlayback.current = true; setPlaybackStarting(null); navigate(-1); };
+  const cancelPlayerStart = () => {
+    cancelStartingPlayback.current = true;
+    if (pendingPlayback.current) {
+      pendingPlayback.current = false;
+      void call('playback.stop').catch(() => {});
+    }
+    setPlaybackStarting(null);
+    navigate(-1);
+  };
 
   if (playbackStarting || waitingForAutomaticSelection) return <div className="streams-page streams-opening-page">
     {heroArtwork && <img key={`${type}:${id}:${heroArtwork}`} className="streams-backdrop-image" src={heroArtwork} alt="" />}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { ArrowLeft, Check, LockKeyhole, Save, Shield, Sparkles, Trash2, UserRound, WandSparkles, X } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Avatar, PageHeader } from '../../components/ui';
@@ -15,6 +15,7 @@ export function ProfileEditorPage() {
   const editingId = id ? Number(id) : null;
   const { snapshot, loading, error, refresh, run, setError } = useProfiles();
   const profile = snapshot?.items.find((item) => item.id === editingId) ?? null;
+  const initializedForm = useRef<number | null | undefined>(undefined);
   const [name, setName] = useState('');
   const [avatarId, setAvatarId] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -38,6 +39,9 @@ export function ProfileEditorPage() {
   useEffect(() => {
     if (!snapshot) return;
     if (editingId !== null && !profile) return;
+    // Background cosmetic/profile snapshots must not erase an in-progress edit.
+    if (initializedForm.current === editingId) return;
+    initializedForm.current = editingId;
     setName(profile?.name ?? '');
     setAvatarId(profile?.avatarId ?? null);
     setAvatarUrl(profile?.avatarUrl ?? '');

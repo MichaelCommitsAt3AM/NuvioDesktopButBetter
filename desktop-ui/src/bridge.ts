@@ -72,6 +72,8 @@ function reportDiagnostic(message: string) {
 export function subscribe(listener: () => void) { subscribers.add(listener); return () => subscribers.delete(listener); }
 export function getSnapshot() { return state; }
 
+const epochChangingMethods = ['profiles.select', 'profiles.delete', 'session.signOut', 'session.signIn', 'session.signUp', 'session.guest'];
+
 async function request(method: string, params: Record<string, unknown> = {}, withEpoch = true, id = requestId()): Promise<{ result: unknown; epoch: number }> {
   const requestEpoch = withEpoch ? activeEpoch : undefined;
   const response = await invoke<unknown>('bridge_request', {
@@ -79,9 +81,13 @@ async function request(method: string, params: Record<string, unknown> = {}, wit
   });
   assertResponse(response);
   if (response.id !== id) throw new Error(`Bridge response id mismatch for ${method}`);
+  const epochChanging = epochChangingMethods.includes(method);
+  // Epoch-changing calls move the backend epoch even when they report an
+  // error (e.g. a sign-out that cleared local state but failed remotely).
+  // Adopt the envelope epoch first so the client can never be stranded stale.
+  if (epochChanging) activeEpoch = response.epoch;
   if (response.error) throw new BridgeError(response.error.code, response.error.message);
-  if (['profiles.select', 'profiles.delete', 'session.signOut', 'session.signIn', 'session.signUp', 'session.guest'].includes(method)) activeEpoch = response.epoch;
-  else if (requestEpoch !== undefined && (response.epoch !== requestEpoch || activeEpoch !== requestEpoch)) throw new Error('Discarded a response from an inactive profile session.');
+  else if (!epochChanging && requestEpoch !== undefined && (response.epoch !== requestEpoch || activeEpoch !== requestEpoch)) throw new Error('Discarded a response from an inactive profile session.');
   if (response.result !== undefined) assertMethodResult(method, response.result);
   return { result: response.result, epoch: response.epoch };
 }
@@ -267,6 +273,10 @@ async function reconcile() {
   }
 }
 
+export async function resyncSession() {
+  await reconcile();
+}
+
 async function snapshot(method: string, key: 'home' | 'library' | 'settings' | 'addons', generation = reconcileGeneration) {
   const requestedEpoch = activeEpoch;
   const topic = key;
@@ -317,7 +327,18 @@ export const actions = {
   async signIn(email: string, password: string) { await changeProfileEpoch(() => call('session.signIn', { email, password }), false); },
   async signUp(email: string, password: string) { await changeProfileEpoch(() => call('session.signUp', { email, password }), false); },
   async guest() { await changeProfileEpoch(() => call('session.guest'), false); },
-  async signOut() { await changeProfileEpoch(() => call('session.signOut')); },
+  async signOut() {
+    try {
+      await changeProfileEpoch(() => call('session.signOut'));
+    } catch (error) {
+      // The backend clears the local session even when remote sign-out fails
+      // (e.g. offline). Resync to backend truth instead of keeping the stale
+      // signed-in session so logout still lands on the login screen.
+      await resyncSession().catch(() => {});
+      if (getSnapshot().session.status === 'signedOut') return;
+      throw error;
+    }
+  },
   async selectProfile(id: number, pin?: string) {
     if (state.profileTransition) return;
     const profile = state.session.profiles.find(item => item.id === id);

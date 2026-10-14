@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Check } from 'lucide-react';
+import { FallbackImage } from '../../components/FallbackImage';
 import type { Video } from './DetailsExtras';
 import './series-episodes.css';
 
@@ -90,7 +91,7 @@ export function SeriesEpisodes({ videos, preferredSeason, poster, background, se
             type="button" key={season} className={`series-season-option ${selected ? 'selected' : ''}`}
             aria-pressed={selected} onClick={() => selectSeason(season)}
           >
-            {hasSeasonPosters && seasonView === 'posters' && <span className="series-season-poster">{image && <img src={image} alt="" loading="lazy" />}</span>}
+            {hasSeasonPosters && seasonView === 'posters' && <span className="series-season-poster"><FallbackImage sources={[image]} /></span>}
             <span>{seasonLabel(season)}</span>
           </button>;
         })}
@@ -133,7 +134,7 @@ function EpisodeCollection({ episodes, season, cardStyle, fallbackImage, blurUnw
           if (longPressTriggered.current) { event.preventDefault(); event.stopPropagation(); longPressTriggered.current = false; return; }
           click();
         }} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); if (episodeLongPressTimer.current != null) window.clearTimeout(episodeLongPressTimer.current); episodeLongPressTimer.current = null; longPressTriggered.current = true; onEpisodeLongPress(video); }} title={video.available ? 'Click to find streams · Right-click or hold for episode actions' : 'Right-click or hold for episode actions'}>
-          <span className="series-episode-art">{(video.thumbnail || fallbackImage) && <img src={video.thumbnail || fallbackImage || ''} alt="" loading="lazy" style={{ filter: blurUnwatched && !watched ? 'blur(18px)' : undefined }} />}<span className="series-episode-code">{episodeCode(video)}</span>{watched && <span className="series-episode-watched"><Check size={14} /></span>}{!watched && Number.isFinite(progress) && progress > 0 && progress < 1 && <span className="series-episode-progress" role="progressbar" aria-label={`${video.title} playback progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}><span style={{ width: `${progress * 100}%` }} /></span>}</span>
+          <span className="series-episode-art"><FallbackImage sources={[video.thumbnail, fallbackImage]} style={{ filter: blurUnwatched && !watched ? 'blur(18px)' : undefined }} /><span className="series-episode-code">{episodeCode(video)}</span>{watched && <span className="series-episode-watched"><Check size={14} /></span>}{!watched && Number.isFinite(progress) && progress > 0 && progress < 1 && <span className="series-episode-progress" role="progressbar" aria-label={`${video.title} playback progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}><span style={{ width: `${progress * 100}%` }} /></span>}</span>
           <span className="series-episode-copy"><strong>{video.title}</strong><small>{formatReleaseDate(video.released)}{showRating && video.rating != null && video.rating > 0 ? ` · ★ ${video.rating.toFixed(1)}` : ''}{video.runtime && cardStyle === 'horizontal' ? ` · ${video.runtime} min` : ''}</small>{video.overview && <span className="series-episode-overview">{video.overview}</span>}</span>
         </button>;
       })}

@@ -8,7 +8,7 @@ import type { AppearanceSnapshot } from '../features/settings/appearanceStore';
 import { ListMembershipButton } from '../features/library/ListMembershipButton';
 import { Dialog } from './Dialog';
 import { HomeActionDialog } from '../features/home/HomeActionDialog';
-import { PosterHoverPreview } from './PosterHoverPreview';
+import { PosterHoverPreview, forwardPreviewWheel } from './PosterHoverPreview';
 import { PosterLoadingCard } from './PosterLoadingCard';
 import './poster.css';
 import { useCardHold } from './useCardHold';
@@ -102,7 +102,7 @@ export function Poster({ item, compact = false, onClick, sizeScale = 1, showRati
     </button>
     {screen !== 'search' && <button className="poster-menu-button" aria-label={`Actions for ${item.name}`} onClick={openActions}><MoreHorizontal size={18}/></button>}
     {rect&&expandedPreview&&<PosterHoverPreview visible={hover} item={item} rect={rect} saved={saved} watched={watched||isWatchedOnCard} onOpen={open} onToggleWatched={()=>void markWatched()} onToggleSaved={()=>void toggleSaved()} onMouseEnter={()=>clearTimeout(timer.current)} onMouseLeave={hidePreview} />}
-    {hover&&rect&&!expandedPreview&&createPortal(<div className="poster-preview" style={{left:Math.max(12,Math.min(rect.left-40,window.innerWidth-372)),top:Math.max(12,Math.min(rect.top,window.innerHeight-380))}} onMouseEnter={()=>clearTimeout(timer.current)} onMouseLeave={hidePreview} onClick={event=>event.stopPropagation()}>
+    {hover&&rect&&!expandedPreview&&createPortal(<div className="poster-preview" style={{left:Math.max(12,Math.min(rect.left-40,window.innerWidth-372)),top:Math.max(12,Math.min(rect.top,window.innerHeight-380))}} onMouseEnter={()=>clearTimeout(timer.current)} onMouseLeave={hidePreview} onWheel={forwardPreviewWheel} onClick={event=>event.stopPropagation()}>
       {item.background&&<img src={item.background} alt=""/>}
       <div className="poster-preview-copy"><h3>{item.name}</h3><p>{[item.releaseInfo,item.rating,...item.genres.slice(0,3)].filter(Boolean).join(' · ')}</p>{item.description&&<p className="home-preview-description">{item.description.slice(0,360)}</p>}<div className="home-preview-actions"><button className="button primary" onClick={open}>More info</button><button className="button secondary" onClick={()=>{setMenu(true);setHover(false);}}>Manage title</button></div></div>
     </div>,document.body)}

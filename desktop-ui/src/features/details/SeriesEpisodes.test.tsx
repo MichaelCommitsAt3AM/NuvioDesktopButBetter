@@ -102,4 +102,17 @@ describe('episode card actions', () => {
     expect(props.onEpisodeClick).toHaveBeenCalledWith(episode);
     expect(props.onEpisodeLongPress).not.toHaveBeenCalled();
   });
+
+  it('falls back to series artwork and then hides when the episode thumbnail fails', () => {
+    renderEpisodes({
+      videos: [{ ...episode, thumbnail: 'https://example.invalid/ep.jpg' }],
+      background: 'https://example.invalid/bg.jpg',
+    });
+    const art = document.querySelector('.series-episode-art img')!;
+    expect(art).toHaveAttribute('src', 'https://example.invalid/ep.jpg');
+    fireEvent.error(art);
+    expect(document.querySelector('.series-episode-art img')).toHaveAttribute('src', 'https://example.invalid/bg.jpg');
+    fireEvent.error(document.querySelector('.series-episode-art img')!);
+    expect(document.querySelector('.series-episode-art img')).toBeNull();
+  });
 });

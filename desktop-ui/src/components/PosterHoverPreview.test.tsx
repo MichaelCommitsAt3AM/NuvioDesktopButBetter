@@ -47,4 +47,30 @@ describe('PosterHoverPreview', () => {
     expect(onOpen).toHaveBeenCalledOnce();
     expect(onCardClick).not.toHaveBeenCalled();
   });
+  it('forwards wheel over the card to the page scroller', () => {
+    document.body.innerHTML = '<div class="main-area"></div>';
+    const original = window.HTMLElement.prototype.scrollBy;
+    const scrollBy = vi.fn();
+    (window.HTMLElement.prototype as unknown as { scrollBy: unknown }).scrollBy = scrollBy;
+    try {
+      render(<PosterHoverPreview
+        item={{ id: 'wheel', type: 'movie', name: 'Wheel Movie', poster: null, background: null, logo: null, description: '', releaseInfo: '2026', rating: null, genres: [] }}
+        rect={{ left: 100, top: 80 } as DOMRect}
+        saved={false}
+        watched={false}
+        onOpen={() => {}}
+        onToggleWatched={() => {}}
+        onToggleSaved={() => {}}
+        onMouseEnter={() => {}}
+        onMouseLeave={() => {}}
+      />);
+      const card = document.querySelector('.poster-preview')!;
+      fireEvent.wheel(card, { deltaY: 100, deltaX: 0 });
+      expect(scrollBy).toHaveBeenCalledWith({ left: 0, top: 100 });
+      fireEvent.wheel(card, { deltaY: 3, deltaX: 0, deltaMode: 1 });
+      expect(scrollBy).toHaveBeenCalledWith({ left: 0, top: 48 });
+    } finally {
+      (window.HTMLElement.prototype as unknown as { scrollBy: unknown }).scrollBy = original;
+    }
+  });
 });

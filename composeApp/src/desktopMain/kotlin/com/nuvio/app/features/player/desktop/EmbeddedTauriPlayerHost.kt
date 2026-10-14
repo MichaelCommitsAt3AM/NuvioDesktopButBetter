@@ -13,10 +13,13 @@ internal object EmbeddedTauriPlayerHost {
     @Volatile
     private var fullscreen = false
 
-    fun begin(windowHwnd: Long?, attached: (() -> Unit)? = null) {
+    private var onToggleFullscreen: (() -> Unit)? = null
+
+    fun begin(windowHwnd: Long?, attached: (() -> Unit)? = null, initialFullscreen: Boolean = false, toggleFullscreen: (() -> Unit)? = null) {
         hwnd = windowHwnd?.takeIf { it != 0L }
         onAttached = attached
-        fullscreen = false
+        fullscreen = hwnd != null && initialFullscreen
+        onToggleFullscreen = toggleFullscreen
     }
 
     fun nativeWindowHandle(): Long? = hwnd
@@ -31,25 +34,20 @@ internal object EmbeddedTauriPlayerHost {
     fun isFullscreen(): Boolean = fullscreen
 
     fun toggleFullscreen() {
-        val current = hwnd ?: return
-        val next = !fullscreen
-        val applied = runCatching {
-            NativePlayerBridge.setWindowBorderlessFullscreen(
-                windowHwnd = current,
-                fullscreen = next,
-                x = 0,
-                y = 0,
-                width = 0,
-                height = 0,
-            )
-        }.isSuccess
-        if (applied) fullscreen = next
+        if (hwnd != null) onToggleFullscreen?.invoke()
+    }
+
+    fun updateFullscreen(value: Boolean) {
+        if (hwnd == null || fullscreen == value) return
+        fullscreen = value
+        notifyDesktopAppFullscreenChanged()
     }
 
     fun clear() {
-        if (fullscreen) toggleFullscreen()
+        // The shell owns this window; closing playback preserves its current mode.
         hwnd = null
         onAttached = null
         fullscreen = false
+        onToggleFullscreen = null
     }
 }

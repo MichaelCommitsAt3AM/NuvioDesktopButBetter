@@ -131,6 +131,8 @@ pub struct BridgeManager {
     state: Mutex<State>,
     worker: Mutex<Option<Worker>>,
     operation: Mutex<()>,
+    #[cfg(windows)]
+    fullscreen_sync: Mutex<()>,
     generation: AtomicU64,
     shutting_down: AtomicBool,
     client: reqwest::Client,
@@ -234,6 +236,8 @@ impl BridgeManager {
             }),
             worker: Mutex::new(None),
             operation: Mutex::new(()),
+            #[cfg(windows)]
+            fullscreen_sync: Mutex::new(()),
             generation: AtomicU64::new(0),
             shutting_down: AtomicBool::new(false),
             client,
@@ -587,6 +591,26 @@ impl BridgeManager {
         self.request(&request).await.map(|_| ())
     }
 
+    #[cfg(windows)]
+    pub async fn sync_host_fullscreen(&self) -> Result<(), BridgeCallError> {
+        // Read at send time and serialize acknowledgements so a resize cannot
+        // overwrite a newer toggle with a stale mode.
+        let _sync = self.fullscreen_sync.lock().await;
+        let Some(window) = self.app.get_webview_window("main") else {
+            return Ok(());
+        };
+        let Ok(fullscreen) = window.is_fullscreen() else {
+            return Ok(());
+        };
+        let request = crate::BridgeRequest {
+            id: format!("fullscreen-{}", self.generation.load(Ordering::Acquire)),
+            method: "playback.hostFullscreenChanged".into(),
+            params: Map::from_iter([("fullscreen".into(), Value::Bool(fullscreen))]),
+            epoch: None,
+        };
+        self.request(&request).await.map(|_| ())
+    }
+
     pub async fn shutdown(self: &Arc<Self>) {
         self.shutting_down.store(true, Ordering::Release);
         let _operation = self.operation.lock().await;
@@ -906,6 +930,21 @@ async fn event_loop(
                         Some(Ok(Message::Text(text))) => {
                             if let Ok(event) = serde_json::from_str::<BridgeEvent>(&text) {
                                 if event.epoch <= MAX_SAFE_JS_INTEGER && event.revision <= MAX_SAFE_JS_INTEGER {
+                                    #[cfg(windows)]
+                                    if event.topic == BridgeTopic::Playback
+                                        && event.data.get("toggleHostFullscreen").and_then(Value::as_bool) == Some(true)
+                                    {
+                                        if let Some(window) = app.get_webview_window("main") {
+                                            // Tauri owns fullscreen and its windowed restore bounds.
+                                            // JNI must not independently change this HWND's styles.
+                                            if let Ok(fullscreen) = window.is_fullscreen() {
+                                                let _ = window.set_fullscreen(!fullscreen);
+                                                if let Some(manager) = manager.upgrade() {
+                                                    let _ = manager.sync_host_fullscreen().await;
+                                                }
+                                            }
+                                        }
+                                    }
                                     if matches!(&event.topic, BridgeTopic::Details) {
                                         let request_id = event.data.get("requestId").and_then(Value::as_str).unwrap_or("missing");
                                         let loading = event.data.get("loading").and_then(Value::as_bool).unwrap_or(false);

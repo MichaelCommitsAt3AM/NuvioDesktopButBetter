@@ -80,7 +80,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -106,6 +109,7 @@ interface BridgePlaybackAdapter {
         videoId: String?,
         startFromBeginning: Boolean = false,
         nativeHostWindow: Long? = null,
+        nativeHostFullscreen: Boolean = false,
     ): JsonObject
     suspend fun stop()
 }
@@ -124,6 +128,7 @@ class DesktopBridgeRuntime {
     private var authToken: String? = null
     private var currentEpoch = AtomicLong(1)
     private var sessionStatus = "loading"
+    private var sessionProfilesReady = false
     private var sessionError: String? = null
     private var observedAuthUserId: String? = null
     private var hasObservedAuthUser = false
@@ -211,7 +216,13 @@ class DesktopBridgeRuntime {
         scope.launch { com.nuvio.app.core.poster.CustomPosterUrlRepository.pattern.collect { emit("appearance", AppearanceBridge.snapshot()) } }
         scope.launch { com.nuvio.app.core.poster.CustomPosterUrlRepository.enabledScreens.collect { emit("appearance", AppearanceBridge.snapshot()) } }
         scope.launch { com.nuvio.app.features.home.HomeCatalogSettingsRepository.uiState.collect { HomeRepository.applyCurrentSettings(); emit("home", homeJson()); emit("appearance", AppearanceBridge.snapshot()) } }
-        scope.launch { ProfileRepository.state.collect { emit("profiles", ProfilesBridge.snapshot()) } }
+        scope.launch { ProfileRepository.state.collect {
+            emit("profiles", ProfilesBridge.snapshot())
+            // The picker uses session profiles; publish cloud changes there too.
+            if (sessionStatus == "signedIn" && sessionProfilesReady) emit("session", sessionJson())
+        } }
+        scope.launch { com.nuvio.app.features.profiles.AvatarRepository.avatars.collect { emit("profiles", ProfilesBridge.snapshot()) } }
+        scope.launch { com.nuvio.app.features.membership.ProfileBackgroundRepository.catalog.collect { emit("profiles", ProfilesBridge.snapshot()) } }
         scope.launch { CatalogRepository.uiState.collect { emit("catalog", CatalogBridge.snapshot("catalog")!!) } }
         scope.launch { SearchRepository.discoverUiState.collect { emit("discover", CatalogBridge.snapshot("discover")!!) } }
         scope.launch { SearchHistoryRepository.uiState.collect { emit("searchHistory", CatalogBridge.snapshot("searchHistory")!!) } }
@@ -275,11 +286,20 @@ class DesktopBridgeRuntime {
                         return@post
                     }
                     val epochAtStart = epoch
-                    val result = runCatching {
-                        rpcMutex.withLock {
+                    val playbackStartJob = if (method == "playback.start") currentCoroutineContext()[Job] else null
+                    if (playbackStartJob != null) requestJobs.put("playback", playbackStartJob)?.cancel()
+                    val result = try { runCatching {
+                        if (method == "playback.stop") {
+                            // A stop must be able to cancel a start resolving under rpcMutex.
+                            // This also cancels starts still queued behind another RPC.
+                            requestJobs.remove("playback")?.cancel()
+                            dispatch(method, params, id)
+                        } else rpcMutex.withLock {
                             if (requestEpoch != null && requestEpoch != epoch) error("STALE_EPOCH")
                             dispatch(method, params, id)
                         }
+                    } } finally {
+                        if (playbackStartJob != null) requestJobs.remove("playback", playbackStartJob)
                     }
                     result.fold(
                         onSuccess = {
@@ -336,6 +356,7 @@ class DesktopBridgeRuntime {
     private suspend fun observeAuthentication() {
         AuthRepository.state.collect { state ->
             val previous = sessionStatus
+            sessionProfilesReady = false
             sessionStatus = when (state) {
                 AuthState.Loading -> "loading"
                 AuthState.Unauthenticated -> "signedOut"
@@ -351,10 +372,19 @@ class DesktopBridgeRuntime {
             if (state is AuthState.Authenticated) {
                 runCatching {
                     ProfileRepository.ensureLoaded(state.userId)
+                    // Publish the account's local profiles before cloud requests.
+                    // A first sign-in with no cache still waits for its profile pull.
+                    if (ProfileRepository.state.value.profiles.isNotEmpty()) {
+                        sessionProfilesReady = true
+                        emit("session", sessionJson())
+                    }
                     // Cached profile state is sufficient to schedule cloud sync;
                     // a failed profile/addon request must not prevent progress pulls.
                     updateProfileSync()
                     ProfileRepository.pullProfiles()
+                    if ((AuthRepository.state.value as? AuthState.Authenticated)?.userId != state.userId) return@collect
+                    sessionProfilesReady = true
+                    emit("session", sessionJson())
                     val profiles = ProfileRepository.state.value.profiles
                     val active = ProfileRepository.state.value.activeProfile
                         ?: profiles.firstOrNull { it.profileIndex == ProfileRepository.activeProfileId }
@@ -365,8 +395,17 @@ class DesktopBridgeRuntime {
                     }
                     val profileId = active?.profileIndex ?: ProfileRepository.activeProfileId
                     updateProfileSync()
-                    AddonRepository.onProfileChanged(profileId)
+                    rpcMutex.withLock {
+                        if (ProfileRepository.activeProfileId != profileId ||
+                            (AuthRepository.state.value as? AuthState.Authenticated)?.userId != state.userId
+                        ) return@collect
+                        AddonRepository.onProfileChanged(profileId)
+                    }
                     AddonRepository.pullFromServer(profileId)
+                    // Selection can now happen while startup sync is in flight.
+                    if (ProfileRepository.activeProfileId != profileId ||
+                        (AuthRepository.state.value as? AuthState.Authenticated)?.userId != state.userId
+                    ) return@collect
                     if (AppFeaturePolicy.pluginsEnabled) PluginRepository.onProfileChanged(profileId)
                     val enabledAddons = AddonRepository.uiState.value.addons.enabledAddons()
                     // Match AppGate/MainAppContent: load the profile's home catalog settings
@@ -380,14 +419,17 @@ class DesktopBridgeRuntime {
                     HomeRepository.refresh(enabledAddons)
                     LibraryRepository.ensureLoaded()
                     sessionError = null
-                }.onFailure { sessionError = safeMessage(it) }
+                }.onFailure {
+                    sessionProfilesReady = true
+                    sessionError = safeMessage(it)
+                }
             } else updateProfileSync()
             emit("session", sessionJson())
         }
     }
 
     private val epochChangingMethods = setOf("session.signIn", "session.signUp", "session.guest", "session.signOut", "profiles.select", "profiles.delete")
-    private val epochOptionalMethods = setOf("session.snapshot", "session.signIn", "session.signUp", "session.guest")
+    private val epochOptionalMethods = setOf("session.snapshot", "session.signIn", "session.signUp", "session.guest", "playback.hostFullscreenChanged")
 
     private suspend fun dispatch(method: String, params: JsonObject, requestId: String): JsonElement = when (method) {
         "session.snapshot" -> sessionJson()
@@ -404,7 +446,19 @@ class DesktopBridgeRuntime {
             sessionJson()
         }
         "session.guest" -> { AuthRepository.signInAnonymously(); sessionJson() }
-        "session.signOut" -> { playbackAdapter?.stop(); advanceEpoch(); AuthRepository.signOut().getOrThrow(); sessionJson() }
+        "session.signOut" -> {
+            runCatching { playbackAdapter?.stop() }
+            // Local sign-out is authoritative: AuthRepository clears the local
+            // session and wipes account data even when it reports a remote
+            // failure (e.g. offline). Failing this RPC for that would strand
+            // the UI on a stale epoch instead of routing to the login screen.
+            runCatching { AuthRepository.signOut() }
+            sessionProfilesReady = false
+            sessionStatus = "signedOut"
+            sessionError = null
+            advanceEpoch()
+            sessionJson()
+        }
         "profiles.select" -> {
             val selected = params.int("id")
             require(ProfileRepository.state.value.profiles.any { it.profileIndex == selected }) { "Profile does not exist" }
@@ -509,6 +563,7 @@ class DesktopBridgeRuntime {
                     record.videoId,
                     params["startFromBeginning"]?.jsonPrimitive?.booleanOrNull ?: false,
                     params["tauriHostWindow"]?.jsonPrimitive?.longOrNull,
+                    params["tauriHostFullscreen"]?.jsonPrimitive?.booleanOrNull ?: false,
                 )
             emit("playback", buildJsonObject {
                 put("playing", true)
@@ -519,6 +574,12 @@ class DesktopBridgeRuntime {
                 put("result", result)
             })
             result
+        }
+        "playback.hostFullscreenChanged" -> {
+            withContext(Dispatchers.Swing) {
+                com.nuvio.app.features.player.desktop.EmbeddedTauriPlayerHost.updateFullscreen(params.bool("fullscreen"))
+            }
+            JsonObject(emptyMap())
         }
         "playback.stop" -> {
             playbackAdapter?.stop()
@@ -549,6 +610,7 @@ class DesktopBridgeRuntime {
                 meta,
                 videoId,
                 nativeHostWindow = params["tauriHostWindow"]?.jsonPrimitive?.longOrNull,
+                nativeHostFullscreen = params["tauriHostFullscreen"]?.jsonPrimitive?.booleanOrNull ?: false,
             )
         }
         "downloads.play" -> {
@@ -562,6 +624,7 @@ class DesktopBridgeRuntime {
                 meta,
                 item.videoId,
                 nativeHostWindow = params["tauriHostWindow"]?.jsonPrimitive?.longOrNull,
+                nativeHostFullscreen = params["tauriHostFullscreen"]?.jsonPrimitive?.booleanOrNull ?: false,
             )
         }
         "app.visibility" -> {
@@ -799,7 +862,7 @@ class DesktopBridgeRuntime {
         val auth = AuthRepository.state.value as? AuthState.Authenticated
         val profile = ProfileRepository.state.value
         return buildJsonObject {
-            put("status", sessionStatus); putNullable("email", auth?.email); put("version", versionName())
+            put("status", if (sessionStatus == "signedIn" && !sessionProfilesReady) "loading" else sessionStatus); putNullable("email", auth?.email); put("version", versionName())
             if (auth != null && profile.activeProfile != null) put("activeProfile", profile.activeProfile!!.profileIndex) else put("activeProfile", JsonNull)
             put("profiles", JsonArray(profile.profiles.map(::profileJson)))
             put("capabilities", JsonArray(listOf("auth", "profiles", "home", "library", "addons", "settings", "search", "details", "streams").map(::JsonPrimitive)))

@@ -145,7 +145,9 @@ object AddonRepository {
 
     suspend fun pullFromServer(profileId: Int) {
         val effectiveProfileId = profileId
+        val accountAtStart = AuthRepository.state.value
         val wasInitialized = synchronized(stateLock) {
+            if (ProfileRepository.activeProfileId != effectiveProfileId) return
             currentProfileId = effectiveProfileId
             initialized
         }
@@ -171,29 +173,35 @@ object AddonRepository {
             log.i { "pullFromServer() — server returned ${rows.size} addons" }
             urls.forEachIndexed { i, u -> log.d { "  server[$i]: $u" } }
 
-            val existingByUrl = _uiState.value.addons.associateBy(ManagedAddon::manifestUrl)
-            _uiState.value = AddonsUiState(
-                addons = urls.map { url ->
-                    val row = rowsByUrl[url]
-                    existingByUrl[url].toPendingAddon(
-                        manifestUrl = url,
-                        userSetName = row?.name?.takeIf { it.isNotBlank() },
-                        enabled = row?.enabled,
-                    )
-                },
-            )
-            persist()
-            urls.forEach { url ->
-                val existing = existingByUrl[url]
-                val addon = _uiState.value.addons.firstOrNull { it.manifestUrl == url }
-                if (addon?.enabled == true && (existing == null || (addon.manifest == null && !addon.isRefreshing))) {
-                    refreshAddon(url)
-                }
-            }
             synchronized(stateLock) {
+                // The rewrite can show cached profiles while this request is pending.
+                // Discard a response for an account/profile that is no longer active.
+                if (currentProfileId != effectiveProfileId ||
+                    ProfileRepository.activeProfileId != effectiveProfileId ||
+                    AuthRepository.state.value != accountAtStart
+                ) return@runCatching
+                val existingByUrl = _uiState.value.addons.associateBy(ManagedAddon::manifestUrl)
+                _uiState.value = AddonsUiState(
+                    addons = urls.map { url ->
+                        val row = rowsByUrl[url]
+                        existingByUrl[url].toPendingAddon(
+                            manifestUrl = url,
+                            userSetName = row?.name?.takeIf { it.isNotBlank() },
+                            enabled = row?.enabled,
+                        )
+                    },
+                )
+                persist()
+                urls.forEach { url ->
+                    val existing = existingByUrl[url]
+                    val addon = _uiState.value.addons.firstOrNull { it.manifestUrl == url }
+                    if (addon?.enabled == true && (existing == null || (addon.manifest == null && !addon.isRefreshing))) {
+                        refreshAddon(url)
+                    }
+                }
                 initialized = true
+                log.i { "pullFromServer() — applied ${urls.size} addons to state" }
             }
-            log.i { "pullFromServer() — applied ${urls.size} addons to state" }
         }.onFailure { e ->
             log.e(e) { "pullFromServer() — FAILED" }
         }

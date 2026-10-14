@@ -75,6 +75,12 @@ object AvatarRepository {
     private var lastStandardRefresh: TimeMark? = null
     private var lastMemberRefresh: TimeMark? = null
 
+    fun ensureLoaded() {
+        hydrateFromCacheIfNeeded()
+        ensureMemberAccessObserver()
+        scope.launch { refreshAvatars() }
+    }
+
     suspend fun fetchAvatars() {
         hydrateFromCacheIfNeeded()
         ensureMemberAccessObserver()

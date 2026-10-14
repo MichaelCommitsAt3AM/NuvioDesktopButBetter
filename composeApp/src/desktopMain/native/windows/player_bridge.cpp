@@ -63,6 +63,7 @@ namespace {
 HMODULE gModule = nullptr;
 constexpr UINT WM_NUVIO_TASK = WM_APP + 0x4E50;
 constexpr UINT_PTR NUVIO_TIMER_ID = 0x4E50;
+constexpr UINT_PTR NUVIO_FOCUS_TIMER_ID = 0x4E51;
 
 // Caps on waiting for the player's own UI thread during teardown. Exceeding these means that
 // thread is wedged; shutdown gives up rather than blocking the caller forever.
@@ -986,6 +987,20 @@ public:
         syncControls();
     }
 
+    void restoreForegroundControlsFocus() {
+        if (shuttingDown.load() || !controller || !controlsWebReady.load()) return;
+        HWND rootWindow = containerHwnd ? GetAncestor(containerHwnd, GA_ROOT) : nullptr;
+        if (!rootWindow || GetForegroundWindow() != rootWindow) return;
+        GUITHREADINFO foreground = {};
+        foreground.cbSize = sizeof(foreground);
+        if (!GetGUIThreadInfo(0, &foreground)) return;
+        // Preserve native system menus and every focused control inside the
+        // player's WebView (including text inputs and the player's own panels).
+        if (foreground.flags & (GUI_INMENUMODE | GUI_SYSTEMMENUMODE | GUI_POPUPMENUMODE)) return;
+        if (foreground.hwndFocus && IsChild(containerHwnd, foreground.hwndFocus)) return;
+        focusNativeControls();
+    }
+
     void updateControlsJson(const std::string &controlsJson) {
         if (controlsJson.empty()) return;
         {
@@ -1513,11 +1528,17 @@ private:
         if (!SetTimer(messageHwnd, NUVIO_TIMER_ID, 500, nullptr)) {
             throw std::runtime_error("Unable to start native player timer.");
         }
+        // React navigation can return focus to Tauri's browsing WebView after
+        // controlsReady. Check OS focus independently of the bridge RPC queue.
+        if (!SetTimer(messageHwnd, NUVIO_FOCUS_TIMER_ID, 50, nullptr)) {
+            throw std::runtime_error("Unable to start native player focus timer.");
+        }
     }
 
     void cleanupUiResources() {
         if (messageHwnd) {
             KillTimer(messageHwnd, NUVIO_TIMER_ID);
+            KillTimer(messageHwnd, NUVIO_FOCUS_TIMER_ID);
         }
         if (webView && messageToken.value != 0) {
             webView->remove_WebMessageReceived(messageToken);
@@ -1859,16 +1880,27 @@ private:
         // activate the player if the user has already switched to another app.
         HWND rootWindow = containerHwnd ? GetAncestor(containerHwnd, GA_ROOT) : nullptr;
         if (!rootWindow || GetForegroundWindow() != rootWindow) return;
+        // Tauri and the native controls run on different UI threads/processes.
+        // Temporarily share input state if their queues are not already attached
+        // by the child-window relationship, then transfer actual keyboard focus.
+        DWORD foregroundThread = GetWindowThreadProcessId(rootWindow, nullptr);
+        DWORD currentThread = GetCurrentThreadId();
+        bool attachedInput = foregroundThread && foregroundThread != currentThread &&
+            GetActiveWindow() != rootWindow &&
+            AttachThreadInput(currentThread, foregroundThread, TRUE);
         if (containerHwnd && IsWindow(containerHwnd)) {
             SetFocus(containerHwnd);
         }
         if (controller) {
             controller->MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
         }
+        if (attachedInput) AttachThreadInput(currentThread, foregroundThread, FALSE);
         if (webView && controlsWebReady.load()) {
             webView->ExecuteScript(
                 L"(function(){var root=document.getElementById('playerRoot');"
-                L"if(root){root.focus({preventScroll:true});}})()",
+                L"var active=document.activeElement;"
+                L"if(root&&(!active||active===document.body||active===document.documentElement)){"
+                L"root.focus({preventScroll:true});}})()",
                 nullptr
             );
         }
@@ -2328,6 +2360,7 @@ LRESULT CALLBACK messageWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARA
             return 0;
         case WM_TIMER:
             if (player && wParam == NUVIO_TIMER_ID) player->onTimer();
+            if (player && wParam == NUVIO_FOCUS_TIMER_ID) player->restoreForegroundControlsFocus();
             return 0;
         case WM_NCDESTROY:
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);

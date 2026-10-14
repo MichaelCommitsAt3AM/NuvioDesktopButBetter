@@ -33,7 +33,7 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: desktop-release-${{ github.ref }}
+  group: desktop-release-${{ github.ref }}-${{ inputs.mode == 'build-only' && inputs.target || 'release' }}
   cancel-in-progress: false
 
 jobs:

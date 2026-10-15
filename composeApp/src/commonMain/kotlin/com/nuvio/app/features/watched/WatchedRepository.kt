@@ -1057,6 +1057,44 @@ object WatchedRepository {
         }
     }
 
+    /** Retry the persisted Nuvio outbox without changing the active profile. */
+    suspend fun pushPendingToCloud(profileId: Int, accountId: String) {
+        val auth = AuthRepository.state.value as? AuthState.Authenticated ?: return
+        if (auth.isAnonymous || auth.userId != accountId || !ProfileRepository.hasLoadedProfilesFor(accountId)) return
+        ensureLoaded()
+        val generation = profileGeneration.takeIf { profileId == currentProfileId }
+        val pending = if (generation != null) {
+            itemsStore.read { items, _, dirty, _ -> items.filterKeys { it in dirty }.values.toList() }
+        } else {
+            val stored = storedNuvioWatchedPayload(profileId) ?: return
+            stored.items.filter { watchedItemKey(it.type, it.id, it.season, it.episode) in stored.dirtyWatchedKeys }
+        }
+        if (pending.isEmpty()) return
+        syncAdapter.push(profileId, pending)
+        if ((AuthRepository.state.value as? AuthState.Authenticated)?.userId != accountId) return
+        if (profileId == currentProfileId) {
+            if (generation != null) recordSuccessfulPush(profileId, generation, pending)
+        } else {
+            // Reload after the request so newer local changes remain queued.
+            val stored = storedNuvioWatchedPayload(profileId) ?: return
+            val remaining = acknowledgeSuccessfulWatchedPush(
+                currentItems = stored.items.associateBy { watchedItemKey(it.type, it.id, it.season, it.episode) },
+                dirtyKeys = stored.dirtyWatchedKeys,
+                pushedItems = pending,
+            )
+            WatchedStorage.savePayload(profileId, json.encodeToString(stored.copy(
+                dirtyWatchedKeys = remaining,
+                lastSuccessfulPushEpochMs = maxOf(stored.lastSuccessfulPushEpochMs, pending.maxOf { it.markedAtEpochMs }),
+            )))
+        }
+    }
+
+    private fun storedNuvioWatchedPayload(profileId: Int): StoredWatchedPayload? {
+        val payload = WatchedStorage.loadPayload(profileId)?.takeIf { it.isNotBlank() } ?: return null
+        if (!shouldRestoreWatchedPayload(payload.length)) return null
+        return json.decodeFromString<StoredWatchedPayload>(payload)
+    }
+
     private fun pushDeleteToServer(
         items: Collection<WatchedItem>,
         source: WatchProgressSource,

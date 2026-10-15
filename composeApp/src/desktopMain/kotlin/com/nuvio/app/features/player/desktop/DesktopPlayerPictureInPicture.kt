@@ -151,9 +151,13 @@ internal object DesktopPlayerPictureInPicture {
 
         transition = true
         if (mainHost != null && mainHost.isDisplayable && player != null) {
-            val restored = player.reparentSurface(mainHost)
+            val restored = player.restoreSurface()
             log.d { "restoring PiP native surface success=$restored" }
-            mainHost.requestFocusInWindow()
+            if (!restored) {
+                transition = false
+                return
+            }
+            player.requestKeyboardFocus()
         }
         runCatching {
             val windowPointer = AwtNativeViewResolver.resolveNativeViewPointer(window)

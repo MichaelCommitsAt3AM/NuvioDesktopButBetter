@@ -1,4 +1,5 @@
 .main-area:has(.search-page){padding:calc(112px / 1.22) calc(16px / 1.22) calc(64px / 1.22);overflow-x:hidden}
+.main-area:has(.search-discover){overflow-anchor:none;scroll-behavior:auto}
 .search-page{position:relative;isolation:isolate;width:100%;max-width:none;padding-top:calc(18px * var(--ui-scale,1));--ui-scale:1;--desktop-font-scale:1}
 .search-page::before{position:fixed;z-index:11;top:0;left:0;width:100vw;height:calc(150px * var(--ui-scale,1));content:"";background:#000;pointer-events:none}
 .search-sticky-header{position:sticky;z-index:12;top:0;margin:calc(-5px / 1.22) 0 0;padding:0 0 calc(10px / 1.22);background:var(--app-bg,#000)}

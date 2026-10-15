@@ -4,6 +4,7 @@ import { ArrowLeft, Check, LoaderCircle, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { Dialog } from '../../components/Dialog';
+import { BottomSheetPresence } from '../../components/BottomSheetPresence';
 import { InlineError } from '../../components/Status';
 import { PageHeader } from '../../components/ui';
 import { trackingText as t } from './trackingCopy';
@@ -79,7 +80,7 @@ export function TrackingSettingsPage() {
     </section>
     {s.simklConnected && <><h2 className="settings-group-title">{t('settings_tracking_anime_section')}</h2><section className="settings-section"><PreferenceRow title={t('settings_tracking_anime_id_title')} description={t('settings_tracking_anime_id_subtitle')} value={animeLabel(s.simklAnimeIdPreference)} onClick={() => setPicker({ key: 'simklAnimeIdPreference', title: t('settings_tracking_anime_id_dialog_title'), subtitle: t('settings_tracking_anime_id_dialog_subtitle'), selected: s.simklAnimeIdPreference, options: ['IMDB', 'MAL', 'KITSU', 'TVDB'].map((value) => ({ value, title: animeLabel(value), description: t('settings_tracking_anime_id_' + value.toLowerCase() + '_description') })) })} /></section></>}
     </>}
-    {picker && <Dialog label={picker.title} className="tracking-picker" onClose={() => setPicker(null)}><h2>{picker.title}</h2><p className="tracking-picker-subtitle">{picker.subtitle}</p><div role="radiogroup" aria-label={picker.title} className="tracking-picker-options">{picker.options.map((option) => <button type="button" role="radio" aria-checked={picker.selected === option.value} disabled={!!option.unavailable} key={option.value} onClick={() => void save(picker.key, option.value)}><span><strong>{option.title}</strong><small>{option.description}{option.unavailable && <><br />{option.unavailable}</>}</small></span>{picker.selected === option.value && <Check size={22} aria-hidden="true" />}</button>)}</div><div className="dialog-actions"><button type="button" className="button secondary" onClick={() => setPicker(null)}>Close</button></div></Dialog>}
+    <BottomSheetPresence narrowOnly>{picker && <Dialog label={picker.title} className="tracking-picker" onClose={() => setPicker(null)}><h2>{picker.title}</h2><p className="tracking-picker-subtitle">{picker.subtitle}</p><div role="radiogroup" aria-label={picker.title} className="tracking-picker-options">{picker.options.map((option) => <button type="button" role="radio" aria-checked={picker.selected === option.value} disabled={!!option.unavailable} key={option.value} onClick={() => void save(picker.key, option.value)}><span><strong>{option.title}</strong><small>{option.description}{option.unavailable && <><br />{option.unavailable}</>}</small></span>{picker.selected === option.value && <Check size={22} aria-hidden="true" />}</button>)}</div><div className="dialog-actions"><button type="button" className="button secondary" onClick={() => setPicker(null)}>Close</button></div></Dialog>}</BottomSheetPresence>
   </div>;
 }
 

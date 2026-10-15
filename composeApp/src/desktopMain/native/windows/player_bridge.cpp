@@ -1407,6 +1407,8 @@ private:
     jmethodID eventMethod = nullptr;
 
     std::atomic_bool controlsWebReady = false;
+    bool deferPresentation = false;
+    bool controlsPresented = false;
     std::atomic_bool layoutSubviewsPending = false;
     std::mutex controlsMutex;
     std::string pendingControlsJson;
@@ -1504,11 +1506,14 @@ private:
             SetWindowLongPtrW(hostHwnd, GWL_STYLE, hostStyle | WS_CLIPCHILDREN);
         }
 
+        // Tauri owns a top-level host; the Compose player uses a child Canvas.
+        // Leave React's loading screen exposed while the native controls load.
+        deferPresentation = GetAncestor(hostHwnd, GA_ROOT) == hostHwnd;
         containerHwnd = CreateWindowExW(
             0,
             kContainerWindowClass,
             L"",
-            WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
+            WS_CHILD | (deferPresentation ? 0 : WS_VISIBLE) | WS_CLIPSIBLINGS,
             0,
             0,
             width,
@@ -1859,7 +1864,8 @@ private:
             containerHwnd &&
             (width != lastContainerLayoutWidth || height != lastContainerLayoutHeight)
         ) {
-            SetWindowPos(containerHwnd, HWND_TOP, 0, 0, width, height, SWP_SHOWWINDOW | SWP_NOACTIVATE | SWP_NOCOPYBITS);
+            UINT visibility = (!deferPresentation || controlsPresented) ? SWP_SHOWWINDOW : 0;
+            SetWindowPos(containerHwnd, HWND_TOP, 0, 0, width, height, visibility | SWP_NOACTIVATE | SWP_NOCOPYBITS);
             lastContainerLayoutWidth = width;
             lastContainerLayoutHeight = height;
         }
@@ -1876,6 +1882,7 @@ private:
     }
 
     void focusNativeControls() {
+        if (deferPresentation && !controlsPresented) return;
         // Focus requests can arrive after an async bridge round-trip. Do not
         // activate the player if the user has already switched to another app.
         HWND rootWindow = containerHwnd ? GetAncestor(containerHwnd, GA_ROOT) : nullptr;
@@ -1951,6 +1958,19 @@ private:
         std::string type = extractJsonString(messageJson, L"type");
         if (type.empty()) return;
         double value = extractJsonNumber(messageJson, L"value", 0.0);
+
+        if (type == "controlsPresented") {
+            if (controlsPresented || !controlsWebReady.load()) return;
+            controlsPresented = true;
+            if (deferPresentation) {
+                SetWindowPos(containerHwnd, HWND_TOP, 0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                RedrawWindow(containerHwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+            }
+            focusNativeControls();
+            sendPlayerEvent("nativeControlsPresented", 0.0);
+            return;
+        }
 
         if (type == "controlsReady") {
             controlsWebReady.store(true);

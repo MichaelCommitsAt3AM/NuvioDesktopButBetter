@@ -27,6 +27,24 @@ describe('useProgressiveCount', () => {
     expect(result.current).toBe(35);
   });
 
+  it('mounts the saved poster count immediately on return, then continues filling below it', async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useProgressiveCount(100, 'discover', 10, 72));
+    expect(result.current).toBe(72);
+    await advanceFrames(1);
+    expect(result.current).toBe(82);
+  });
+
+  it('clamps a saved count to the available catalog and resets a new catalog to skeletons', () => {
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook(({ key, initial }) => useProgressiveCount(30, key, 10, initial), {
+      initialProps: { key: 'saved', initial: 72 },
+    });
+    expect(result.current).toBe(30);
+    rerender({ key: 'fresh', initial: 0 });
+    expect(result.current).toBe(0);
+  });
+
   it('restarts from skeletons when the list identity changes', async () => {
     vi.useFakeTimers();
     const { result, rerender } = renderHook(({ total, resetKey }) => useProgressiveCount(total, resetKey, 10), {

@@ -6,6 +6,7 @@ import { actions, BridgeError, call, refreshFeature, useFeatureSnapshot, useSele
 import { EmptyState } from '../../components/EmptyState';
 import { InlineError } from '../../components/Status';
 import { Dialog } from '../../components/Dialog';
+import { notifyDownloadStarted } from '../downloads/DownloadNotifications';
 import type { Addons, Stream } from '../../generated/contract';
 import { createPortal } from 'react-dom';
 import './streams.css';
@@ -170,7 +171,7 @@ export function StreamsPage() {
     try {
       const result = await call<{ requiresConfirmation: boolean; existing?: { title: string } }>('downloads.enqueue', { streamId, replaceConfirmed });
       if (result.requiresConfirmation) setReplace({ id: streamId, title: result.existing?.title ?? 'this title' });
-      else { setReplace(null); setNotice('Download added. Open Downloads to see progress.'); }
+      else { setReplace(null); notifyDownloadStarted(); }
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setBusy(''); }
   };

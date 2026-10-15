@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot } from '../../bridge';
 import { InlineError } from '../../components/Status';
 import { PageHeader } from '../../components/ui';
+import { SteppedSlider } from '../settings/SteppedSlider';
 import './downloads.css';
 
 export type DownloadFilter = { maxResolution: string; maxSizeBytes: number; showUnknownSizeStreams: boolean; allowedSources: string[]; minMaxSizeBytes: number; maxMaxSizeBytes: number };
@@ -58,8 +59,7 @@ export function DownloadFiltersPage() {
         <p>Hide streams larger than this size while Data Saver is on.</p>
         <div className="download-filter-group">
           <div className="download-filter-slider">
-            <strong>Up to {maxGb} GB</strong>
-            <input aria-label="Maximum file size" type="range" min={Math.ceil(filter.minMaxSizeBytes / GB)} max={Math.floor(filter.maxMaxSizeBytes / GB)} step="1" value={maxGb} disabled={busy} onChange={event => void save('downloads.filter.setMaxSizeBytes', { bytes: Number(event.target.value) * GB })} />
+            <SteppedSlider title="Maximum file size" value={maxGb} min={Math.ceil(filter.minMaxSizeBytes / GB)} max={Math.floor(filter.maxMaxSizeBytes / GB)} suffix="GB" disabled={busy} onSave={value => void save('downloads.filter.setMaxSizeBytes', { bytes: value * GB })} />
           </div>
           <label className="download-filter-option download-filter-unknown">
             <span><strong>Show streams with unknown size</strong><small>Off by default. When off, streams that don’t report a file size are hidden while Data Saver is on.</small></span>

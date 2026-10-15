@@ -30,6 +30,14 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Playback sliders show their selectable stops. Skip Segments follows Kotlin's separate detection switch, automatic-skipping dialog, and AnimeSkip/IntroDB credential dialogs, including IntroDB key verification.
 
 **Desktop UI preview**
+- Starting a search resets Discover's scroll immediately, and returning from a Discover title keeps Discover instead of reopening an old search.
+- Discover remembers your scroll position when you open a title and go back, with the restored cards kept stable as the grid loads.
+- Offline launches open Downloads directly. Downloads has the details-style back arrow and local title/episode search; offline watch progress and completed viewing sync to Nuvio Sync after reconnection.
+- Library cards use Home's right-click action menu; the extra “Manage lists” buttons below cards have been removed.
+- Library has a labeled Downloads button and a fullscreen control in the top-right corner; the header layout toggle has been removed.
+- The Downloads content filter labels its combined movies-and-series option “All”.
+- Bottom sheets slide up when opened and down when dismissed, including episode actions, narrow-window tracking pickers and the player's audio, subtitle and speed panels.
+- On Windows, stream loading stays visible while the native player prepares its loading screen, avoiding the blank handoff before buffering.
 - Torbox and Premiumize use Kotlin-style account dialogs with browser approval, automatic status checks, API-key entry and disconnect actions.
 - Returning Home reuses its rendered cards and saved scroll position, and the top-bar bubble avoids repeated layout measurements during its animation.
 - Horizontal episode rows use the same circular scrolling arrows as Home. Unsupported hero trailer previews are clearly marked in Settings.
@@ -39,6 +47,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - The rewrite's window, installer and Start Menu branding use Nuvio, matching the original desktop app.
 - Top Bar is the default desktop layout. The rewrite now includes Kotlin-style glass tint, hover blur, adaptive labels and a moving, stretchy selection highlight.
 - The rewrite's top bar highlight follows Home, Search, Library and Settings after navigation, including when development effects restart.
+- Rewrite screen changes now take input priority so the destination can appear promptly alongside the top bar selection.
 - The rewrite’s Collections settings follow the Kotlin screen, with drag reordering, JSON clipboard export, and validated import.
 - An opt-in React/Tauri desktop UI is being developed while keeping the existing Kotlin backend and native player. See [the migration notes](docs/DESKTOP_UI_REWRITE.md) for build instructions and remaining feature work.
 - The preview now includes profiles/PINs, catalog discovery, rich details, cloud library, collections, downloads and expanded settings. Full animation, language and release-delivery parity is still in progress; [the coverage checklist](docs/DESKTOP_UI_PARITY.md) tracks what remains.
@@ -66,6 +75,9 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - The rewrite's Windows backend starts in the background without opening a terminal window.
 - Player keyboard shortcuts work when the rewrite window is focused, including after Alt-Tab, without clicking the video first.
 - Fullscreen is shared between the rewrite UI and its embedded Windows player; closing playback keeps the selected mode, and the player can exit fullscreen entered from the UI.
+- Picture-in-Picture in the rewrite shows a restore button in the main window; exiting PiP returns video and controls to the app.
+- The download size filter shows a marker at every selectable GB step, matching the other stepped sliders.
+- In-app notifications confirm when a download starts and finishes, including while browsing other screens.
 - Right-click menus appear on designed action areas and text fields; ordinary rewrite backgrounds and navigation no longer open the browser menu.
 - Startup shows cached profiles as soon as login is restored, while cloud profiles, add-ons and avatar choices refresh in the background.
 - Opening a stream prepares the Kotlin player host while its URL resolves, keeping the existing loading screen and controls.

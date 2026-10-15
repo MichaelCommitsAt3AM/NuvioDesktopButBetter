@@ -1,3 +1,6 @@
 .playback-layout>.topbar,.playback-layout>.side-nav{display:none!important}
 .playback-layout>.main-area{position:relative;height:100%;margin:0;padding:0;overflow:hidden;zoom:1;background:#000}
 .playback-surface{position:absolute;inset:0;background:#000}
+.playback-pip-placeholder{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;color:#fff;text-align:center}
+.playback-pip-placeholder p{margin:0;font-size:16px;font-weight:500}
+.playback-pip-placeholder button{padding:10px 24px;border:0;border-radius:24px;background:var(--app-accent,#fff);color:var(--on-accent,#111);font:inherit;cursor:pointer}

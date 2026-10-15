@@ -68,6 +68,7 @@ internal class NativePlayerController(
     private val createWaitTimeoutMs: Long = 5_000L,
     private val releaseTimeoutMs: Long = 10_000L,
     private val onCreateWaitCompleted: () -> Unit = {},
+    private val nativeReparent: (Long, Long) -> Boolean = NativePlayerBridge::reparentSurface,
 ) : PlayerEngineController {
     private companion object {
         const val DiagnosticHeartbeatIntervalNanos = 60L * 1_000_000_000L
@@ -545,7 +546,17 @@ internal class NativePlayerController(
         val pointer = runCatching { AwtNativeViewResolver.resolveNativeViewPointer(host) }
             .onFailure { error -> log.w(error) { "failed to resolve PiP native host ${host.javaClass.name}" } }
             .getOrNull() ?: return false
-        return NativePlayerBridge.reparentSurface(current, pointer)
+        return nativeReparent(current, pointer)
+    }
+
+    /** Restore to the same parent used at attach, including the Tauri-owned HWND. */
+    fun restoreSurface(): Boolean {
+        val current = handle.takeIf { it != 0L } ?: return false
+        if (!isHostDisplayable()) return false
+        val pointer = runCatching { resolveHostView() }
+            .onFailure { error -> log.w(error) { "failed to resolve main player host" } }
+            .getOrNull()?.takeIf { it != 0L } ?: return false
+        return nativeReparent(current, pointer)
     }
 
     fun layoutNativeSubviews() {
@@ -604,6 +615,10 @@ internal class NativePlayerController(
             log.d { "event received handle=$handle type=$type value=$value" }
         }
         when (type) {
+            "nativeControlsPresented" -> {
+                if (!releaseRequested) EmbeddedTauriPlayerHost.playerPresented()
+                return
+            }
             "nativeControlsReady" -> {
                 host.onNativeControlsReady?.invoke()
                 return

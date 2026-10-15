@@ -68,6 +68,7 @@ const ALLOWED_METHODS: &[&str] = &[
     "streams.load",
     "playback.start",
     "playback.stop",
+    "playback.restoreFromPip",
     "app.visibility",
     "app.shutdown",
     "catalog.open",

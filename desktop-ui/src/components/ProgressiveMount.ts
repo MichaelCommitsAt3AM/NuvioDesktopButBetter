@@ -9,15 +9,16 @@ export const PROGRESSIVE_MOUNT_STEP = 24;
  * waiting for the whole tree to render.
  *
  * `resetKey` identifies the list (shelf key, catalog key, …). When it changes
- * the count restarts from 0; when only `total` grows (pagination appends) the
+ * the count restarts from initialCount (0 by default); when only `total` grows (pagination appends) the
  * fill continues without flashing back to skeletons.
  */
-export function useProgressiveCount(total: number, resetKey: string, step = PROGRESSIVE_MOUNT_STEP): number {
-  const [state, setState] = useState({ key: resetKey, count: 0 });
+export function useProgressiveCount(total: number, resetKey: string, step = PROGRESSIVE_MOUNT_STEP, initialCount = 0): number {
+  const initial = Math.min(total, Math.max(0, initialCount));
+  const [state, setState] = useState({ key: resetKey, count: initial });
   if (state.key !== resetKey) {
-    setState({ key: resetKey, count: 0 });
+    setState({ key: resetKey, count: initial });
   }
-  const count = state.key === resetKey ? state.count : 0;
+  const count = state.key === resetKey ? state.count : initial;
   useEffect(() => {
     if (count >= total) return;
     const frame = requestAnimationFrame(() => {

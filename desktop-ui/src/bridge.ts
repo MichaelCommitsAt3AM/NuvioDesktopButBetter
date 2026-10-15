@@ -6,7 +6,7 @@ import type { ProfilesSnapshot } from './features/profiles/profileStore';
 import { assertEvent, assertMethodResult, assertResponse } from './contractValidation';
 
 type Status = 'starting' | 'ready' | 'disconnected';
-export type PlaybackState = { state: 'idle' | 'starting' | 'playing' | 'external' | 'stopping' | 'stopped' | 'cancelled' | 'failed'; phase?: 'idle' | 'resolving' | 'preparing' | 'buffering' | 'stopping' | 'failed'; active: boolean; error: string | null; host?: string; streamId?: string; playing?: boolean };
+export type PlaybackState = { state: 'idle' | 'starting' | 'playing' | 'external' | 'stopping' | 'stopped' | 'cancelled' | 'failed'; phase?: 'idle' | 'resolving' | 'preparing' | 'buffering' | 'stopping' | 'failed'; active: boolean; isInPip?: boolean; error: string | null; host?: string; streamId?: string; playing?: boolean };
 type State = {
   status: Status;
   profileTransition: { profile: Profile; backgroundUrl?: string | null; ready: boolean } | null;
@@ -355,6 +355,12 @@ export const actions = {
   },
   finishProfileTransition() { update(current => ({ ...current, profileTransition: null })); },
   async homeRefresh() { await call('home.refresh'); },
+  async searchClear() {
+    // Invalidate the old request before awaiting Kotlin: a late result must
+    // not restore a query after the user has returned to Discover.
+    update(current => ({ ...current, search: { requestId: requestId(), query: '', loading: false, error: null, shelves: [] } }));
+    await call('search.clear');
+  },
   async searchStart(query: string) {
     const id = requestId();
     update((current) => ({ ...current, search: { requestId: id, query, loading: true, error: null, shelves: [] } }));

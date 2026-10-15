@@ -7,7 +7,7 @@ import { actions, call, disposeBridge, getSnapshot } from './bridge';
 import { isAutomaticStreamSelectionEnabled, streamAddonNames } from './features/streams/StreamsPage';
 import type { Addons } from './generated/contract';
 
-const bridgeMock = vi.hoisted(() => ({ deferPlayback:false, deferProfiles:false, multipleProfiles:false, homeLoading:false, rejectSelection:false, failSessionSnapshot:false, failSignOut:false, streamAutoPlayMode:'MANUAL', epoch:5,activeProfile:7 as number|null,sessionStatus:'signedIn',listeners: new Map<string, (event: { payload: unknown }) => void>(), requests: [] as Array<{ id: string; method: string; params: Record<string, unknown> }> }));
+const bridgeMock = vi.hoisted(() => ({ networkCondition: undefined as string | undefined, deferPlayback:false, deferProfiles:false, multipleProfiles:false, homeLoading:false, rejectSelection:false, failSessionSnapshot:false, failSignOut:false, streamAutoPlayMode:'MANUAL', epoch:5,activeProfile:7 as number|null,sessionStatus:'signedIn',listeners: new Map<string, (event: { payload: unknown }) => void>(), requests: [] as Array<{ id: string; method: string; params: Record<string, unknown> }> }));
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(async (name: string, callback: (event: { payload: unknown }) => void) => {
@@ -43,7 +43,8 @@ vi.mock('@tauri-apps/api/core', () => ({
     if (request.method === 'profiles.snapshot' && bridgeMock.deferProfiles) return new Promise(() => {});
     const cachedProfiles = [{id:7,name:'Michael',color:'#1E88E5',avatarUrl:null,locked:false}, ...(bridgeMock.multipleProfiles ? [{id:8,name:'Guest',color:'#FF0000',avatarUrl:null,locked:true}] : [])];
     const defaults: Record<string, unknown> = {
-      'session.snapshot': { status: bridgeMock.sessionStatus, email: 'person@example.com', version: '1.0', activeProfile: bridgeMock.activeProfile, profiles: cachedProfiles, capabilities: [], error: null },
+      'session.snapshot': { networkCondition: bridgeMock.networkCondition, status: bridgeMock.sessionStatus, email: 'person@example.com', version: '1.0', activeProfile: bridgeMock.activeProfile, profiles: cachedProfiles, capabilities: [], error: null },
+      'downloads.snapshot': { items: [], hasUnseenCompleted: false, filter: {} },
       'details.watched.snapshot': { loaded: true, watched: false, fullyWatched: false },
       'details.watched.toggle': { loaded: true, watched: true, fullyWatched: false },
       'profiles.snapshot': { items: [{id:7,name:'Michael',avatarColorHex:'#1E88E5',avatarId:null,avatarUrl:null,backgroundId:null,backgroundUrl:null,locked:false,pinLockedUntil:null,usesPrimaryAddons:false,usesPrimaryPlugins:false,primaryAddonsAllowlist:null}], activeProfile:7, rememberLastProfileEnabled:false, maxProfiles:6, avatars:[], backgrounds:[] },
@@ -82,12 +83,62 @@ async function openPreparedStream() {
 }
 
 describe('desktop bridge UI workflow', () => {
-  beforeEach(() => { window.history.replaceState({}, '', '/'); bridgeMock.deferPlayback=false;bridgeMock.deferProfiles=false;bridgeMock.multipleProfiles=false;bridgeMock.homeLoading=false;bridgeMock.rejectSelection=false;bridgeMock.failSessionSnapshot=false;bridgeMock.failSignOut=false;bridgeMock.streamAutoPlayMode='MANUAL';bridgeMock.epoch=5;bridgeMock.activeProfile=7;bridgeMock.sessionStatus='signedIn';bridgeMock.listeners.clear(); bridgeMock.requests.length = 0; });
+  beforeEach(() => { window.history.replaceState({}, '', '/'); bridgeMock.networkCondition=undefined;bridgeMock.deferPlayback=false;bridgeMock.deferProfiles=false;bridgeMock.multipleProfiles=false;bridgeMock.homeLoading=false;bridgeMock.rejectSelection=false;bridgeMock.failSessionSnapshot=false;bridgeMock.failSignOut=false;bridgeMock.streamAutoPlayMode='MANUAL';bridgeMock.epoch=5;bridgeMock.activeProfile=7;bridgeMock.sessionStatus='signedIn';bridgeMock.listeners.clear(); bridgeMock.requests.length = 0; });
+
+  it('opens Downloads directly when the native startup check reports no internet, without waiting for auth', async () => {
+    bridgeMock.networkCondition = 'NoInternet';
+    bridgeMock.sessionStatus = 'loading';
+    bridgeMock.multipleProfiles = true;
+    render(<AppRoot />);
+    expect(await screen.findByRole('heading', { name: 'Downloads' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/library/downloads');
+    expect(screen.queryByText("Who's watching?")).toBeNull();
+    expect(bridgeMock.requests.some(request => request.method === 'home.resumePrompt.consume')).toBe(false);
+  });
+
+  it('keeps normal startup on a server outage and does not redirect when internet is lost later', async () => {
+    bridgeMock.networkCondition = 'ServersUnreachable';
+    render(<AppRoot />);
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument());
+    expect(window.location.pathname).toBe('/');
+    await act(async () => emit({ topic: 'session', epoch: bridgeMock.epoch, revision: 999, data: { ...getSnapshot().session, networkCondition: 'NoInternet' } }));
+    expect(window.location.pathname).toBe('/');
+  });
+
+  it('opens Downloads from the browser offline-at-launch signal while the native probe is checking', async () => {
+    const online = vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+    try {
+      bridgeMock.networkCondition = 'Checking';
+      render(<AppRoot />);
+      expect(await screen.findByRole('heading', { name: 'Downloads' })).toBeInTheDocument();
+      expect(window.location.pathname).toBe('/library/downloads');
+    } finally { online.mockRestore(); }
+  });
+
+  it('waits for a checking startup probe, then opens Downloads when the offline result arrives', async () => {
+    bridgeMock.networkCondition = 'Checking';
+    render(<AppRoot />);
+    await waitFor(() => expect(getSnapshot().session.networkCondition).toBe('Checking'));
+    expect(screen.queryByRole('link', { name: 'Home' })).toBeNull();
+    await act(async () => emit({ topic: 'session', epoch: bridgeMock.epoch, revision: 999, data: { ...getSnapshot().session, networkCondition: 'NoInternet' } }));
+    expect(await screen.findByRole('heading', { name: 'Downloads' })).toBeInTheDocument();
+  });
 
   it('cancels a resolving player immediately when Back is pressed', async () => {
     bridgeMock.deferPlayback = true;
     await openPreparedStream();
     fireEvent.click(await screen.findByRole('button', { name: 'Back' }));
+    await waitFor(() => expect(bridgeMock.requests.filter(request => request.method === 'playback.stop')).toHaveLength(1));
+  });
+
+  it('keeps stream loading mounted while the native player prepares its presentation', async () => {
+    bridgeMock.deferPlayback = true;
+    await openPreparedStream();
+    await act(async () => emit({ topic: 'playback', epoch: bridgeMock.epoch, revision: 901,
+      data: { state: 'starting', phase: 'preparing', active: true, error: null } }));
+    expect(await screen.findByText('Building player…')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Player')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close player' }));
     await waitFor(() => expect(bridgeMock.requests.filter(request => request.method === 'playback.stop')).toHaveLength(1));
   });
 
@@ -225,6 +276,75 @@ describe('desktop bridge UI workflow', () => {
     expect((restored as HTMLInputElement).value).toBe('Arrival');
     expect(await screen.findByText('Search results')).toBeInTheDocument();
     expect(bridgeMock.requests.filter((request) => request.method === 'search.start')).toHaveLength(1);
+  });
+
+  it('scrolls to the top as soon as typing begins in scrolled Discover, before debounce', async () => {
+    window.history.pushState({}, '', '/search');
+    render(<AppRoot />);
+    const input = await screen.findByRole('searchbox', { name: 'Search movies and shows' });
+    const main = document.querySelector<HTMLElement>('.main-area')!;
+    main.scrollTop = 1800;
+    fireEvent.scroll(main);
+    fireEvent.change(input, { target: { value: 'Arrival' } });
+    expect(main.scrollTop).toBe(0);
+    expect(bridgeMock.requests.some(request => request.method === 'search.start')).toBe(false);
+    await waitFor(() => expect(bridgeMock.requests.some(request => request.method === 'search.start')).toBe(true));
+    const request = bridgeMock.requests.find(request => request.method === 'search.start')!;
+    await act(async () => emit({ topic: 'search', epoch: bridgeMock.epoch, revision: 965, data: { requestId: request.id, query: 'Arrival', loading: false, error: null, shelves: [{ key: 'results', title: 'Search results', subtitle: '', items: [media('arrival', 'Arrival')], hasMore: false }] } }));
+    expect(main.scrollTop).toBe(0);
+  });
+
+  it('restores Discover scroll after viewing a title despite the shared route scroller', async () => {
+    window.history.pushState({}, '', '/search');
+    render(<AppRoot />);
+    const card = await screen.findByRole('button', { name: 'Open Discover popular title' });
+    const main = document.querySelector<HTMLElement>('.main-area')!;
+    main.scrollTop = 1250;
+    fireEvent.scroll(main);
+    fireEvent.click(card);
+    await waitFor(() => expect(bridgeMock.requests.some(request => request.method === 'details.load')).toBe(true));
+    expect(main.scrollTop).toBe(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    await screen.findByRole('searchbox', { name: 'Search movies and shows' });
+    expect(main.scrollTop).toBe(1250);
+    expect(screen.getByRole('searchbox', { name: 'Search movies and shows' })).toHaveValue('');
+  });
+
+  it('scrolls to the top immediately when selecting a recent query in Discover', async () => {
+    window.history.pushState({}, '', '/search');
+    render(<AppRoot />);
+    const input = await screen.findByRole('searchbox', { name: 'Search movies and shows' });
+    fireEvent.focus(input);
+    const recent = await screen.findByRole('button', { name: 'A recent movie' });
+    const main = document.querySelector<HTMLElement>('.main-area')!;
+    main.scrollTop = 1400;
+    fireEvent.click(recent);
+    expect(main.scrollTop).toBe(0);
+    expect(input).toHaveValue('A recent movie');
+  });
+
+  it.each(['button', 'Escape', 'delete'])('returns to Discover after clearing via %s and viewing a Discover title', async method => {
+    window.history.pushState({}, '', '/search');
+    render(<AppRoot />);
+    const input = await screen.findByRole('searchbox', { name: 'Search movies and shows' });
+    fireEvent.change(input, { target: { value: 'Arrival' } });
+    await waitFor(() => expect(bridgeMock.requests.some(request => request.method === 'search.start')).toBe(true));
+    const request = bridgeMock.requests.find(request => request.method === 'search.start')!;
+    await act(async () => emit({ topic: 'search', epoch: bridgeMock.epoch, revision: 965, data: { requestId: request.id, query: 'Arrival', loading: false, error: null, shelves: [{ key: 'results', title: 'Search results', subtitle: '', items: [media('arrival', 'Arrival')], hasMore: false }] } }));
+    if (method === 'button') fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+    else if (method === 'Escape') fireEvent.keyDown(input, { key: 'Escape' });
+    else fireEvent.change(input, { target: { value: '' } });
+    expect(getSnapshot().search.query).toBe('');
+    expect(getSnapshot().search.requestId).not.toBe(request.id);
+    // Even an in-flight result arriving after clear cannot bring the old search back.
+    await act(async () => emit({ topic: 'search', epoch: bridgeMock.epoch, revision: 966, data: { requestId: request.id, query: 'Arrival', loading: false, error: null, shelves: [] } }));
+    expect(getSnapshot().search.query).toBe('');
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Discover popular title' }));
+    await waitFor(() => expect(bridgeMock.requests.some(request => request.method === 'details.load')).toBe(true));
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(await screen.findByRole('searchbox', { name: 'Search movies and shows' })).toHaveValue('');
+    expect(screen.getByRole('heading', { name: 'Discover' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Search results' })).toBeNull();
   });
 
   it('preserves an empty selected hero when unrelated shelf titles are available', async () => {

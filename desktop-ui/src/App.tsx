@@ -19,6 +19,7 @@ import { ProfileChooser } from './features/profiles/ProfileChooser';
 import { ProfileLoadingScreen } from './features/profiles/ProfileLoadingScreen';
 import { CatalogPage } from './features/catalog/CatalogPage';
 import { DownloadsPage } from './features/downloads/DownloadsPage';
+import { DownloadNotifications } from './features/downloads/DownloadNotifications';
 import { CollectionsPage, CollectionEditorPage, CollectionFolderPage } from './features/collections/CollectionsPages';
 import { SettingsPage } from './features/settings/SettingsPage';
 import { Avatar } from './components/ui';
@@ -34,7 +35,7 @@ const navItems = [
   { to: '/settings', label: 'Settings', Icon: SettingsIcon },
 ];
 
-function Shell() {
+function Shell({ offlineDownloads = false }: { offlineDownloads?: boolean }) {
   const session = useSelector((current) => current.session);
   const appearance = useFeatureSnapshot<{ navigationLayout: 'sidebar' | 'topbar'; navBarStyle: string; navBarGlowEnabled: boolean; home?: { heroEnabled?: boolean } }>('appearance');
   const location = useLocation();
@@ -66,11 +67,11 @@ function Shell() {
   useEffect(() => { setProfileOpen(false); }, [location.pathname]);
   useEffect(() => {
     // The main scroll container is shared across routes. Home restores its
-    // own saved position; every other route starts at the top instead of
+    // own saved position; Search restores its Discover history entry. Other routes start at the top instead of
     // inheriting wherever the previous route left the scroller (which made
     // Search/Library open partway down and drift further on repeat visits).
     // Plain scrollTop assignment: instant, and safe where scrollTo is missing.
-    if (location.pathname !== '/') {
+    if (location.pathname !== '/' && location.pathname !== '/search') {
       const main = document.querySelector<HTMLElement>('.main-area');
       if (main) main.scrollTop = 0;
     }
@@ -117,7 +118,7 @@ function Shell() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </main>
-    <LaunchResumePrompt />
+    {!offlineDownloads && <LaunchResumePrompt />}
   </div>;
 }
 
@@ -126,9 +127,27 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
   const [launchPicker,setLaunchPicker]=useState<boolean|null>(null);
+  const [offlineStartup, setOfflineStartup] = useState<boolean | null>(null);
+  const browserOfflineAtLaunch = useRef(navigator.onLine === false);
+  useEffect(() => {
+    if (offlineStartup !== null || state.status !== 'ready') return;
+    const condition = state.session.networkCondition;
+    // Wait for the first actual session snapshot/epoch, rather than deciding
+    // from the empty store as soon as the local process becomes ready.
+    if (condition === undefined && state.session.status === 'loading') return;
+    if (browserOfflineAtLaunch.current || condition === 'NoInternet') {
+      setOfflineStartup(true);
+      navigate('/library/downloads', { replace: true });
+    } else if (condition !== 'Unknown' && condition !== 'Checking') {
+      // Missing condition supports older bridge snapshots. A server outage
+      // alone does not mean the device has no internet connection.
+      setOfflineStartup(false);
+    }
+  }, [offlineStartup, state.status, state.session.status, state.session.networkCondition, navigate]);
+  const offlineDownloads = offlineStartup === true && (location.pathname === '/library/downloads' || location.pathname === '/playback');
   useEffect(()=>{
     if(state.session.status==='signedOut'){setLaunchPicker(null);return;}
-    if(state.session.status!=='signedIn'||launchPicker!==null)return;
+    if(offlineDownloads||state.session.status!=='signedIn'||launchPicker!==null)return;
     let active=true;
     void (async()=>{
       if(!active)return;
@@ -148,7 +167,7 @@ function AppContent() {
       setLaunchPicker(true);
     })().catch(()=>{if(active)setLaunchPicker(true);});
     return ()=>{active=false;};
-  },[state.session.status,launchPicker]);
+  },[state.session.status,launchPicker,offlineDownloads]);
   const appearance = useFeatureSnapshot<{ theme?: string; customThemeColors?: string[]; amoledEnabled?: boolean; cardStyle?: Parameters<typeof posterMetrics>[0] }>('appearance');
   useEffect(() => { void initialize(); }, []);
   const themeId = appearance?.theme ?? state.settings.theme;
@@ -161,7 +180,7 @@ function AppContent() {
   const profileSetupRoute = location.pathname.startsWith('/profiles');
   const explicitPicker=location.pathname==='/profiles/choose';
   const showPicker=explicitPicker||(!profileSetupRoute&&launchPicker===true);
-  const startupLoading = (state.session.status === 'loading' && state.status !== 'disconnected') || (state.session.status === 'signedIn' && launchPicker === null && !profileSetupRoute);
+  const startupLoading = offlineStartup === null || (state.session.status === 'loading' && state.status !== 'disconnected') || (state.session.status === 'signedIn' && launchPicker === null && !profileSetupRoute);
   return <div className="app" style={style} onContextMenu={event => {
     const target = event.target;
     const editable = target instanceof Element && (
@@ -172,7 +191,10 @@ function AppContent() {
   }}>
     {state.status !== 'ready' && <ConnectionNotice status={state.status} />}
     <UpdateBanner />
-    {state.session.status === 'loading' && state.status === 'disconnected'
+    <DownloadNotifications />
+    {offlineDownloads && state.status === 'ready'
+      ? <Shell offlineDownloads />
+      : state.session.status === 'loading' && state.status === 'disconnected'
       ? <div className="boot"><InlineError message={startupError ?? 'The Kotlin backend could not start.'} onRetry={() => { void actions.restartBridge().catch(() => {}); }} /></div>
       : startupLoading
       ? <ProfileLoadingScreen startup />
@@ -181,7 +203,7 @@ function AppContent() {
         : showPicker
           ? <ProfileChooser onSelected={() => { setLaunchPicker(false); navigate('/'); }} onBack={explicitPicker && !launchPicker && state.session.activeProfile !== null ? () => navigate(-1) : undefined} />
           : <Shell />}
-    {state.profileTransition && !startupLoading && <ProfileLoadingScreen />}
+    {state.profileTransition && !startupLoading && !offlineDownloads && <ProfileLoadingScreen />}
   </div>;
 }
 

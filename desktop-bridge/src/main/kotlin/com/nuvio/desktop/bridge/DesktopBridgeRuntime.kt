@@ -32,6 +32,7 @@ import com.nuvio.app.core.ui.AppTheme
 import com.nuvio.app.core.ui.ThemeColors
 import com.nuvio.app.core.sync.SyncManager
 import com.nuvio.app.core.network.NetworkStatusRepository
+import com.nuvio.app.core.network.NetworkCondition
 import com.nuvio.app.core.auth.DeviceSessionRegistration
 import com.nuvio.app.features.addons.AddAddonResult
 import com.nuvio.app.features.addons.AddonRepository
@@ -81,6 +82,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.sync.Mutex
@@ -169,6 +172,30 @@ class DesktopBridgeRuntime {
         authToken = token
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         runtimeScope = scope
+
+        NetworkStatusRepository.ensureStarted()
+        scope.launch {
+            NetworkStatusRepository.uiState.collect { emit("session", sessionJson()) }
+        }
+        scope.launch {
+            while (isActive) {
+                delay(15_000)
+                if (NetworkStatusRepository.uiState.value.isOfflineLike) NetworkStatusRepository.requestRefresh()
+            }
+        }
+        scope.startOfflinePlaybackSync(
+            contexts = combine(NetworkStatusRepository.uiState, AuthRepository.state, ProfileRepository.state) { network, auth, profiles ->
+                OfflinePlaybackSyncContext(
+                    online = network.condition == NetworkCondition.Online,
+                    accountId = (auth as? AuthState.Authenticated)?.takeUnless { it.isAnonymous }
+                        ?.userId?.takeIf(ProfileRepository::hasLoadedProfilesFor),
+                    profileIds = profiles.profiles.map { it.profileIndex }.distinct(),
+                )
+            },
+            pushProgress = WatchProgressRepository::pushPendingToCloud,
+            pushWatched = com.nuvio.app.features.watched.WatchedRepository::pushPendingToCloud,
+            onFailure = { error -> co.touchlab.kermit.Logger.withTag("OfflinePlaybackSync").w(error) { "Pending playback sync will be retried" } },
+        )
 
         // Match AppGate/MainAppContent initialization while keeping ownership in one runtime.
         AuthRepository.initialize()
@@ -616,6 +643,12 @@ class DesktopBridgeRuntime {
             emit("playback", buildJsonObject { put("playing", false); put("active", false); put("state", "stopped") })
             JsonObject(emptyMap())
         }
+        "playback.restoreFromPip" -> {
+            withContext(Dispatchers.Swing) {
+                com.nuvio.app.features.player.desktop.DesktopPlayerPictureInPicture.clear()
+            }
+            JsonObject(emptyMap())
+        }
         "app.openExternal" -> {
             val uri = java.net.URI(params.str("url"))
             require(uri.scheme?.lowercase() in setOf("http", "https") && !uri.host.isNullOrBlank() && uri.userInfo == null) { "Expected a web URL" }
@@ -898,6 +931,7 @@ class DesktopBridgeRuntime {
             put("profiles", JsonArray(profile.profiles.map(::profileJson)))
             put("capabilities", JsonArray(listOf("auth", "profiles", "home", "library", "addons", "settings", "search", "details", "streams").map(::JsonPrimitive)))
             putNullable("error", sessionError ?: AuthRepository.error.value)
+            put("networkCondition", NetworkStatusRepository.uiState.value.condition.name)
         }
     }
 

@@ -9,6 +9,28 @@ import kotlin.test.assertTrue
 class EmbeddedTauriPlayerHostTest {
     @AfterTest fun clearHost() = EmbeddedTauriPlayerHost.clear()
 
+    @Test fun attachmentDoesNotCompletePresentationAndPresentationIsDeliveredOnce() {
+        var presentations = 0
+        EmbeddedTauriPlayerHost.begin(1L, presented = { presentations++ })
+        EmbeddedTauriPlayerHost.playerAttached()
+        assertEquals(0, presentations)
+        EmbeddedTauriPlayerHost.playerPresented()
+        EmbeddedTauriPlayerHost.playerPresented()
+        assertEquals(1, presentations)
+    }
+
+    @Test fun closingOrReplacingTheHostDropsItsPendingPresentation() {
+        var presentations = 0
+        EmbeddedTauriPlayerHost.begin(1L, presented = { presentations++ })
+        EmbeddedTauriPlayerHost.clear()
+        EmbeddedTauriPlayerHost.playerPresented()
+        assertEquals(0, presentations)
+        EmbeddedTauriPlayerHost.begin(1L, presented = { presentations++ })
+        EmbeddedTauriPlayerHost.begin(2L)
+        EmbeddedTauriPlayerHost.playerPresented()
+        assertEquals(0, presentations)
+    }
+
     @Test fun inheritsShellFullscreenAndRequestsExitThroughTheShell() {
         var requests = 0
         EmbeddedTauriPlayerHost.begin(1L, initialFullscreen = true, toggleFullscreen = { requests++ })

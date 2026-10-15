@@ -10,6 +10,7 @@ import { Shelf } from '../../components/Shelf';
 import { EmptyState } from '../../components/EmptyState';
 import { InlineError } from '../../components/Status';
 import './search.css';
+import { useDiscoverScroll } from './useDiscoverScroll';
 
 const MAX_RECENT_SEARCHES = 5;
 
@@ -19,6 +20,7 @@ export function SearchPage() {
   const addons = useSelector((current) => current.addons) as Addon[];
   const appearance = useFeatureSnapshot<AppearanceSnapshot>('appearance');
   const history = useSelector((current) => current.searchHistory) as SearchHistory | null;
+  const profileId = useSelector(current => current.session.activeProfile);
   const [query, setQuery] = useState(search.query);
   const [queryPending, setQueryPending] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -26,6 +28,22 @@ export function SearchPage() {
   const [openFilter, setOpenFilter] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const paging = useRef(false);
+  const discoverCatalogKey = discover ? JSON.stringify([discover.selectedType, discover.selectedCatalogKey, discover.selectedGenre]) : null;
+  const discoverScroll = useDiscoverScroll(profileId, discoverCatalogKey, Boolean(query.trim()), top => setScrolled(top > 48));
+  const updateQuery = (value: string) => {
+    setQuery(value);
+    setQueryPending(Boolean(value.trim()));
+    if (value.trim()) {
+      // The same scroll container hosts Discover and results. Move it before
+      // the debounce or network response, rather than inheriting Discover's depth.
+      const main = document.querySelector<HTMLElement>('.main-area');
+      if (main) main.scrollTop = 0;
+      setScrolled(false);
+    } else {
+      paging.current = false;
+      void actions.searchClear().catch(() => {});
+    }
+  };
   const addonRefreshKey = useMemo(() => addons
     .filter((addon) => addon.enabled)
     .map((addon) => [addon.id, addon.manifestUrl, addon.version ?? '', addon.catalogCount ?? '', ...(addon.types ?? [])].join('|'))
@@ -50,7 +68,7 @@ export function SearchPage() {
     const timer = window.setTimeout(() => {
       if (!normalized) {
         setQueryPending(false);
-        void call('search.clear').catch(() => {});
+        if (search.query || search.loading || search.shelves.length) void actions.searchClear().catch(() => {});
         paging.current = false;
         return;
       }
@@ -71,7 +89,7 @@ export function SearchPage() {
     if (!main) return;
     const onScroll = () => {
       setScrolled(main.scrollTop > 48);
-      if (query.trim() || !discover?.hasMore || discover.loading || paging.current) return;
+      if (query.trim() || discoverScroll.restoring.current || !discover?.hasMore || discover.loading || paging.current) return;
       if (main.scrollTop + main.clientHeight >= main.scrollHeight - 500) {
         paging.current = true;
         void call('discover.loadMore').then(() => refreshFeature('discover')).catch(() => {}).finally(() => { paging.current = false; });
@@ -117,22 +135,22 @@ export function SearchPage() {
           aria-label="Search movies and shows"
           onFocus={() => setFocused(true)}
           onBlur={() => { window.setTimeout(() => setFocused(false), 120); }}
-          onChange={(event) => { const value = event.target.value; setQuery(value); setQueryPending(Boolean(value.trim())); }}
-          onKeyDown={(event) => { if (event.key === 'Escape') { if (query) { setQuery(''); setQueryPending(false); } else inputRef.current?.blur(); } }}
+          onChange={(event) => updateQuery(event.target.value)}
+          onKeyDown={(event) => { if (event.key === 'Escape') { if (query) updateQuery(''); else inputRef.current?.blur(); } }}
         />
-        {query && <button type="button" className="search-clear" aria-label="Clear search" onMouseDown={(event) => event.preventDefault()} onClick={() => { setQuery(''); setQueryPending(false); inputRef.current?.focus(); }}><X size={18} /></button>}
+        {query && <button type="button" className="search-clear" aria-label="Clear search" onMouseDown={(event) => event.preventDefault()} onClick={() => { updateQuery(''); inputRef.current?.focus(); }}><X size={18} /></button>}
       </div>
     </header>
 
     {showHistory && <section className="search-history" aria-label="Recent searches">
       <h2>Recent searches</h2>
       {history!.items.slice(0, MAX_RECENT_SEARCHES).map((item) => <div className="search-history-row" key={item}>
-        <button type="button" className="search-history-query" onMouseDown={(event) => event.preventDefault()} onClick={() => { setQuery(item); setQueryPending(true); void call('search.historyUse', { query: item }).catch(() => {}); }}>{item}</button>
+        <button type="button" className="search-history-query" onMouseDown={(event) => event.preventDefault()} onClick={() => { updateQuery(item); void call('search.historyUse', { query: item }).catch(() => {}); }}>{item}</button>
         <button type="button" className="search-history-remove" aria-label={`Remove ${item} from recent searches`} onMouseDown={(event) => event.preventDefault()} onClick={() => { void call('search.historyRemove', { query: item }).then(() => refreshFeature('searchHistory', 'search.historySnapshot')).catch(() => {}); }}><X size={16} /></button>
       </div>)}
     </section>}
 
-    {!query.trim() ? <section className="search-discover" aria-labelledby="discover-heading">
+    {!query.trim() ? <section className="search-discover" aria-labelledby="discover-heading" onClickCapture={() => discoverScroll.save.current()} onContextMenuCapture={() => discoverScroll.save.current()}>
       <h2 id="discover-heading">Discover</h2>
       <div className="discover-filters">
         <FilterChip id="type" label={displayType(discover?.selectedType ?? 'movie')} open={openFilter === 'type'} onToggle={() => setOpenFilter(openFilter === 'type' ? null : 'type')} options={(discover?.typeOptions ?? []).map((value) => ({ value, label: displayType(value) }))} selected={discover?.selectedType ?? ''} onSelect={(value) => void select('discover.selectType', { type: value })} />
@@ -142,7 +160,7 @@ export function SearchPage() {
       {activeCatalog && <p className="discover-context">{activeCatalog.addonName} · {displayType(activeCatalog.type)}</p>}
       {discover?.error && <InlineError message={discover.error} onRetry={() => void call('discover.refresh', { force: true }).then(() => refreshFeature('discover')).catch(() => {})} />}
       {(!discover || (discover.loading && discover.items.length === 0)) ? <div className="discover-loading" role="status" aria-label="Loading catalog results" aria-busy="true">{Array.from({ length: 8 }, (_, index) => <PosterLoadingCard variant="poster" key={index} />)}</div>
-        : discover.items.length ? <PosterGrid items={discover.items} resetKey={`${discover.selectedCatalogKey ?? ''}:${discover.selectedType ?? ''}:${discover.selectedGenre ?? ''}`} />
+        : discover.items.length ? <PosterGrid items={discover.items} resetKey={`${discover.selectedCatalogKey ?? ''}:${discover.selectedType ?? ''}:${discover.selectedGenre ?? ''}`} initialVisibleCount={discoverScroll.initialVisibleCount} />
           : <DiscoverEmpty discover={discover} />}
     </section> : <section className="search-results" aria-label="Search results">
       {waitingForSearch ? <SearchLoadingSkeleton /> : <>

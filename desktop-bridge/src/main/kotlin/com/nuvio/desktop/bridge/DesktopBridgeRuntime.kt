@@ -113,6 +113,7 @@ interface BridgePlaybackAdapter {
         nativeHostFullscreen: Boolean = false,
     ): JsonObject
     suspend fun stop()
+    suspend fun shutdown() = stop()
 }
 
 /** Runtime for the local-only bridge consumed by the Tauri shell. */
@@ -372,7 +373,7 @@ class DesktopBridgeRuntime {
 
     suspend fun stop() = lifecycle.withLock {
         syncLifecycle.stop()
-        runCatching { playbackAdapter?.stop() }
+        runCatching { playbackAdapter?.shutdown() }
         server?.stop(250, 1_000)
         server = null
         runtimeScope?.cancel()
@@ -671,7 +672,7 @@ class DesktopBridgeRuntime {
             buildJsonObject { put("visible", visible) }
         }
         "app.shutdown" -> {
-            playbackAdapter?.stop()
+            playbackAdapter?.shutdown()
             runtimeScope?.launch { kotlinx.coroutines.delay(100); stop() }
             JsonObject(emptyMap())
         }

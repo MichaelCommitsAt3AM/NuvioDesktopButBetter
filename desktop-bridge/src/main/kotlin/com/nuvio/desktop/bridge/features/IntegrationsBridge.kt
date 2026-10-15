@@ -53,13 +53,12 @@ import kotlinx.serialization.json.putJsonObject
 
 /** Settings and account authorization adapter backed by the existing provider repositories. */
 object IntegrationsBridge {
-    private data class DebridPending(val authorization: DebridDeviceAuthorization, var nextPollAtEpochMs: Long)
-    private val debridSessions = mutableMapOf<String, DebridPending>()
+    private val debridAuth = DebridDeviceAuthFlow()
     private val json = Json { ignoreUnknownKeys = false; encodeDefaults = true }
 
     /** Clears ephemeral authorization material without disconnecting saved provider accounts. */
     fun reset() {
-        debridSessions.clear()
+        debridAuth.reset()
         runCatching {
             MdbListTracker.ensureLoaded()
             if (MdbListTracker.auth.state.value.session != null) MdbListTracker.account.cancel()
@@ -324,6 +323,7 @@ object IntegrationsBridge {
                 visibleDebridProvider(providerId)
                 val apiKey = value.asString(key)
                 if (apiKey.length > 4_096) invalid(key)
+                debridAuth.cancel(providerId)
                 DebridSettingsRepository.setProviderApiKey(providerId, apiKey)
             }
             "preferredResolverProviderId" -> {
@@ -365,50 +365,19 @@ object IntegrationsBridge {
         val provider = visibleDebridProvider(params.str("providerId"))
         if (provider.authMethod.name != "DeviceCode") throw BridgeFeatureException("CAPABILITY_UNAVAILABLE", "This provider uses an API key")
         if (DebridSettingsRepository.snapshot().apiKeyFor(provider.id).isNotBlank()) throw BridgeFeatureException("ALREADY_CONNECTED", "Disconnect this provider before starting device authorization")
-        val api = DebridProviderApis.apiFor(provider.id) ?: throw BridgeFeatureException("CAPABILITY_UNAVAILABLE", "This provider is unavailable")
-        val authorization = try { api.startDeviceAuthorization("Nuvio") } catch (error: CancellationException) { throw error } catch (error: Exception) {
-            throw BridgeFeatureException("DEVICE_AUTH_START_FAILED", "Could not start provider authorization")
-        } ?: throw BridgeFeatureException("DEVICE_AUTH_START_FAILED", "Provider did not return a device authorization code")
-        if (authorization.providerId != provider.id || authorization.deviceCode.isBlank() || authorization.userCode.isBlank()) {
-            throw BridgeFeatureException("DEVICE_AUTH_INVALID_RESPONSE", "Provider returned an invalid device authorization response")
-        }
-        val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
-        debridSessions[provider.id] = DebridPending(authorization, now + authorization.intervalSeconds * 1_000L)
-        return safeDebridAuthorization(authorization, now + authorization.intervalSeconds * 1_000L)
+        val authorization = debridAuth.start(provider.id, params["restart"]?.jsonPrimitive?.booleanOrNull == true)
+        return safeDebridAuthorization(authorization, debridAuth.nextPoll(provider.id)!!)
     }
 
     private suspend fun pollDebridDevice(params: JsonObject): JsonObject {
         val provider = visibleDebridProvider(params.str("providerId"))
-        val pending = debridSessions[provider.id] ?: throw BridgeFeatureException("DEVICE_AUTH_NOT_FOUND", "No pending device authorization exists for this provider")
-        val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
-        if (now < pending.nextPollAtEpochMs) return devicePollResult("pending", provider.id, pending.nextPollAtEpochMs)
-        val api = DebridProviderApis.apiFor(provider.id) ?: throw BridgeFeatureException("CAPABILITY_UNAVAILABLE", "This provider is unavailable")
-        val result = try { api.redeemDeviceAuthorization(pending.authorization.deviceCode) } catch (error: CancellationException) { throw error } catch (error: Exception) {
-            throw BridgeFeatureException("DEVICE_AUTH_POLL_FAILED", "Provider authorization check failed")
-        }
-        return when (result) {
-            is DebridDeviceAuthorizationTokenResult.Authorized -> {
-                if (result.accessToken.isBlank()) throw BridgeFeatureException("DEVICE_AUTH_INVALID_RESPONSE", "Provider returned an empty credential")
-                DebridSettingsRepository.setProviderApiKey(provider.id, result.accessToken)
-                debridSessions.remove(provider.id)
-                buildJsonObject { put("status", "authorized"); put("providerId", provider.id); put("snapshot", debridSnapshot()) }
-            }
-            DebridDeviceAuthorizationTokenResult.Pending -> {
-                pending.nextPollAtEpochMs = now + pending.authorization.intervalSeconds * 1_000L
-                devicePollResult("pending", provider.id, pending.nextPollAtEpochMs)
-            }
-            DebridDeviceAuthorizationTokenResult.Expired -> {
-                debridSessions.remove(provider.id)
-                devicePollResult("expired", provider.id, null)
-            }
-            DebridDeviceAuthorizationTokenResult.Unsupported -> throw BridgeFeatureException("CAPABILITY_UNAVAILABLE", "This provider does not support device authorization")
-            is DebridDeviceAuthorizationTokenResult.Failed -> throw BridgeFeatureException("DEVICE_AUTH_FAILED", "Provider authorization was denied")
-        }
+        val status = debridAuth.poll(provider.id)
+        return devicePollResult(status, provider.id, debridAuth.nextPoll(provider.id))
     }
 
     private fun cancelDebridDevice(params: JsonObject): JsonObject {
         val provider = visibleDebridProvider(params.str("providerId"))
-        debridSessions.remove(provider.id)
+        debridAuth.cancel(provider.id)
         return buildJsonObject { put("status", "cancelled"); put("providerId", provider.id) }
     }
 

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Check } from 'lucide-react';
 import { FallbackImage } from '../../components/FallbackImage';
+import { HorizontalRail } from '../../components/HorizontalRail';
 import type { Video } from './DetailsExtras';
 import './series-episodes.css';
 
@@ -116,7 +117,7 @@ function EpisodeCollection({ episodes, season, cardStyle, fallbackImage, blurUnw
   return <>
     {cardStyle === 'horizontal' && <h3 className="series-episode-season-heading">{seasonLabel(season)}</h3>}
     {season > 0 && <button type="button" className="series-season-watch" disabled={mutationBusy} onClick={() => onToggleSeason(season)}>Mark season {episodes.length > 0 && episodes.every(isWatched) ? 'unwatched' : 'watched'}</button>}
-    <div className="series-episode-cards">
+    <EpisodeTrack horizontal={cardStyle === 'horizontal'} label={`${seasonLabel(season)} episodes`}>
       {episodes.map((video, index) => {
         const watched = isWatched(video);
         const progress = progressByVideoId?.[video.id] ?? 0;
@@ -138,8 +139,14 @@ function EpisodeCollection({ episodes, season, cardStyle, fallbackImage, blurUnw
           <span className="series-episode-copy"><strong>{video.title}</strong><small>{formatReleaseDate(video.released)}{showRating && video.rating != null && video.rating > 0 ? ` · ★ ${video.rating.toFixed(1)}` : ''}{video.runtime && cardStyle === 'horizontal' ? ` · ${video.runtime} min` : ''}</small>{video.overview && <span className="series-episode-overview">{video.overview}</span>}</span>
         </button>;
       })}
-    </div>
+    </EpisodeTrack>
   </>;
+}
+
+function EpisodeTrack({ horizontal, label, children }: { horizontal: boolean; label: string; children: ReactNode }) {
+  return horizontal
+    ? <HorizontalRail label={label} className="series-episode-cards">{children}</HorizontalRail>
+    : <div className="series-episode-cards">{children}</div>;
 }
 
 function resolveSeasonPoster(season: number, grouped: ReadonlyArray<readonly [number, Video[]]>, seasonPosters: Record<string, string>) {

@@ -10,6 +10,7 @@ export function LiquidNavigation({ children, visuals, labels, selectedIndex, sty
   const motion = useRef(new JellyMotion(selectedIndex, labels.length));
   const raf = useRef<number | null>(null), lastFrame = useRef<number | null>(null);
   const selected = useRef(selectedIndex);
+  const geometry = useRef({ width: 0, height: 0, density: 1 });
   const [hovered, setHovered] = useState(false), [focused, setFocused] = useState(false), [scrollOffset, setScrollOffset] = useState(0);
   const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
   const down = useRef<{ pointerId: number; x: number; y: number; claimed: boolean } | null>(null);
@@ -20,12 +21,7 @@ export function LiquidNavigation({ children, visuals, labels, selectedIndex, sty
   const paint = useCallback(() => {
     const element = nav.current;
     if (!element) return;
-    const density = Number(getComputedStyle(element).getPropertyValue('--ui-scale')) || 1;
-    const viewportWidth = window.innerWidth / density;
-    const iconSize = viewportWidth < 800 ? 26 : viewportWidth > 1600 ? 30 : 28;
-    element.style.setProperty('--nav-icon-size', iconSize * density + 'px');
-    const width = element.clientWidth, height = element.clientHeight;
-    motion.current.resize(width / density, height / density, labels.length);
+    const { width, height, density } = geometry.current;
     const frame = motion.current.frame;
     if (track.current) track.current.style.transform = 'scale(' + frame.trackScale + ')';
     if (distortion.current) {
@@ -74,10 +70,20 @@ export function LiquidNavigation({ children, visuals, labels, selectedIndex, sty
   useLayoutEffect(() => {
     const element = nav.current;
     if (!element) return;
-    const observer = new ResizeObserver(paint); observer.observe(element); paint();
-    window.addEventListener('resize', paint);
-    return () => { observer.disconnect(); window.removeEventListener('resize', paint); };
-  }, [paint]);
+    const measure = () => {
+      const density = Number(getComputedStyle(element).getPropertyValue('--ui-scale')) || 1;
+      const viewportWidth = window.innerWidth / density;
+      const iconSize = viewportWidth < 800 ? 26 : viewportWidth > 1600 ? 30 : 28;
+      element.style.setProperty('--nav-icon-size', iconSize * density + 'px');
+      const width = element.clientWidth, height = element.clientHeight;
+      geometry.current = { width, height, density };
+      motion.current.resize(width / density, height / density, labels.length);
+      paint();
+    };
+    const observer = new ResizeObserver(measure); observer.observe(element); measure();
+    window.addEventListener('resize', measure);
+    return () => { observer.disconnect(); window.removeEventListener('resize', measure); };
+  }, [paint, labels.length]);
   useEffect(() => {
     const media = window.matchMedia?.('(prefers-reduced-motion: reduce)');
     if (!media) return;

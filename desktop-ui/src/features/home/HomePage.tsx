@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Compass, Maximize, MoreHorizontal, RotateCcw, Trash2, Info, Play } from 'lucide-react';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
@@ -11,6 +11,7 @@ import type { AppearanceSnapshot } from '../settings/appearanceStore';
 import { HomeActionDialog } from './HomeActionDialog';
 import { useCardHold } from '../../components/useCardHold';
 import { PosterLoadingCard } from '../../components/PosterLoadingCard';
+import { HomeVisibility } from './homeVisibility';
 import './home.css';
 import './homeParity.css';
 
@@ -41,6 +42,7 @@ const consumedHomeScrollResets=new Set<string>();
 const MAX_HERO_ITEMS = 8;
 
 export function HomePage() {
+  const visible = useContext(HomeVisibility);
   const home = useSelector((current) => current.home);
   const location = useLocation();
   const navigate = useNavigate();
@@ -54,7 +56,17 @@ export function HomePage() {
   const [heroIndex, setHeroIndex] = useState(()=>homeViewPositions.get(viewKey)?.heroIndex??0);
   const heroIndexRef=useRef(heroIndex);heroIndexRef.current=heroIndex;
   const resetHomeScroll=(location.state as {resetHomeScroll?:boolean}|null)?.resetHomeScroll===true&&!consumedHomeScrollResets.has(location.key);
-  useLayoutEffect(()=>{const main=document.querySelector<HTMLElement>('.main-area');if(resetHomeScroll){consumedHomeScrollResets.add(location.key);if(main)main.scrollTop=0;}else if(main)main.scrollTop=homeViewPositions.get(viewKey)?.scrollTop??0;return()=>{if(main)homeViewPositions.set(viewKey,{scrollTop:main.scrollTop,heroIndex:heroIndexRef.current});};},[viewKey,resetHomeScroll,location.key]);
+  useLayoutEffect(() => {
+    if (!visible) return;
+    const main = document.querySelector<HTMLElement>('.main-area');
+    if (!main) return;
+    if (resetHomeScroll) consumedHomeScrollResets.add(location.key);
+    main.scrollTop = resetHomeScroll ? 0 : homeViewPositions.get(viewKey)?.scrollTop ?? 0;
+    // Save on scroll, before a route can hide Home and clamp the shared viewport.
+    const save = () => homeViewPositions.set(viewKey, { scrollTop: main.scrollTop, heroIndex: heroIndexRef.current });
+    main.addEventListener('scroll', save, { passive: true });
+    return () => { main.removeEventListener('scroll', save); };
+  }, [visible, viewKey, resetHomeScroll, location.key]);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [extrasSnapshotState, setExtrasSnapshotState] = useState<{ profileId: number | null; settled: boolean }>({ profileId: null, settled: false });
@@ -69,7 +81,8 @@ export function HomePage() {
   const [viewport,setViewport]=useState({width:window.innerWidth,height:window.innerHeight});
   useEffect(()=>{const resize=()=>setViewport({width:window.innerWidth,height:window.innerHeight});window.addEventListener('resize',resize);return ()=>window.removeEventListener('resize',resize);},[]);
   useEffect(()=>{const element=heroElement.current;if(!element||typeof IntersectionObserver==='undefined')return;const observer=new IntersectionObserver(([entry])=>setHeroActive(entry.isIntersecting));observer.observe(element);return ()=>observer.disconnect();},[heroItems.length]);
-  useEffect(()=>{if(!heroActive||heroDragging||heroItems.length<2)return;const timer=setTimeout(()=>{if(document.visibilityState==='visible')setHeroIndex(index=>(index+1)%heroItems.length);},8000);return ()=>clearTimeout(timer);},[heroIndex,heroItems.length,heroActive,heroDragging]);
+  useEffect(()=>{if(!visible||!heroActive||heroDragging||heroItems.length<2)return;const timer=setTimeout(()=>{if(document.visibilityState==='visible')setHeroIndex(index=>(index+1)%heroItems.length);},8000);return ()=>clearTimeout(timer);},[visible,heroIndex,heroItems.length,heroActive,heroDragging]);
+  useEffect(() => { const position = homeViewPositions.get(viewKey); homeViewPositions.set(viewKey, { scrollTop: position?.scrollTop ?? 0, heroIndex }); }, [viewKey, heroIndex]);
   useEffect(()=>setLogoFailed(false),[hero?.id]);
   const unit=1.08,widthDp=viewport.width/unit,heightDp=viewport.height/unit;
   const wideProgress=Math.max(0,Math.min(1,(widthDp/heightDp-16/9)/(32/9-16/9)));

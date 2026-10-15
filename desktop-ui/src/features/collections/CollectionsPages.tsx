@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, ChevronRight, Film, FolderPlus, Grid2X2, LoaderCircle, Pencil, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot } from '../../bridge';
@@ -35,7 +35,7 @@ function sourceName(source: Source) {
 
 function resolvedSources(folder: Folder): Source[] { return folder.sources?.length ? folder.sources : folder.catalogSources ?? []; }
 
-export function HomeCollections({ shelves }: { shelves: ShelfData[] }) {
+export const HomeCollections = memo(function HomeCollections({ shelves }: { shelves: ShelfData[] }) {
   const state = useFeatureSnapshot<{ items: Collection[] }>('collections');
   const appearance = useFeatureSnapshot<AppearanceSnapshot>('appearance');
   useEffect(() => { void refreshFeature('collections').catch(() => {}); }, []);
@@ -46,7 +46,7 @@ export function HomeCollections({ shelves }: { shelves: ShelfData[] }) {
     return { order: collection.pinToTop ? -1 : setting?.order ?? Number.MAX_SAFE_INTEGER, content: <section className="shelf home-collection" key={collection.id}><div className="shelf-heading"><h2>{setting?.title ?? collection.title}</h2><Link className="text-button" to={`/collections/${collection.id}/edit`}>Edit collection</Link></div><HorizontalRail label={collection.title}>{collection.folders.map(folder => <HomeFolderTile key={folder.id} collectionId={collection.id} folder={folder} />)}</HorizontalRail></section> };
   }), ...shelves.map((shelf,index) => ({ order: preferences.find(p => p.key === shelf.key)?.order ?? index, content: <Shelf key={shelf.key} shelf={shelf} /> }))];
   return <>{rows.sort((a,b) => a.order-b.order).map(row => row.content)}</>;
-}
+});
 function HomeFolderTile({ collectionId,folder }: { collectionId: string; folder: Folder }) {
   const [focused,setFocused] = useState(false);
   const artwork = focused && folder.focusGifEnabled && folder.focusGifUrl ? folder.focusGifUrl : folder.coverImageUrl;

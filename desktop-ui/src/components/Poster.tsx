@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { createPortal } from 'react-dom';
 import { Check, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { Media } from '../generated/contract';
@@ -8,9 +7,11 @@ import type { AppearanceSnapshot } from '../features/settings/appearanceStore';
 import { ListMembershipButton } from '../features/library/ListMembershipButton';
 import { Dialog } from './Dialog';
 import { HomeActionDialog } from '../features/home/HomeActionDialog';
-import { PosterHoverPreview, forwardPreviewWheel } from './PosterHoverPreview';
+import { PosterHoverPreview } from './PosterHoverPreview';
 import { PosterLoadingCard } from './PosterLoadingCard';
 import './poster.css';
+import './uniformPosters.css';
+import { posterMetrics } from './posterMetrics';
 import { useCardHold } from './useCardHold';
 
 // Route changes unmount poster cards. Remember successful image loads across those
@@ -40,13 +41,12 @@ function rememberResolvedPoster(key: string, url: string) {
   }
 }
 
-export function Poster({ item, compact = false, onClick, sizeScale = 1, showRating = true, fixedDisplaySize = false }: { item: Media; compact?: boolean; onClick?: () => void; sizeScale?: number; showRating?: boolean; fixedDisplaySize?: boolean }) {
+export function Poster({ item, compact = false, onClick, showRating = true }: { item: Media; compact?: boolean; onClick?: () => void; showRating?: boolean }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const appearance = useFeatureSnapshot<AppearanceSnapshot>('appearance');
   const homeWatched = useFeatureSnapshot<{watchedKeys:string[]}>('homeWatched');
-  const library=useSelector(current=>current.library);
-  const saved=library.items.some(row=>row.id===item.id&&row.type===item.type);
+  const saved=useSelector(current=>current.library.items.some(row=>row.id===item.id&&row.type===item.type));
   const cardStyle = appearance?.cardStyle;
   const screen = pathname.startsWith('/library') ? 'library' : pathname.startsWith('/details') ? 'details' : pathname.startsWith('/search') || pathname.startsWith('/catalog') ? 'search' : pathname.startsWith('/collections') ? 'collections' : 'home';
   const pattern = appearance?.posters.pattern;
@@ -64,7 +64,6 @@ export function Poster({ item, compact = false, onClick, sizeScale = 1, showRati
   const [rect, setRect] = useState<DOMRect | null>(null);
   const button = useRef<HTMLButtonElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const expandedPreview = screen === 'home' || screen === 'search' || screen === 'library';
   const isWatchedOnCard = (screen === 'home' || screen === 'library') && (homeWatched?.watchedKeys?.includes(`${item.type}:${item.id}:-1:-1`) ?? false);
   const normalizedPoster = poster ? normalizePosterUrl(poster) : null;
   const posterLoaded = normalizedPoster !== null && posterLoadedUrl === normalizedPoster;
@@ -77,7 +76,7 @@ export function Poster({ item, compact = false, onClick, sizeScale = 1, showRati
     return () => { active = false; };
   }, [item.id,item.type,item.poster,shouldResolve,posterResolveKey,screen,landscape]);
   useEffect(() => () => clearTimeout(timer.current), []);
-  useEffect(() => { const close = () => setHover(false); window.addEventListener('scroll',close,true); return () => window.removeEventListener('scroll',close,true); }, []);
+  useEffect(() => { if (!hover) return; const close = () => setHover(false); window.addEventListener('scroll',close,true); return () => window.removeEventListener('scroll',close,true); }, [hover]);
   const open = onClick ?? (() => navigate(`/details/${encodeURIComponent(item.type)}/${encodeURIComponent(item.id)}`));
   const openActions = () => {
     setMenu(true);
@@ -92,20 +91,15 @@ export function Poster({ item, compact = false, onClick, sizeScale = 1, showRati
   const markWatched = async () => { try { const result = await call<{watched:boolean}>('details.watched.toggle', {id:item.id,type:item.type,name:item.name,poster:item.poster,background:item.background,logo:item.logo}); setWatched(result.watched); setError('');void refreshFeature('homeWatched','details.watched.snapshot');setMenu(false); } catch(cause){setError(cause instanceof Error?cause.message:String(cause));} };
   const toggleSaved=async()=>{try{await(saved?actions.removeFromLibrary(item.type,item.id):actions.addToLibrary(item.type,item.id));setMenu(false);}catch(cause){setError(String(cause));}};
   const hold=useCardHold(()=>{clearTimeout(timer.current);openActions();});
-  const posterWidth = (cardStyle?.widthDp ?? 126) * 1.4;
-  const posterRadius = cardStyle?.cornerRadiusDp ?? 12;
-  const style = { '--poster-width': fixedDisplaySize ? `calc(${posterWidth}px / var(--content-scale,1.22))` : `calc(${posterWidth}px * var(--ui-scale,1) * ${sizeScale})`, '--poster-radius': fixedDisplaySize ? `calc(${posterRadius}px / var(--content-scale,1.22))` : `calc(${posterRadius}px * var(--ui-scale,1))`, '--poster-ratio': landscape ? '16/9' : `${cardStyle?.widthDp ?? 126}/${cardStyle?.heightDp ?? 189}` } as CSSProperties;
+  const metrics = posterMetrics(cardStyle);
+  const style = { '--poster-width': `${metrics.width}px`, '--poster-radius': `${metrics.radius}px`, '--poster-ratio': metrics.ratio } as CSSProperties;
   return <div className={`poster-item ${landscape?'landscape':''} ${menu&&screen==='home'?'action-anchor-hidden':''} ${appearance?.cardDepth.enabled && appearance.cardDepth.postersEnabled?'card-depth':''}`} style={style}>
     <button {...hold} ref={button} className={`media-card ${compact?'compact':''}`} onClick={open} onContextMenu={event=>{event.preventDefault();openActions();}} onMouseEnter={showPreview} onMouseLeave={hidePreview} aria-label={`Open ${item.name}`}>
       <span className="poster-frame">{(watched || isWatchedOnCard) && <span className="home-watched-badge" aria-label="Watched"><Check size={14}/></span>}{poster && <><PosterLoadingCard variant="poster" className="poster-art-loading"/><img className={posterLoaded ? 'poster-image-loaded' : 'poster-image-loading'} src={poster} alt="" loading="lazy" onLoad={event=>{const loaded=normalizePosterUrl(event.currentTarget.currentSrc||event.currentTarget.src);if(loaded===normalizedPoster){rememberPoster(loaded);setPosterLoadedUrl(loaded);}}} onError={event=>{const failed=normalizePosterUrl(event.currentTarget.currentSrc||event.currentTarget.src);if(failed===normalizedPoster){forgetPoster(failed);setPosterLoadedUrl(null);}}}/></>}{!poster && <PosterLoadingCard variant="poster" className="poster-art-loading"/>}{showRating && item.rating&&<span className="rating-chip">{item.rating}</span>}{landscape && cardStyle?.alwaysShowLandscapeClearlogo && item.logo && <img className="poster-clearlogo" src={item.logo} alt=""/>}</span>
       {!cardStyle?.hideLabelsEnabled && <><span className="card-title">{item.name}</span><span className="card-meta">{item.releaseInfo??item.type}</span></>}
     </button>
     {screen !== 'search' && <button className="poster-menu-button" aria-label={`Actions for ${item.name}`} onClick={openActions}><MoreHorizontal size={18}/></button>}
-    {rect&&expandedPreview&&<PosterHoverPreview visible={hover} item={item} rect={rect} saved={saved} watched={watched||isWatchedOnCard} onOpen={open} onToggleWatched={()=>void markWatched()} onToggleSaved={()=>void toggleSaved()} onMouseEnter={()=>clearTimeout(timer.current)} onMouseLeave={hidePreview} />}
-    {hover&&rect&&!expandedPreview&&createPortal(<div className="poster-preview" style={{left:Math.max(12,Math.min(rect.left-40,window.innerWidth-372)),top:Math.max(12,Math.min(rect.top,window.innerHeight-380))}} onMouseEnter={()=>clearTimeout(timer.current)} onMouseLeave={hidePreview} onWheel={forwardPreviewWheel} onClick={event=>event.stopPropagation()}>
-      {item.background&&<img src={item.background} alt=""/>}
-      <div className="poster-preview-copy"><h3>{item.name}</h3><p>{[item.releaseInfo,item.rating,...item.genres.slice(0,3)].filter(Boolean).join(' · ')}</p>{item.description&&<p className="home-preview-description">{item.description.slice(0,360)}</p>}<div className="home-preview-actions"><button className="button primary" onClick={open}>More info</button><button className="button secondary" onClick={()=>{setMenu(true);setHover(false);}}>Manage title</button></div></div>
-    </div>,document.body)}
+    {rect&&<PosterHoverPreview visible={hover} item={item} rect={rect} saved={saved} watched={watched||isWatchedOnCard} onOpen={open} onToggleWatched={()=>void markWatched()} onToggleSaved={()=>void toggleSaved()} onMouseEnter={()=>clearTimeout(timer.current)} onMouseLeave={hidePreview} />}
     {menu&&screen==='home'&&<HomeActionDialog title={item.name} poster={poster} subtitle={item.releaseInfo??undefined} onClose={()=>setMenu(false)}>{error&&<p role="alert">{error}</p>}<button className={saved?'destructive':''} onClick={()=>void toggleSaved()}><span>{saved?'Remove from library':'Add to library'}</span>{saved?<Trash2 size={19}/>:<Plus size={19}/>}</button><button onClick={()=>void markWatched()}><span>{watched||isWatchedOnCard?'Mark as unwatched':'Mark as watched'}</span><Check size={19}/></button></HomeActionDialog>}
     {menu && screen!=='home' && <Dialog label={`Actions for ${item.name}`} onClose={()=>setMenu(false)}><h2>{item.name}</h2>{error&&<p role="alert" className="form-error">{error}</p>}<div className="poster-dialog-actions"><button className="button primary" onClick={()=>{setMenu(false);open();}}>View details</button><ListMembershipButton type={item.type} id={item.id} name={item.name}/><button className="button secondary" onClick={()=>void markWatched()}><Check size={17}/>{watched?'Watched state updated':'Toggle watched'}</button><button className="button secondary" onClick={()=>setMenu(false)}>Close</button></div></Dialog>}
   </div>;

@@ -46,7 +46,11 @@ describe('LiquidNavigation selection', () => {
     const view = render(navigation(0));
     const nav = view.getByRole('navigation');
     Object.defineProperties(nav, { clientWidth: { value: 456 }, clientHeight: { value: 48 } });
+    window.dispatchEvent(new Event('resize'));
+    const measurements = vi.spyOn(window, 'getComputedStyle');
     advance();
+    expect(measurements).not.toHaveBeenCalled();
+    measurements.mockRestore();
     const selected = view.container.querySelector('.liquid-nav-paint.selected') as HTMLElement;
     for (const index of [1, 2, 3, 0]) {
       view.rerender(navigation(index));

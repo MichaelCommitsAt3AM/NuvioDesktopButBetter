@@ -73,4 +73,38 @@ describe('PosterHoverPreview', () => {
       (window.HTMLElement.prototype as unknown as { scrollBy: unknown }).scrollBy = original;
     }
   });
+  it('mounts artwork only after it fully decodes and drops dead URLs', async () => {
+    type Probe = { src: string; onload: (() => void) | null; onerror: (() => void) | null; decode: () => Promise<void>; decoding: string };
+    const probes: Probe[] = [];
+    class FakeImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      decoding = 'auto';
+      src = '';
+      constructor() { probes.push(this as unknown as Probe); }
+      decode() { return Promise.resolve(); }
+    }
+    vi.stubGlobal('Image', FakeImage);
+    const props = {
+      item: { id: 'art', type: 'movie', name: 'Art Movie', poster: null, background: 'https://example.test/backdrop.jpg', logo: 'https://example.test/logo.png', description: '', releaseInfo: '2026', rating: null, genres: [] },
+      rect: { left: 100, top: 80 } as DOMRect, saved: false, watched: false,
+      onOpen: vi.fn(), onToggleWatched: vi.fn(), onToggleSaved: vi.fn(), onMouseEnter: vi.fn(), onMouseLeave: vi.fn(),
+    };
+    render(<PosterHoverPreview {...props} visible />);
+    // Art reserves its space but no <img> exists until the bitmap is decoded.
+    expect(document.querySelector('.home-preview-art')).not.toBeNull();
+    expect(document.querySelector('.home-preview-backdrop')).toBeNull();
+    expect(document.querySelector('.home-preview-logo')).toBeNull();
+    expect(probes).toHaveLength(2);
+    await act(async () => { probes.forEach((probe) => probe.onload?.()); });
+    expect(document.querySelector<HTMLImageElement>('.home-preview-backdrop')?.src).toBe('https://example.test/backdrop.jpg');
+    expect(document.querySelector<HTMLImageElement>('.home-preview-logo')?.src).toBe('https://example.test/logo.png');
+
+    cleanup();
+    probes.length = 0;
+    render(<PosterHoverPreview {...props} visible />);
+    await act(async () => { probes.forEach((probe) => probe.onerror?.()); });
+    expect(document.querySelector('.home-preview-backdrop')).toBeNull();
+    expect(document.querySelector('.home-preview-logo')).toBeNull();
+  });
 });

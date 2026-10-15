@@ -4,7 +4,9 @@ import { Home, LibraryBig, Search as SearchIcon, Settings as SettingsIcon } from
 import { actions, initialize, refreshFeature, useAppState, useFeatureSnapshot, useSelector } from './bridge';
 import { AuthPage } from './features/auth/AuthPage';
 import { ProfileMenu } from './features/profiles/ProfileMenu';
-import { HomePage } from './features/home/HomePage';
+import { CachedHomeRoute } from './features/home/CachedHomeRoute';
+import { posterMetrics } from './components/posterMetrics';
+import { LaunchResumePrompt } from './features/home/LaunchResumePrompt';
 import { SearchPage } from './features/search/SearchPage';
 import { LibraryPage } from './features/library/LibraryPage';
 import { DetailsPage } from './features/details/DetailsPage';
@@ -68,7 +70,7 @@ function Shell() {
       onKeyDown={event => { if (event.key === 'ArrowDown' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); setProfileOpen(true); } }}>
       <Avatar profile={selectedProfile} size="sm" /><span>Settings</span>
     </Link>{profileOpen && <ProfileMenu holdGesture={held} onClose={() => setProfileOpen(false)} />}
-  </div> : <Link key={to} to={to} state={to === '/' ? { resetHomeScroll: true } : undefined} className={`nav-link ${selected === label ? 'active' : ''}`} aria-current={selected === label ? 'page' : undefined} title={label}><Icon size={19} strokeWidth={1.9} /><span>{label}</span></Link>)}</>;
+  </div> : <Link key={to} to={to} className={`nav-link ${selected === label ? 'active' : ''}`} aria-current={selected === label ? 'page' : undefined} title={label}><Icon size={19} strokeWidth={1.9} /><span>{label}</span></Link>)}</>;
   const sidebar = appearance?.navigationLayout === 'sidebar';
   const isDetailsRoute = /^\/details\/[^/]+\/[^/]+$/.test(location.pathname);
   const isStreamsRoute = /^\/details\/[^/]+\/[^/]+\/streams\/[^/]+$/.test(location.pathname);
@@ -77,11 +79,12 @@ function Shell() {
     {sidebar ? <aside className="side-nav">
       <nav className="side-nav-links" aria-label="Main navigation">{navigation}</nav>
     </aside> : <header className="topbar">
-      <LiquidNavigation labels={navItems.map(item => item.label)} visuals={navItems.map(item => <KotlinNavigationIcon key={item.label} label={item.label} />)} selectedIndex={navItems.findIndex(item => item.label === selected)} style={appearance?.navBarStyle ?? 'adaptive'} heroEnabled={appearance?.home?.heroEnabled !== false} profileOpen={profileOpen} glowEnabled={appearance?.navBarGlowEnabled !== false} routeKey={location.pathname} onDragStart={clearHold} onDragSelect={index => { const item = navItems[index]; if (item) { held.current = false; navigate(item.to, { state: item.to === '/' ? { resetHomeScroll: true } : undefined }); } }}>{navigation}</LiquidNavigation>
+      <LiquidNavigation labels={navItems.map(item => item.label)} visuals={navItems.map(item => <KotlinNavigationIcon key={item.label} label={item.label} />)} selectedIndex={navItems.findIndex(item => item.label === selected)} style={appearance?.navBarStyle ?? 'adaptive'} heroEnabled={appearance?.home?.heroEnabled !== false} profileOpen={profileOpen} glowEnabled={appearance?.navBarGlowEnabled !== false} routeKey={location.pathname} onDragStart={clearHold} onDragSelect={index => { const item = navItems[index]; if (item) { held.current = false; navigate(item.to); } }}>{navigation}</LiquidNavigation>
     </header>}
-    <main className={`main-area ${routeMotion}`} key={location.pathname}>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
+    <main className={`main-area ${routeMotion}`}>
+      <CachedHomeRoute profileId={session.activeProfile} />
+      <Routes key={location.pathname}>
+        <Route path="/" element={null} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/library" element={<LibraryPage />} />
         <Route path="/library/downloads" element={<DownloadsPage />} />
@@ -100,6 +103,7 @@ function Shell() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </main>
+    <LaunchResumePrompt />
   </div>;
 }
 
@@ -131,13 +135,14 @@ function AppContent() {
     })().catch(()=>{if(active)setLaunchPicker(true);});
     return ()=>{active=false;};
   },[state.session.status,launchPicker]);
-  const appearance = useFeatureSnapshot<{ theme?: string; customThemeColors?: string[]; amoledEnabled?: boolean }>('appearance');
+  const appearance = useFeatureSnapshot<{ theme?: string; customThemeColors?: string[]; amoledEnabled?: boolean; cardStyle?: Parameters<typeof posterMetrics>[0] }>('appearance');
   useEffect(() => { void initialize(); }, []);
   const themeId = appearance?.theme ?? state.settings.theme;
   const theme = state.settings.themes.find((item) => item.id.toLowerCase() === themeId.toLowerCase());
   const customColors = appearance?.customThemeColors;
   const isCustomTheme = themeId.toLowerCase() === 'custom';
-  const style = { '--app-bg': appearance?.amoledEnabled ? '#000000' : (isCustomTheme ? customColors?.[0] : theme?.background) ?? customColors?.[0] ?? '#0d0d0d', '--app-accent': (isCustomTheme ? customColors?.[1] : theme?.accent) ?? customColors?.[1] ?? '#f5f5f5', '--app-surface': (isCustomTheme ? customColors?.[2] : theme?.surface) ?? customColors?.[2] ?? '#1a1a1a' } as CSSProperties;
+  const cardMetrics = posterMetrics(appearance?.cardStyle);
+  const style = { '--movie-card-width': `${cardMetrics.width}px`, '--movie-card-radius': `${cardMetrics.radius}px`, '--movie-card-ratio': cardMetrics.ratio, '--app-bg': appearance?.amoledEnabled ? '#000000' : (isCustomTheme ? customColors?.[0] : theme?.background) ?? customColors?.[0] ?? '#0d0d0d', '--app-accent': (isCustomTheme ? customColors?.[1] : theme?.accent) ?? customColors?.[1] ?? '#f5f5f5', '--app-surface': (isCustomTheme ? customColors?.[2] : theme?.surface) ?? customColors?.[2] ?? '#1a1a1a' } as CSSProperties;
   const startupError = state.session.error ?? state.connectionMessage;
   const profileSetupRoute = location.pathname.startsWith('/profiles');
   const explicitPicker=location.pathname==='/profiles/choose';

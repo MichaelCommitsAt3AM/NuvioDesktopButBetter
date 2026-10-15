@@ -12,6 +12,18 @@ export type SettingsSearchEntry = {
   route: string;
 };
 
+/** Kotlin SettingsSearch.kt matches every word across all five indexed fields. */
+export function searchSettings(query: string, entries = settingsSearchEntries): SettingsSearchEntry[] {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!terms.length) return [];
+  return entries.filter(entry => !['account-delete', 'external-player'].includes(entry.key) && terms.every(term =>
+    [entry.title, entry.description, entry.page, entry.section, entry.category].join(' ').toLowerCase().includes(term)));
+}
+
+export function settingsResultDescription(entry: SettingsSearchEntry) {
+  return entry.description.trim() ? entry.description : [...new Set([entry.page, entry.section].filter(Boolean))].join(' - ');
+}
+
 const page = (key: string, title: string, description: string, route: string, category: SettingsSearchEntry['category'] = 'general') => ({ key, title, description, page: title, section: '', category, route });
 const row = (key: string, title: string, description: string, pageTitle: string, section: string, route: string, category: SettingsSearchEntry['category'] = 'general') => ({ key, title, description, page: pageTitle, section, category, route });
 
@@ -67,7 +79,7 @@ export const settingsSearchEntries: SettingsSearchEntry[] = [
   row('threshold-mode', 'Next episode threshold mode', 'Choose when the next episode prompt appears.', 'Playback', 'Next Episode', '/settings/playback'),
   row('threshold-percent', 'Next episode threshold percentage', 'Set the percentage point for the next episode prompt.', 'Playback', 'Next Episode', '/settings/playback'),
   row('threshold-minutes', 'Minutes before end', 'Set how many minutes before the end to show next episode.', 'Playback', 'Next Episode', '/settings/playback'),
-  page('streams', 'Streams', 'Choose stream details and badges shown in stream results.', '/settings/appearance'),
+  page('streams', 'Streams', 'Choose stream details and badges shown in stream results.', '/settings/appearance/streams'),
   row('stream-prefer-matching-titles', 'Prefer matching titles', 'Prefer stream results that match the title.', 'Streams', 'Stream Selection', '/settings/appearance/streams'),
   row('stream-addon-logo', 'Show addon logo', 'Show the source addon logo on stream rows.', 'Streams', 'Stream Display', '/settings/appearance/streams'),
   row('stream-size-badges', 'Stream size badges', 'Show file size labels on stream results.', 'Streams', 'Badges', '/settings/appearance/streams'),
@@ -81,27 +93,27 @@ export const settingsSearchEntries: SettingsSearchEntry[] = [
   row('mdb-enable', 'Enable MDBList Ratings', 'Fetch ratings from external providers in metadata detail screen.', 'MDBList Ratings', 'MDBList Ratings', '/settings/integrations/mdblist'),
   row('mdb-api-key', 'MDBList API key', 'Configure your MDBList API key.', 'MDBList Ratings', 'MDBList Ratings', '/settings/integrations/mdblist'),
   ...['IMDb','TMDB','Rotten Tomatoes','Metacritic','Trakt','Letterboxd','Audience score'].map((name) => row(`mdb-${name.toLowerCase().replaceAll(' ', '-')}`, name, `Show ${name} ratings from MDBList.`, 'MDBList Ratings', 'Rating providers', '/settings/integrations/mdblist')),
-  page('continue-watching', 'Continue Watching', 'Configure Continue Watching behavior.', '/settings/appearance'),
+  page('continue-watching', 'Continue Watching', 'Configure Continue Watching behavior.', '/settings/appearance/continue-watching'),
   row('show-continue-watching', 'Show Continue Watching', 'Show or hide the Continue Watching shelf.', 'Continue Watching', 'Visibility', '/settings/appearance/continue-watching'),
   row('episode-thumbnails', 'Use episode thumbnails', 'Use episode artwork for Continue Watching items.', 'Continue Watching', 'Up Next Behavior', '/settings/appearance/continue-watching'),
   row('up-next', 'Up Next', 'Configure the Up Next row.', 'Continue Watching', 'Up Next Behavior', '/settings/appearance/continue-watching'),
   row('unaired-next-up', 'Show unaired next up', 'Include unaired episodes in Up Next.', 'Continue Watching', 'Up Next Behavior', '/settings/appearance/continue-watching'),
   row('blur-next-up', 'Blur next up', 'Blur artwork for next-up episodes.', 'Continue Watching', 'Up Next Behavior', '/settings/appearance/continue-watching'),
   row('resume-prompt', 'Resume prompt', 'Configure the resume playback prompt.', 'Continue Watching', 'On Launch', '/settings/appearance/continue-watching'),
-  page('poster-card-style', 'Poster Customization', 'Customize poster cards and labels.', '/settings/appearance'),
+  page('poster-card-style', 'Poster Customization', 'Customize poster cards and labels.', '/settings/appearance/posters'),
   row('poster-width', 'Poster width', 'Adjust poster card width.', 'Poster Customization', 'Poster Card Style', '/settings/appearance/posters'),
   row('poster-radius', 'Poster radius', 'Adjust poster corner radius.', 'Poster Customization', 'Poster Card Style', '/settings/appearance/posters'),
   row('poster-landscape', 'Landscape posters', 'Choose the poster card orientation.', 'Poster Customization', 'Poster Card Style', '/settings/appearance/posters'),
   row('poster-hide-labels', 'Hide poster labels', 'Hide labels displayed over posters.', 'Poster Customization', 'Poster Card Style', '/settings/appearance/posters'),
   row('poster-card-depth', 'Card depth effect', 'Adjust the poster card depth effect.', 'Poster Customization', 'Card Depth', '/settings/appearance/posters'),
-  page('hover-preview', 'Hover Preview', 'Configure desktop hover previews.', '/settings/appearance'),
-  page('home-layout', 'Home Layout', 'Configure home screen shelves and ordering.', '/settings/appearance'),
+  page('hover-preview', 'Hover Preview', 'Configure desktop hover previews.', '/settings/appearance/hover-preview'),
+  page('home-layout', 'Home Layout', 'Configure home screen shelves and ordering.', '/settings/appearance/home'),
   row('home-hero', 'Show home hero', 'Show the featured hero on the home screen.', 'Home Layout', 'Hero', '/settings/appearance/home'),
   row('home-catalog-type', 'Home catalog type', 'Choose which catalog type appears on the home screen.', 'Home Layout', 'Hero', '/settings/appearance/home'),
   row('home-hide-unreleased', 'Hide unreleased titles', 'Hide titles that have not been released.', 'Home Layout', 'Hero', '/settings/appearance/home'),
   row('home-hero-sources', 'Hero sources', 'Choose which sources can supply hero items.', 'Home Layout', 'Hero', '/settings/appearance/home'),
   row('home-catalogs', 'Home catalogs', 'Choose and order home catalogs.', 'Home Layout', 'Catalogs', '/settings/appearance/home'),
-  page('detail-page', 'Details Page', 'Configure the metadata details page.', '/settings/appearance'),
+  page('detail-page', 'Details Page', 'Configure the metadata details page.', '/settings/details'),
   row('meta-poster-transition', 'Poster transition', 'Configure the transition used when opening details.', 'Details Page', 'Layout', '/settings/details'),
   row('meta-background-mode', 'Details background mode', 'Choose the details page background style.', 'Details Page', 'Appearance', '/settings/details'),
   row('meta-tabs', 'Details tab layout', 'Choose how detail page sections are organized.', 'Details Page', 'Appearance', '/settings/details'),

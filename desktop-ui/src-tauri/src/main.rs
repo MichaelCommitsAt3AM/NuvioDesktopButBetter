@@ -126,6 +126,7 @@ const ALLOWED_METHODS: &[&str] = &[
     "continueWatching.setShowUnairedNextUp",
     "continueWatching.setBlurNextUp",
     "continueWatching.setShowResumePromptOnLaunch",
+    "home.resumePrompt.consume",
     "continueWatching.setSortMode",
     "continueWatching.dismissNextUp",
     "continueWatching.removeDismissedForContent",

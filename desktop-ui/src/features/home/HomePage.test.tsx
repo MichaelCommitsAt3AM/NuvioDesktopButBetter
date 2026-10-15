@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { HomePage } from './HomePage';
+import { HomeVisibility } from './homeVisibility';
 
 const bridge = vi.hoisted(() => ({
   state: { session: { activeProfile: 1 }, home: { shelves: [] as any[], hero: [] as any[], loading: false } },
@@ -42,6 +43,23 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('Continue Watching snapshot loading', () => {
+  it('restores the saved Home scroll without recording another screen or restarting requests', () => {
+    bridge.state.session.activeProfile = 7915;
+    const page = (visible: boolean) => <MemoryRouter><main className="main-area"><HomeVisibility value={visible}><div style={{ display: visible ? 'contents' : 'none' }}><HomePage /></div></HomeVisibility></main></MemoryRouter>;
+    const view = render(page(true));
+    const main = view.container.querySelector<HTMLElement>('.main-area')!;
+    main.scrollTop = 740;
+    fireEvent.scroll(main);
+    view.rerender(page(false));
+    main.scrollTop = 25;
+    fireEvent.scroll(main);
+    view.rerender(page(true));
+    expect(main.scrollTop).toBe(740);
+    expect(bridge.refresh.mock.calls.filter(([,method]) => method === 'home.extras.snapshot')).toHaveLength(1);
+    bridge.state.session.activeProfile = 7916;
+    view.rerender(page(true));
+    expect(main.scrollTop).toBe(0);
+  });
   it('does not substitute unselected shelf titles for an empty Kotlin hero', () => {
     bridge.state.home.shelves = [{ key: 'unselected', items: [{ id: 'movie', type: 'movie', name: 'Unselected title', genres: [] }] }];
     render(<MemoryRouter><HomePage /></MemoryRouter>);

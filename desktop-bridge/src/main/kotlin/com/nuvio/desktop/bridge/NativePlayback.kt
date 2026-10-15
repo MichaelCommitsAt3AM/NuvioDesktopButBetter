@@ -67,6 +67,7 @@ class NativePlayback(
     }
 
     private class Session(val window: ComposeWindow) {
+        val resumePrompt = PlaybackResumePrompt()
         val closed = CompletableDeferred<Unit>()
         var requestBack: (() -> Unit)? = null
     }
@@ -145,6 +146,7 @@ class NativePlayback(
                 withContext(Dispatchers.Swing) {
                     val current = Session(window)
                     session = current
+                    current.resumePrompt.enter(playbackVideoId)
                     window.title = meta.name
                     if (embeddedInTauri) {
                         // The Compose window keeps the upstream player controller alive offscreen. The
@@ -246,6 +248,7 @@ class NativePlayback(
                                     onSystemBackHandlerChanged = { current.requestBack = it },
                                     onOpenExternalUrl = ::openExternalUrl,
                                     onBack = { release ->
+                                        current.resumePrompt.exit()
                                         release(
                                             { SwingUtilities.invokeLater {
                                                 window.dispose()
@@ -329,6 +332,14 @@ class NativePlayback(
         mutex.withLock { stopLocked() }
     }
 
+    override suspend fun shutdown() {
+        startingJob?.cancel()
+        mutex.withLock {
+            session?.resumePrompt?.preserveForShutdown()
+            stopLocked()
+        }
+    }
+
     private suspend fun stopLocked() {
         val current = session ?: return
         playbackState = "stopping"
@@ -336,6 +347,7 @@ class NativePlayback(
         withContext(Dispatchers.Swing) {
             val back = current.requestBack
             if (back != null) back() else {
+                current.resumePrompt.exit()
                 current.window.dispose()
                 current.closed.complete(Unit)
             }

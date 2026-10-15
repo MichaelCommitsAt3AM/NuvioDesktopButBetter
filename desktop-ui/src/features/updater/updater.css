@@ -1,12 +1,14 @@
-.update-banner{position:relative;z-index:30;display:flex;align-items:center;gap:12px;overflow:hidden;padding:10px 20px;background:#ffffff;border-bottom:1px solid #0000001f}.update-banner-progress{position:absolute;inset:0 auto 0 0;width:0;background:var(--app-accent,#f5f5f5);opacity:.2;pointer-events:none}
-.update-banner-icon{position:relative;flex:none;display:grid;place-items:center;color:#111111}
+.update-banner{position:relative;z-index:30;display:flex;align-items:center;gap:12px;overflow:hidden;padding:10px 20px;background:#221e26;border-bottom:1px solid #00000040}.update-banner-progress{position:absolute;inset:0 auto 0 0;width:0;background:#ffffff;opacity:.08;pointer-events:none}
+.update-banner-icon{position:relative;flex:none;display:grid;place-items:center;color:#ffffff}
 .update-banner-copy{position:relative;flex:1;min-width:0;display:grid;gap:2px}
-.update-banner-copy strong{display:block;overflow:hidden;color:#141414;font-size:15px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
-.update-banner-copy small{color:#5a5e63;font-size:13px}
-.update-banner-icon-button{position:relative;flex:none;display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:#111111;cursor:pointer}
-.update-banner-icon-button:hover{background:#00000010}
-.update-banner-action{position:relative;flex:none;display:inline-flex;align-items:center;justify-content:center;min-height:40px;margin:0;padding:8px 20px;border:0;border-radius:12px;background:#111111;color:#ffffff;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
-.update-banner-action:hover{background:#333333}
+.update-banner-copy strong{display:block;overflow:hidden;color:#ffffff;font-size:15px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.update-banner-copy small{color:#a7a3ad;font-size:13px}
+.update-banner-icon-button{position:relative;flex:none;display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:#ffffff;cursor:pointer}
+.update-banner-icon-button:hover{background:#ffffff1a}
+.update-banner-icon-button.is-filled{width:32px;height:32px;background:#e8e6e3;color:#221e26}
+.update-banner-icon-button.is-filled:hover{background:#ffffff}
+.update-banner-action{position:relative;flex:none;display:inline-flex;align-items:center;justify-content:center;min-height:48px;margin:0;padding:12px 28px;border:0;border-radius:999px;background:#e8e6e3;color:#1c1a1f;font:inherit;font-size:17px;font-weight:600;cursor:pointer}
+.update-banner-action:hover{background:#ffffff}
 .update-banner-notes-title{margin:0;color:var(--muted,#a2a4aa);font-size:13px}
 .update-banner-notes{margin:0;white-space:pre-line;line-height:1.55}
 .update-banner-wrap{display:grid;grid-template-rows:1fr;animation:update-banner-deploy 300ms cubic-bezier(.2,.75,.25,1) both}

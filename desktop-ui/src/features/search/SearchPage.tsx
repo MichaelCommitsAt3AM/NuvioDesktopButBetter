@@ -142,11 +142,11 @@ export function SearchPage() {
       {activeCatalog && <p className="discover-context">{activeCatalog.addonName} · {displayType(activeCatalog.type)}</p>}
       {discover?.error && <InlineError message={discover.error} onRetry={() => void call('discover.refresh', { force: true }).then(() => refreshFeature('discover')).catch(() => {})} />}
       {(!discover || (discover.loading && discover.items.length === 0)) ? <div className="discover-loading" role="status" aria-label="Loading catalog results" aria-busy="true">{Array.from({ length: 8 }, (_, index) => <PosterLoadingCard variant="poster" key={index} />)}</div>
-        : discover.items.length ? <PosterGrid items={discover.items} />
+        : discover.items.length ? <PosterGrid items={discover.items} resetKey={`${discover.selectedCatalogKey ?? ''}:${discover.selectedType ?? ''}:${discover.selectedGenre ?? ''}`} />
           : <DiscoverEmpty discover={discover} />}
     </section> : <section className="search-results" aria-label="Search results">
       {waitingForSearch ? <SearchLoadingSkeleton /> : <>
-        {search.shelves.map((shelf) => <Shelf key={shelf.key} shelf={shelf} source="search" posterSizeScale={0.88} />)}
+        {search.shelves.map((shelf) => <Shelf key={shelf.key} shelf={shelf} source="search" />)}
         {search.loading && <SearchLoadingSkeleton rows={search.shelves.length ? 1 : 3} />}
         {search.error && <InlineError message={search.error} onRetry={() => void actions.searchStart(query.trim())} />}
         {!search.loading && !search.error && !search.shelves.length && <EmptyState title={searchEmpty[0]} message={searchEmpty[1]} icon={<span>⌕</span>} />}

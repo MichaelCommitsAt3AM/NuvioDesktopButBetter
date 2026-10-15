@@ -17,6 +17,17 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('shared Kotlin settings rows in Detail Page', () => {
+  it('explains unavailable hero previews and prevents requests from the unsupported switch', () => {
+    bridge.snapshot.heroTrailerPlaybackSupported = false;
+    bridge.snapshot.heroTrailerPlayback = true;
+    page();
+    const toggle = screen.getByRole('checkbox', { name: 'Hero trailer playback' });
+    expect(toggle).toBeDisabled();
+    expect(toggle).not.toBeChecked();
+    expect(screen.getByText(/Hero trailer previews are not available/)).toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(bridge.call).not.toHaveBeenCalled();
+  });
   it('uses shared rows with group chips below the summary and saves visibility', async () => {
     page();
     const row = screen.getByLabelText('Show CAST').closest('article')!;

@@ -56,7 +56,7 @@ export function UpdateBanner() {
         <strong>{release.tag}{release.sizeLabel ? ` • ${release.sizeLabel}` : ''}</strong>
         <small>{subtitle}</small>
       </span>
-      <button type="button" className="update-banner-icon-button" aria-label="Release notes" onClick={() => setNotesOpen(true)}><Info size={20} /></button>
+      <button type="button" className="update-banner-icon-button is-filled" aria-label="Release notes" onClick={() => setNotesOpen(true)}><Info size={20} /></button>
       {!downloading && !complete && !installing && <button type="button" className="update-banner-action" onClick={() => { if (real) { void (ready ? installUpdate() : downloadUpdate()); } else startTestDownload(); }}>{ready ? 'Install and restart' : 'Update'}</button>}
       {!downloading && !installing && <button type="button" className="update-banner-icon-button" aria-label="Dismiss update banner" onClick={dismiss}><X size={20} /></button>}
     </div>

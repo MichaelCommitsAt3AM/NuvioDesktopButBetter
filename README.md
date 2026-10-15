@@ -30,6 +30,10 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Playback sliders show their selectable stops. Skip Segments follows Kotlin's separate detection switch, automatic-skipping dialog, and AnimeSkip/IntroDB credential dialogs, including IntroDB key verification.
 
 **Desktop UI preview**
+- Torbox and Premiumize use Kotlin-style account dialogs with browser approval, automatic status checks, API-key entry and disconnect actions.
+- Returning Home reuses its rendered cards and saved scroll position, and the top-bar bubble avoids repeated layout measurements during its animation.
+- Horizontal episode rows use the same circular scrolling arrows as Home. Unsupported hero trailer previews are clearly marked in Settings.
+- The rewrite offers to resume playback on launch when you close the app from the player; the Continue Watching setting controls the prompt.
 - The rewrite has a signed desktop updater with download progress, installation and restart. Release CI builds Windows MSI, macOS DMG, and Linux AppImage/DEB/RPM/Flatpak packages with bundled Java; Flatpak updates stay with the system installation.
 - Rewrite releases use the existing desktop build-number sequence and Windows MSI upgrade identity. Testing the actual Kotlin-to-rewrite upgrade remains a release gate.
 - The rewrite's window, installer and Start Menu branding use Nuvio, matching the original desktop app.
@@ -45,6 +49,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Stream selection and autoplay fetch fresh sources on every entry, without reusing local stream results. Expanded Home catalogs use the same circular back arrow as title details.
 - Emoji in stream descriptions no longer break search results. Sources appear with settled debrid labels and ordering; requests time out and diagnostic logs record search failures.
 - Settings now follows the Kotlin category/sidebar and nested-page structure, with connected controls for appearance, playback, Home, posters, Continue Watching, addons, integrations, plugins, account, About and Advanced. Detailed screen-by-screen parity and remaining differences are tracked in [the Settings comparison notes](docs/DESKTOP_UI_PARITY.md).
+- Movie cards share Home’s sizes, label typography, corners, spacing, loading placeholders and expanded previews across screens.
+- Settings search follows Kotlin’s word matching across setting names, descriptions and categories, with clearable results and working page/action targets.
 - Continue Watching’s card style previews match the original Kotlin diagrams, including the poster progress pill and selection checkmark.
 - Settings → Tracking now follows the Kotlin account cards and source pickers, with Simkl sign-in, approval codes, syncing, disconnect confirmation and anime preferences. The MDBList login card is temporarily hidden until its build credentials are configured.
 - The profile chooser now follows the original centered logo, gradient backdrop, circular avatars and in-place Manage Profiles mode. It opens on launch when Remember Last Profile is off, and is available through the profile menu.

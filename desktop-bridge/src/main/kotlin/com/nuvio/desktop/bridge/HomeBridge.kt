@@ -9,6 +9,7 @@ import com.nuvio.app.features.watchprogress.ContinueWatchingSectionStyle
 import com.nuvio.app.features.watchprogress.ContinueWatchingSortMode
 import com.nuvio.app.features.watchprogress.WatchProgressEntry
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
+import com.nuvio.app.features.watchprogress.ResumePromptRepository
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -27,6 +28,24 @@ object HomeBridge {
     private var upcomingCache: List<JsonObject> = emptyList()
 
     suspend fun dispatch(method: String, params: JsonObject): JsonElement? = when (method) {
+        "home.resumePrompt.consume" -> {
+            ContinueWatchingPreferencesRepository.ensureLoaded()
+            if (!ContinueWatchingPreferencesRepository.uiState.value.showResumePromptOnLaunch) {
+                ResumePromptRepository.markPlayerExitedNormally()
+                JsonNull
+            } else ResumePromptRepository.consumeResumePrompt()?.let { item ->
+                buildJsonObject {
+                    put("parentMetaId", item.parentMetaId); put("parentMetaType", item.parentMetaType)
+                    put("videoId", item.videoId); put("title", item.title); put("subtitle", item.subtitle)
+                    putNullable("poster", item.poster); putNullable("background", item.background)
+                    putNullable("logo", item.logo); putNullable("imageUrl", item.imageUrl)
+                    putNullable("seasonNumber", item.seasonNumber); putNullable("episodeNumber", item.episodeNumber)
+                    putNullable("episodeTitle", item.episodeTitle); putNullable("episodeThumbnail", item.episodeThumbnail)
+                    put("resumePositionMs", item.resumePositionMs); put("progressFraction", item.progressFraction)
+                    put("resumeProgressFraction", item.resumeProgressFraction?.let(::JsonPrimitive) ?: JsonNull)
+                }
+            } ?: JsonNull
+        }
         // Continue Watching is available from the local progress snapshot and
         // should not wait for the potentially slow Next Up metadata lookups.
         // The UI requests `home.extras.refresh` separately for that enrichment.

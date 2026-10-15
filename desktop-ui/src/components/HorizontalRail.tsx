@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 export function HorizontalRail({ label, className = 'shelf-track', children }: { label: string; className?: string; children: ReactNode }) {
   const track = useRef<HTMLDivElement>(null);
   const [edges,setEdges] = useState({ start:true,end:true });
-  const measure = () => { const element = track.current; if (element) setEdges({ start:element.scrollLeft <= 2,end:element.scrollLeft + element.clientWidth >= element.scrollWidth - 2 }); };
+  const measure = () => { const element = track.current; if (element) { const start=element.scrollLeft<=2,end=element.scrollLeft+element.clientWidth>=element.scrollWidth-2;setEdges(previous=>previous.start===start&&previous.end===end?previous:{start,end}); } };
   useEffect(() => { const element = track.current; if (!element) return; const observer = new ResizeObserver(measure); observer.observe(element); for (const child of element.children) observer.observe(child); measure(); return () => observer.disconnect(); }, [children]);
   const page = (direction: number) => { const element = track.current; if (element) element.scrollBy({ left:direction * element.clientWidth * .85,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }); };
   const handleArrowClick = (direction: number) => (event: React.MouseEvent<HTMLButtonElement>) => {

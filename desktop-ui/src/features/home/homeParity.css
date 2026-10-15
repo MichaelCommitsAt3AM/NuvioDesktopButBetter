@@ -78,6 +78,8 @@
 .home-actions-options{margin-top:18px;background:#1b1b1b;border-radius:24px;overflow:hidden;transform-origin:top center;animation:home-actions-options-in 180ms 50ms ease-out both}
 .home-actions-options button{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;width:100%;background:none;border:0;border-bottom:1px solid #ffffff08;color:#eee;font-size:17px;text-align:left;cursor:pointer}
 .home-actions-options button:hover{background:#ffffff0d}.home-actions-options button.destructive{color:#df8096}
+.home-actions-options button.active{color:#fff}
+.home-actions-options button.active svg{fill:#fff;stroke:#1b1b1b}
 .poster-preview.home-preview{width:454px;background:#080808;border-radius:18px;border-color:#ffffff20}
 .home-preview-art{height:250px;background:#141414;overflow:hidden}
 .home-preview-art>.home-preview-backdrop{display:block;width:100%;height:100%;object-fit:cover;mask-image:linear-gradient(#000 70%,transparent);animation:home-preview-art-in 220ms ease-out}

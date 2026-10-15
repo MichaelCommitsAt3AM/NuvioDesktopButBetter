@@ -16,7 +16,6 @@ vi.mock('../../bridge', () => ({
   actions: {}, call: vi.fn(),
 }));
 vi.mock('../collections/CollectionsPages', () => ({ HomeCollections: () => null }));
-vi.mock('./HomeActionDialog', () => ({ HomeActionDialog: () => null }));
 
 const item = {
   parentMetaId: 'movie-1', parentMetaType: 'movie', videoId: 'movie-1',
@@ -97,6 +96,20 @@ describe('Continue Watching snapshot loading', () => {
     render(<MemoryRouter><HomePage /></MemoryRouter>);
     await act(async () => { rejectSnapshot(new Error('Bridge unavailable')); });
     expect(document.querySelector('.home-cw-skeleton')).toBeNull();
+  });
+
+  it('closes the continue watching actions dialog when an option is chosen', async () => {
+    render(<MemoryRouter><HomePage /></MemoryRouter>);
+    await act(async () => {
+      bridge.extras = snapshot([item]);
+      resolveSnapshot(bridge.extras);
+    });
+    const menuButton = screen.getByRole('button', { name: 'More continue watching actions' });
+    fireEvent.click(menuButton);
+    expect(menuButton.getAttribute('aria-expanded')).toBe('true');
+    expect(await screen.findByRole('button', { name: 'Go to details' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Go to details' }));
+    expect(screen.queryByRole('button', { name: 'Go to details' })).toBeNull();
   });
 
   it('hides the previous profile progress behind placeholders until the new snapshot settles', async () => {

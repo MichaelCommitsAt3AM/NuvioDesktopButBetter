@@ -40,6 +40,20 @@ const homeViewPositions=new Map<string,{scrollTop:number;heroIndex:number}>();
 const consumedHomeScrollResets=new Set<string>();
 // Mirrors HOME_HERO_ITEM_LIMIT in HomeRepository.
 const MAX_HERO_ITEMS = 8;
+// The backend can emit a settled-but-empty home snapshot before catalogs
+// resolve. Hold the empty state back briefly so a slow first snapshot never
+// flashes "install an addon" at users who already have addons.
+const HOME_EMPTY_STATE_GRACE_MS = 600;
+
+function useConfirmedHomeEmpty(isEmpty: boolean): boolean {
+  const [confirmed, setConfirmed] = useState(false);
+  useEffect(() => {
+    if (!isEmpty) { setConfirmed(false); return; }
+    const timer = window.setTimeout(() => setConfirmed(true), HOME_EMPTY_STATE_GRACE_MS);
+    return () => window.clearTimeout(timer);
+  }, [isEmpty]);
+  return confirmed;
+}
 
 export function HomePage() {
   const visible = useContext(HomeVisibility);
@@ -150,6 +164,8 @@ export function HomePage() {
   // not hide saved progress behind an indefinite loading state.
   const continueWatchingLoading = !extrasSnapshotState.settled || extrasSnapshotState.profileId !== profileId;
   const continueWatchingVisible = preferences?.isVisible ?? true;
+  const homeEmpty = !home.loading && !home.error && !home.shelves.length && !hero;
+  const showHomeEmpty = useConfirmedHomeEmpty(homeEmpty);
 
   return <div className="home-page" style={heroStyle}>
     {hero && appearance?.home.heroEnabled!==false && <section ref={heroElement} className="home-hero" tabIndex={0} aria-label="Featured titles" onKeyDown={event=>{if(event.key==='ArrowRight'){event.preventDefault();moveHero(1);}if(event.key==='ArrowLeft'){event.preventDefault();moveHero(-1);}}} onPointerDown={event=>{if(event.button!==0||(event.target as HTMLElement).closest('button'))return;swipeStart.current=event.clientX;setHeroDragging(true);event.currentTarget.setPointerCapture(event.pointerId);}} onPointerUp={event=>{const start=swipeStart.current;swipeStart.current=null;setHeroDragging(false);if(start!=null&&Math.abs(event.clientX-start)>48)moveHero(start>event.clientX?1:-1);}} onPointerCancel={()=>{swipeStart.current=null;setHeroDragging(false);}}>
@@ -166,7 +182,7 @@ export function HomePage() {
     </section>}
     {actionError && <InlineError message={actionError} onRetry={() => setActionError(null)} />}
     {home.error && <InlineError message={home.error} onRetry={() => void actions.homeRefresh()} />}
-    {home.loading && !home.shelves.length && <HomeLoadingSkeleton showHero={!hero && appearance?.home.heroEnabled !== false} />}
+    {(home.loading || (homeEmpty && !showHomeEmpty)) && !home.shelves.length && <HomeLoadingSkeleton showHero={!hero && appearance?.home.heroEnabled !== false} />}
 
     {continueWatchingVisible && (continueWatchingLoading || continueItems.length > 0) && <section className="home-cw-section" aria-busy={continueWatchingLoading}>
       <div className="home-cw-heading"><h2>Continue Watching</h2></div>
@@ -178,7 +194,7 @@ export function HomePage() {
       <HorizontalRail label="Upcoming" className={`home-cw-rail style-${preferences.style.toLowerCase()}`}>{upcoming.map((item) => <ContinueCard key={`${item.parentMetaId}:next:${item.videoId}`} item={item} blurArtwork={preferences.blurNextUp} useEpisodeThumbnails={preferences.useEpisodeThumbnails} onResume={() => resume(item)} onManual={() => playManually(item)} onDetails={()=>openTitle(item.parentMetaType,item.parentMetaId)} onDismiss={() => void runAction(`dismiss:${item.parentMetaId}`, 'home.continueWatching.dismissUpNext', { contentId: item.parentMetaId, seasonNumber: item.nextUpSeedSeasonNumber, episodeNumber: item.nextUpSeedEpisodeNumber })} />)}</HorizontalRail>
     </section>}
     <HomeCollections shelves={home.shelves} />
-    {!home.loading && !home.error && !home.shelves.length && !hero && <EmptyState title="Your home is ready for content" message="Install an addon from Settings to add catalogs and discover titles here." icon={<Compass size={22} />} />}
+    {showHomeEmpty && <EmptyState title="Your home is ready for content" message="Install an addon from Settings to add catalogs and discover titles here." icon={<Compass size={22} />} />}
   </div>;
 }
 

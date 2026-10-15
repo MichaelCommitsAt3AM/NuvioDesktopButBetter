@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
+import { flushSync } from 'react-dom';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AppRoot from './App';
 import { actions, call, disposeBridge, getSnapshot } from './bridge';
@@ -217,7 +218,7 @@ describe('desktop bridge UI workflow', () => {
     const searchRequest = bridgeMock.requests.find((request) => request.method === 'search.start')!;
     await act(async () => { emit({ topic: 'search', epoch: bridgeMock.epoch, revision: 965, data: { requestId: searchRequest.id, query: 'Arrival', loading: false, error: null, shelves: [{ key: 'results', title: 'Search results', subtitle: '', items: [media('arrival', 'Arrival')], hasMore: false }] } }); });
     expect(await screen.findByText('Search results')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Arrival' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Arrival' }));
     await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'details.load')).toBe(true));
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     const restored = await screen.findByRole('searchbox', { name: 'Search movies and shows' });
@@ -265,7 +266,7 @@ describe('desktop bridge UI workflow', () => {
     bridgeMock.rejectSelection=true;
     await act(async()=>{await expect(actions.selectProfile(7)).rejects.toThrow('Selection failed');});
     expect(screen.queryByRole('status',{name:'Loading profile'})).not.toBeInTheDocument();
-    expect(screen.getByText('Your home is ready for content')).toBeInTheDocument();
+    expect(await screen.findByText('Your home is ready for content')).toBeInTheDocument();
   });
 
   it('reconciles authentication completing in a newer epoch without requiring a reload', async () => {
@@ -343,7 +344,7 @@ describe('desktop bridge UI workflow', () => {
     await act(async () => {
       emit({ topic: 'home', epoch: 5, revision: 50, data: { loading: false, error: null, hero: [], shelves: [{ key: 'test', title: 'Test', subtitle: '', items: [media('details-test', 'Details test title')], hasMore: false }] } });
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Open Details test title' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Details test title' }));
     await waitFor(() => expect(bridgeMock.requests.filter((request) => request.method === 'details.load')).toHaveLength(1));
     expect(await screen.findByRole('status', { name: 'Loading title details' })).toBeInTheDocument();
   });
@@ -417,6 +418,38 @@ describe('desktop bridge UI workflow', () => {
     await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'streams.load' && request.params.manualSelection === false)).toBe(true));
     expect(await screen.findByText('Finding streams…')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Available streams' })).not.toBeInTheDocument();
+  });
+
+  it('commits top bar navigation at input priority without waiting for a transition', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    const home = document.querySelector('.home-page');
+
+    // flushSync only flushes urgent work. A router startTransition leaves the
+    // old screen here even though the pointer-driven bubble has already moved.
+    // Assert inside act, before act also drains deferred transition work.
+    act(() => {
+      flushSync(() => screen.getByRole('link', { name: /search/i }).click());
+      expect(screen.getByRole('searchbox', { name: 'Search movies and shows' })).toBeVisible();
+      expect(home).not.toBeVisible();
+    });
+    act(() => {
+      flushSync(() => screen.getByRole('link', { name: 'Home' }).click());
+      expect(home).toBeVisible();
+      expect(screen.queryByRole('searchbox')).toBeNull();
+    });
+    for (const label of ['Library', 'Settings']) {
+      act(() => {
+        flushSync(() => screen.getByRole('link', { name: new RegExp(label, 'i') }).click());
+        expect(screen.getByRole('heading', { name: label })).toBeVisible();
+        expect(home).not.toBeVisible();
+      });
+    }
+    act(() => {
+      flushSync(() => screen.getByRole('link', { name: 'Home' }).click());
+      expect(document.querySelector('.home-page')).toBe(home);
+      expect(home).toBeVisible();
+    });
   });
 
   it('refreshes Discover on entry and keeps its posters visible with recent searches open', async () => {

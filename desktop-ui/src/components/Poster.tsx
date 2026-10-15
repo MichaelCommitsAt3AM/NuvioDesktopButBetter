@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { memo, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Check, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { Media } from '../generated/contract';
@@ -41,7 +41,10 @@ function rememberResolvedPoster(key: string, url: string) {
   }
 }
 
-export function Poster({ item, compact = false, onClick, showRating = true }: { item: Media; compact?: boolean; onClick?: () => void; showRating?: boolean }) {
+// Memoized: shelves and grids re-render as progressive mounting fills in, but
+// already-mounted cards skip re-render since their props are referentially
+// stable. Each card still updates itself through its own store subscriptions.
+export const Poster = memo(function Poster({ item, compact = false, onClick, showRating = true }: { item: Media; compact?: boolean; onClick?: () => void; showRating?: boolean }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const appearance = useFeatureSnapshot<AppearanceSnapshot>('appearance');
@@ -103,4 +106,4 @@ export function Poster({ item, compact = false, onClick, showRating = true }: { 
     {menu&&screen==='home'&&<HomeActionDialog title={item.name} poster={poster} subtitle={item.releaseInfo??undefined} onClose={()=>setMenu(false)}>{error&&<p role="alert">{error}</p>}<button className={saved?'destructive':''} onClick={()=>void toggleSaved()}><span>{saved?'Remove from library':'Add to library'}</span>{saved?<Trash2 size={19}/>:<Plus size={19}/>}</button><button onClick={()=>void markWatched()}><span>{watched||isWatchedOnCard?'Mark as unwatched':'Mark as watched'}</span><Check size={19}/></button></HomeActionDialog>}
     {menu && screen!=='home' && <Dialog label={`Actions for ${item.name}`} onClose={()=>setMenu(false)}><h2>{item.name}</h2>{error&&<p role="alert" className="form-error">{error}</p>}<div className="poster-dialog-actions"><button className="button primary" onClick={()=>{setMenu(false);open();}}>View details</button><ListMembershipButton type={item.type} id={item.id} name={item.name}/><button className="button secondary" onClick={()=>void markWatched()}><Check size={17}/>{watched?'Watched state updated':'Toggle watched'}</button><button className="button secondary" onClick={()=>setMenu(false)}>Close</button></div></Dialog>}
   </div>;
-}
+})

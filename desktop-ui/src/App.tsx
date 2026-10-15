@@ -57,10 +57,24 @@ function Shell() {
   useEffect(() => { if (!appearance) void refreshFeature('appearance').catch(() => {}); }, [appearance]);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const held = useRef(false);
+  // The top bar stays extended until the appearance snapshot arrives, so
+  // startup never flashes the compact bar at users who selected extended.
+  const navBarStyle = appearance?.navBarStyle ?? 'expanded';
   const selectedProfile = session.profiles.find(profile => profile.id === session.activeProfile);
   const clearHold = () => { if (holdTimer.current) clearTimeout(holdTimer.current); holdTimer.current = null; };
   useEffect(() => () => clearHold(), []);
   useEffect(() => { setProfileOpen(false); }, [location.pathname]);
+  useEffect(() => {
+    // The main scroll container is shared across routes. Home restores its
+    // own saved position; every other route starts at the top instead of
+    // inheriting wherever the previous route left the scroller (which made
+    // Search/Library open partway down and drift further on repeat visits).
+    // Plain scrollTop assignment: instant, and safe where scrollTo is missing.
+    if (location.pathname !== '/') {
+      const main = document.querySelector<HTMLElement>('.main-area');
+      if (main) main.scrollTop = 0;
+    }
+  }, [location.pathname]);
   const navigation = <>{navItems.map(({ to,label,Icon }) => label === 'Settings' ? <div className="profile-anchor settings-profile-anchor" key={to}>
     <Link to={to} className={`nav-link ${selected === label ? 'active' : ''}`} aria-current={selected === label ? 'page' : undefined} aria-haspopup="menu" aria-expanded={profileOpen} title="Settings — hold to switch profiles"
       onPointerDown={event => { if (event.button !== 0) return; held.current=false; clearHold(); holdTimer.current=setTimeout(() => { held.current=true; setProfileOpen(true); },500); }}
@@ -75,11 +89,11 @@ function Shell() {
   const isDetailsRoute = /^\/details\/[^/]+\/[^/]+$/.test(location.pathname);
   const isStreamsRoute = /^\/details\/[^/]+\/[^/]+\/streams\/[^/]+$/.test(location.pathname);
   const isPlaybackRoute = location.pathname === '/playback';
-  return <div className={`shell ${sidebar ? 'sidebar-layout' : 'topbar-layout'} ${location.pathname==='/'?'home-layout':''} ${isDetailsRoute?'details-layout':''} ${isStreamsRoute?'streams-layout':''} ${isPlaybackRoute?'playback-layout':''} nav-style-${appearance?.navBarStyle ?? 'adaptive'} ${appearance?.navBarGlowEnabled ? 'nav-glow' : ''}`}>
+  return <div className={`shell ${sidebar ? 'sidebar-layout' : 'topbar-layout'} ${location.pathname==='/'?'home-layout':''} ${isDetailsRoute?'details-layout':''} ${isStreamsRoute?'streams-layout':''} ${isPlaybackRoute?'playback-layout':''} nav-style-${navBarStyle} ${appearance?.navBarGlowEnabled ? 'nav-glow' : ''}`}>
     {sidebar ? <aside className="side-nav">
       <nav className="side-nav-links" aria-label="Main navigation">{navigation}</nav>
     </aside> : <header className="topbar">
-      <LiquidNavigation labels={navItems.map(item => item.label)} visuals={navItems.map(item => <KotlinNavigationIcon key={item.label} label={item.label} />)} selectedIndex={navItems.findIndex(item => item.label === selected)} style={appearance?.navBarStyle ?? 'adaptive'} heroEnabled={appearance?.home?.heroEnabled !== false} profileOpen={profileOpen} glowEnabled={appearance?.navBarGlowEnabled !== false} routeKey={location.pathname} onDragStart={clearHold} onDragSelect={index => { const item = navItems[index]; if (item) { held.current = false; navigate(item.to); } }}>{navigation}</LiquidNavigation>
+      <LiquidNavigation labels={navItems.map(item => item.label)} visuals={navItems.map(item => <KotlinNavigationIcon key={item.label} label={item.label} />)} selectedIndex={navItems.findIndex(item => item.label === selected)} style={navBarStyle} heroEnabled={appearance?.home?.heroEnabled !== false} profileOpen={profileOpen} glowEnabled={appearance?.navBarGlowEnabled !== false} routeKey={location.pathname} onDragStart={clearHold} onDragSelect={index => { const item = navItems[index]; if (item) { held.current = false; navigate(item.to); } }}>{navigation}</LiquidNavigation>
     </header>}
     <main className={`main-area ${routeMotion}`}>
       <CachedHomeRoute profileId={session.activeProfile} />
@@ -171,4 +185,9 @@ function AppContent() {
   </div>;
 }
 
-export default function AppRoot() { return <BrowserRouter><AppContent /></BrowserRouter>; }
+export default function AppRoot() {
+  // Screens already render cached data or loading placeholders. Commit the
+  // route at input priority so it cannot trail the pointer-driven nav bubble
+  // behind background poster mounting and bridge snapshot updates.
+  return <BrowserRouter useTransitions={false}><AppContent /></BrowserRouter>;
+}

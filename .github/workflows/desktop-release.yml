@@ -126,6 +126,17 @@ jobs:
             > release-notes.md
 
           if [[ ! -s release-notes.md ]]; then
+            # Feature branches can contain every user-facing commit while the
+            # first-parent range contains only merge commits and version bumps.
+            ./scripts/generate-release-notes.sh \
+              --from "${PREVIOUS_BUMP}" \
+              --to "${CURRENT_BUMP}" \
+              --repository "${GITHUB_REPOSITORY}" \
+              --exclude "${EXCLUDE_COMMITS}" \
+              > release-notes.md
+          fi
+
+          if [[ ! -s release-notes.md ]]; then
             echo "No desktop repository release-note commits were found." >&2
             exit 1
           fi

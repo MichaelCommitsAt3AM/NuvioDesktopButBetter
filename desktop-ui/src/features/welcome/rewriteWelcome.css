@@ -1,0 +1,8 @@
+.rewrite-welcome .dialog-surface { width: min(520px, calc(100vw - 32px)); }
+.rewrite-welcome-eyebrow { color: var(--text-secondary, #a5a7ac); font-size: 13px; }
+.rewrite-welcome h2 { margin-top: 12px; }
+.rewrite-welcome-feature { display: flex; gap: 16px; align-items: flex-start; margin: 24px 0; }
+.rewrite-welcome-feature > svg { flex-shrink: 0; margin-top: 3px; }
+.rewrite-welcome-feature h3 { margin: 0 0 6px; font-size: 16px; }
+.rewrite-welcome-feature p { margin: 0; }
+.rewrite-welcome .button { min-height: 44px; }

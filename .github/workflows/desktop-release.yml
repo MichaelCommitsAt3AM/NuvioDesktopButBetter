@@ -273,6 +273,30 @@ jobs:
           else
             test "$(rpm -qp --queryformat '%{NAME}' release-assets/*.rpm)" == nuvio
           fi
+      - name: Verify macOS disk image and packaged runtime
+        if: matrix.platform == 'macos'
+        env:
+          RELEASE_ARCH: ${{ matrix.arch }}
+        run: |
+          hdiutil verify release-assets/*.dmg
+          mountpoint="$(mktemp -d)"
+          hdiutil attach -readonly -nobrowse -mountpoint "$mountpoint" release-assets/*.dmg
+          trap 'hdiutil detach "$mountpoint"' EXIT
+          app="$mountpoint/Nuvio.app"
+          test -x "$app/Contents/MacOS/Nuvio"
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Contents/Info.plist")" == com.nuvio.media.desktop
+          lipo -verify_arch "$RELEASE_ARCH" "$app/Contents/MacOS/Nuvio"
+          classpath="$(find "$app/Contents/Resources" -name classpath.txt -print -quit)"
+          test -n "$classpath"
+          backend="$(dirname "$classpath")"
+          find "$backend/native" -name libplayer_bridge.dylib -print | grep -q .
+          "$backend/runtime/bin/java" -version
+          smoke="$(mktemp)"
+          if (cd "$backend" && "$backend/runtime/bin/java" -cp "$(cat classpath.txt)" com.nuvio.desktop.bridge.MainKt </dev/null) >"$smoke" 2>&1; then
+            echo 'The packaged backend unexpectedly accepted an empty token.' >&2
+            exit 1
+          fi
+          grep -q 'Missing bridge token on stdin' "$smoke"
       - uses: actions/upload-artifact@v7
         if: always() && !cancelled() && steps.collect.outcome == 'success'
         with:

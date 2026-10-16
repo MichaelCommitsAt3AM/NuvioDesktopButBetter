@@ -4,6 +4,12 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Rewrite welcome and release acceptance — 2026-10-16
+
+New and upgrading installations see a one-time welcome explaining the faster rewritten desktop interface and touchscreen support. A device-local acknowledgement is independent of account/profile and future app versions. The dialog is available before sign-in, waits for startup readiness, works offline and defers the Continue Watching prompt until dismissed. Failed browser storage still allows dismissal for the current session.
+
+Release CI verifies both macOS DMGs by mounting them read-only on their matching GitHub runner, checking production bundle identity and executable architecture, and running the packaged Java/backend token-guard smoke check. These package checks do not claim interactive macOS migration or playback acceptance. Linux packages retain runner identity, runtime and signing checks; installation/migration testing remains a separate user test on Linux.
+
 ### Rewrite Discover and search navigation — 2026-10-15
 
 Back navigation restores the previously rendered poster count in the first grid commit, rather than replacing shorter placeholders above the saved viewport over successive frames. Discover disables browser scroll anchoring, and restoration stops immediately once the saved offset is reachable. This prevents the grid rebuild from shifting the page farther down after returning from details.

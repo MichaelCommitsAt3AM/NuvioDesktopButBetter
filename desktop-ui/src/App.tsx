@@ -27,6 +27,7 @@ import { ConnectionNotice, InlineError } from './components/Status';
 import './features/features.css';
 import { LiquidNavigation } from './components/navigation/LiquidNavigation';
 import { KotlinNavigationIcon } from './components/navigation/KotlinNavigationIcon';
+import { RewriteWelcome, useRewriteWelcome } from './features/welcome/RewriteWelcome';
 
 const navItems = [
   { to: '/', label: 'Home', Icon: Home },
@@ -35,7 +36,7 @@ const navItems = [
   { to: '/settings', label: 'Settings', Icon: SettingsIcon },
 ];
 
-function Shell({ offlineDownloads = false }: { offlineDownloads?: boolean }) {
+function Shell({ offlineDownloads = false, welcomePending = false }: { offlineDownloads?: boolean; welcomePending?: boolean }) {
   const session = useSelector((current) => current.session);
   const appearance = useFeatureSnapshot<{ navigationLayout: 'sidebar' | 'topbar'; navBarStyle: string; navBarGlowEnabled: boolean; home?: { heroEnabled?: boolean } }>('appearance');
   const location = useLocation();
@@ -118,11 +119,12 @@ function Shell({ offlineDownloads = false }: { offlineDownloads?: boolean }) {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </main>
-    {!offlineDownloads && <LaunchResumePrompt />}
+    {!offlineDownloads && !welcomePending && <LaunchResumePrompt />}
   </div>;
 }
 
 function AppContent() {
+  const welcome = useRewriteWelcome();
   const state = useAppState();
   const location = useLocation();
   const navigate = useNavigate();
@@ -193,7 +195,7 @@ function AppContent() {
     <UpdateBanner />
     <DownloadNotifications />
     {offlineDownloads && state.status === 'ready'
-      ? <Shell offlineDownloads />
+      ? <Shell offlineDownloads welcomePending={welcome.pending} />
       : state.session.status === 'loading' && state.status === 'disconnected'
       ? <div className="boot"><InlineError message={startupError ?? 'The Kotlin backend could not start.'} onRetry={() => { void actions.restartBridge().catch(() => {}); }} /></div>
       : startupLoading
@@ -202,8 +204,9 @@ function AppContent() {
         ? <AuthPage />
         : showPicker
           ? <ProfileChooser onSelected={() => { setLaunchPicker(false); navigate('/'); }} onBack={explicitPicker && !launchPicker && state.session.activeProfile !== null ? () => navigate(-1) : undefined} />
-          : <Shell />}
+          : <Shell welcomePending={welcome.pending} />}
     {state.profileTransition && !startupLoading && !offlineDownloads && <ProfileLoadingScreen />}
+    {welcome.pending && state.status === 'ready' && (!startupLoading || offlineDownloads) && <RewriteWelcome onClose={welcome.dismiss} />}
   </div>;
 }
 

@@ -32,6 +32,9 @@ it('dismisses without starting playback or requesting the prompt again', async (
   bridge.call.mockResolvedValue(item);
   const view = mount();
   await screen.findByRole('dialog');
+  // Finding the rendered dialog can precede its passive focus/keyboard effect
+  // on busy runners. Wait until it is interactive before pressing Escape.
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Resume' })).toHaveFocus());
   fireEvent.keyDown(document, { key: 'Escape' });
   expect(screen.queryByRole('dialog')).toBeNull();
   view.rerender(<StrictMode><MemoryRouter><LaunchResumePrompt /><Location /></MemoryRouter></StrictMode>);

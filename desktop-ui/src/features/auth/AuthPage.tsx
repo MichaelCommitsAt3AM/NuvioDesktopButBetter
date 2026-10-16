@@ -4,7 +4,10 @@ import { actions } from '../../bridge';
 import { AuthOptionsPanel, useAuthOptions } from './AuthOptionsPanel';
 import './auth.css';
 
+import { useLocale } from '../../i18n/strings';
+
 export function AuthPage() {
+  const { t } = useLocale();
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,39 +47,39 @@ export function AuthPage() {
     <section className="auth-brand-pane" aria-label="Nuvio">
       <div className="auth-brand-copy">
         <img className="auth-brand-wordmark" src="/images/nuvio-wordmark.png" alt="Nuvio" />
-        <h1>Watch your library,<br /> anywhere</h1>
-        <p>Sign up to sync your data across devices</p>
+        <h1>{t('compose_auth_tagline')}</h1>
+        <p>{t('compose_auth_sign_up_subtitle')}</p>
       </div>
     </section>
 
     <aside className="auth-form-pane">
       <div className="auth-form-content">
         <header className="auth-heading">
-          <h2>{mode === 'signIn' ? 'Welcome Back' : 'Create Account'}</h2>
-          <p>{mode === 'signIn' ? 'Sign in to access your library and progress' : 'Sign up to sync your data across devices'}</p>
+          <h2>{mode === 'signIn' ? t('compose_auth_welcome_back') : t('compose_auth_create_account')}</h2>
+          <p>{mode === 'signIn' ? t('compose_auth_sign_in_subtitle') : t('compose_auth_sign_up_subtitle')}</p>
         </header>
 
-        {emailPasswordEnabled ? <form className="auth-form" onSubmit={(event) => void submit(event)}>
+        {emailPasswordEnabled ? <form key={mode} className="auth-form auth-form-crossfade" onSubmit={(event) => void submit(event)}>
           <label className="auth-field">
             <Mail aria-hidden="true" />
-            <span className="sr-only">Email</span>
-            <input aria-label="Email" autoComplete="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required placeholder="Email" />
+            <span className="sr-only">{t('compose_auth_email')}</span>
+            <input aria-label={t('compose_auth_email')} autoComplete="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required placeholder={t('compose_auth_email')} />
           </label>
           <label className="auth-field">
             <LockKeyhole aria-hidden="true" />
-            <span className="sr-only">Password</span>
-            <input aria-label="Password" autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'} type={showPassword ? 'text' : 'password'} minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} required placeholder="Password" />
+            <span className="sr-only">{t('compose_auth_password')}</span>
+            <input aria-label={t('compose_auth_password')} autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'} type={showPassword ? 'text' : 'password'} minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} required placeholder={t('compose_auth_password')} />
             <button className="auth-password-toggle" type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff /> : <Eye />}</button>
           </label>
           {error && <p className="form-error" role="alert">{error}</p>}
-          <button className="button primary full auth-submit" disabled={busy}>{busy ? <LoaderCircle className="spin" size={17} /> : null}{mode === 'signIn' ? 'Sign In' : 'Sign Up'}</button>
+          <button className="button primary full auth-submit" disabled={busy}>{busy ? <LoaderCircle className="spin" size={17} /> : null}{mode === 'signIn' ? t('compose_auth_sign_in') : t('compose_auth_sign_up')}</button>
         </form> : <p className="muted auth-device-only-notice">Email and password sign-in are not enabled on this server.</p>}
 
-        {emailPasswordEnabled && <p className="auth-switch">{mode === 'signIn' ? "Don't have an account?" : 'Already have an account?'} <button type="button" onClick={() => { setMode(mode === 'signIn' ? 'signUp' : 'signIn'); setError(null); }}>{mode === 'signIn' ? 'Sign Up' : 'Sign In'}</button></p>}
-        {emailPasswordEnabled && <div className="auth-divider"><span />or<span /></div>}
-        <button className="button secondary full auth-guest" onClick={() => void asGuest()} disabled={busy}>Continue Without Account</button>
+        {emailPasswordEnabled && <p className="auth-switch">{mode === 'signIn' ? t('compose_auth_dont_have_account') : t('compose_auth_already_have_account')} <button type="button" onClick={() => { setMode(mode === 'signIn' ? 'signUp' : 'signIn'); setError(null); }}>{mode === 'signIn' ? t('compose_auth_sign_up') : t('compose_auth_sign_in')}</button></p>}
+        {emailPasswordEnabled && <div className="auth-divider"><span />{t('compose_auth_or_separator').trim() || 'or'}<span /></div>}
+        <button className="button secondary full auth-guest" onClick={() => void asGuest()} disabled={busy}>{t('compose_auth_continue_without_account')}</button>
         {error && !emailPasswordEnabled && <p className="form-error" role="alert">{error}</p>}
-        <p className="auth-local-note">Your data will only be stored locally</p>
+        <p className="auth-local-note">{t('compose_auth_store_locally')}</p>
       </div>
     </aside>
 

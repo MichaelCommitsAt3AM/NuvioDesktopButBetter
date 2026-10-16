@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Download, LibraryBig, LoaderCircle, Maximize, RefreshCw, Play, Search } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
@@ -10,8 +10,13 @@ import { PosterLoadingCard } from '../../components/PosterLoadingCard';
 import { useProgressiveCount } from '../../components/ProgressiveMount';
 import { Shelf } from '../../components/Shelf';
 
-import { Link } from 'react-router-dom';
+import { Link, useNavigationType } from 'react-router-dom';
 import './library.css';
+import { scrollKey, useActiveProfileId, useListScrollRestore } from '../../navigation/scrollStore';
+import { useDisintegratingRemoval } from '../../components/disintegration';
+import { usePlacementFlip } from '../../components/placementFlip';
+import { mediaKey } from '../../components/keys';
+import '../../components/disintegration.css';
 
 type Extras = { source: string; layout: string; sort: string; tabs: { key: string; title: string }[]; items: { id: string; type: string; savedAt: number; listKeys: string[]; category: string }[]; sections: { type: string; title: string; items: string[] }[] };
 type CloudType = 'torrent' | 'usenet' | 'webdownload' | 'file';
@@ -28,6 +33,10 @@ export function LibraryPage() {
   const [selectedCloudItem, setSelectedCloudItem] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
+  const navigationType = useNavigationType();
+  const profileId = useActiveProfileId();
+  const gridRef = useRef<HTMLDivElement>(null);
+  usePlacementFlip(gridRef);
   useEffect(() => { void refreshFeature('libraryExtras', 'library.extras').catch(cause => setError(String(cause))); }, []);
   useEffect(() => { if (mode === 'cloud') { setSelectedCloudItem(null); void refreshFeature('cloud').catch(cause => setError(String(cause))); } }, [mode]);
   const run = async (method: string, params: Record<string, unknown>, topic = 'libraryExtras') => { setError(''); try { await call(method, params); await refreshFeature(topic, topic === 'libraryExtras' ? 'library.extras' : 'cloud.snapshot'); } catch(cause) { setError(cause instanceof Error ? cause.message : String(cause)); } };
@@ -35,13 +44,21 @@ export function LibraryPage() {
     const result = [...library.items];
     const sort = extras?.sort ?? 'added_desc';
     if (sort.startsWith('title')) result.sort((a,b) => a.name.localeCompare(b.name) * (sort === 'title_desc' ? -1 : 1));
-    else if (sort.startsWith('added')) result.sort((a,b) => ((extras?.items.find(record => record.id === a.id && record.type === a.type)?.savedAt ?? 0) - (extras?.items.find(record => record.id === b.id && record.type === b.type)?.savedAt ?? 0)) * (sort === 'added_desc' ? -1 : 1));
+    else if (sort.startsWith('added')) {
+      const savedAt = new Map((extras?.items ?? []).map(record => [`${record.type}|${record.id}`, record.savedAt]));
+      result.sort((a,b) => ((savedAt.get(`${a.type}|${a.id}`) ?? 0) - (savedAt.get(`${b.type}|${b.id}`) ?? 0)) * (sort === 'added_desc' ? -1 : 1));
+    }
     return result;
   }, [library.items, extras]);
+  useListScrollRestore(scrollKey(profileId, '/library', `${extras?.layout ?? 'grid'}|${mode}|${extras?.sort ?? ''}`), navigationType, !library.loading);
+  const removal = useDisintegratingRemoval(items, (entry) => mediaKey(entry.type, entry.id), profileId);
   const playCloud = async (itemKey: string, fileKey: string) => { setBusy(fileKey); try { await call('cloud.play', { itemKey, fileKey }); setError(''); } catch(cause) { setError(cause instanceof Error ? cause.message : String(cause)); } finally { setBusy(''); } };
-  const visibleCount = useProgressiveCount(items.length, `library:${extras?.layout ?? 'grid'}`);
-  const visibleItems = items.slice(0, visibleCount);
-  const pendingCount = items.length - visibleItems.length;
+  const visibleCount = useProgressiveCount(items.length, `library:${extras?.layout ?? 'grid'}:${extras?.sort ?? 'added_desc'}:${mode}`);
+  const removalPaged = removal.visible.slice(0, visibleCount);
+  for (const entry of removal.visible) {
+    if (removal.bursting.has(mediaKey(entry.type, entry.id)) && !removalPaged.includes(entry)) removalPaged.push(entry);
+  }
+  const pendingCount = Math.max(0, items.length - visibleCount);
   const headerActions = <div className="library-header-actions">
     <Link className="button secondary library-downloads-button" to="/library/downloads"><Download size={19} /><span>Downloads</span></Link>
   </div>;
@@ -67,7 +84,7 @@ export function LibraryPage() {
       {library.loading && <div className="loading-block"><LoaderCircle className="spin" />Loading your library…</div>}
       {!library.loading && !items.length && <EmptyState title="No saved titles" message="Save titles from their details page to add them here." icon={<LibraryBig />} />}
       {extras?.layout === 'horizontal' && (extras.sections.length ? extras.sections : [{ type: 'all', title: 'Saved titles', items: items.map(item => `${item.type}|${item.id}`) }]).map(section => <Shelf className="library-shelf" key={section.type} showPosterRating={false} shelf={{ key: `library:${section.type}`, title: section.title, subtitle: '', items: items.filter(item => section.items.includes(`${item.type}|${item.id}`)), hasMore: false }} />)}
-      {extras?.layout !== 'horizontal' && <div className="library-grid">{visibleItems.map(item => <div key={`${item.type}:${item.id}`}><Poster item={item} /></div>)}{Array.from({ length: pendingCount }, (_, index) => <div key={`skeleton-${index}`}><PosterLoadingCard variant="poster" /></div>)}</div>}
+      {extras?.layout !== 'horizontal' && <div className="library-grid" ref={gridRef}>{removalPaged.map(item => { const key = mediaKey(item.type, item.id); const bursting = removal.bursting.has(key); return <div key={key} data-flip-key={key} className={bursting ? 'is-disintegrating' : undefined}>{bursting && <span className="disintegration-burst" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/></span>}<Poster item={item} onRemoveAction={(entry, operation) => void removal.remove(entry, operation).catch((cause) => setError(String(cause)))} /></div>; })}{Array.from({ length: pendingCount }, (_, index) => <div key={`skeleton-${index}`}><PosterLoadingCard variant="poster" /></div>)}</div>}
     </>}
     {mode === 'cloud' && <>
       {cloud?.loading && <div className="loading-block">Refreshing cloud library…</div>}

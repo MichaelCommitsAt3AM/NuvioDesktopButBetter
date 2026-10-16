@@ -44,9 +44,15 @@ export async function downloadUpdate() {
       publish({ progress: payload.total ? Math.min(1, payload.downloaded / payload.total) : null });
     });
     await invoke('update_download');
-    publish({ phase: 'downloaded', progress: 1 });
-  } catch (error) { publish({ phase: 'available', error: errorMessage(error), progress: null }); }
+  } catch (error) {
+    publish({ phase: 'available', error: errorMessage(error), progress: null });
+    return;
+  }
   finally { unlisten?.(); }
+  // Native download only resolves after signature verification. The user's
+  // Update action covers the complete download → verified install → restart.
+  publish({ phase: 'downloaded', progress: 1 });
+  await installUpdate();
 }
 export async function installUpdate() {
   if (state.phase !== 'downloaded') return;

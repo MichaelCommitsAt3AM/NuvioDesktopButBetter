@@ -21,6 +21,8 @@ vi.mock('../../bridge', () => ({
   BridgeError: class extends Error {},
 }));
 vi.mock('./DetailsExtras', () => ({ DetailsExtras: () => null }));
+// These tests check which title owns the artwork; decode timing is covered by StreamsArtwork.test.
+vi.mock('../../components/useDecodedImage', () => ({ useDecodedImage: (url?: string) => ({ ready: !!url, failed: false }) }));
 
 const media = (id: string, type = 'movie') => ({ id, type, name: id, background: `${id}-background.jpg`, logo: `${id}-logo.png`, poster: null, genres: [] });
 function Location() { const location = useLocation(); return <output data-testid="location">{location.pathname}{location.search}</output>; }
@@ -36,7 +38,7 @@ function renderStreams(query = '') {
   </Routes></MemoryRouter>);
 }
 beforeEach(() => {
-  bridge.state = { details: { media: media('ted'), episodes: [], loading: false }, library: { items: [] }, streams: { groups: [], loading: true }, playback: {} };
+  bridge.state = { details: { media: media('ted'), episodes: [], loading: false }, library: { items: [] }, streams: { groups: [], loading: true }, playback: {}, session: { activeProfile: 7 } };
   bridge.primaryAction = { label: 'Resume', videoId: 'ted', seasonNumber: null, episodeNumber: null, resumePositionMs: 25_000 };
   bridge.call.mockReset();
   bridge.call.mockImplementation(async () => ({ loaded: true, primaryAction: bridge.primaryAction }));

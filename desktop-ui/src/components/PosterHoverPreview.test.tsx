@@ -23,7 +23,7 @@ describe('PosterHoverPreview', () => {
     expect(screen.getByRole('button', { name: /view details/i })).toBeInTheDocument();
     expect(document.querySelector('.poster-preview')).not.toHaveClass('is-closing');
     view.rerender(<PosterHoverPreview {...props} visible={false} />);
-    act(() => vi.advanceTimersByTime(160));
+    act(() => vi.advanceTimersByTime(170));
     expect(document.querySelector('.poster-preview')).toBeNull();
   });
   it('renders the shared expanded card actions without bubbling to its card', () => {
@@ -47,31 +47,21 @@ describe('PosterHoverPreview', () => {
     expect(onOpen).toHaveBeenCalledOnce();
     expect(onCardClick).not.toHaveBeenCalled();
   });
-  it('forwards wheel over the card to the page scroller', () => {
-    document.body.innerHTML = '<div class="main-area"></div>';
-    const original = window.HTMLElement.prototype.scrollBy;
-    const scrollBy = vi.fn();
-    (window.HTMLElement.prototype as unknown as { scrollBy: unknown }).scrollBy = scrollBy;
-    try {
-      render(<PosterHoverPreview
-        item={{ id: 'wheel', type: 'movie', name: 'Wheel Movie', poster: null, background: null, logo: null, description: '', releaseInfo: '2026', rating: null, genres: [] }}
-        rect={{ left: 100, top: 80 } as DOMRect}
-        saved={false}
-        watched={false}
-        onOpen={() => {}}
-        onToggleWatched={() => {}}
-        onToggleSaved={() => {}}
-        onMouseEnter={() => {}}
-        onMouseLeave={() => {}}
-      />);
-      const card = document.querySelector('.poster-preview')!;
-      fireEvent.wheel(card, { deltaY: 100, deltaX: 0 });
-      expect(scrollBy).toHaveBeenCalledWith({ left: 0, top: 100 });
-      fireEvent.wheel(card, { deltaY: 3, deltaX: 0, deltaMode: 1 });
-      expect(scrollBy).toHaveBeenCalledWith({ left: 0, top: 48 });
-    } finally {
-      (window.HTMLElement.prototype as unknown as { scrollBy: unknown }).scrollBy = original;
-    }
+  it('dismisses on wheel over the card like the Kotlin preview', () => {
+    const onMouseLeave = vi.fn();
+    render(<PosterHoverPreview
+      item={{ id: 'wheel', type: 'movie', name: 'Wheel Movie', poster: null, background: null, logo: null, description: '', releaseInfo: '2026', rating: null, genres: [] }}
+      rect={{ left: 100, top: 80 } as DOMRect}
+      saved={false}
+      watched={false}
+      onOpen={() => {}}
+      onToggleWatched={() => {}}
+      onToggleSaved={() => {}}
+      onMouseEnter={() => {}}
+      onMouseLeave={onMouseLeave}
+    />);
+    fireEvent.wheel(document.querySelector('.poster-preview')!, { deltaY: 100, deltaX: 0 });
+    expect(onMouseLeave).toHaveBeenCalledTimes(1);
   });
   it('mounts artwork only after it fully decodes and drops dead URLs', async () => {
     type Probe = { src: string; onload: (() => void) | null; onerror: (() => void) | null; decode: () => Promise<void>; decoding: string };

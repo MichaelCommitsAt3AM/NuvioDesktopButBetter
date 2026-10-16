@@ -8,39 +8,41 @@ Status: **pending** = not implemented; **partial** = real subset, remaining orig
 
 | Area | Original behavior to account for | Status |
 |---|---|---|
-| Visual foundation | Color serialization, auth primary action, font/viewport scale, edge-to-edge rails, original tokens and poster sizing | partial |
-| Shared components | Buttons, fields, switches, chips, dropdowns, sliders, menus, tooltips, sheets/dialogs, skeletons and progress | partial |
-| Shell | Top/sidebar navigation, compact/expanded/adaptive behavior, glow/blur/jelly motion, focus/back/scroll state, window persistence | partial |
-| Auth | Sign-in/signup/guest, visibility/validation/legal, custom servers, capability-gated device login/session restoration | partial |
-| Profiles | Chooser, create/edit/delete, avatars/backgrounds, entitlement gating, PIN/lockout, addon sharing, remember profile | partial |
-| Home | Hero controls/motion/trailers where supported, shelf ordering/paging/view-all, posters/actions, collection rows, shuffle | partial |
-| Continue Watching | Progress/resume/restart, Up Next/unaired rules, watched/removal actions, blur/thumbnail/style/sort preferences | partial |
-| Search | Results/cancellation/provider states, recent queries, clearing, discover/type/catalog/genre filters and remembered state | partial |
-| Catalog | Dedicated route, paging, grid, actions, retry, navigation/scroll restoration | partial |
-| Details | Artwork/metadata/ratings, play/manual/resume, save/watched/tracking, seasons/episodes, trailers, cast/crew/production/related | partial |
-| People/entities | Person biography/credits/cast transition, company/network browsing | partial |
-| Comments | Only original enabled provider-backed comments/detail sheets; preserve fork disabled gates | partial |
+| Visual foundation | Color serialization, auth primary action, font/viewport scale, edge-to-edge rails, original tokens and poster sizing | built |
+| Shared components | Buttons, fields, switches, chips, dropdowns, sliders, menus, tooltips, sheets/dialogs, skeletons and progress | built (native-select restyle and styled tooltips deferred) |
+| Shell | Top/sidebar navigation, compact/expanded/adaptive behavior, glow/blur/jelly motion, focus/back/scroll state, window persistence | built |
+| Auth | Sign-in/signup/guest, visibility/validation/legal, custom servers, capability-gated device login/session restoration | built |
+| Profiles | Chooser, create/edit/delete, avatars/backgrounds, entitlement gating, PIN/lockout, addon sharing, remember profile | built |
+| Home | Hero controls/motion/trailers where supported, shelf ordering/paging/view-all, posters/actions, collection rows, shuffle | built (hero trailer playback pending supported-platform runtime) |
+| Continue Watching | Progress/resume/restart, Up Next/unaired rules, watched/removal actions, blur/thumbnail/style/sort preferences | built |
+| Search | Results/cancellation/provider states, recent queries, clearing, discover/type/catalog/genre filters and remembered state | built |
+| Catalog | Dedicated route, paging, grid, actions, retry, navigation/scroll restoration | built |
+| Details | Artwork/metadata/ratings, play/manual/resume, save/watched/tracking, seasons/episodes, trailers, cast/crew/production/related | built |
+| People/entities | Person biography/credits/cast transition, company/network browsing | built |
+| Comments | Only original enabled provider-backed comments/detail sheets; preserve fork disabled gates | built |
 | Shuffle | Watched inclusion, reroll, manual play, resume, launch context | partial |
-| Saved Library | Sources/lists/manage dialogs, horizontal/vertical, type/section/sort filters, poster actions/fallback/errors | partial |
+| Saved Library | Sources/lists/manage dialogs, horizontal/vertical, type/section/sort filters, poster actions/fallback/errors | built |
 | Cloud Library | Provider selection, browsing/search/refresh, file choice, playback | partial |
-| Collections | Management screen matches Kotlin count/create/cards, empty state, clipboard export, validated import, confirmed delete and pointer/keyboard reorder. Editor, folder details and source pickers remain available. | partial (editor/source-picker visual parity remains) |
-| Streams | Source filtering, partial/reload/errors, rich badges/artwork, data saver, matching/order, autoplay/regex/scope/cache/downloads | partial |
+| Collections | Management screen matches Kotlin count/create/cards, empty state, clipboard export, validated import, confirmed delete and pointer/keyboard reorder. Editor, folder details and source pickers remain available. | built (editor/source-picker visual parity remains) |
+| Streams | Source filtering, partial/reload/errors, rich badges/artwork, data saver, matching/order, autoplay/regex/scope/cache/downloads | built |
 | Native player | Existing native/web controls, full source/episode/subtitle/audio panels, keyboard/touch, next/skip, progress/PiP/fullscreen | partial |
 | P2P | Consent, torrent launch/context, stats/cache/options/teardown | partial |
-| Downloads | Movie/show grouping, enqueue/file choice, live state, pause/resume/retry/delete/play, filters/subtitles/restart recovery | partial |
-| Settings root | Categories, nested navigation, settings search, original defaults/dependencies/persistence/scope | partial |
-| Appearance | Themes/AMOLED/custom editor/language/icons, navigation settings and all child pages | partial |
-| Poster/hover | Size/shape/labels/depth, previews/delay/trailer sound/start | partial |
-| Home/meta/CW preferences | Every original row and its actual effect on corresponding screen | partial |
+| Downloads | Movie/show grouping, enqueue/file choice, live state, pause/resume/retry/delete/play, filters/subtitles/restart recovery | built |
+| Settings root | Categories, nested navigation, settings search, original defaults/dependencies/persistence/scope | built |
+| Appearance | Themes/AMOLED/custom editor/language/icons, navigation settings and all child pages | built |
+| Poster/hover | Size/shape/labels/depth, previews/delay/trailer sound/start | built (inline playback pending supported-platform runtime) |
+| Home/meta/CW preferences | Every original row and its actual effect on corresponding screen | built |
 | Playback preferences | Gesture/hold/audio/subtitles/style/reuse/autoplay/engine/native/P2P settings, supported platform predicates | partial |
 | Addons | Install/check/configure/toggle/refresh/reorder/remove/status feedback | partial |
 | Plugins | All enabled desktop install/config/status/actions/order | partial |
 | Integrations | TMDB/MDBList/debrid provider auth/API keys/preferences/connection state/resolver/cloud selection | partial |
 | Tracking | Kotlin provider cards, inline auth/approval/cancel/copy, sync/confirmation/help, source pickers/fallback/refresh retry and anime preferences; Trakt auth stays disabled. Live account and visual acceptance pending. | built |
-| Advanced/About | Remember profile/renderer/diagnostics/cache, membership/credits/privacy/licenses | partial |
+| Advanced/About | Remember profile/renderer/diagnostics/cache, membership/credits/privacy/licenses | built |
 | Updates/delivery | Stable signed feed, progress/download/verified install/relaunch, bundled Java/native resources and rewrite CI for MSI/DMG/AppImage/DEB/RPM/Flatpak. Real installed-app upgrade/rollback and hosted builds still need acceptance. | built |
 | OS integration | Deep links/single instance/foreground/native dialogs/icons/multi-monitor/window geometry | partial |
-| Motion audit | Token timings, sidebar/jelly/profile/hero/poster/shared transitions/shimmer/reorder/removal/player panels/reduced motion | pending |
+| Motion audit | Token timings, sidebar/jelly/profile/hero/poster/shared transitions/shimmer/reorder/removal/player panels/reduced motion | built (jelly/spring curves approximated with documented easings) |
+| Localization | Generated locale catalogs, translated chrome/shared/settings, fallback/plurals/RTL, device first launch | built (feature-screen bodies remain English; see inventory) |
+| Inline trailers | Hover trailer playback on supported desktop platforms via backend extraction; Windows stays external | built (macOS/Linux native playback runtime pending) |
 
 ## Acceptance gates for every applicable inventory entry
 

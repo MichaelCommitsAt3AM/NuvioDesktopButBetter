@@ -49,3 +49,7 @@
 .downloads-page .download-actions .icon-button svg{width:18px;height:18px}
 @media(max-width:760px){.downloads-page .page-heading{align-items:flex-start;flex-direction:column}.downloads-page .download-group summary span{display:block;margin:4px 0 0}}
 @media(pointer:coarse){.downloads-page .button,.downloads-page .download-actions .icon-button{min-width:44px;min-height:44px}}
+
+.downloads-header-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:auto}
+.downloads-page .downloads-header-actions .button{min-height:44px;background:var(--surface,#222);white-space:nowrap}
+.downloads-page .downloads-preferences{width:44px;height:44px;padding:0;flex:none}

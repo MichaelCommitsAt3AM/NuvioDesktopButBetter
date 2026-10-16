@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
@@ -14,7 +14,7 @@ import { useDiscoverScroll } from './useDiscoverScroll';
 
 const MAX_RECENT_SEARCHES = 5;
 
-export function SearchPage() {
+export function SearchPage({ focusRequested = false, onFocusHandled }: { focusRequested?: boolean; onFocusHandled?: () => void } = {}) {
   const search = useSelector((current) => current.search) as SearchState;
   const discover = useSelector((current) => current.discover) as Discover | null;
   const addons = useSelector((current) => current.addons) as Addon[];
@@ -27,6 +27,11 @@ export function SearchPage() {
   const [scrolled, setScrolled] = useState(false);
   const [openFilter, setOpenFilter] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => {
+    if (!focusRequested) return;
+    inputRef.current?.focus({ preventScroll: true });
+    onFocusHandled?.();
+  }, [focusRequested, onFocusHandled]);
   const paging = useRef(false);
   const discoverCatalogKey = discover ? JSON.stringify([discover.selectedType, discover.selectedCatalogKey, discover.selectedGenre]) : null;
   const discoverScroll = useDiscoverScroll(profileId, discoverCatalogKey, Boolean(query.trim()), top => setScrolled(top > 48));

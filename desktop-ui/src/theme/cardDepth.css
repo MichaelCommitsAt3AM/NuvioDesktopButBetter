@@ -1,0 +1,48 @@
+/* Card depth per CardDepthEffect.kt: edge gradient + top sheen, clipped to shape.
+   Gradient-only (no blur) so per-card cost stays cheap. Applied to the frame
+   element only, never the action-button container. */
+.has-card-depth .depth-frame,
+.has-card-depth.depth-frame {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.has-card-depth .depth-frame::before,
+.has-card-depth.depth-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  box-sizing: border-box;
+  padding: 1px;
+  background: linear-gradient(
+    to bottom,
+    var(--depth-edge-hi) 0%,
+    var(--depth-edge-mid) 50%,
+    var(--depth-edge-bottom) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+.has-card-depth .depth-frame::after,
+.has-card-depth.depth-frame::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 22%;
+  border-radius: inherit;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(to bottom, var(--depth-sheen, rgba(255, 255, 255, 0.045)), transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Static effect; nothing to disable. Kept for explicitness. */
+}

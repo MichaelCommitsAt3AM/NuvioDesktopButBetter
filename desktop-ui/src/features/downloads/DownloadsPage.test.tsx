@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { DownloadsPage } from './DownloadsPage';
 
 const bridge = vi.hoisted(() => ({ snapshot: {} as any, call: vi.fn(), refresh: vi.fn() }));
-vi.mock('../../bridge', () => ({ useFeatureSnapshot: () => bridge.snapshot, call: bridge.call, refreshFeature: bridge.refresh }));
+vi.mock('../../bridge', () => ({ useFeatureSnapshot: () => bridge.snapshot, useSelector: (select: (state: any) => unknown) => select({ session: { activeProfile: 7 } }), call: bridge.call, refreshFeature: bridge.refresh }));
 beforeEach(() => {
   const item = { poster: null, parentMetaType: 'movie', parentMetaId: 'movie', seasonNumber: null, episodeNumber: null, episodeTitle: null, status: 'completed', downloadedBytes: 20, totalBytes: 20, progress: 1, error: null, playable: true };
   bridge.snapshot = { items: [
@@ -53,4 +53,21 @@ it('combines text search with status and content type filters', () => {
   fireEvent.change(screen.getByRole('textbox', { name: 'Search downloads' }), { target: { value: 'avatar' } });
   expect(screen.getByRole('heading', { name: 'Avatar' })).toBeInTheDocument();
   expect(bridge.call).not.toHaveBeenCalledWith(expect.stringContaining('search'), expect.anything());
+});
+
+it('opens the managed downloads folder and reports platform failure honestly', async () => {
+  render(page());
+  const folder = screen.getByRole('button', { name: 'Open downloads folder' });
+  const preferences = screen.getByRole('link', { name: 'Data saver preferences' });
+  expect(folder).toHaveTextContent('Open folder');
+  expect(preferences).toHaveAttribute('href', '/settings/downloads');
+  expect(preferences).toHaveTextContent('');
+  expect(folder.parentElement).toHaveClass('downloads-header-actions');
+  expect(preferences.parentElement).toBe(folder.parentElement);
+  bridge.call.mockClear();
+  fireEvent.click(screen.getByRole('button', { name: 'Open downloads folder' }));
+  expect(bridge.call).toHaveBeenCalledWith('downloads.openFolder', {});
+  bridge.call.mockRejectedValueOnce(new Error('The downloads folder could not be opened on this device'));
+  fireEvent.click(screen.getByRole('button', { name: 'Open downloads folder' }));
+  expect(await screen.findByText('The downloads folder could not be opened on this device')).toBeInTheDocument();
 });

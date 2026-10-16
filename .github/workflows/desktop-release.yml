@@ -285,7 +285,7 @@ jobs:
           app="$mountpoint/Nuvio.app"
           test -x "$app/Contents/MacOS/Nuvio"
           test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Contents/Info.plist")" == com.nuvio.media.desktop
-          lipo -verify_arch "$RELEASE_ARCH" "$app/Contents/MacOS/Nuvio"
+          lipo "$app/Contents/MacOS/Nuvio" -verify_arch "$RELEASE_ARCH"
           classpath="$(find "$app/Contents/Resources" -name classpath.txt -print -quit)"
           test -n "$classpath"
           backend="$(dirname "$classpath")"

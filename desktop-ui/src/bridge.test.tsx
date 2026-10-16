@@ -51,7 +51,7 @@ vi.mock('@tauri-apps/api/core', () => ({
       'home.snapshot': { loading: bridgeMock.homeLoading, error: null, hero: [], shelves: [] },
       'library.snapshot': { loading: false, error: null, items: [] },
       'addons.snapshot': [],
-      'settings.snapshot': { theme: 'White', themes: [{ id: 'White', label: 'White', background: '#0d0d0d', accent: '#f5f5f5', surface: '#1a1a1a' }] },
+      'settings.snapshot': { theme: 'White', themes: [{ id: 'White', label: 'White', background: '#0D0D0D', accent: '#F5F5F5', surface: '#222222', settingsSurface: '#1A1A1A', accentVariant: '#E0E0E0', onAccent: '#111111', onAccentVariant: '#111111', focusRing: '#FFFFFF', focusBackground: '#303030', accentGradient: ['#F5F5F5'], nativeAccent: '#F5F5F5' }] },
       'discover.refresh': { loading: false, typeOptions: ['movie', 'series'], selectedType: 'movie', catalogOptions: [{ key: 'cinemeta:movie:popular', addonName: 'Cinemeta', type: 'movie', catalogId: 'popular', catalogName: 'Popular', genreOptions: ['Action'], genreRequired: false, supportsPagination: true }, { key: 'cinemeta:movie:top', addonName: 'Cinemeta', type: 'movie', catalogId: 'top', catalogName: 'Top', genreOptions: ['Action'], genreRequired: false, supportsPagination: true }], selectedCatalogKey: 'cinemeta:movie:popular', selectedGenre: null, genreOptions: ['Action'], items: [media('discover-popular', 'Discover popular title')], hasMore: false, emptyStateReason: null, error: null },
       'discover.snapshot': { loading: false, typeOptions: ['movie', 'series'], selectedType: 'movie', catalogOptions: [{ key: 'cinemeta:movie:popular', addonName: 'Cinemeta', type: 'movie', catalogId: 'popular', catalogName: 'Popular', genreOptions: ['Action'], genreRequired: false, supportsPagination: true }, { key: 'cinemeta:movie:top', addonName: 'Cinemeta', type: 'movie', catalogId: 'top', catalogName: 'Top', genreOptions: ['Action'], genreRequired: false, supportsPagination: true }], selectedCatalogKey: 'cinemeta:movie:popular', selectedGenre: null, genreOptions: ['Action'], items: [media('discover-popular', 'Discover popular title')], hasMore: false, emptyStateReason: null, error: null },
       'search.historySnapshot': { enabled: true, items: ['A recent movie'] },
@@ -84,6 +84,47 @@ async function openPreparedStream() {
 
 describe('desktop bridge UI workflow', () => {
   beforeEach(() => { window.history.replaceState({}, '', '/'); bridgeMock.networkCondition=undefined;bridgeMock.deferPlayback=false;bridgeMock.deferProfiles=false;bridgeMock.multipleProfiles=false;bridgeMock.homeLoading=false;bridgeMock.rejectSelection=false;bridgeMock.failSessionSnapshot=false;bridgeMock.failSignOut=false;bridgeMock.streamAutoPlayMode='MANUAL';bridgeMock.epoch=5;bridgeMock.activeProfile=7;bridgeMock.sessionStatus='signedIn';bridgeMock.listeners.clear(); bridgeMock.requests.length = 0; });
+
+  it('defers the rewrite welcome until Home is visible after profile selection', async () => {
+    const key = 'nuvio.rewrite-welcome.v1';
+    const previous = localStorage.getItem(key);
+    localStorage.removeItem(key);
+    try {
+      bridgeMock.multipleProfiles = true;
+      render(<AppRoot />);
+      expect(await screen.findByText("Who's watching?")).toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: 'Welcome to the new Nuvio' })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: /Michael/ }));
+      expect(await screen.findByRole('dialog', { name: 'Welcome to the new Nuvio' })).toBeInTheDocument();
+      expect(screen.queryByText("Who's watching?")).toBeNull();
+      expect(screen.queryByRole('status', { name: 'Loading profile' })).toBeNull();
+      expect(window.location.pathname).toBe('/');
+      fireEvent.click(screen.getByRole('button', { name: "Let's explore" }));
+      expect(localStorage.getItem(key)).toBe('seen');
+    } finally { if (previous === null) localStorage.removeItem(key); else localStorage.setItem(key, previous); }
+  });
+
+  it('opens Search and focuses its field on a double-click from Home', async () => {
+    render(<AppRoot />);
+    fireEvent.doubleClick(await screen.findByRole('link', { name: 'Search' }));
+    const input = await screen.findByRole('searchbox', { name: 'Search movies and shows' });
+    await waitFor(() => expect(input).toHaveFocus());
+    expect(window.location.pathname).toBe('/search');
+    fireEvent.change(input, { target: { value: 'Keep my query' } });
+    input.blur();
+    fireEvent.doubleClick(screen.getByRole('link', { name: 'Search' }));
+    await waitFor(() => expect(input).toHaveFocus());
+    expect(input).toHaveValue('Keep my query');
+  });
+
+  it('does not focus Search on a single navigation click', async () => {
+    render(<AppRoot />);
+    fireEvent.click(await screen.findByRole('link', { name: 'Search' }));
+    const input = await screen.findByRole('searchbox', { name: 'Search movies and shows' });
+    expect(input).not.toHaveFocus();
+    fireEvent.doubleClick(screen.getByRole('link', { name: 'Search' }));
+    await waitFor(() => expect(input).toHaveFocus());
+  });
 
   it('opens Downloads directly when the native startup check reports no internet, without waiting for auth', async () => {
     bridgeMock.networkCondition = 'NoInternet';

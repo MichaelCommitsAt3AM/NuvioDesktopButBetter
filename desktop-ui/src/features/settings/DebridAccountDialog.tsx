@@ -9,7 +9,7 @@ type Authorization = { providerId: string; userCode: string; verificationUrl: st
 type Poll = { status: 'authorized' | 'pending' | 'expired' | 'failed'; nextPollAtEpochMs?: number };
 const failed = 'Could not start sign-in.';
 function startError(error: unknown) {
-  return (error as { code?: string })?.code === 'DEVICE_AUTH_NOT_CONFIGURED' ? 'This sign-in method is not configured in this build.' : failed;
+  return (error as { code?: string })?.code === 'DEVICE_AUTH_NOT_CONFIGURED' ? 'Browser sign-in is not configured in this build. Connect with your API key below.' : failed;
 }
 
 export function DebridAccountDialog({ provider, onClose }: { provider: AccountProvider; onClose: () => void }) {
@@ -110,9 +110,10 @@ export function DebridAccountDialog({ provider, onClose }: { provider: AccountPr
           <button type="button" className="debrid-auth-code" aria-label={`Copy code ${session.userCode}`} onClick={() => void navigator.clipboard.writeText(session.userCode).then(() => setMessage('Code copied.')).catch(() => setError('Could not copy the code.'))}><strong>{session.userCode}</strong><span>{session.friendlyVerificationUrl}</span></button>
           <hr />
         </>}
-        {(session || !deviceCode) && <>
+        {!starting && <>
           <p>Enter your {provider.displayName} API key.</p>
           <input className="debrid-auth-key" type="password" aria-label={`${provider.displayName} API key`} placeholder={`Enter ${provider.displayName} API key`} autoComplete="new-password" value={draft} disabled={saving} onChange={event => { setDraft(event.target.value); setError(''); }} />
+          {provider.id === 'premiumize' && <button type="button" className="button secondary" onClick={() => void call('app.openExternal', { url: 'https://www.premiumize.me/account' }).catch(() => setError('Could not open the Premiumize account page.'))}>Find my API key</button>}
           <div className="debrid-auth-save"><button type="button" className="button primary" disabled={!draft.trim() || saving} onClick={() => void saveKey()}>{saving ? 'Saving...' : 'Save'}</button></div>
         </>}
         {message && <div className="debrid-auth-status" role="status">{polling && <LoaderCircle className="spin" size={17} />}<span>{message}</span></div>}

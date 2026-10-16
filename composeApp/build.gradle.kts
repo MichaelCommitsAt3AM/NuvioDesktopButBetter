@@ -206,7 +206,7 @@ abstract class GenerateRuntimeConfigsTask : DefaultTask() {
                 |package com.nuvio.app.features.debrid
                 |
                 |object PremiumizeConfig {
-                |    const val CLIENT_ID = "${props.getProperty("PREMIUMIZE_CLIENT_ID", "")}"
+                |    const val CLIENT_ID = "${props.getProperty("PREMIUMIZE_CLIENT_ID")?.trim()?.takeIf { it.isNotEmpty() } ?: "350574336"}"
                 |}
                 """.trimMargin()
             )

@@ -643,3 +643,7 @@ The Kotlin Premiumize integration uses a generated `PremiumizeConfig.CLIENT_ID` 
 Premiumize documents API-key Bearer authentication and device-code OAuth at https://www.premiumize.me/api. Other forks can register an app at https://www.premiumize.me/registerclient and override its client ID through `PREMIUMIZE_CLIENT_ID` in their local/CI properties. This fork’s public client ID is bundled by default; no CI secret update is required. An OAuth client secret is not needed for the existing device-code flow. Real account connection still requires user approval or a valid account API key.
 
 The registered fork client was verified against Premiumize’s live device authorization endpoint: HTTP 200 with a device/user code pair, a five-second polling interval, and a ten-minute lifetime. Full account approval remains a user-driven test.
+
+### Release notes after merging feature branches
+
+Desktop CI falls back to the full commit range when first-parent release notes contain no eligible entries. This lets a release proceed after feature work arrives entirely through merges; the generated draft is still rewritten into user-facing notes before publishing.

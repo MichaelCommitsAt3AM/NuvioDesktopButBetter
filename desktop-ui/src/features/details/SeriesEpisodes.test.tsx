@@ -26,6 +26,33 @@ afterEach(() => {
 });
 
 describe('resume season selection', () => {
+  it('pages horizontal episodes with the shared Home arrows and disables them at the edges', () => {
+    const props = renderEpisodes();
+    const right = screen.getByRole('button', { name: 'Scroll Season 1 episodes right' });
+    const left = screen.getByRole('button', { name: 'Scroll Season 1 episodes left' });
+    const track = right.parentElement!.querySelector<HTMLElement>('.series-episode-cards')!;
+    Object.defineProperties(track, { clientWidth: { value: 1000 }, scrollWidth: { value: 3000 }, scrollLeft: { value: 0, writable: true } });
+    const scrollBy = vi.fn();
+    track.scrollBy = scrollBy;
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false }));
+    fireEvent.scroll(track);
+    expect(left).toBeDisabled();
+    expect(right).toBeEnabled();
+    fireEvent.click(right);
+    expect(scrollBy).toHaveBeenLastCalledWith({ left: 850, behavior: 'smooth' });
+    expect(props.onEpisodeClick).not.toHaveBeenCalled();
+    track.scrollLeft = 2000;
+    fireEvent.scroll(track);
+    expect(right).toBeDisabled();
+    expect(left).toBeEnabled();
+    fireEvent.click(left);
+    expect(scrollBy).toHaveBeenLastCalledWith({ left: -850, behavior: 'smooth' });
+  });
+
+  it('keeps list episodes free of horizontal scroll controls', () => {
+    renderEpisodes({ cardStyle: 'list' });
+    expect(screen.queryByRole('button', { name: /Scroll .* episodes/ })).toBeNull();
+  });
   const videos = [1, 2, 3].map(season => ({ ...episode, id: `episode-${season}`, title: `Season ${season} episode`, season }));
 
   it('opens the resume season instead of season one', () => {

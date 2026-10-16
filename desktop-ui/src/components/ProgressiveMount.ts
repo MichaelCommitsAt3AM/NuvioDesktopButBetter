@@ -1,0 +1,32 @@
+import { useEffect, useState } from 'react';
+
+export const PROGRESSIVE_MOUNT_STEP = 24;
+
+/**
+ * Counts from 0 up to `total` in per-frame steps so lists with hundreds of
+ * posters paint their loading cards first and fill in without one giant
+ * blocking commit. Tab switches show the destination immediately instead of
+ * waiting for the whole tree to render.
+ *
+ * `resetKey` identifies the list (shelf key, catalog key, …). When it changes
+ * the count restarts from initialCount (0 by default); when only `total` grows (pagination appends) the
+ * fill continues without flashing back to skeletons.
+ */
+export function useProgressiveCount(total: number, resetKey: string, step = PROGRESSIVE_MOUNT_STEP, initialCount = 0): number {
+  const initial = Math.min(total, Math.max(0, initialCount));
+  const [state, setState] = useState({ key: resetKey, count: initial });
+  if (state.key !== resetKey) {
+    setState({ key: resetKey, count: initial });
+  }
+  const count = state.key === resetKey ? state.count : initial;
+  useEffect(() => {
+    if (count >= total) return;
+    const frame = requestAnimationFrame(() => {
+      setState((current) => current.key === resetKey
+        ? { ...current, count: Math.min(total, current.count + step) }
+        : current);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [count, total, resetKey, step]);
+  return Math.min(count, total);
+}

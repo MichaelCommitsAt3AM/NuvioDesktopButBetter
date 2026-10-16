@@ -9,7 +9,7 @@
         "installMode": "currentUser",
         "displayLanguageSelector": false,
         "languages": ["English"],
-        "startMenuFolder": "Nuvio Preview"
+        "startMenuFolder": "Nuvio"
       }
     }
   }

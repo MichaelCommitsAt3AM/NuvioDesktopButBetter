@@ -1,0 +1,11 @@
+body .debrid-account-dialog .dialog-surface{box-sizing:border-box;display:flex;flex-direction:column;gap:12.96px;width:min(496.8px,calc(100vw - 40px));max-height:calc(100dvh - 40px);overflow:auto;padding:21.6px;border:1px solid #ffffff14;border-radius:30.24px;background:var(--app-surface,#1c1c1e);color:var(--text,#f5f5f5)}
+body .debrid-account-dialog .dialog-surface h2{margin:0;font-size:23.76px;line-height:30.24px;font-weight:500}
+body .debrid-account-dialog .dialog-surface p{margin:0;color:var(--muted,#989da2);font-size:15.12px;line-height:21.6px}
+.debrid-auth-code{display:flex;flex-direction:column;gap:8.64px;padding:15.12px;width:100%;border:0;border-radius:12.96px;background:#ffffff12;color:inherit;text-align:left;cursor:pointer}
+.debrid-auth-code strong{font-size:25.92px;line-height:34.56px;font-weight:600}.debrid-auth-code span{font-size:15.12px;line-height:21.6px;color:var(--app-accent);overflow-wrap:anywhere}
+.debrid-account-dialog hr{width:100%;border:0;border-top:1px solid #ffffff20;margin:2.16px 0}
+.debrid-auth-key{box-sizing:border-box;width:100%;min-height:60.48px;padding:15.12px;border:1px solid #ffffff35;border-radius:8.64px;background:var(--app-surface);color:inherit;font:inherit;font-size:17.28px}.debrid-auth-key:focus{outline:0;border-color:var(--app-accent)}
+.debrid-auth-save{display:flex;justify-content:flex-end}.debrid-auth-status{display:flex;align-items:center;gap:8.64px;color:var(--muted,#989da2);font-size:12.96px;line-height:17.28px}
+body .debrid-account-dialog .debrid-auth-error{color:#f2b8b5}
+.debrid-auth-actions{display:flex;gap:10.8px;margin-top:8.64px}.debrid-auth-actions>.button{flex:1}.debrid-account-dialog .button{min-height:51.84px;padding:10px 17.28px;border:0;border-radius:999px;font-size:15.12px}.debrid-account-dialog .button.secondary{background:#ffffff14;color:inherit}.debrid-account-dialog .button.primary{background:var(--app-accent);color:#111}.debrid-account-dialog .button.danger{background:#f2b8b5;color:#601410}
+@media(max-width:360px){.debrid-auth-actions{flex-direction:column-reverse}}

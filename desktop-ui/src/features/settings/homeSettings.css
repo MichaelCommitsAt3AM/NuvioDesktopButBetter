@@ -1,0 +1,45 @@
+/* HomescreenSettingsPage.kt and SettingsComponents.kt, at desktop's 1.08 scale. */
+.settings-desktop .home-settings-page .settings-section{border:1px solid #ffffff08;border-radius:17.28px;padding:0;overflow:hidden}
+.settings-desktop .home-settings-page .home-summary{padding:17.28px!important;gap:6.48px;margin-bottom:21.6px}
+.settings-desktop .home-settings-page .home-summary>strong{font-size:18px;line-height:25px;font-weight:600}
+.settings-desktop .home-settings-page .home-summary>span{font-size:16px;line-height:23px;color:var(--text-muted,#989da2)}
+.settings-desktop .home-settings-page .home-summary>small{font-size:14px;line-height:20px;color:var(--text-muted,#989da2)}
+.home-settings-page .home-switch-row{cursor:pointer;margin:0}
+.settings-desktop .home-settings-page .home-switch-row{position:relative;padding:17.28px 21.6px;border:0;gap:12.96px}
+.settings-desktop .home-settings-page .home-switch-row+.home-switch-row:before,.home-settings-page #home-hero-sources>.home-switch-row:before,.home-settings-page .home-catalog-row+.home-catalog-row:before{content:'';position:absolute;top:0;left:84.24px;right:0;border-top:1px solid #ffffff08}
+.settings-desktop .home-settings-page .settings-control-copy{gap:4.32px;padding-right:12.96px;flex:1}
+.settings-desktop .home-settings-page .settings-control-copy>strong{font-size:18px;line-height:25px;font-weight:500}
+.settings-desktop .home-settings-page .settings-control-copy>span{font-size:16px;line-height:23px;color:var(--text-muted,#989da2)}
+.settings-desktop .home-settings-page .home-hero-source-summary{min-height:0;padding:15.12px 17.28px;align-items:flex-start}
+.home-settings-page .home-hero-source-summary>span{gap:4.32px}
+.home-settings-page .home-hero-source-summary strong{font-size:18px;line-height:25px}
+.home-settings-page .home-hero-source-summary small{font-size:14px;line-height:20px;white-space:normal;overflow:visible}
+.home-settings-page .home-hero-source-summary svg.expanded{transform:rotate(180deg)}
+.settings-desktop .home-settings-page .home-catalog-section-title{display:flex;justify-content:space-between;align-items:center}
+.settings-desktop .home-settings-page .home-reset-button{padding:0;background:none;border-radius:0;color:var(--text);font-size:17px;line-height:22px;font-weight:500;cursor:pointer}
+.home-settings-page .home-reset-button:disabled{opacity:.5;cursor:default}
+.settings-desktop .home-settings-page .home-items-section{overflow:visible}
+.home-settings-page .home-catalog-row{position:relative;border:0;background:var(--app-surface);transition:box-shadow .15s,opacity .15s}
+.home-settings-page .home-catalog-row.dragging{opacity:.5;box-shadow:0 4px 12px #0004}
+.home-settings-page .home-catalog-row.drop-target{box-shadow:inset 0 2px var(--app-accent)}
+.home-settings-page .home-catalog-summary{min-height:0;padding:19.44px 21.6px;gap:12.96px;align-items:flex-start}
+.home-settings-page .home-catalog-info{gap:4.32px;padding-right:12.96px}
+.home-settings-page .home-catalog-info strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:18px;line-height:25px;font-weight:600}
+.home-settings-page .home-catalog-info>span{font-size:16px;line-height:23px;color:var(--text-muted,#989da2)}
+.home-settings-page .home-catalog-info small{font-size:14px;line-height:20px;color:var(--text-muted,#989da2)}
+.home-settings-page .home-catalog-row-actions{gap:8.64px}
+.home-settings-page .home-drag-handle{display:grid;place-items:center;width:51.84px;height:51.84px;flex:none;border:0;border-radius:50%;padding:0;background:none;color:var(--text-muted,#989da2);cursor:grab}
+.home-settings-page .home-drag-handle:has(svg.lucide-lock){opacity:.5;cursor:pointer}
+.home-settings-page .home-drag-handle:active{cursor:grabbing}
+.home-settings-page .home-drag-handle:disabled{opacity:.5;cursor:default}
+.home-settings-page .home-drag-handle:hover{background:#ffffff08}
+.home-settings-page .home-title-field{position:relative;margin:0 21.6px 19.44px;padding:0;color:var(--text-muted,#989da2)}
+.home-settings-page .home-title-field>span{position:absolute;top:-9px;left:12px;padding:0 4px;background:var(--app-surface);font-size:12px;line-height:18px}
+.home-settings-page .home-title-field input{width:100%;min-height:60.48px;padding:16px;border:1px solid #ffffff20;border-radius:4px;background:var(--app-surface);color:var(--text);font-size:16px;line-height:24px;outline:none}
+.home-settings-page .home-title-field input:focus{border:2px solid #ffffff99;padding:15px}
+.home-settings-page .home-catalog-loading{display:grid;place-items:center;padding:51.84px 0}
+.settings-desktop .home-settings-page .home-catalog-empty{padding:26px;text-align:center}
+.home-settings-page .home-catalog-empty h2{font-size:20px;font-weight:600;margin:0 0 8px}
+.home-settings-page .home-catalog-empty p{font-size:16px;line-height:24px;color:var(--text-muted,#989da2)}
+.home-pinned-toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:1000;padding:12px 20px;border-radius:24px;background:#e5e5e5;color:#161616;font-size:14px;box-shadow:0 4px 20px #0006}
+@media(max-width:720px){.settings-desktop .home-settings-page .home-switch-row,.home-settings-page .home-catalog-summary{padding:15.12px 17.28px}.home-settings-page .home-catalog-row-actions{gap:4px}.home-settings-page .home-drag-handle{width:40px}}

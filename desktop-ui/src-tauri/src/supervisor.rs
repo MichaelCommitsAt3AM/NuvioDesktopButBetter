@@ -258,6 +258,13 @@ impl BridgeManager {
         self.start_locked().await
     }
 
+    // Only the updater calls this after its installer returned an error.
+    // Normal shutdown remains terminal; an aborted update must restore browsing.
+    pub async fn recover_failed_update(self: &Arc<Self>) -> Result<(), String> {
+        self.shutting_down.store(false, Ordering::Release);
+        self.restart().await
+    }
+
     async fn start_locked(self: &Arc<Self>) -> Result<(), String> {
         if self.shutting_down.load(Ordering::Acquire) {
             return Err("The application is shutting down.".into());
@@ -286,9 +293,7 @@ impl BridgeManager {
             &format!("launching Kotlin bridge using {}", java.display()),
         );
         let token = new_token();
-        let compose_resources = self
-            .runtime_dir
-            .canonicalize()
+        let compose_resources = dunce::canonicalize(&self.runtime_dir)
             .unwrap_or_else(|_| self.runtime_dir.clone())
             .join("native");
         let mut command = Command::new(&java);
@@ -985,8 +990,9 @@ async fn event_loop(
 }
 
 fn validated_classpath(runtime_dir: &Path, contents: &str) -> Result<PathBuf, String> {
-    let root = runtime_dir
-        .canonicalize()
+    // Java's Windows class loader cannot open Rust's verbatim (\\?\) paths.
+    // Resolve symlinks for containment, then retain ordinary Win32 paths for Java.
+    let root = dunce::canonicalize(runtime_dir)
         .map_err(|_| "staged bridge runtime directory is missing".to_string())?;
     let contents = contents.trim();
     if contents.is_empty() {
@@ -1003,8 +1009,7 @@ fn validated_classpath(runtime_dir: &Path, contents: &str) -> Result<PathBuf, St
         } else {
             root.join(entry)
         };
-        let resolved = candidate
-            .canonicalize()
+        let resolved = dunce::canonicalize(&candidate)
             .map_err(|_| "bridge runtime classpath entry is missing".to_string())?;
         if !resolved.starts_with(&root) || !resolved.is_file() {
             return Err("bridge runtime classpath entry is outside staged resources".into());
@@ -1017,6 +1022,7 @@ fn validated_classpath(runtime_dir: &Path, contents: &str) -> Result<PathBuf, St
 }
 
 fn safe_error_code(code: &str) -> String {
+    if code == "DEVICE_AUTH_NOT_CONFIGURED" { return code.into(); }
     const CODES: &[&str] = &[
         "PROFILE_PIN_REQUIRED",
         "PROFILE_PIN_REJECTED",
@@ -1096,6 +1102,8 @@ fn safe_error_message(code: &str) -> String {
         "NOT_FOUND" => "The requested item could not be found.",
         "CONFLICT" => "The operation conflicts with the current state.",
         "UNAVAILABLE" => "The service is temporarily unavailable.",
+        "CAPABILITY_UNAVAILABLE" => "This feature is not available in this app build.",
+        "DEVICE_AUTH_NOT_CONFIGURED" => "This sign-in method is not configured in this build.",
         "TIMEOUT" => "The operation took too long to complete.",
         "FORBIDDEN" | "UNAUTHORIZED" => "This operation is not allowed.",
         _ => "The operation could not be completed.",
@@ -1331,7 +1339,13 @@ mod tests {
         fs::write(&inside, b"runtime").unwrap();
         fs::write(&outside, b"outside").unwrap();
         let inside_classpath = std::env::join_paths([inside.as_os_str()]).unwrap();
-        assert!(validated_classpath(&runtime, inside_classpath.to_str().unwrap()).is_ok());
+        let validated = validated_classpath(&runtime, inside_classpath.to_str().unwrap()).unwrap();
+        #[cfg(windows)]
+        for entry in std::env::split_paths(&validated) {
+            assert!(!entry.to_string_lossy().starts_with(r"\\?\"));
+        }
+        #[cfg(not(windows))]
+        assert!(!validated.as_os_str().is_empty());
         let outside_classpath = std::env::join_paths([outside.as_os_str()]).unwrap();
         assert!(validated_classpath(&runtime, outside_classpath.to_str().unwrap()).is_err());
         assert!(validated_classpath(&runtime, "").is_err());
@@ -1340,6 +1354,7 @@ mod tests {
 
     #[test]
     fn backend_messages_and_unknown_error_codes_do_not_cross_the_shell_boundary() {
+        assert_eq!(safe_error_message("CAPABILITY_UNAVAILABLE"), "This feature is not available in this app build.");
         assert_eq!(safe_error_code("AUTH_REQUIRED"), "AUTH_REQUIRED");
         assert_eq!(safe_error_code("TOKEN_abcd"), "BRIDGE_ERROR");
         assert_eq!(

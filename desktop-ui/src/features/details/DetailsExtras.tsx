@@ -5,6 +5,7 @@ import { call, refreshFeature, useFeatureSnapshot } from '../../bridge';
 import type { Media } from '../../generated/contract';
 import { InlineError } from '../../components/Status';
 import { Dialog } from '../../components/Dialog';
+import { BottomSheetPresence } from '../../components/BottomSheetPresence';
 import { Poster } from '../../components/Poster';
 import { SeriesEpisodes } from './SeriesEpisodes';
 
@@ -60,6 +61,7 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
   const [revealedSpoilers, setRevealedSpoilers] = useState<Set<number>>(new Set());
   const [selectedTrailerCategory, setSelectedTrailerCategory] = useState('Trailer');
   const [selectedEpisode, setSelectedEpisode] = useState<Video | null>(null);
+  const afterSheetExit = useRef<(() => void) | null>(null);
 
   const commentsSettingEnabled = !!settings?.items.some((item) => item.key === 'COMMENTS' && item.enabled);
   useEffect(() => {
@@ -309,6 +311,7 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
     </section>}
     {(person || entity) && loading && <div className="loading-block"><LoaderCircle className="spin" size={18} /><span>Loading browse results…</span></div>}
     <button className="text-button details-extras-retry" type="button" onClick={() => { setLoading(true); void call<ExtrasMeta>('details.extras', { type, id }).then((result) => { setMeta(result); onMetaLoaded?.(result); }).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause))).finally(() => setLoading(false)); }}><RotateCw size={14} /> Refresh details</button>
+    <BottomSheetPresence onExitComplete={() => { const action = afterSheetExit.current; afterSheetExit.current = null; action?.(); }}>
     {selectedEpisode && <Dialog label={`Actions for ${selectedEpisode.title}`} onClose={() => setSelectedEpisode(null)} className="episode-actions-dialog">
       <div className="episode-actions-sheet">
         <span className="episode-actions-handle" aria-hidden="true" />
@@ -317,9 +320,10 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
         <button type="button" className="episode-action-row" disabled={mutationBusy} onClick={() => void toggleEpisode(selectedEpisode)}><span className="episode-action-icon"><CheckCircle size={20} /></span><span>{watchedVideo(selectedEpisode) ? 'Mark as unwatched' : 'Mark as watched'}</span></button>
         {previousEpisodes.length > 0 && <button type="button" className="episode-action-row" disabled={mutationBusy} onClick={() => void togglePreviousEpisodes(selectedEpisode)}><span className="episode-action-icon"><ListChecks size={20} /></span><span>Mark previous episodes {previousEpisodesWatched ? 'unwatched' : 'watched'}</span></button>}
         {selectedSeasonEpisodes.length > 0 && <button type="button" className="episode-action-row" disabled={mutationBusy} onClick={() => { setSelectedEpisode(null); void toggleSeason(selectedEpisode.season ?? 0); }}><span className="episode-action-icon"><CircleCheck size={20} /></span><span>Mark Season {selectedEpisode.season ?? 0} as {selectedSeasonWatched ? 'unwatched' : 'watched'}</span></button>}
-        <button type="button" className="episode-action-row" disabled={mutationBusy || !selectedEpisode.available} onClick={() => { const episode = selectedEpisode; setSelectedEpisode(null); navigate(`/details/${encodeURIComponent(meta.type)}/${encodeURIComponent(meta.id)}/streams/${encodeURIComponent(episode.id)}?manual=1`); }}><span className="episode-action-icon"><Play size={20} fill="currentColor" /></span><span>Play manually</span></button>
+        <button type="button" className="episode-action-row" disabled={mutationBusy || !selectedEpisode.available} onClick={() => { const episode = selectedEpisode; afterSheetExit.current = () => navigate(`/details/${encodeURIComponent(meta.type)}/${encodeURIComponent(meta.id)}/streams/${encodeURIComponent(episode.id)}?manual=1`); setSelectedEpisode(null); }}><span className="episode-action-icon"><Play size={20} fill="currentColor" /></span><span>Play manually</span></button>
       </div>
     </Dialog>}
+    </BottomSheetPresence>
   </div>;
 }
 

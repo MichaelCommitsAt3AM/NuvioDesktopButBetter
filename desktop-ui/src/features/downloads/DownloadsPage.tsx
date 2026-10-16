@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Download, Pause, Play, RotateCw, Trash2 } from 'lucide-react';
 import { call, refreshFeature, useFeatureSnapshot } from '../../bridge';
 import { Dialog } from '../../components/Dialog';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { BackButton } from '../../components/BackButton';
 import { PageHeader } from '../../components/ui';
 import { InlineError } from '../../components/Status';
 import './downloads.css';
@@ -12,6 +13,7 @@ type Downloads = { items: DownloadItem[]; hasUnseenCompleted: boolean; filter: {
 const bytes = (value: number) => value >= 1024 ** 3 ? `${(value / 1024 ** 3).toFixed(1)} GB` : `${(value / 1024 ** 2).toFixed(1)} MB`;
 
 export function DownloadsPage() {
+  const navigate = useNavigate();
   const snapshot = useFeatureSnapshot<Downloads>('downloads');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
@@ -27,12 +29,13 @@ export function DownloadsPage() {
     catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setBusy(''); }
   };
-  const items = (snapshot?.items ?? []).filter(item => (filter === 'all' || (filter === 'completed' ? item.status === 'completed' : item.status !== 'completed')) && (contentType === 'all' || (contentType === 'series' ? item.seasonNumber != null : item.seasonNumber == null)) && `${item.title} ${item.episodeTitle ?? ''}`.toLowerCase().includes(query.toLowerCase()));
+  const searchQuery = query.trim().toLowerCase();
+  const items = (snapshot?.items ?? []).filter(item => (filter === 'all' || (filter === 'completed' ? item.status === 'completed' : item.status !== 'completed')) && (contentType === 'all' || (contentType === 'series' ? item.seasonNumber != null : item.seasonNumber == null)) && `${item.title} ${item.episodeTitle ?? ''}`.toLowerCase().includes(searchQuery));
   const groups = [...items.reduce((map,item) => { const key = `${item.parentMetaType}:${item.parentMetaId}`; const group = map.get(key) ?? { key,title:item.title,series:item.seasonNumber != null,items:[] as DownloadItem[] }; group.items.push(item); map.set(key,group); return map; }, new Map<string,{ key:string;title:string;series:boolean;items:DownloadItem[] }>()).values()];
-  return <div className="page downloads-page"><Link className="back-button" to="/library">Back to Library</Link><PageHeader title="Downloads" subtitle="Watch downloaded movies and episodes offline." action={<Link className="button secondary" to="/settings/downloads">Data saver preferences</Link>} />
+  return <div className="page downloads-page"><BackButton className="downloads-back" onClick={() => navigate('/library')} /><PageHeader title="Downloads" subtitle="Watch downloaded movies and episodes offline." action={<Link className="button secondary" to="/settings/downloads">Data saver preferences</Link>} />
     {error && <InlineError message={error} onRetry={() => void refresh()} />}
     <div className="downloads-tabs" role="group" aria-label="Filter downloads">{['all', 'active', 'completed'].map(value => <button className={`button ${filter === value ? 'primary' : 'secondary'}`} key={value} onClick={() => setFilter(value)}>{value}</button>)}</div>
-    <div className="download-search"><input aria-label="Search downloads" placeholder="Search downloads" value={query} onChange={e => setQuery(e.target.value)} /><select aria-label="Download type" value={contentType} onChange={e => setContentType(e.target.value)}><option value="all">Movies and series</option><option value="movies">Movies</option><option value="series">Series</option></select></div>
+    <div className="download-search"><input aria-label="Search downloads" placeholder="Search downloads" value={query} onChange={e => setQuery(e.target.value)} /><select aria-label="Download type" value={contentType} onChange={e => setContentType(e.target.value)}><option value="all">All</option><option value="movies">Movies</option><option value="series">Series</option></select></div>
     {!snapshot && !error && <div className="loading-block">Loading downloads…</div>}
     {snapshot && !items.length && <div className="downloads-empty"><Download size={28} /><h2>No {filter === 'all' ? '' : filter} downloads</h2><p>Right-click a compatible stream and choose Download file to save it for offline viewing.</p></div>}
     <div className="download-list">{groups.map(group => <details open className="download-group" key={group.key}><summary><strong>{group.title}</strong><span>{group.series ? `${group.items.length} episodes` : 'Movie'} · {group.items.filter(item => item.status === 'completed').length} completed</span></summary>{group.items.sort((a,b) => (a.seasonNumber ?? 0)-(b.seasonNumber ?? 0) || (a.episodeNumber ?? 0)-(b.episodeNumber ?? 0)).map(item => <article className="download-card" key={item.id}>

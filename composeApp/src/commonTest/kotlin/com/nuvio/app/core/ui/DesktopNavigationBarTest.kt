@@ -11,7 +11,8 @@ class DesktopNavigationBarTest {
         assertEquals(DesktopNavigationLayout.TopBar, DesktopNavigationLayout.fromName("TopBar"))
         assertEquals(DesktopNavigationLayout.TopBar, DesktopNavigationLayout.fromName("topbar"))
         assertEquals(DesktopNavigationLayout.Sidebar, DesktopNavigationLayout.fromName("Sidebar"))
-        assertEquals(DesktopNavigationLayout.Default, DesktopNavigationLayout.fromName(null))
+        assertEquals(DesktopNavigationLayout.TopBar, DesktopNavigationLayout.Default)
+        assertEquals(DesktopNavigationLayout.TopBar, DesktopNavigationLayout.fromName(null))
     }
 
     @Test

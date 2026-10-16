@@ -53,13 +53,12 @@ import kotlinx.serialization.json.putJsonObject
 
 /** Settings and account authorization adapter backed by the existing provider repositories. */
 object IntegrationsBridge {
-    private data class DebridPending(val authorization: DebridDeviceAuthorization, var nextPollAtEpochMs: Long)
-    private val debridSessions = mutableMapOf<String, DebridPending>()
+    private val debridAuth = DebridDeviceAuthFlow()
     private val json = Json { ignoreUnknownKeys = false; encodeDefaults = true }
 
     /** Clears ephemeral authorization material without disconnecting saved provider accounts. */
     fun reset() {
-        debridSessions.clear()
+        debridAuth.reset()
         runCatching {
             MdbListTracker.ensureLoaded()
             if (MdbListTracker.auth.state.value.session != null) MdbListTracker.account.cancel()
@@ -83,6 +82,8 @@ object IntegrationsBridge {
         "mdblist.cancel" -> cancelMdb()
         "mdblist.disconnect" -> disconnectMdb()
         "mdblist.poll" -> pollMdb()
+        "mdblist.resume" -> resumeMdb()
+        "mdblist.sync" -> syncMdb()
         "debrid.snapshot" -> debridSnapshot()
         "debrid.set" -> setDebrid(params)
         "debrid.device.start" -> startDebridDevice(params)
@@ -92,9 +93,12 @@ object IntegrationsBridge {
         "simkl.snapshot" -> simklSnapshot()
         "simkl.connect" -> connectSimkl()
         "simkl.disconnect" -> disconnectSimkl()
+        "simkl.resume" -> resumeSimkl()
+        "simkl.cancel" -> cancelSimkl()
         "simkl.sync" -> syncSimkl()
         "trackingSettings.snapshot" -> trackingSnapshot()
         "trackingSettings.set" -> setTracking(params)
+        "trackingSettings.refreshProgress" -> refreshTrackingProgress()
         else -> null
     }
 
@@ -161,7 +165,8 @@ object IntegrationsBridge {
         MdbListTracker.ensureLoaded()
         val settings = MdbListSettingsRepository.snapshot()
         val auth = MdbListTracker.auth.state.value
-        val status = MdbListTracker.account.status.value
+        val status = MdbListTracker.account.status.value.takeIf { it.scope == auth.scope }
+        val sync = MdbListTracker.sync.state.value.takeIf { it.scope == auth.scope }
         return buildJsonObject {
             put("enabled", settings.enabled); put("hasApiKey", settings.hasApiKey)
             put("hasAccount", auth.isAuthenticated); put("hasCredentials", settings.hasCredentials); put("isActive", settings.isActive)
@@ -179,9 +184,12 @@ object IntegrationsBridge {
                 putNullable("verificationUrlComplete", auth.session?.verificationUriComplete)
                 putNullable("expiresAtEpochMs", auth.session?.expiresAtEpochMs)
                 put("pollIntervalSeconds", auth.session?.intervalSeconds ?: 0)
-                put("isBusy", status.isBusy)
-                putNullable("error", status.authError?.name ?: status.error?.name)
-                put("revokeFailed", status.revokeFailed)
+                put("credentialsConfigured", MdbListTracker.auth.hasRequiredCredentials())
+                put("isBusy", status?.isBusy == true)
+                putNullable("error", auth.error?.name ?: status?.authError?.name ?: status?.error?.name ?: sync?.error?.name)
+                put("revokeFailed", status?.revokeFailed == true)
+                put("isSyncing", sync?.isLoading == true)
+                putNullable("lastSyncedAtEpochMs", sync?.snapshot?.checkedAtEpochMs)
             })
         }
     }
@@ -221,6 +229,30 @@ object IntegrationsBridge {
             put("snapshot", mdbSnapshot())
             putNullable("verificationUrl", verificationUrl)
         }
+    }
+
+    private fun resumeMdb(): JsonObject {
+        MdbListTracker.ensureLoaded()
+        val url = MdbListTracker.account.resumePolling()
+        return buildJsonObject { putNullable("verificationUrl", url); put("snapshot", mdbSnapshot()) }
+    }
+
+    private suspend fun syncMdb(): JsonObject {
+        MdbListTracker.ensureLoaded()
+        if (!MdbListTracker.isAuthenticated.value) {
+            throw BridgeFeatureException("ACCOUNT_REQUIRED", "Connect MDBList before syncing your library")
+        }
+        val authScope = MdbListTracker.auth.state.value.scope
+        val success = WatchProgressSourceCoordinator.refreshProviderAndActiveSource(
+            profileId = authScope.profileId,
+            providerId = TrackingProviderId.MDBLIST,
+            refreshProvider = {
+                MdbListTracker.store.checkScope(authScope)
+                MdbListTracker.sync.refresh(TrackingRefreshIntent.USER_INITIATED)
+                MdbListTracker.sync.state.value.let { it.scope == authScope && it.hasLoaded && it.error == null }
+            },
+        )
+        return buildJsonObject { put("success", success); put("mdblist", mdbSnapshot()) }
     }
 
     private fun cancelMdb(): JsonObject {
@@ -291,6 +323,7 @@ object IntegrationsBridge {
                 visibleDebridProvider(providerId)
                 val apiKey = value.asString(key)
                 if (apiKey.length > 4_096) invalid(key)
+                debridAuth.cancel(providerId)
                 DebridSettingsRepository.setProviderApiKey(providerId, apiKey)
             }
             "preferredResolverProviderId" -> {
@@ -332,50 +365,19 @@ object IntegrationsBridge {
         val provider = visibleDebridProvider(params.str("providerId"))
         if (provider.authMethod.name != "DeviceCode") throw BridgeFeatureException("CAPABILITY_UNAVAILABLE", "This provider uses an API key")
         if (DebridSettingsRepository.snapshot().apiKeyFor(provider.id).isNotBlank()) throw BridgeFeatureException("ALREADY_CONNECTED", "Disconnect this provider before starting device authorization")
-        val api = DebridProviderApis.apiFor(provider.id) ?: throw BridgeFeatureException("CAPABILITY_UNAVAILABLE", "This provider is unavailable")
-        val authorization = try { api.startDeviceAuthorization("Nuvio") } catch (error: CancellationException) { throw error } catch (error: Exception) {
-            throw BridgeFeatureException("DEVICE_AUTH_START_FAILED", "Could not start provider authorization")
-        } ?: throw BridgeFeatureException("DEVICE_AUTH_START_FAILED", "Provider did not return a device authorization code")
-        if (authorization.providerId != provider.id || authorization.deviceCode.isBlank() || authorization.userCode.isBlank()) {
-            throw BridgeFeatureException("DEVICE_AUTH_INVALID_RESPONSE", "Provider returned an invalid device authorization response")
-        }
-        val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
-        debridSessions[provider.id] = DebridPending(authorization, now + authorization.intervalSeconds * 1_000L)
-        return safeDebridAuthorization(authorization, now + authorization.intervalSeconds * 1_000L)
+        val authorization = debridAuth.start(provider.id, params["restart"]?.jsonPrimitive?.booleanOrNull == true)
+        return safeDebridAuthorization(authorization, debridAuth.nextPoll(provider.id)!!)
     }
 
     private suspend fun pollDebridDevice(params: JsonObject): JsonObject {
         val provider = visibleDebridProvider(params.str("providerId"))
-        val pending = debridSessions[provider.id] ?: throw BridgeFeatureException("DEVICE_AUTH_NOT_FOUND", "No pending device authorization exists for this provider")
-        val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
-        if (now < pending.nextPollAtEpochMs) return devicePollResult("pending", provider.id, pending.nextPollAtEpochMs)
-        val api = DebridProviderApis.apiFor(provider.id) ?: throw BridgeFeatureException("CAPABILITY_UNAVAILABLE", "This provider is unavailable")
-        val result = try { api.redeemDeviceAuthorization(pending.authorization.deviceCode) } catch (error: CancellationException) { throw error } catch (error: Exception) {
-            throw BridgeFeatureException("DEVICE_AUTH_POLL_FAILED", "Provider authorization check failed")
-        }
-        return when (result) {
-            is DebridDeviceAuthorizationTokenResult.Authorized -> {
-                if (result.accessToken.isBlank()) throw BridgeFeatureException("DEVICE_AUTH_INVALID_RESPONSE", "Provider returned an empty credential")
-                DebridSettingsRepository.setProviderApiKey(provider.id, result.accessToken)
-                debridSessions.remove(provider.id)
-                buildJsonObject { put("status", "authorized"); put("providerId", provider.id); put("snapshot", debridSnapshot()) }
-            }
-            DebridDeviceAuthorizationTokenResult.Pending -> {
-                pending.nextPollAtEpochMs = now + pending.authorization.intervalSeconds * 1_000L
-                devicePollResult("pending", provider.id, pending.nextPollAtEpochMs)
-            }
-            DebridDeviceAuthorizationTokenResult.Expired -> {
-                debridSessions.remove(provider.id)
-                devicePollResult("expired", provider.id, null)
-            }
-            DebridDeviceAuthorizationTokenResult.Unsupported -> throw BridgeFeatureException("CAPABILITY_UNAVAILABLE", "This provider does not support device authorization")
-            is DebridDeviceAuthorizationTokenResult.Failed -> throw BridgeFeatureException("DEVICE_AUTH_FAILED", "Provider authorization was denied")
-        }
+        val status = debridAuth.poll(provider.id)
+        return devicePollResult(status, provider.id, debridAuth.nextPoll(provider.id))
     }
 
     private fun cancelDebridDevice(params: JsonObject): JsonObject {
         val provider = visibleDebridProvider(params.str("providerId"))
-        debridSessions.remove(provider.id)
+        debridAuth.cancel(provider.id)
         return buildJsonObject { put("status", "cancelled"); put("providerId", provider.id) }
     }
 
@@ -392,6 +394,8 @@ object IntegrationsBridge {
 
     fun simklSnapshot(): JsonObject {
         val state = SimklAuthRepository.snapshot()
+        SimklSyncRepository.ensureLoaded()
+        val sync = SimklSyncRepository.state.value
         return buildJsonObject {
             put("mode", state.mode.name.lowercase()); put("connected", state.mode == SimklConnectionMode.CONNECTED)
             put("credentialsConfigured", state.credentialsConfigured); put("isLoading", state.isLoading); put("usesPinFlow", state.usesPinFlow)
@@ -401,6 +405,8 @@ object IntegrationsBridge {
             putNullable("pendingPinUserCode", state.pendingPinUserCode); putNullable("pendingPinVerificationUrl", state.pendingPinVerificationUrl)
             putNullable("pendingPinExpiresAtEpochMs", state.pendingPinExpiresAtEpochMs)
             putNullable("error", state.error?.name)
+            put("isSyncing", sync.isLoading)
+            putNullable("syncErrorMessage", sync.errorMessage)
         }
     }
 
@@ -413,6 +419,17 @@ object IntegrationsBridge {
             throw BridgeFeatureException("SIMKL_AUTH_START_FAILED", state["error"]?.jsonPrimitive?.contentOrNull ?: "Simkl authorization could not be started")
         }
         return buildJsonObject { put("snapshot", state); putNullable("authorizationUrl", url) }
+    }
+
+    private fun resumeSimkl(): JsonObject {
+        SimklAuthRepository.ensureLoaded()
+        val url = SimklAuthRepository.pendingAuthorizationUrl() ?: SimklAuthRepository.onConnectRequested()
+        return buildJsonObject { putNullable("authorizationUrl", url); put("snapshot", simklSnapshot()) }
+    }
+
+    private fun cancelSimkl(): JsonObject {
+        SimklAuthRepository.onCancelAuthorization()
+        return simklSnapshot()
     }
 
     private suspend fun syncSimkl(): JsonObject {
@@ -453,10 +470,13 @@ object IntegrationsBridge {
             put("moreLikeThisSource", state.moreLikeThisSource.name); put("effectiveMoreLikeThisSource", effectiveMoreLikeThis.name)
             put("simklAnimeIdPreference", state.simklAnimeIdPreference.name)
             put("simklConnected", simklConnected); put("mdblistConnected", mdbConnected); put("traktAvailable", false)
+            val transition = WatchProgressSourceCoordinator.uiState.value
+            put("isRefreshingProgress", transition.isRefreshing)
+            put("lastProgressRefreshSucceeded", transition.lastRefreshSucceeded?.let(::JsonPrimitive) ?: JsonNull)
         }
     }
 
-    private fun setTracking(params: JsonObject): JsonObject {
+    private suspend fun setTracking(params: JsonObject): JsonObject {
         TrackingSettingsRepository.ensureLoaded()
         val key = params.str("key")
         val value = params.value()
@@ -473,7 +493,7 @@ object IntegrationsBridge {
                 val source = enumValue<WatchProgressSource>(value.asString(key))
                 requireTrackingProvider(source.name, source != WatchProgressSource.NUVIO_SYNC, simklConnected, mdbConnected)
                 if (source == WatchProgressSource.TRAKT) unsupported("Trakt tracking is disabled in this app build")
-                TrackingSettingsRepository.setWatchProgressSource(source, ProfileRepository.activeProfileId)
+                WatchProgressSourceCoordinator.selectSource(ProfileRepository.activeProfileId, source)
             }
             "moreLikeThisSource" -> {
                 val source = enumValue<MoreLikeThisSourcePreference>(value.asString(key))
@@ -487,6 +507,11 @@ object IntegrationsBridge {
             }
             else -> throw BridgeFeatureException("UNKNOWN_SETTING", "Unknown tracking setting: $key")
         }
+        return trackingSnapshot()
+    }
+
+    private suspend fun refreshTrackingProgress(): JsonObject {
+        WatchProgressSourceCoordinator.refreshActiveSource(ProfileRepository.activeProfileId)
         return trackingSnapshot()
     }
 

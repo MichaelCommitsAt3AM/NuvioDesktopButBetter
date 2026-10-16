@@ -2,7 +2,7 @@
 
 /* Content is larger while the existing navigation retains its current size. */
 .main-area{zoom:var(--content-scale,1.22);padding-top:calc(112px * var(--ui-scale,1) / var(--content-scale,1.22))}
-.poster-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--grid-card-width)),1fr));gap:28px 20px}
+.poster-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--grid-card-width,var(--movie-card-width,190px))),1fr));gap:28px 20px}
 .poster-grid .poster-item,.poster-grid .poster-item.landscape,.grid-row .poster-item.landscape{width:100%;min-width:0}
 .poster-grid .media-card{width:100%;min-width:0}.poster-grid .card-title{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .horizontal-rail{position:relative;margin-inline:calc(-1 * var(--page-gutter))}

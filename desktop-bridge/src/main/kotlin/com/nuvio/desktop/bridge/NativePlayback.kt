@@ -18,6 +18,7 @@ import com.nuvio.app.features.player.PlayerScreen
 import com.nuvio.app.features.player.desktop.DesktopAppFullscreenController
 import com.nuvio.app.features.player.desktop.DesktopHostOs
 import com.nuvio.app.features.player.desktop.EmbeddedTauriPlayerHost
+import com.nuvio.app.features.player.desktop.DesktopPlayerPictureInPicture
 import com.nuvio.app.features.player.desktop.applyNativeDesktopWindowChrome
 import com.nuvio.app.features.player.desktop.installDesktopAppFullscreenShortcuts
 import com.nuvio.app.features.player.desktop.notifyDesktopWindowGainedFocus
@@ -67,6 +68,7 @@ class NativePlayback(
     }
 
     private class Session(val window: ComposeWindow) {
+        val resumePrompt = PlaybackResumePrompt()
         val closed = CompletableDeferred<Unit>()
         var requestBack: (() -> Unit)? = null
     }
@@ -81,6 +83,7 @@ class NativePlayback(
         put("state", playbackState)
         put("phase", playbackPhase)
         put("active", session != null)
+        put("isInPip", session != null && DesktopPlayerPictureInPicture.isEnabled)
         put("error", playbackError?.let({ kotlinx.serialization.json.JsonPrimitive(it) }) ?: kotlinx.serialization.json.JsonNull)
     }
 
@@ -142,9 +145,11 @@ class NativePlayback(
                 val playbackVideoId = videoId ?: meta.defaultVideoId ?: meta.id
                 val progress = WatchProgressRepository.progressForVideo(playbackVideoId, meta.id, episode?.season, episode?.episode)
                 cacheForReuseIfEnabled(playable, meta, playbackVideoId, episode?.season, episode?.episode)
+                val presented = CompletableDeferred<Unit>()
                 withContext(Dispatchers.Swing) {
                     val current = Session(window)
                     session = current
+                    current.resumePrompt.enter(playbackVideoId)
                     window.title = meta.name
                     if (embeddedInTauri) {
                         // The Compose window keeps the upstream player controller alive offscreen. The
@@ -158,6 +163,7 @@ class NativePlayback(
                         EmbeddedTauriPlayerHost.begin(
                             nativeHostWindow,
                             initialFullscreen = nativeHostFullscreen,
+                            presented = { presented.complete(Unit) },
                             toggleFullscreen = {
                                 onPlaybackStateChanged(buildJsonObject {
                                     snapshot().forEach { (key, value) -> put(key, value) }
@@ -182,6 +188,9 @@ class NativePlayback(
                         override fun windowGainedFocus(event: WindowEvent) = notifyDesktopWindowGainedFocus()
                     })
                     window.setContent {
+                        LaunchedEffect(current) {
+                            DesktopPlayerPictureInPicture.changes.collect { publishState() }
+                        }
                         val theme by ThemeSettingsRepository.selectedTheme.collectAsState()
                         val custom by ThemeSettingsRepository.customThemeColors.collectAsState()
                         val amoled by ThemeSettingsRepository.amoledEnabled.collectAsState()
@@ -246,6 +255,7 @@ class NativePlayback(
                                     onSystemBackHandlerChanged = { current.requestBack = it },
                                     onOpenExternalUrl = ::openExternalUrl,
                                     onBack = { release ->
+                                        current.resumePrompt.exit()
                                         release(
                                             { SwingUtilities.invokeLater {
                                                 window.dispose()
@@ -268,6 +278,10 @@ class NativePlayback(
                     applyNativeDesktopWindowChrome(window)
                     window.isVisible = true
                 }
+                // Preserve React's artwork until the native loading UI replaces it.
+                // Cancellation/failure leaves ownership with withPreparedPlaybackHost,
+                // which tears down the partially attached session.
+                if (embeddedInTauri) withTimeout(20_000) { presented.await() }
                 playbackState = "playing"
                 playbackPhase = "buffering"
                 publishState()
@@ -329,6 +343,14 @@ class NativePlayback(
         mutex.withLock { stopLocked() }
     }
 
+    override suspend fun shutdown() {
+        startingJob?.cancel()
+        mutex.withLock {
+            session?.resumePrompt?.preserveForShutdown()
+            stopLocked()
+        }
+    }
+
     private suspend fun stopLocked() {
         val current = session ?: return
         playbackState = "stopping"
@@ -336,6 +358,7 @@ class NativePlayback(
         withContext(Dispatchers.Swing) {
             val back = current.requestBack
             if (back != null) back() else {
+                current.resumePrompt.exit()
                 current.window.dispose()
                 current.closed.complete(Unit)
             }

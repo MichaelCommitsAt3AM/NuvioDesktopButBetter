@@ -1465,6 +1465,30 @@ object WatchProgressRepository {
         }
     }
 
+    /** Upload partial or completed playback retained on disk while offline. */
+    suspend fun pushPendingToCloud(profileId: Int, accountId: String) {
+        val auth = AuthRepository.state.value as? AuthState.Authenticated ?: return
+        if (auth.isAnonymous || auth.userId != accountId || !ProfileRepository.hasLoadedProfilesFor(accountId)) return
+        ensureLoaded()
+        val generation = profileGeneration.takeIf { profileId == currentProfileId }
+        val pending = if (generation != null) {
+            synchronized(entriesLock) {
+                entriesByProgressKey.filterKeys { it in dirtyProgressKeys }.values.toList()
+            }
+        } else {
+            val payload = WatchProgressStorage.loadPayload(profileId)?.takeIf { it.isNotBlank() } ?: return
+            val stored = WatchProgressCodec.decodePayload(payload)
+            stored.entries.filter { it.resolvedProgressKey() in stored.dirtyProgressKeys }
+        }
+        if (pending.isEmpty()) return
+        syncAdapter.push(profileId, pending)
+        if ((AuthRepository.state.value as? AuthState.Authenticated)?.userId != accountId) return
+        // A profile loaded during the request gets retried rather than having
+        // its new in-memory state acknowledged by an older operation.
+        if (profileId == currentProfileId && generation == null) return
+        recordSuccessfulPush(profileId, generation, pending)
+    }
+
     private fun pushDeleteToServer(entries: Collection<WatchProgressEntry>) {
         if (activeSource.providerId != null) return
         val profileId = currentProfileId

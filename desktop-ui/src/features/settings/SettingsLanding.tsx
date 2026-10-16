@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
-import { CloudDownload, Heart, Info, Link2, Palette, Play, Puzzle, RefreshCw, Shield, SlidersHorizontal, UserCircle, Users } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Bug, CloudDownload, Heart, Info, Link2, Palette, Play, Puzzle, RefreshCw, Search, Shield, SlidersHorizontal, UserCircle, Users, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { call } from '../../bridge';
+import { showTestBanner } from '../updater/updateBannerTest';
+import { checkForUpdates } from '../updater/updater';
 import { PageHeader } from '../../components/ui';
 import { Dialog } from '../../components/Dialog';
 import { settingsCategory } from './SettingsLayout';
-import { settingsSearchEntries } from './SettingsSearchEntries';
+import { searchSettings, settingsResultDescription } from './SettingsSearchEntries';
+import './settingsSearch.css';
 
 const entries = [
   {category:'account',path:'/profiles/choose',title:'Switch Profile',description:'Change to a different profile.',icon:Users},
@@ -19,6 +22,7 @@ const entries = [
   {category:'about',path:'privacy',title:'Privacy Policy',description:'Learn how Nuvio handles your data',icon:Shield},
   {category:'about',path:'/settings/licenses',title:'Licenses & Attribution',description:'Data sources, acknowledgements, and platform licenses',icon:Info},
   {category:'about',path:'updates',title:'Check for updates',description:'Download latest release',icon:CloudDownload},
+  {category:'about',path:'updates-test',title:'Test update banner',description:'Preview the banner and simulated download progress.',icon:Bug},
   {category:'advanced',path:'/settings/advanced',title:'Advanced',description:'Startup and profile behavior.',icon:SlidersHorizontal},
 ];
 
@@ -27,30 +31,37 @@ export function SettingsLanding() {
   const category=settingsCategory(location.pathname,location.search);
   const [query,setQuery]=useState('');
   const [searchVisible,setSearchVisible]=useState(false);
+  const searchInput=useRef<HTMLInputElement>(null);
+  const searching=query.trim().length>0;
   const [updateMessage,setUpdateMessage]=useState<string|null>(null);
   const [checking,setChecking]=useState(false);
-  const title=query?'Settings':category[0].toUpperCase()+category.slice(1);
+  const title=searching?'Settings':category[0].toUpperCase()+category.slice(1);
   useEffect(()=>{setQuery('');setSearchVisible(false);},[category]);
   useEffect(()=>{
-    const key=(event:KeyboardEvent)=>{if((event.ctrlKey||event.metaKey)&&event.key==='f'){event.preventDefault();setSearchVisible(true);}};
+    const key=(event:KeyboardEvent)=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='f'){event.preventDefault();setSearchVisible(true);searchInput.current?.focus();}};
     document.addEventListener('keydown',key);return()=>document.removeEventListener('keydown',key);
   },[]);
   async function checkUpdates(){
     setChecking(true);setUpdateMessage('Checking for updates…');
-    try{const result=await call<{supported:boolean;checked?:boolean;newerAvailable?:boolean;tag?:string;error?:string}>('about.checkUpdates');setUpdateMessage(!result.supported?'Update checking is unavailable on this platform.':result.error??(!result.checked?'Could not check for updates.':result.newerAvailable?`An update is available: ${result.tag??''}.`:'You are using the latest version.'));}
+    try{setUpdateMessage(await checkForUpdates());}
     catch(error){setUpdateMessage(error instanceof Error?error.message:'Could not check for updates.');}finally{setChecking(false);}
   }
-  const rows=query?settingsSearchEntries.filter(entry=>entry.key!=='account-delete'&&`${entry.title} ${entry.description} ${entry.page}`.toLowerCase().includes(query.toLowerCase())).map(entry=>({path:entry.route,title:entry.title,description:entry.description,icon:Info})):entries.filter(entry=>entry.category===category);
+  function runRowAction(path:string){
+    if(path==='privacy')void call('app.openExternal',{url:'https://nuvio.tv/privacy-policy'});
+    else if(path==='updates')void checkUpdates();
+    else if(path==='updates-test')showTestBanner();
+  }
+  const rows=searching?searchSettings(query).map(entry=>({key:entry.key,path:entry.route,title:entry.title,description:settingsResultDescription(entry),icon:entries.find(row=>entry.route.startsWith(row.path))?.icon??Info})):entries.filter(entry=>entry.category===category).map(entry=>({...entry,key:entry.path}));
   return <div className="page settings-root" onWheel={event=>{if(event.deltaY<0&& (document.querySelector('.settings-pane')?.scrollTop??0)===0)setSearchVisible(true);}}>
-    <PageHeader title={title}/>
-    {searchVisible&&<input autoFocus className="settings-search" placeholder="Search Settings" aria-label="Search settings" value={query} onChange={event=>setQuery(event.target.value)}/>}
-    <h2 className="settings-group-title">{query?'Search Results':title}</h2>
+    <PageHeader title={title} action={<button className="icon-button" aria-label="Search settings" onClick={()=>{setSearchVisible(true);searchInput.current?.focus();}}><Search size={23}/></button>}/>
+    {searchVisible&&<div className="settings-search-field"><Search size={23}/><input ref={searchInput} autoFocus className="settings-search" placeholder="Search Settings" aria-label="Search settings" value={query} onChange={event=>setQuery(event.target.value)} onKeyDown={event=>{if(event.key==='Escape'){setQuery('');event.stopPropagation();}}}/>{query&&<button className="icon-button" aria-label="Clear search" onClick={()=>{setQuery('');searchInput.current?.focus();}}><X size={23}/></button>}</div>}
+    <h2 className="settings-group-title">{searching?'Search Results':title}</h2>
     <div className="settings-nav-card">{rows.map(entry=>{
       const Icon=entry.icon;
       const filledIcon='filled' in entry&&entry.filled;
       const content=<><span className="settings-nav-icon"><Icon size={28} fill={filledIcon?'currentColor':'none'} strokeWidth={entry.path==='/settings/integrations'?3:2}/></span><span className="settings-nav-copy"><strong>{entry.title}</strong><span>{entry.description}</span></span></>;
-      return entry.path==='privacy'||entry.path==='updates'?<button key={entry.path} className="settings-nav-row" onClick={()=>entry.path==='privacy'?void call('app.openExternal',{url:'https://nuvio.tv/privacy-policy'}):void checkUpdates()}>{content}</button>:<Link key={entry.path} className="settings-nav-row" to={entry.path}>{content}</Link>;
-    })}</div>{query&&!rows.length&&<p className="muted">No settings found.</p>}
+      return entry.path==='privacy'||entry.path==='updates'||entry.path==='updates-test'?<button key={entry.key} className="settings-nav-row" onClick={()=>runRowAction(entry.path)}>{content}</button>:<Link key={entry.key} className="settings-nav-row" to={entry.path}>{content}</Link>;
+    })}</div>{searching&&!rows.length&&<p className="muted">No settings found.</p>}
     {updateMessage&&<Dialog label="Check for Updates" onClose={()=>setUpdateMessage(null)}><h2>Check for Updates</h2><p>{updateMessage}</p><div className="dialog-actions"><button className="button secondary" disabled={checking} onClick={()=>setUpdateMessage(null)}>Close</button></div></Dialog>}
   </div>;
 }

@@ -27,6 +27,7 @@ internal class DesktopPlayerPipWindow(
     override fun getInsets(): Insets = Insets(0, 0, 0, 0)
 
     init {
+        defaultCloseOperation = DO_NOTHING_ON_CLOSE
         isUndecorated = true
         isResizable = true
         focusableWindowState = true

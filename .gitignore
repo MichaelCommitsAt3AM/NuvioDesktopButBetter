@@ -56,4 +56,12 @@ dev/
 # Locally packaged portable rewrite build.
 /Nuvio-Rewrite.exe
 /Nuvio-Rewrite-Setup.exe
+/Nuvio-Setup.exe
+/Nuvio-Setup.msi
+/Nuvio-Linux-*.flatpak
+/flatpak/
+/flatpak-build/
+/flatpak-repo/
 /resources/backend/
+/desktop-ui/src-tauri/tauri.release.conf.json
+/release-assets/

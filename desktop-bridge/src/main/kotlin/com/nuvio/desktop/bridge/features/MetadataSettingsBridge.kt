@@ -1,7 +1,5 @@
 package com.nuvio.desktop.bridge.features
 
-import com.nuvio.app.core.build.AppFeaturePolicy
-import com.nuvio.app.core.build.TrailerPlaybackMode
 import com.nuvio.app.features.details.EpisodeRatingsVisibility
 import com.nuvio.app.features.details.MetaEpisodeCardStyle
 import com.nuvio.app.features.details.MetaScreenBackgroundMode
@@ -44,7 +42,10 @@ object MetadataSettingsBridge {
                 put("tabGroup", item.tabGroup?.let(::JsonPrimitive) ?: JsonNull)
             } }))
             put("backgroundMode", MetaScreenBackgroundMode.persist(state.backgroundMode))
-            put("heroTrailerPlayback", state.heroTrailerPlayback)
+            // The React detail hero has no trailer renderer yet, including on
+            // platforms where the original Compose hero supports trailers.
+            put("heroTrailerPlaybackSupported", false)
+            put("heroTrailerPlayback", false)
             put("tabLayout", state.tabLayout)
             put("episodeCardStyle", MetaEpisodeCardStyle.persist(state.episodeCardStyle))
             put("blurUnwatchedEpisodes", state.blurUnwatchedEpisodes)
@@ -68,7 +69,7 @@ object MetadataSettingsBridge {
             })
             "heroTrailerPlayback" -> {
                 val enabled = value.asBool(key)
-                if (enabled && (!AppFeaturePolicy.heroTrailerPlaybackSupported || AppFeaturePolicy.trailerPlaybackMode != TrailerPlaybackMode.IN_APP)) unavailable(key)
+                if (enabled) unavailable(key)
                 MetaScreenSettingsRepository.setHeroTrailerPlayback(enabled)
             }
             "tabLayout" -> MetaScreenSettingsRepository.setTabLayout(value.asBool(key))

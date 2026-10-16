@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Download, Grid2X2, LibraryBig, LoaderCircle, Maximize, RefreshCw, Play, Rows3, Search } from 'lucide-react';
+import { ArrowLeft, Download, LibraryBig, LoaderCircle, Maximize, RefreshCw, Play, Search } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { EmptyState } from '../../components/EmptyState';
 import { PageHeader } from '../../components/ui';
 import { InlineError } from '../../components/Status';
 import { Poster } from '../../components/Poster';
+import { PosterLoadingCard } from '../../components/PosterLoadingCard';
+import { useProgressiveCount } from '../../components/ProgressiveMount';
 import { Shelf } from '../../components/Shelf';
-import { ListMembershipButton } from './ListMembershipButton';
+
 import { Link } from 'react-router-dom';
 import './library.css';
 
@@ -37,13 +39,14 @@ export function LibraryPage() {
     return result;
   }, [library.items, extras]);
   const playCloud = async (itemKey: string, fileKey: string) => { setBusy(fileKey); try { await call('cloud.play', { itemKey, fileKey }); setError(''); } catch(cause) { setError(cause instanceof Error ? cause.message : String(cause)); } finally { setBusy(''); } };
-  const targetLayout = extras?.layout === 'horizontal' ? 'vertical' : 'horizontal';
+  const visibleCount = useProgressiveCount(items.length, `library:${extras?.layout ?? 'grid'}`);
+  const visibleItems = items.slice(0, visibleCount);
+  const pendingCount = items.length - visibleItems.length;
   const headerActions = <div className="library-header-actions">
-    <button className="library-icon-button" type="button" aria-label="Toggle fullscreen" title="Toggle fullscreen" onClick={() => { const win = getCurrentWindow(); void win.isFullscreen().then(fullscreen => win.setFullscreen(!fullscreen)).catch(() => {}); }}><Maximize size={18} /></button>
-    {mode === 'saved' && <button className="library-icon-button" type="button" aria-label={targetLayout === 'vertical' ? 'Show grid view' : 'Show horizontal shelves'} title={targetLayout === 'vertical' ? 'Show grid view' : 'Show horizontal shelves'} onClick={() => void run('library.setLayout', { layout: targetLayout })}>{targetLayout === 'vertical' ? <Grid2X2 size={19} /> : <Rows3 size={19} />}</button>}
-    <Link className="library-icon-button" to="/library/downloads" aria-label="Downloads" title="Downloads"><Download size={19} /></Link>
+    <Link className="button secondary library-downloads-button" to="/library/downloads"><Download size={19} /><span>Downloads</span></Link>
   </div>;
   return <div className={`page library-page ${mode === 'cloud' ? 'library-cloud-mode' : ''}`}>
+    <button className="library-fullscreen" type="button" aria-label="Toggle fullscreen" title="Toggle fullscreen" onClick={() => { const win = getCurrentWindow(); void win.isFullscreen().then(fullscreen => win.setFullscreen(!fullscreen)).catch(cause => setError(String(cause))); }}><Maximize size={24} /></button>
     <PageHeader title="Library" action={headerActions} />
     <div className="library-source-switch" role="tablist" aria-label="Library source">
       <button role="tab" aria-selected={mode === 'saved'} className={mode === 'saved' ? 'selected' : ''} onClick={() => setMode('saved')}>Saved</button>
@@ -63,8 +66,8 @@ export function LibraryPage() {
       {library.error && <InlineError message={library.error} />}
       {library.loading && <div className="loading-block"><LoaderCircle className="spin" />Loading your library…</div>}
       {!library.loading && !items.length && <EmptyState title="No saved titles" message="Save titles from their details page to add them here." icon={<LibraryBig />} />}
-      {extras?.layout === 'horizontal' && (extras.sections.length ? extras.sections : [{ type: 'all', title: 'Saved titles', items: items.map(item => `${item.type}|${item.id}`) }]).map(section => <Shelf className="library-shelf" key={section.type} fixedPosterSize showPosterRating={false} shelf={{ key: `library:${section.type}`, title: section.title, subtitle: '', items: items.filter(item => section.items.includes(`${item.type}|${item.id}`)), hasMore: false }} />)}
-      {extras?.layout !== 'horizontal' && <div className="library-grid">{items.map(item => <div key={`${item.type}:${item.id}`}><Poster item={item} /><ListMembershipButton type={item.type} id={item.id} name={item.name} /></div>)}</div>}
+      {extras?.layout === 'horizontal' && (extras.sections.length ? extras.sections : [{ type: 'all', title: 'Saved titles', items: items.map(item => `${item.type}|${item.id}`) }]).map(section => <Shelf className="library-shelf" key={section.type} showPosterRating={false} shelf={{ key: `library:${section.type}`, title: section.title, subtitle: '', items: items.filter(item => section.items.includes(`${item.type}|${item.id}`)), hasMore: false }} />)}
+      {extras?.layout !== 'horizontal' && <div className="library-grid">{visibleItems.map(item => <div key={`${item.type}:${item.id}`}><Poster item={item} /></div>)}{Array.from({ length: pendingCount }, (_, index) => <div key={`skeleton-${index}`}><PosterLoadingCard variant="poster" /></div>)}</div>}
     </>}
     {mode === 'cloud' && <>
       {cloud?.loading && <div className="loading-block">Refreshing cloud library…</div>}

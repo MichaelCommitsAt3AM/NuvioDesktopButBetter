@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ArrowLeft, ChevronRight, Clapperboard, Film, LayoutGrid, Moon, Network, Palette, Play, Puzzle, RefreshCw, Sparkles, Trash2, WandSparkles } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
@@ -7,7 +7,7 @@ import { PageHeader } from '../../components/ui';
 import { SettingsLayout } from './SettingsLayout';
 import { SettingsLanding } from './SettingsLanding';
 import { InlineError } from '../../components/Status';
-import { useAppearance, type AppearanceSnapshot, type HomeSetting } from './appearanceStore';
+import { useAppearance, type AppearanceSnapshot } from './appearanceStore';
 import { MetadataSettingsPage, P2PSettingsPage, PlaybackSettingsPage } from './ExtendedSettings';
 import { PluginsSettingsPage } from './PluginsSettings';
 import { DebridSettingsPage, IntegrationsLanding, MdbListSettingsPage, SimklSettingsPage, TmdbSettingsPage, TrackingSettingsPage } from './IntegrationSettings';
@@ -15,7 +15,9 @@ import { AboutSettingsPage, CommunitySettingsPage, LicensesSettingsPage, Languag
 import { AdvancedSettingsPage } from './AdvancedSettings';
 import { Dialog } from '../../components/Dialog';
 import { DownloadFiltersPage } from '../downloads/DownloadFilters';
+import { ContinueWatchingStyleCheck, ContinueWatchingStylePreview } from './ContinueWatchingStylePreview';
 import './appearanceParity.css';
+import { HomeSettings } from './HomeSettings';
 
 const posterScreens = ['home', 'continue_watching', 'collections', 'library', 'search', 'details'];
 const screenNames: Record<string, string> = { home: 'Home', continue_watching: 'Continue Watching', collections: 'Collections', library: 'Library', search: 'Search', details: 'Details Screen' };
@@ -293,43 +295,6 @@ function surfaceKey(surface: string) { return ({ posters: 'Posters', continueWat
 function surfaceLabel(surface: string) { return ({ posters: 'Posters', continueWatching: 'Continue Watching', episodeCards: 'Episode cards', cast: 'Cast', trailers: 'Trailers' } as Record<string, string>)[surface]; }
 function surfaceEnabled(depth: AppearanceSnapshot['cardDepth'] | undefined, surface: 'posters' | 'continueWatching' | 'episodeCards' | 'cast' | 'trailers') { if (!depth) return false; return ({ posters: depth.postersEnabled, continueWatching: depth.continueWatchingEnabled, episodeCards: depth.episodeCardsEnabled, cast: depth.castEnabled, trailers: depth.trailersEnabled })[surface]; }
 
-function HomeSettings() {
-  const { snapshot, loading, error, refresh, update } = useAppearance();
-  const run = async (method: string, params: Record<string, unknown>) => { try { await update(method, params); } catch { /* banner */ } };
-  const [heroExpanded, setHeroExpanded] = useState(false);
-  const [expandedCatalogKey, setExpandedCatalogKey] = useState<string | null>(null);
-  const items = useMemo(() => [...(snapshot?.home.items ?? [])].sort((a, b) => a.order - b.order), [snapshot?.home.items]);
-  const catalogItems = items.filter((item) => !item.isCollection);
-  const heroItems = catalogItems.filter((item) => item.heroSourceEnabled);
-  const collectionCount = items.filter((item) => item.isCollection).length;
-  const catalogCount = catalogItems.length;
-  if (loading && !snapshot) return <SettingsSubPage title="Home screen" back="/settings/appearance"><div className="loading-block"><span className="spin" /> Loading…</div></SettingsSubPage>;
-  const catalogTitle = collectionCount && catalogCount ? 'CATALOGS & COLLECTIONS' : collectionCount ? 'COLLECTIONS' : 'CATALOGS';
-  return <SettingsSubPage title="Home Layout" back="/settings/appearance">{error && <InlineError message={error} onRetry={() => { void refresh(); }} />}
-    <section className="settings-section home-summary"><strong>Keep Home focused</strong><span>{items.filter((item) => item.enabled).length} of {items.length} catalogs visible · {heroItems.length} hero sources selected</span><small>Open a catalog only when you need to rename or reorder it.</small></section>
-    <h2 className="settings-group-title">HOME LAYOUT</h2><section className="settings-section home-layout-settings">
-      <ControlRow title="Show Hero Section" description="Display hero carousel at top of home." checked={snapshot?.home.heroEnabled ?? true} onChange={(enabled) => run('homePreferences.setHeroEnabled', { enabled })} />
-      <ControlRow title="Catalog type" description="Show whether catalogs contain movies or series." checked={snapshot?.home.showCatalogType ?? true} onChange={(enabled) => run('homePreferences.setShowCatalogType', { enabled })} />
-      <ControlRow title="Hide unreleased" description="Hide titles that have not been released yet." checked={snapshot?.home.hideUnreleasedContent ?? false} onChange={(enabled) => run('homePreferences.setHideUnreleasedContent', { enabled })} />
-    </section>
-    {!!catalogItems.length && (snapshot?.home.heroEnabled ?? true) && <><h2 className="settings-group-title">HERO CATALOGS</h2><section className="settings-section home-hero-source-group">
-      <button className="home-hero-source-summary" aria-expanded={heroExpanded} onClick={() => setHeroExpanded((value) => !value)}><span><strong>{heroItems.length} of 2 selected</strong><small>{heroItems.map((item) => item.title).join(', ') || 'No hero sources selected'}</small></span><ChevronRight className={heroExpanded ? 'expanded' : ''} size={18} /></button>
-      {heroExpanded && catalogItems.map((item) => <ControlRow key={item.key} title={item.title} description={!item.heroSourceEnabled && heroItems.length >= 2 ? `Selection limit reached (maximum 2)` : item.key} checked={item.heroSourceEnabled} disabled={!item.heroSourceEnabled && heroItems.length >= 2} onChange={(enabled) => run('homePreferences.setHeroSourceEnabled', { key: item.key, enabled })} />)}
-    </section></>}
-    <h2 className="settings-group-title">{catalogTitle}<button className="home-reset-button" title="Reset" onClick={() => void run('homePreferences.reset', {})}>Reset</button></h2><section className="settings-section home-items-section">
-      {items.map((item, index) => <HomeCatalogRow key={item.key} item={item} index={index} count={items.length} expanded={expandedCatalogKey === item.key} onExpandedChange={(expanded) => setExpandedCatalogKey(expanded ? item.key : null)} onToggle={(enabled) => run('homePreferences.setEnabled', { key: item.key, enabled })} onTitle={(title) => run('homePreferences.setCustomTitle', { key: item.key, title })} onMove={(direction) => run('homePreferences.move', { key: item.key, direction })} />)}
-      {!items.length && <p className="muted">No home catalogs. Enable or add an addon with catalogs to configure Home.</p>}
-    </section>
-  </SettingsSubPage>;
-}
-
-function HomeCatalogRow({ item, index, count, expanded, onExpandedChange, onToggle, onTitle, onMove }: { item: HomeSetting; index: number; count: number; expanded: boolean; onExpandedChange: (expanded: boolean) => void; onToggle: (enabled: boolean) => void; onTitle: (title: string) => void; onMove: (direction: 'up' | 'down') => void }) {
-  return <article className={`home-catalog-row ${expanded ? 'expanded' : ''}`}>
-    <div className="home-catalog-summary"><button className="home-catalog-info" aria-expanded={expanded} onClick={() => onExpandedChange(!expanded)}><strong>{item.title}</strong><span>{item.isCollection ? `Collection · ${item.collectionId ?? ''}` : item.key}</span><small>{item.enabled ? 'Visible' : 'Hidden'} · {item.isCollection ? 'Collection' : item.heroSourceEnabled ? 'Hero source' : 'Not in hero'}</small></button><span className="home-catalog-row-actions"><label className="switch" aria-label={`Show ${item.title}`}><input type="checkbox" checked={item.enabled} onChange={(event) => onToggle(event.target.checked)} /><span /></label><span className="home-order-controls"><button className="icon-button" disabled={!index} onClick={() => onMove('up')} aria-label={`Move ${item.title} up`}>↑</button><button className="icon-button" disabled={index === count - 1} onClick={() => onMove('down')} aria-label={`Move ${item.title} down`}>↓</button></span></span></div>
-    {expanded && !item.isCollection && <label className="home-title-field">Display Name<input value={item.customTitle ?? ''} onChange={(event) => onTitle(event.target.value)} placeholder={item.defaultTitle} /></label>}
-  </article>;
-}
-
 function PosterPresetControl({ title, value, options, onSelect }: { title: string; value: number; options: Array<[string, number]>; onSelect: (value: number) => void }) {
   return <div className="poster-preset-control"><strong>{title}</strong><div>{options.map(([label, optionValue]) => <button type="button" key={label} aria-pressed={value === optionValue} className={`poster-preset-chip ${value === optionValue ? 'selected' : ''}`} onClick={() => onSelect(optionValue)}>{label}</button>)}</div></div>;
 }
@@ -346,7 +311,7 @@ function ContinueWatchingSettings() {
   const sortDescriptions = { default: 'Sort all items by recency', streaming_style: 'Released items first, upcoming at the end', split_upcoming: 'Move unaired episodes to a separate Upcoming row' } as const;
   return <SettingsSubPage title="Continue Watching" back="/settings/appearance">{error && <InlineError message={error} onRetry={() => { void refresh(); }} />}
     <h2 className="settings-group-title">VISIBILITY</h2><section className="settings-section"><ControlRow title="Show Continue Watching" description="Display the Continue Watching shelf on the Home screen." checked={cw?.visible ?? true} onChange={(enabled) => run('continueWatching.setVisible', { enabled })} /></section>
-    <h2 className="settings-group-title">POSTER CARD STYLE</h2><section className="settings-section"><div className="continue-style-grid">{(['card', 'wide', 'poster'] as const).map((option) => <button type="button" key={option} className={`continue-style-option ${style === option ? 'selected' : ''}`} aria-pressed={style === option} onClick={() => void run('continueWatching.setStyle', { style: option })}><span className={`continue-style-preview ${option}`} aria-hidden="true"><i className="cw-art" />{option === 'card' && <><i className="cw-badge" /><i className="cw-copy short" /><i className="cw-copy long" /><i className="cw-progress" /></>}{option === 'wide' && <><i className="cw-copy wide-title" /><i className="cw-copy wide-meta" /><i className="cw-progress" /></>}{option === 'poster' && <><i className="cw-poster-title" /><i className="cw-progress" /></>}</span><strong>{option === 'card' ? 'Card' : option === 'wide' ? 'Wide' : 'Poster'}</strong><small>{option === 'card' ? 'TV-style landscape card' : option === 'wide' ? 'Info-dense horizontal card' : 'Artwork-first poster card'}</small></button>)}</div></section>
+    <h2 className="settings-group-title">POSTER CARD STYLE</h2><section className="settings-section"><div className="continue-style-grid">{(['card', 'wide', 'poster'] as const).map((option) => <button type="button" key={option} className={`continue-style-option ${style === option ? 'selected' : ''}`} aria-pressed={style === option} onClick={() => void run('continueWatching.setStyle', { style: option })}><ContinueWatchingStyleCheck /><ContinueWatchingStylePreview style={option} /><strong>{option === 'card' ? 'Card' : option === 'wide' ? 'Wide' : 'Poster'}</strong><small>{option === 'card' ? 'TV-style landscape card' : option === 'wide' ? 'Info-dense horizontal card' : 'Artwork-first poster card'}</small></button>)}</div></section>
     <h2 className="settings-group-title">NEXT UP BEHAVIOR</h2><section className="settings-section">
       {style !== 'poster' && <ControlRow title="Prefer Episode Thumbnails in Continue Watching" description="Prefer episode thumbnails when available." checked={cw?.useEpisodeThumbnails ?? true} onChange={(enabled) => run('continueWatching.setUseEpisodeThumbnails', { enabled })} />}
       <ControlRow title="Next Up From Furthest Episode" description="Show next episode based on the furthest watched episode. Disable for rewatches to use the most recently watched episode instead." checked={cw?.upNextFromFurthestEpisode ?? false} onChange={(enabled) => run('continueWatching.setUpNextFromFurthestEpisode', { enabled })} />

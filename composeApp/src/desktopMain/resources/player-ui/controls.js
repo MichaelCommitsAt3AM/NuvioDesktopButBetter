@@ -391,6 +391,7 @@ let submitIntroDraft = {
   status: "",
 };
 let hasReceivedPlayerControls = false;
+let presentationScheduled = false;
 let parentalGuideRunId = 0;
 let parentalGuideStartedKey = "";
 let parentalGuideCompletedKey = "";
@@ -961,9 +962,17 @@ const setModalVisibility = (modal, visible, animated = true) => {
     modal.dataset.modalState = "open";
     modal.hidden = false;
     modal.classList.remove("modal-closing");
-    window.requestAnimationFrame(() => {
+    const showModal = () => {
       if (modal.dataset.modalState === "open") {
         modal.classList.add("modal-visible");
+      }
+    };
+    window.requestAnimationFrame(() => {
+      // Allow the bottom panel's offscreen position to paint before sliding up.
+      if (modal.classList.contains("player-rail-modal") && !prefersReducedMotion) {
+        window.requestAnimationFrame(showModal);
+      } else {
+        showModal();
       }
     });
     return;
@@ -3286,6 +3295,10 @@ window.playerControls = nextState => {
     resetSubtitleSelectionState();
   }
   render();
+  if (!presentationScheduled) {
+    presentationScheduled = true;
+    window.preparePlayerPresentation([openingArtwork, openingLogoBase], () => send("controlsPresented", 0));
+  }
   if (pendingSettingToastCommand === "resize" && (state.resizeModeLabel || "") !== previousResizeLabel) {
     pendingSettingToastCommand = "";
     showPlayerToast(settingToastLabel("resize"), { icon: "icon-aspect" });

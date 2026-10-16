@@ -1,0 +1,14 @@
+/* Cancel only the surrounding page zoom; card-local dimensions are Home CSS pixels. */
+.main-area{--poster-page-zoom:var(--content-scale,1.22)}
+.home-layout .main-area{--poster-page-zoom:1}
+body .poster-item{zoom:calc(1 / var(--poster-page-zoom,1));--ui-scale:1.08;--desktop-font-scale:1;width:var(--poster-width)!important;max-width:none;min-width:0}
+body .poster-item .media-card{width:100%;gap:6.5px!important}
+body .poster-item .poster-frame{border:0;border-radius:var(--poster-radius)}
+body .poster-item .media-card .card-title{font-size:15.12px;line-height:normal}
+body .poster-item .media-card .card-meta{font-size:12.96px;line-height:normal}
+body .poster-grid,body .catalog-grid,body .library-grid,body .media-grid:has(>.poster-item),body .search-skeleton-grid,body .discover-loading{display:grid;grid-template-columns:repeat(auto-fill,minmax(0,calc(var(--movie-card-width,190.08px) / var(--poster-page-zoom,1))));justify-content:start;gap:calc(24px / var(--poster-page-zoom,1)) calc(10.8px / var(--poster-page-zoom,1))}
+body .shelf-track:has(>.poster-item){gap:calc(10.8px / var(--poster-page-zoom,1));padding-block:calc(12px / var(--poster-page-zoom,1)) calc(22px / var(--poster-page-zoom,1))}
+body .poster-loading-card{--poster-width:var(--movie-card-width,190.08px);--poster-radius:var(--movie-card-radius,12.96px);--poster-ratio:var(--movie-card-ratio,2/3);width:var(--poster-width);zoom:calc(1 / var(--poster-page-zoom,1));gap:6.5px}
+body .poster-item .poster-loading-card,body .home-cw-section .poster-loading-card{zoom:1;--poster-width:100%;--poster-ratio:inherit;--poster-radius:inherit}
+body .poster-item .poster-loading-card{width:100%}
+body .poster-loading-title{height:15.12px}body .poster-loading-meta{height:12.96px}

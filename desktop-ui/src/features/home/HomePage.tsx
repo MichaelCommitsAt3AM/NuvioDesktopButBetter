@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Compass, Maximize, MoreHorizontal, RotateCcw, Trash2, Info, Play } from 'lucide-react';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
@@ -11,6 +11,7 @@ import type { AppearanceSnapshot } from '../settings/appearanceStore';
 import { HomeActionDialog } from './HomeActionDialog';
 import { useCardHold } from '../../components/useCardHold';
 import { PosterLoadingCard } from '../../components/PosterLoadingCard';
+import { HomeVisibility } from './homeVisibility';
 import './home.css';
 import './homeParity.css';
 
@@ -37,27 +38,49 @@ type ContinueItem = {
 
 const homeViewPositions=new Map<string,{scrollTop:number;heroIndex:number}>();
 const consumedHomeScrollResets=new Set<string>();
-// Mirrors HOME_HERO_ITEM_LIMIT in HomeRepository: the backend never sends more
-// than this many heroes, so the shelf fallback below must not either —
-// otherwise the hero dot indicators explode into dozens.
+// Mirrors HOME_HERO_ITEM_LIMIT in HomeRepository.
 const MAX_HERO_ITEMS = 8;
+// The backend can emit a settled-but-empty home snapshot before catalogs
+// resolve. Hold the empty state back briefly so a slow first snapshot never
+// flashes "install an addon" at users who already have addons.
+const HOME_EMPTY_STATE_GRACE_MS = 600;
+
+function useConfirmedHomeEmpty(isEmpty: boolean): boolean {
+  const [confirmed, setConfirmed] = useState(false);
+  useEffect(() => {
+    if (!isEmpty) { setConfirmed(false); return; }
+    const timer = window.setTimeout(() => setConfirmed(true), HOME_EMPTY_STATE_GRACE_MS);
+    return () => window.clearTimeout(timer);
+  }, [isEmpty]);
+  return confirmed;
+}
 
 export function HomePage() {
+  const visible = useContext(HomeVisibility);
   const home = useSelector((current) => current.home);
   const location = useLocation();
   const navigate = useNavigate();
   const appearance = useFeatureSnapshot<AppearanceSnapshot>('appearance');
   const profileId = useSelector((current) => current.session.activeProfile);
   const extras = useFeatureSnapshot<HomeExtras>('homeExtras');
-  // The preferred hero sources can temporarily be empty while catalogs load or fail.
-  // Reuse visible shelf results as a resilient fallback so the featured area does not
-  // disappear while Home still has usable titles to show.
-  const heroItems = (home.hero?.length ? home.hero : home.shelves.flatMap(shelf => shelf.items ?? [])).slice(0, MAX_HERO_ITEMS);
+  // Kotlin owns source selection, release filtering and collection fallback.
+  // An empty hero is intentional; shelves may belong to unselected catalogs.
+  const heroItems = (home.hero ?? []).slice(0, MAX_HERO_ITEMS);
   const viewKey=String(profileId??'default');
   const [heroIndex, setHeroIndex] = useState(()=>homeViewPositions.get(viewKey)?.heroIndex??0);
   const heroIndexRef=useRef(heroIndex);heroIndexRef.current=heroIndex;
   const resetHomeScroll=(location.state as {resetHomeScroll?:boolean}|null)?.resetHomeScroll===true&&!consumedHomeScrollResets.has(location.key);
-  useLayoutEffect(()=>{const main=document.querySelector<HTMLElement>('.main-area');if(resetHomeScroll){consumedHomeScrollResets.add(location.key);if(main)main.scrollTop=0;}else if(main)main.scrollTop=homeViewPositions.get(viewKey)?.scrollTop??0;return()=>{if(main)homeViewPositions.set(viewKey,{scrollTop:main.scrollTop,heroIndex:heroIndexRef.current});};},[viewKey,resetHomeScroll,location.key]);
+  useLayoutEffect(() => {
+    if (!visible) return;
+    const main = document.querySelector<HTMLElement>('.main-area');
+    if (!main) return;
+    if (resetHomeScroll) consumedHomeScrollResets.add(location.key);
+    main.scrollTop = resetHomeScroll ? 0 : homeViewPositions.get(viewKey)?.scrollTop ?? 0;
+    // Save on scroll, before a route can hide Home and clamp the shared viewport.
+    const save = () => homeViewPositions.set(viewKey, { scrollTop: main.scrollTop, heroIndex: heroIndexRef.current });
+    main.addEventListener('scroll', save, { passive: true });
+    return () => { main.removeEventListener('scroll', save); };
+  }, [visible, viewKey, resetHomeScroll, location.key]);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [extrasSnapshotState, setExtrasSnapshotState] = useState<{ profileId: number | null; settled: boolean }>({ profileId: null, settled: false });
@@ -72,7 +95,8 @@ export function HomePage() {
   const [viewport,setViewport]=useState({width:window.innerWidth,height:window.innerHeight});
   useEffect(()=>{const resize=()=>setViewport({width:window.innerWidth,height:window.innerHeight});window.addEventListener('resize',resize);return ()=>window.removeEventListener('resize',resize);},[]);
   useEffect(()=>{const element=heroElement.current;if(!element||typeof IntersectionObserver==='undefined')return;const observer=new IntersectionObserver(([entry])=>setHeroActive(entry.isIntersecting));observer.observe(element);return ()=>observer.disconnect();},[heroItems.length]);
-  useEffect(()=>{if(!heroActive||heroDragging||heroItems.length<2)return;const timer=setTimeout(()=>{if(document.visibilityState==='visible')setHeroIndex(index=>(index+1)%heroItems.length);},8000);return ()=>clearTimeout(timer);},[heroIndex,heroItems.length,heroActive,heroDragging]);
+  useEffect(()=>{if(!visible||!heroActive||heroDragging||heroItems.length<2)return;const timer=setTimeout(()=>{if(document.visibilityState==='visible')setHeroIndex(index=>(index+1)%heroItems.length);},8000);return ()=>clearTimeout(timer);},[visible,heroIndex,heroItems.length,heroActive,heroDragging]);
+  useEffect(() => { const position = homeViewPositions.get(viewKey); homeViewPositions.set(viewKey, { scrollTop: position?.scrollTop ?? 0, heroIndex }); }, [viewKey, heroIndex]);
   useEffect(()=>setLogoFailed(false),[hero?.id]);
   const unit=1.08,widthDp=viewport.width/unit,heightDp=viewport.height/unit;
   const wideProgress=Math.max(0,Math.min(1,(widthDp/heightDp-16/9)/(32/9-16/9)));
@@ -140,6 +164,8 @@ export function HomePage() {
   // not hide saved progress behind an indefinite loading state.
   const continueWatchingLoading = !extrasSnapshotState.settled || extrasSnapshotState.profileId !== profileId;
   const continueWatchingVisible = preferences?.isVisible ?? true;
+  const homeEmpty = !home.loading && !home.error && !home.shelves.length && !hero;
+  const showHomeEmpty = useConfirmedHomeEmpty(homeEmpty);
 
   return <div className="home-page" style={heroStyle}>
     {hero && appearance?.home.heroEnabled!==false && <section ref={heroElement} className="home-hero" tabIndex={0} aria-label="Featured titles" onKeyDown={event=>{if(event.key==='ArrowRight'){event.preventDefault();moveHero(1);}if(event.key==='ArrowLeft'){event.preventDefault();moveHero(-1);}}} onPointerDown={event=>{if(event.button!==0||(event.target as HTMLElement).closest('button'))return;swipeStart.current=event.clientX;setHeroDragging(true);event.currentTarget.setPointerCapture(event.pointerId);}} onPointerUp={event=>{const start=swipeStart.current;swipeStart.current=null;setHeroDragging(false);if(start!=null&&Math.abs(event.clientX-start)>48)moveHero(start>event.clientX?1:-1);}} onPointerCancel={()=>{swipeStart.current=null;setHeroDragging(false);}}>
@@ -156,7 +182,7 @@ export function HomePage() {
     </section>}
     {actionError && <InlineError message={actionError} onRetry={() => setActionError(null)} />}
     {home.error && <InlineError message={home.error} onRetry={() => void actions.homeRefresh()} />}
-    {home.loading && !home.shelves.length && <HomeLoadingSkeleton showHero={!hero} />}
+    {(home.loading || (homeEmpty && !showHomeEmpty)) && !home.shelves.length && <HomeLoadingSkeleton showHero={!hero && appearance?.home.heroEnabled !== false} />}
 
     {continueWatchingVisible && (continueWatchingLoading || continueItems.length > 0) && <section className="home-cw-section" aria-busy={continueWatchingLoading}>
       <div className="home-cw-heading"><h2>Continue Watching</h2></div>
@@ -168,7 +194,7 @@ export function HomePage() {
       <HorizontalRail label="Upcoming" className={`home-cw-rail style-${preferences.style.toLowerCase()}`}>{upcoming.map((item) => <ContinueCard key={`${item.parentMetaId}:next:${item.videoId}`} item={item} blurArtwork={preferences.blurNextUp} useEpisodeThumbnails={preferences.useEpisodeThumbnails} onResume={() => resume(item)} onManual={() => playManually(item)} onDetails={()=>openTitle(item.parentMetaType,item.parentMetaId)} onDismiss={() => void runAction(`dismiss:${item.parentMetaId}`, 'home.continueWatching.dismissUpNext', { contentId: item.parentMetaId, seasonNumber: item.nextUpSeedSeasonNumber, episodeNumber: item.nextUpSeedEpisodeNumber })} />)}</HorizontalRail>
     </section>}
     <HomeCollections shelves={home.shelves} />
-    {!home.loading && !home.error && !home.shelves.length && !hero && <EmptyState title="Your home is ready for content" message="Install an addon from Settings to add catalogs and discover titles here." icon={<Compass size={22} />} />}
+    {showHomeEmpty && <EmptyState title="Your home is ready for content" message="Install an addon from Settings to add catalogs and discover titles here." icon={<Compass size={22} />} />}
   </div>;
 }
 
@@ -205,7 +231,7 @@ function ContinueCard({ item, isBusy, onResume, onManual, onRemove, onReset, onD
     <div className="home-cw-copy"><div className="home-cw-text"><strong title={item.title}>{item.title}</strong><span>{item.subtitle || (item.isNextUp ? 'Next episode' : item.providerName || 'Continue watching')}</span></div>
       <button className="home-icon-button" aria-label="More continue watching actions" aria-expanded={menuOpen} onClick={openActions}><MoreHorizontal size={18} /></button>
     </div>
-    {menuOpen && <HomeActionDialog title={item.title} poster={item.poster} artwork={<div className="home-cw-art home-cw-zoom" style={{backgroundImage:artwork?`linear-gradient(0deg,rgba(0,0,0,.82),transparent 60%),url("${artwork}")`:undefined}}>{cardContent}</div>} subtitle={item.subtitle} onClose={()=>setMenuOpen(false)}>{onDetails&&<button onClick={onDetails}>Go to details <Info size={18}/></button>}{onManual&&<button onClick={onManual}>Play manually <Play size={18} fill="currentColor"/></button>}{onReset && <button disabled={isBusy} onClick={onReset}>Start from beginning <RotateCcw size={18} /></button>}{onRemove && <button disabled={isBusy} className="destructive" onClick={onRemove}>Remove <Trash2 size={18} /></button>}{onDismiss && <button disabled={isBusy} className="destructive" onClick={onDismiss}>Remove <Trash2 size={18} /></button>}</HomeActionDialog>}
+    {menuOpen && <HomeActionDialog title={item.title} poster={item.poster} artwork={<div className="home-cw-art home-cw-zoom" style={{backgroundImage:artwork?`linear-gradient(0deg,rgba(0,0,0,.82),transparent 60%),url("${artwork}")`:undefined}}>{cardContent}</div>} subtitle={item.subtitle} onClose={()=>setMenuOpen(false)}>{onDetails&&<button onClick={()=>{setMenuOpen(false);onDetails();}}>Go to details <Info size={18}/></button>}{onManual&&<button onClick={()=>{setMenuOpen(false);onManual();}}>Play manually <Play size={18} fill="currentColor"/></button>}{onReset && <button disabled={isBusy} onClick={()=>{setMenuOpen(false);onReset();}}>Start from beginning <RotateCcw size={18} /></button>}{onRemove && <button disabled={isBusy} className="destructive" onClick={()=>{setMenuOpen(false);onRemove();}}>Remove <Trash2 size={18} /></button>}{onDismiss && <button disabled={isBusy} className="destructive" onClick={()=>{setMenuOpen(false);onDismiss();}}>Remove <Trash2 size={18} /></button>}</HomeActionDialog>}
   </article>;
 }
 

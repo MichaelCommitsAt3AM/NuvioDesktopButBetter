@@ -323,6 +323,9 @@
         "error"
       ],
       "properties": {
+        "networkCondition": {
+          "enum": ["Unknown", "Checking", "Online", "NoInternet", "ServersUnreachable"]
+        },
         "status": {
           "enum": [
             "loading",
@@ -739,6 +742,7 @@
             "streams.load",
             "playback.start",
             "playback.stop",
+            "playback.restoreFromPip",
             "app.visibility",
             "app.shutdown",
             "catalog.open",
@@ -797,6 +801,7 @@
             "continueWatching.setShowUnairedNextUp",
             "continueWatching.setBlurNextUp",
             "continueWatching.setShowResumePromptOnLaunch",
+            "home.resumePrompt.consume",
             "continueWatching.setSortMode",
             "continueWatching.dismissNextUp",
             "continueWatching.removeDismissedForContent",
@@ -989,7 +994,14 @@
             "streams.badges.rules.setActive",
             "streams.badges.rules.remove",
             "simkl.sync",
-            "playback.hostFullscreenChanged"
+            "playback.hostFullscreenChanged",
+            "mdblist.resume",
+            "mdblist.sync",
+            "simkl.resume",
+            "simkl.cancel",
+            "trackingSettings.refreshProgress",
+            "playbackSettings.setAutoSkipType",
+            "playbackSettings.saveSkipCredential"
           ]
         },
         "params": {

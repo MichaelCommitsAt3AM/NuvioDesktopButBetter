@@ -63,4 +63,23 @@ class PreparedPlaybackHostTest {
         }
         assertEquals(1, discarded)
     }
+
+    @Test fun cancellationWhileWaitingForPresentationDisposesTheAttachedHost() = runBlocking {
+        val attached = CompletableDeferred<Unit>()
+        var discarded = 0
+        val start = async {
+            withPreparedPlaybackHost(Dispatchers.Default,
+                prepare = { Any() },
+                resolve = { "playable URL" },
+                attach = { _, _ ->
+                    attached.complete(Unit)
+                    CompletableDeferred<Unit>().await()
+                },
+                discard = { discarded++ },
+            )
+        }
+        withTimeout(2_000) { attached.await() }
+        start.cancelAndJoin()
+        assertEquals(1, discarded)
+    }
 }

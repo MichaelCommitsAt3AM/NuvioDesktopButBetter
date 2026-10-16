@@ -21,12 +21,23 @@ if ($backend -ne $staged) {
 }
 Push-Location $uiRoot
 try {
-    & cargo tauri build --config src-tauri/tauri.windows-installer.conf.json --bundles nsis
+    if (-not $env:NUVIO_UPDATER_PUBLIC_KEY) {
+        $publicKeyPath = Join-Path $env:USERPROFILE '.codex\keys\nuvio-desktop-updater\updater.key.pub'
+        if (Test-Path -LiteralPath $publicKeyPath) { $env:NUVIO_UPDATER_PUBLIC_KEY = (Get-Content -LiteralPath $publicKeyPath -Raw).Trim() }
+    }
+    & node (Join-Path $PSScriptRoot 'release-config.mjs') msi
+    if ($LASTEXITCODE -ne 0) { throw 'Release configuration failed.' }
+    # Local packages are for migration testing, not publishing signed updates.
+    $releaseConfigPath = Join-Path $uiRoot 'src-tauri\tauri.release.conf.json'
+    $releaseConfig = Get-Content -LiteralPath $releaseConfigPath -Raw | ConvertFrom-Json
+    $releaseConfig.bundle.createUpdaterArtifacts = $false
+    $releaseConfig | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $releaseConfigPath
+    & node node_modules/@tauri-apps/cli/tauri.js build --config src-tauri/tauri.release.conf.json --bundles msi
     if ($LASTEXITCODE -ne 0) { throw 'Windows installer build failed.' }
-    $installer = Get-ChildItem -LiteralPath 'src-tauri\target\release\bundle\nsis' -Filter '*-setup.exe' |
+    $installer = Get-ChildItem -LiteralPath 'src-tauri\target\release\bundle\msi' -Filter '*.msi' |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $installer) { throw 'No Windows setup executable was produced.' }
-    $destination = Join-Path $repoRoot 'Nuvio-Rewrite-Setup.exe'
+    $destination = Join-Path $repoRoot 'Nuvio-Setup.msi'
     Copy-Item -LiteralPath $installer.FullName -Destination $destination -Force
     Write-Host "Windows setup: $destination"
 } finally { Pop-Location }

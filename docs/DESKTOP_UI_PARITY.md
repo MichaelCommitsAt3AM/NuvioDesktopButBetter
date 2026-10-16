@@ -23,7 +23,7 @@ Status: **pending** = not implemented; **partial** = real subset, remaining orig
 | Shuffle | Watched inclusion, reroll, manual play, resume, launch context | partial |
 | Saved Library | Sources/lists/manage dialogs, horizontal/vertical, type/section/sort filters, poster actions/fallback/errors | partial |
 | Cloud Library | Provider selection, browsing/search/refresh, file choice, playback | partial |
-| Collections | Manage/create/edit/delete/reorder, folder details, catalog/source pickers, artwork/layout/visibility and cancellation | partial |
+| Collections | Management screen matches Kotlin count/create/cards, empty state, clipboard export, validated import, confirmed delete and pointer/keyboard reorder. Editor, folder details and source pickers remain available. | partial (editor/source-picker visual parity remains) |
 | Streams | Source filtering, partial/reload/errors, rich badges/artwork, data saver, matching/order, autoplay/regex/scope/cache/downloads | partial |
 | Native player | Existing native/web controls, full source/episode/subtitle/audio panels, keyboard/touch, next/skip, progress/PiP/fullscreen | partial |
 | P2P | Consent, torrent launch/context, stats/cache/options/teardown | partial |
@@ -36,9 +36,9 @@ Status: **pending** = not implemented; **partial** = real subset, remaining orig
 | Addons | Install/check/configure/toggle/refresh/reorder/remove/status feedback | partial |
 | Plugins | All enabled desktop install/config/status/actions/order | partial |
 | Integrations | TMDB/MDBList/debrid provider auth/API keys/preferences/connection state/resolver/cloud selection | partial |
-| Tracking | Currently enabled providers/sources/sync/fallback/anime preferences; Trakt auth stays disabled in this fork | partial |
+| Tracking | Kotlin provider cards, inline auth/approval/cancel/copy, sync/confirmation/help, source pickers/fallback/refresh retry and anime preferences; Trakt auth stays disabled. Live account and visual acceptance pending. | built |
 | Advanced/About | Remember profile/renderer/diagnostics/cache, membership/credits/privacy/licenses | partial |
-| Updates/delivery | Channel/check/install/relaunch, bundled Java/native resources, CI installers/upgrade compatibility | pending |
+| Updates/delivery | Stable signed feed, progress/download/verified install/relaunch, bundled Java/native resources and rewrite CI for MSI/DMG/AppImage/DEB/RPM/Flatpak. Real installed-app upgrade/rollback and hosted builds still need acceptance. | built |
 | OS integration | Deep links/single instance/foreground/native dialogs/icons/multi-monitor/window geometry | partial |
 | Motion audit | Token timings, sidebar/jelly/profile/hero/poster/shared transitions/shimmer/reorder/removal/player panels/reduced motion | pending |
 
@@ -83,9 +83,15 @@ Remaining priorities:
 2. Replace broad feature snapshot projections with canonical strict contracts and audit cancellation/profile boundaries of asynchronous feature dialogs.
 3. Reproduce original transitions, embedded trailers on supported platforms, full poster hover behavior, and React translations.
 4. Complete native player ownership/state synchronization and desktop deep-link/window persistence behavior.
-5. Prepare bundled Java/native delivery, CI installers and Tauri-compatible update install/relaunch. Do not invoke the Compose installer from the preview.
+5. Validate the implemented bundled Java/native delivery, rewrite CI packages and signed install/relaunch using actual Kotlin-to-rewrite and rewrite-to-rewrite updates. Flatpak keeps external update ownership.
 6. User-led screen, touch, keyboard, playback and persistence acceptance across window sizes and platforms.
 
 Desktop handoff: `cargo build --features custom-protocol` passed. The debug preview was launched. The initial webview stayed on its startup message; a reload during asset diagnostics displayed the saved-session home screen with hero artwork and Continue Watching cards. This startup/reload behavior still needs investigation before release. Diagnostics were closed and Nuvio was left foreground for the user. No sign-in, content mutation or playback acceptance journey was performed.
 
 Visual-feedback build handoff: TypeScript/Vite and Tauri custom-protocol debug builds passed again. Startup observation caught and corrected the Settings profile-anchor positioning conflict and the content scroll viewport height. The startup stall remains intermittent; reload was needed on a subsequent launch. Only startup rendering was observed; profile switching, search results and arrow interaction acceptance are left to the user.
+
+Home Layout settings now follow HomescreenSettingsPage.kt and SettingsComponents.kt: native copy/spacing, addon subtitles, expandable hero selection with its repository limit, scrollable catalog rows, display-name edits, pinned lock feedback, and drag/keyboard reordering through Kotlin. The bridge exposes pin and manifest status and publishes appearance changes on addon updates. Combined verification passed the frontend build, all 123 frontend tests and 13 Kotlin Home catalog tests. The desktop bridge JAR builds. The Android-host Home catalog repository tests are blocked by existing shared-UI desktop pointer API compilation errors. Visual verification is left to the user.
+
+Follow-up: Home catalogs and Detail Page Sections share `ReorderableSettingsRow`, including native Menu handles, switch alignment, inset separators, and scroll bounds. Tab groups render below section summaries. Addon/collection observation now rebuilds catalog preferences and Home when manifests or cloud collections change, rather than relying on an explicit RPC. The frontend no longer repopulates an empty selected hero from unrelated shelves. Exact visual comparison to the user's Kotlin screenshot remains pending because the screenshot was not attached to this chat.
+
+Playback follow-up: stepped sliders expose all selectable positions with tick dots and a vertical handle based on the supplied reference. Skip Segments follows `PlaybackSettingsPage.kt` and `AutoSkipSegmentSelectionDialog.kt`, including separate detection/automatic selection, native option descriptions, conditional credential dialogs, and the IntroDB verification/save/clear flow. Native playback continues to use the shared Kotlin player/settings runtime. Verification: 135 frontend tests, 11 selected Kotlin catalog/lifecycle/skip settings tests, TypeScript/Vite build, and desktop shell build pass. IntroDB verification tests inject results instead of contacting the real service. Screenshot-to-app visual comparison for Home/Detail Page remains unverified.

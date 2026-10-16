@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, Check, ChevronDown, ChevronRight, Clapperboard, Film, Gauge, GripVertical, HardDrive, LoaderCircle, Network, RotateCcw, Subtitles, Volume2 } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, Film, Gauge, HardDrive, LoaderCircle, Network, RotateCcw, Subtitles, Volume2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { Dialog } from '../../components/Dialog';
 import { InlineError } from '../../components/Status';
+import { ReorderableSettingsRow } from './ReorderableSettingsRow';
+import { usePointerSettingsReorder } from './usePointerSettingsReorder';
+import { SteppedSlider } from './SteppedSlider';
+import { SkipSegmentSettings } from './SkipSegmentSettings';
 
 type PlaybackSnapshot = {
   showLoadingOverlay: boolean; showPlayerLoadingStatus: boolean; pauseOverlayEnabled: boolean; showParentalGuide: boolean;
@@ -13,10 +17,11 @@ type PlaybackSnapshot = {
   subtitleStyle: { textColor: string; backgroundColor: string; outlineColor: string; outlineEnabled: boolean; outlineWidth: number; bold: boolean; fontSizeSp: number; bottomOffset: number; stripSdh: boolean; useForcedSubtitles: boolean; showOnlyPreferredLanguages: boolean };
   streamReuseLastLinkEnabled: boolean; streamReuseLastLinkCacheHours: number; streamAutoPlayMode: 'MANUAL' | 'FIRST_STREAM' | 'REGEX_MATCH'; streamAutoPlaySource: 'ALL_SOURCES' | 'INSTALLED_ADDONS_ONLY' | 'ENABLED_PLUGINS_ONLY'; streamAutoPlaySelectedAddons: string[]; streamAutoPlaySelectedPlugins: string[]; streamAutoPlayRegex: string; streamAutoPlayTimeoutSeconds: number;
   skipIntroEnabled: boolean; autoSkipSegmentTypes: string[]; animeSkipEnabled: boolean; animeSkipClientIdConfigured: boolean; introDbApiKeyConfigured: boolean; introSubmitEnabled: boolean;
+  animeSkipClientId: string; introDbApiKey: string;
   streamAutoPlayNextEpisodeEnabled: boolean; streamAutoPlayNextEpisodeFallbackEnabled: boolean; streamAutoPlayPreferBingeGroup: boolean; streamAutoPlayReuseBingeGroup: boolean; nextEpisodeThresholdMode: 'PERCENTAGE' | 'MINUTES_BEFORE_END'; nextEpisodeThresholdPercent: number; nextEpisodeThresholdMinutesBeforeEnd: number; preloadNextEpisodeSources: boolean; useLibass: boolean; nvidiaRtxSuperResolutionEnabled: boolean;
   nvidiaRtxSuperResolutionSupported: boolean;
 };
-type MetadataSnapshot = { items: Array<{ key: string; title: string; description: string; enabled: boolean; order: number; tabGroup: number | null; canBeTabbed: boolean }>; backgroundMode: 'normal' | 'cinematic' | 'dominant_color'; heroTrailerPlayback: boolean; tabLayout: boolean; episodeCardStyle: 'horizontal' | 'list'; blurUnwatchedEpisodes: boolean; posterTransitionEnabled: boolean; showOverallRatings: boolean; episodeRatingsVisibility: 'show_all' | 'hide_episodes' | 'hide_unwatched_episodes'; episodeShuffleAvailable: boolean };
+type MetadataSnapshot = { items: Array<{ key: string; title: string; description: string; enabled: boolean; order: number; tabGroup: number | null; canBeTabbed: boolean }>; backgroundMode: 'normal' | 'cinematic' | 'dominant_color'; heroTrailerPlayback: boolean; heroTrailerPlaybackSupported?: boolean; tabLayout: boolean; episodeCardStyle: 'horizontal' | 'list'; blurUnwatchedEpisodes: boolean; posterTransitionEnabled: boolean; showOverallRatings: boolean; episodeRatingsVisibility: 'show_all' | 'hide_episodes' | 'hide_unwatched_episodes'; episodeShuffleAvailable: boolean };
 type P2PSnapshot = { available: boolean; enabled: boolean; enableUpload: boolean; hideTorrentStats: boolean; torrentProfile: 'SOFT' | 'BALANCED' | 'FAST'; cacheSize: 'NONE' | 'GB_2' | 'GB_5' | 'GB_10'; cache: { usedBytes: number; protectedBytes: number; isClearing: boolean; hasMeasurement: boolean }; stream: { state: 'idle' | 'connecting' | 'streaming' | 'error'; downloadSpeed: number | string | null; uploadSpeed: number | string | null; peers: number; seeds: number; bufferProgress: number; totalProgress: number; errorMessage: string | null } };
 type PluginSourceSnapshot = { scrapers: Array<{ id: string; name: string; enabled: boolean }> };
 
@@ -58,12 +63,7 @@ function Select({ title, value, values, labels, onChange, description }: { title
     {open && <Dialog label={title} onClose={() => setOpen(false)} className="settings-choice-dialog"><h2>{title}</h2><div className="settings-dialog-options">{values.map((item, index) => <button type="button" className="settings-dialog-option" key={item} onClick={() => { onChange(item); setOpen(false); }}><span>{labels[index] ?? item}</span><span className={`settings-radio ${item === value ? 'selected' : ''}`} aria-hidden="true" /></button>)}</div><div className="dialog-actions"><button type="button" className="button secondary" onClick={() => setOpen(false)}>Done</button></div></Dialog>}
   </>;
 }
-function NumberField({ title, value, min, max, step = 1, suffix, onSave }: { title: string; value: number; min: number; max: number; step?: number; suffix?: string; onSave: (value: number) => void }) {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-  const commit = () => { const next = Math.max(min, Math.min(max, Math.round((draft - min) / step) * step + min)); if (next !== value) onSave(next); };
-  return <div className="settings-slider-row"><div><strong>{title}</strong><span>{draft}{suffix ? ` ${suffix}` : ''}</span></div><input aria-label={title} type="range" min={min} max={max} step={step} value={draft} onChange={(event) => setDraft(Number(event.target.value))} onPointerUp={commit} onKeyUp={commit} /></div>;
-}
+const NumberField = SteppedSlider;
 function LanguageField({ title, value, choices, onSave }: { title: string; value: string | null; choices: Array<string | null>; onSave: (value: string | null) => void }) {
   const [open, setOpen] = useState(false);
   const displayName = (code: string) => {
@@ -135,14 +135,7 @@ export function PlaybackSettingsPage() {
     <SettingCard icon={Gauge} title="Decoder">
       <Select title="Decoder Priority" value={String(s.decoderPriority)} values={['0', '1', '2']} labels={['Device decoders only', 'Prefer device decoders', 'Prefer app decoders (FFmpeg)']} onChange={(value) => set('decoderPriority', Number(value))} />
     </SettingCard>
-    <SettingCard icon={Clapperboard} title="Skip segments">
-      <Toggle title="Auto-skip segments" checked={s.skipIntroEnabled} onChange={(value) => set('skipIntroEnabled', value)} />
-      {s.skipIntroEnabled && <div className="settings-chip-group">{[['INTRO', 'Intros'], ['RECAP', 'Recaps'], ['OUTRO', 'Outros'], ['MOVIE_CREDITS', 'Movie credits']].map(([key, label]) => <label key={key} className="settings-choice-chip"><input type="checkbox" checked={s.autoSkipSegmentTypes.includes(key)} onChange={(event) => set('autoSkipSegmentTypes', event.target.checked ? [...s.autoSkipSegmentTypes, key] : s.autoSkipSegmentTypes.filter((item) => item !== key))} />{label}</label>)}</div>}
-      <Toggle title="Anime Skip" description="Also search AnimeSkip for skip timestamps (requires client ID)." checked={s.animeSkipEnabled} onChange={(value) => set('animeSkipEnabled', value)} />
-      {s.animeSkipEnabled && <SecureTextSetting title="Anime Skip client ID" configured={s.animeSkipClientIdConfigured} onSave={(value) => set('animeSkipClientId', value)} />}
-      <Toggle title="Enable Intro Submission" description="Show a button to submit intro/outro timestamps to the community database." checked={s.introSubmitEnabled} onChange={(value) => set('introSubmitEnabled', value)} />
-      {s.introSubmitEnabled && <SecureTextSetting title="IntroDB API key" configured={s.introDbApiKeyConfigured} onSave={(value) => set('introDbApiKey', value)} />}
-    </SettingCard>
+    <SkipSegmentSettings preferences={s} run={run} />
     <SettingCard icon={ChevronRight} title="Next episode">
       <Toggle title="Auto-play Next Episode" description="Start next episode automatically when prompt appears." checked={s.streamAutoPlayNextEpisodeEnabled} onChange={(value) => set('streamAutoPlayNextEpisodeEnabled', value)} />
       {s.streamAutoPlayMode === 'MANUAL' && s.streamAutoPlayNextEpisodeEnabled && <Toggle title="Fallback when binge group fails" description="Auto-select first available stream if binge group is not found. When off, shows the stream picker instead." checked={s.streamAutoPlayNextEpisodeFallbackEnabled} onChange={(value) => set('streamAutoPlayNextEpisodeFallbackEnabled', value)} />}
@@ -167,27 +160,35 @@ function TextSetting({ title, value, placeholder, onSave }: { title: string; val
   useEffect(() => setDraft(value), [value]);
   return <div className="settings-text-row"><label>{title}<input value={draft} placeholder={placeholder} onChange={(event) => setDraft(event.target.value)} onBlur={() => { if (draft !== value) onSave(draft); }} /></label></div>;
 }
-function SecureTextSetting({ title, configured, onSave }: { title: string; configured: boolean; onSave: (value: string) => void }) {
-  const [draft, setDraft] = useState('');
-  return <div className="settings-text-row"><label>{title}<input type="password" value={draft} placeholder={configured ? 'Configured; leave blank to keep current' : 'Enter secret'} autoComplete="new-password" onChange={(event) => setDraft(event.target.value)} onBlur={() => { if (draft.trim()) { onSave(draft.trim()); setDraft(''); } }} /></label><small>{configured ? 'A credential is saved. The value is never displayed.' : 'Not configured.'}</small></div>;
-}
-
 export function MetadataSettingsPage() {
   const { snapshot: s, loading, error, refresh, run } = useSettingsDomain<MetadataSnapshot>('metadataSettings');
   const [draggedSection, setDraggedSection] = useState<string | null>(null);
+  const [dropSection, setDropSection] = useState<string | null>(null);
+  const [sectionBusy, setSectionBusy] = useState(false);
+  const reorder = usePointerSettingsReorder([...(s?.items ?? [])].sort((a, b) => a.order - b.order), async (fromSection, toSection) => {
+    setSectionBusy(true);
+    try { await run('metadataSettings.move', { fromSection, toSection }); }
+    finally { setSectionBusy(false); }
+  }, sectionBusy);
   const set = (key: string, value: unknown) => void run('metadataSettings.set', { key, value }).catch(() => {});
   if (loading && !s) return <LoadingPage title="Details page" back="/settings" />;
   if (!s) return <SubPage title="Details page" back="/settings"><FeatureNotice error={error} retry={() => { void refresh(); }} /></SubPage>;
-  const items = [...s.items].sort((a, b) => a.order - b.order);
+  const items = reorder.items;
   const groupCounts = items.reduce<Record<number, number>>((counts, item) => { if (item.tabGroup !== null) counts[item.tabGroup] = (counts[item.tabGroup] ?? 0) + 1; return counts; }, {});
   const backgroundModes = [
     { value: 'normal', label: 'Normal', description: 'Use the standard app background.' },
     { value: 'cinematic', label: 'Cinematic', description: 'Show a soft blurred backdrop behind the page.' },
     { value: 'dominant_color', label: 'Dominant Color', description: 'Match the page background to the main color from the backdrop.' },
   ];
+  const saveSection = async (method: string, params: Record<string, unknown> = {}) => {
+    if (sectionBusy) return;
+    setSectionBusy(true);
+    try { await run(method, params); } catch { /* The domain reports save errors. */ }
+    finally { setSectionBusy(false); }
+  };
   const moveSection = (fromSection: string, toSection?: string) => {
-    if (toSection && fromSection !== toSection) void run('metadataSettings.move', { fromSection, toSection }).catch(() => {});
-    setDraggedSection(null);
+    if (fromSection && toSection && fromSection !== toSection) void saveSection('metadataSettings.move', { fromSection, toSection });
+    setDraggedSection(null); setDropSection(null);
   };
   return <SubPage title="Details page" back="/settings">{error && <FeatureNotice error={error} retry={() => { void refresh(); }} />}
     <SettingCard icon={Film} title="Appearance">
@@ -198,7 +199,7 @@ export function MetadataSettingsPage() {
         </div>
         <small className="metadata-settings-hint">{backgroundModes.find((mode) => mode.value === s.backgroundMode)?.description}</small>
       </div>
-      <Toggle title="Hero trailer playback" description="Play trailer previews in the metadata hero when a trailer is available." checked={s.heroTrailerPlayback} onChange={(value) => set('heroTrailerPlayback', value)} />
+      <Toggle title="Hero trailer playback" description={s.heroTrailerPlaybackSupported ? 'Play trailer previews in the metadata hero when a trailer is available.' : 'Hero trailer previews are not available in the desktop rewrite yet. Open trailers from the Trailers section on title details.'} disabled={!s.heroTrailerPlaybackSupported} checked={!!s.heroTrailerPlaybackSupported && s.heroTrailerPlayback} onChange={(value) => { if (s.heroTrailerPlaybackSupported) set('heroTrailerPlayback', value); }} />
       <Toggle title="Tab layout" description="Group sections into tabs like the TV app. Assign up to 3 sections per tab group." checked={s.tabLayout} onChange={(value) => set('tabLayout', value)} />
       <Toggle title="Show overall ratings" description={s.showOverallRatings ? 'Standard and TMDB ratings are shown.' : 'Standard and TMDB ratings are Hidden. MDBList provider settings take priority on detail pages.'} checked={s.showOverallRatings} onChange={(value) => set('showOverallRatings', value)} />
       <div className="metadata-settings-chip-row">
@@ -229,22 +230,21 @@ export function MetadataSettingsPage() {
       <Toggle title="Blur unwatched episodes" description="Blur episode thumbnails until watched to avoid spoilers." checked={s.blurUnwatchedEpisodes} onChange={(value) => set('blurUnwatchedEpisodes', value)} />
       <Toggle title="Random episode" description="Shuffle episodes from any series. Turning this off pauses shuffle." checked={s.episodeShuffleAvailable} onChange={(value) => set('episodeShuffleAvailable', value)} />
     </SettingCard>
-    <SettingCard icon={ChevronDown} title="Sections" action={<button className="metadata-reset-button" type="button" onClick={() => void run('metadataSettings.reset').catch(() => {})}>Reset to Default</button>}>
-      <div className="metadata-sections-list" role="list">
-        {items.map((item) => <div
-          className={`metadata-item-row ${draggedSection === item.key ? 'dragging' : ''}`}
-          key={item.key}
-          role="listitem"
-          onDragOver={(event) => { if (draggedSection) event.preventDefault(); }}
-          onDrop={(event) => { event.preventDefault(); moveSection(draggedSection ?? '', item.key); }}
-        >
-          <span className="metadata-item-copy"><strong>{item.title}</strong><span>{item.description}</span><small>{item.enabled ? 'Visible' : 'Hidden'}{s.tabLayout && item.tabGroup !== null ? ` · Tab Group ${item.tabGroup}` : ''}</small></span>
-          {s.tabLayout && item.canBeTabbed && item.enabled && <div className="metadata-tab-groups"><button type="button" className={`metadata-chip ${item.tabGroup === null ? 'selected' : ''}`} aria-pressed={item.tabGroup === null} onClick={() => void run('metadataSettings.setTabGroup', { section: item.key, groupId: null }).catch(() => {})}>None</button>{[1, 2, 3].map((group) => { const selected = item.tabGroup === group; const full = (groupCounts[group] ?? 0) >= 3 && !selected; return <button type="button" key={group} className={`metadata-chip ${selected ? 'selected' : ''}`} disabled={full} aria-pressed={selected} onClick={() => void run('metadataSettings.setTabGroup', { section: item.key, groupId: group }).catch(() => {})}>Group {group}</button>; })}</div>}
-          <label className="switch" aria-label={`Show ${item.title}`}><input type="checkbox" checked={item.enabled} onChange={(event) => void run('metadataSettings.setSectionEnabled', { section: item.key, enabled: event.target.checked }).catch(() => {})} /><span /></label>
-          <button type="button" className="metadata-drag-handle" draggable aria-label={`Reorder ${item.title}`} title="Drag to reorder" onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', item.key); setDraggedSection(item.key); }} onDragEnd={() => setDraggedSection(null)} onKeyDown={(event) => { if (event.key === 'ArrowUp') { event.preventDefault(); moveSection(item.key, items[items.findIndex((candidate) => candidate.key === item.key) - 1]?.key); } else if (event.key === 'ArrowDown') { event.preventDefault(); moveSection(item.key, items[items.findIndex((candidate) => candidate.key === item.key) + 1]?.key); } }}><GripVertical size={22} /></button>
-        </div>)}
-      </div>
-    </SettingCard>
+    <h2 className="settings-group-title home-catalog-section-title detail-sections-title">Sections<button className="metadata-reset-button" type="button" disabled={sectionBusy} onClick={() => void saveSection('metadataSettings.reset')}>Reset</button></h2>
+    <section className="settings-reorder-list detail-sections-list" aria-label="Sections">
+      {items.map((item, index) => <ReorderableSettingsRow key={item.key} rowKey={item.key} title={item.title} description={item.description} status={<>{item.enabled ? 'Visible' : 'Hidden'}{s.tabLayout && item.tabGroup !== null && <> • <span className="settings-row-group">Tab Group {item.tabGroup}</span></>}</>} enabled={item.enabled} busy={sectionBusy || reorder.saving} pointer={reorder.pointer(item)} align="center" onToggle={enabled => void saveSection('metadataSettings.setSectionEnabled', { section: item.key, enabled })} drag={{
+        dragging: draggedSection === item.key, dropTarget: dropSection === item.key,
+        onDragStart: () => setDraggedSection(item.key), onDragEnd: () => { setDraggedSection(null); setDropSection(null); },
+        onDragOver: () => { if (draggedSection && draggedSection !== item.key) setDropSection(item.key); },
+        onDrop: () => { if (draggedSection) moveSection(draggedSection, item.key); },
+        onKeyboardMove: direction => moveSection(item.key, items[index + direction]?.key),
+      }}>
+        {s.tabLayout && item.canBeTabbed && item.enabled && <div className="metadata-tab-groups"><button type="button" disabled={sectionBusy} className={`metadata-chip ${item.tabGroup === null ? 'selected' : ''}`} aria-pressed={item.tabGroup === null} onClick={() => void saveSection('metadataSettings.setTabGroup', { section: item.key, groupId: null })}>None</button>{[1, 2, 3].map(group => {
+          const selected = item.tabGroup === group; const full = (groupCounts[group] ?? 0) >= 3 && !selected;
+          return <button type="button" key={group} className={`metadata-chip ${selected ? 'selected' : ''}`} disabled={sectionBusy || full} aria-pressed={selected} onClick={() => void saveSection('metadataSettings.setTabGroup', { section: item.key, groupId: group })}>Group {group}</button>;
+        })}</div>}
+      </ReorderableSettingsRow>)}
+    </section>
   </SubPage>;
 }
 

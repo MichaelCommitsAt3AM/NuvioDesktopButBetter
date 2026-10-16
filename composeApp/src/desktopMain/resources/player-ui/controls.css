@@ -1965,7 +1965,7 @@ button:disabled {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  transform: translateY(14px);
+  transform: translateY(calc(100% + 124px));
 }
 
 .player-rail-modal.modal-visible .track-panel {
@@ -1973,7 +1973,8 @@ button:disabled {
 }
 
 .player-rail-modal.modal-closing .track-panel {
-  transform: translateY(10px);
+  transform: translateY(calc(100% + 124px));
+  transition-timing-function: cubic-bezier(.4, 0, 1, 1);
 }
 
 .audio-rail-panel {

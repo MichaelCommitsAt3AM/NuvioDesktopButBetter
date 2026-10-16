@@ -1,0 +1,4 @@
+.launch-resume-dialog .dialog-surface { max-width: 420px; text-align: center; }
+.launch-resume-poster { width: 110px; height: 165px; object-fit: cover; border-radius: 12px; }
+.launch-resume-dialog progress { width: 100%; accent-color: var(--app-accent); margin: 12px 0; }
+.launch-resume-actions { display: flex; justify-content: center; gap: 12px; }

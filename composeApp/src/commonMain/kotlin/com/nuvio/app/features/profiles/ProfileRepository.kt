@@ -154,6 +154,9 @@ object ProfileRepository {
         applyStoredPayload(stored)
     }
 
+    internal fun hasLoadedProfilesFor(userId: String): Boolean =
+        loadedCacheForUserId == userId && _state.value.isLoaded
+
     fun clearInMemory() {
         loadedCacheForUserId = null
         activeProfileIndex = 1

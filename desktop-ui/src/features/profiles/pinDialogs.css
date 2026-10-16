@@ -5,7 +5,12 @@
 .pin-keyboard-input { position: absolute; width: 1px; height: 1px; opacity: 0; padding: 0; border: 0; }
 .pin-dots { display: flex; gap: 16px; margin-bottom: 28px; }
 .pin-dots span { width: 16px; height: 16px; border: 2px solid #92969b; border-radius: 50%; }
-.pin-dots .filled { border-color: #f4f4f4; background: #f4f4f4; }
+/* Approximates Kotlin's MediumBouncy/High-stiffness dot spring (snap to 1.5,
+   bouncy settle). CSS cannot run a true spring; the overshoot curve reads the
+   same without changing verification or lockout behavior. */
+.pin-dots .filled { border-color: #f4f4f4; background: #f4f4f4; animation: pin-dot-pop 320ms cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes pin-dot-pop { 0% { transform: scale(1.5); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .pin-dots .filled { animation: none; } }
 .pin-entry.has-error .pin-dots span { border-color: #ed859d; }
 .pin-entry .form-error { margin: -12px 0 20px; }
 .pin-verifying { position: absolute; top: 101px; font-size: 12px; color: #a2a4a8; }

@@ -8,6 +8,9 @@ import com.nuvio.app.features.details.MetaPerson
 import com.nuvio.app.features.details.MetaTrailer
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.details.MetaDetailsRepository
+import com.nuvio.app.features.details.selectHeroTrailer
+import com.nuvio.app.features.details.youtubePlaybackUrl
+import com.nuvio.app.features.trailer.TrailerPlaybackResolver
 import com.nuvio.app.features.details.seriesPrimaryAction
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesRepository
@@ -49,6 +52,22 @@ object DetailsExtrasBridge {
         "details.shuffle.snapshot", "details.shuffle.pick", "details.shuffle.save" -> shuffleSnapshot(method, params)
         "details.extras" -> metaDetailsJson(requireMeta(params.str("type"), params.str("id")))
         "details.comments.page" -> commentsPage(params)
+        "trailers.resolveHover" -> {
+            // Same extraction path as Kotlin hover previews: cached meta,
+            // hero trailer selection, then platform YouTube resolution. No
+            // scraping here; failures resolve to an empty source for the
+            // artwork fallback.
+            val meta = MetaDetailsRepository.peek(params.str("type"), params.str("id"))
+                ?: MetaDetailsRepository.fetch(params.str("type"), params.str("id"))
+            val trailer = meta?.let { selectHeroTrailer(it.trailers) }
+            val source = try {
+                trailer?.let { TrailerPlaybackResolver.resolveFromYouTubeUrl(it.youtubePlaybackUrl()) }
+            } catch (_: Throwable) { null }
+            buildJsonObject {
+                putNullable("videoUrl", source?.videoUrl)
+                putNullable("audioUrl", source?.audioUrl)
+            }
+        }
         "details.person" -> {
             val personId = params.int("personId")
             val detail = TmdbMetadataService.fetchPersonDetail(

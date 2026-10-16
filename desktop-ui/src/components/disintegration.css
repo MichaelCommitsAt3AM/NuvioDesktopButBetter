@@ -1,0 +1,53 @@
+/* Destructive disintegration for Continue Watching / Library removals.
+   The card holds its layout space while ash particles burst outward
+   (transform/opacity only, no canvas reads so artwork CORS cannot fail),
+   then unmounts and neighbors settle via placement FLIP. */
+.is-disintegrating {
+  position: relative;
+  pointer-events: none;
+}
+.is-disintegrating > :not(.disintegration-burst):first-of-type,
+.home-cw-card.is-disintegrating > .home-cw-art {
+  animation: disintegrate-card 550ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+.disintegration-burst {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+.disintegration-burst i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--app-accent, #fff);
+  opacity: 0;
+  animation: disintegrate-ash 550ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+.disintegration-burst i:nth-child(1) { --ash-dx: -42px; --ash-dy: -30px; }
+.disintegration-burst i:nth-child(2) { --ash-dx: 38px; --ash-dy: -42px; }
+.disintegration-burst i:nth-child(3) { --ash-dx: -30px; --ash-dy: 34px; animation-delay: 30ms; }
+.disintegration-burst i:nth-child(4) { --ash-dx: 44px; --ash-dy: 22px; animation-delay: 30ms; }
+.disintegration-burst i:nth-child(5) { --ash-dx: 0px; --ash-dy: -52px; animation-delay: 60ms; }
+.disintegration-burst i:nth-child(6) { --ash-dx: -52px; --ash-dy: 4px; animation-delay: 60ms; }
+.disintegration-burst i:nth-child(7) { --ash-dx: 24px; --ash-dy: -20px; animation-delay: 90ms; }
+.disintegration-burst i:nth-child(8) { --ash-dx: -18px; --ash-dy: 46px; animation-delay: 90ms; }
+.disintegration-burst i:nth-child(9) { --ash-dx: 52px; --ash-dy: -8px; animation-delay: 120ms; }
+.disintegration-burst i:nth-child(10) { --ash-dx: -8px; --ash-dy: -46px; animation-delay: 120ms; }
+@keyframes disintegrate-card {
+  0% { opacity: 1; transform: scale(1); filter: none; }
+  35% { opacity: 0.85; transform: scale(0.96); filter: blur(1px); }
+  100% { opacity: 0; transform: scale(0.82); filter: blur(3px); }
+}
+@keyframes disintegrate-ash {
+  0% { opacity: 0.9; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--ash-dx), var(--ash-dy)) scale(0.2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .is-disintegrating > :not(.disintegration-burst):first-of-type,
+  .home-cw-card.is-disintegrating > .home-cw-art { animation-duration: 160ms; }
+  .disintegration-burst { display: none; }
+}

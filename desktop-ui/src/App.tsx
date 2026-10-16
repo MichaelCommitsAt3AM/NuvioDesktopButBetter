@@ -10,6 +10,8 @@ import { LaunchResumePrompt } from './features/home/LaunchResumePrompt';
 import { SearchPage } from './features/search/SearchPage';
 import { LibraryPage } from './features/library/LibraryPage';
 import { DetailsPage } from './features/details/DetailsPage';
+import { PersonPage } from './features/details/PersonPage';
+import { EntityPage } from './features/details/EntityPage';
 import { StreamsPage } from './features/streams/StreamsPage';
 import { PlaybackSurfacePage } from './features/player/PlaybackSurfacePage';
 import { ProfilesPage } from './features/profiles/ProfilesPage';
@@ -27,14 +29,21 @@ import { ConnectionNotice, InlineError } from './components/Status';
 import './features/features.css';
 import { LiquidNavigation } from './components/navigation/LiquidNavigation';
 import { KotlinNavigationIcon } from './components/navigation/KotlinNavigationIcon';
+import { sidebarExpanded } from './components/navigation/sidebarState';
+import './components/navigation/sidebarAdaptive.css';
 import { RewriteWelcome, useRewriteWelcome } from './features/welcome/RewriteWelcome';
+import { resolveThemeEntry, themeCssVars } from './theme/palette';
+import { useThemeRoot } from './theme/useThemeRoot';
+import { mainScroller, shouldResetMainScroll } from './navigation/scrollStore';
+import { useLocale } from './i18n/strings';
+import { useFullscreenEscape } from './components/useFullscreenEscape';
 
 const navItems = [
-  { to: '/', label: 'Home', Icon: Home },
-  { to: '/search', label: 'Search', Icon: SearchIcon },
-  { to: '/library', label: 'Library', Icon: LibraryBig },
-  { to: '/settings', label: 'Settings', Icon: SettingsIcon },
-];
+  { to: '/', key: 'compose_nav_home', Icon: Home },
+  { to: '/search', key: 'compose_nav_search', Icon: SearchIcon },
+  { to: '/library', key: 'compose_nav_library', Icon: LibraryBig },
+  { to: '/settings', key: 'compose_nav_settings', Icon: SettingsIcon },
+] as const;
 
 function Shell({ offlineDownloads = false, welcomePending = false }: { offlineDownloads?: boolean; welcomePending?: boolean }) {
   const session = useSelector((current) => current.session);
@@ -55,7 +64,11 @@ function Shell({ offlineDownloads = false, welcomePending = false }: { offlineDo
       : '';
   useEffect(() => { previousPath.current = location.pathname; }, [location.pathname]);
   const [profileOpen, setProfileOpen] = useState(false);
-  const selected = navItems.find((item) => item.to === location.pathname || (item.to !== '/' && location.pathname.startsWith(`${item.to}/`)))?.label;
+  const [focusSearch, setFocusSearch] = useState(false);
+  const [sideHover, setSideHover] = useState(false);
+  const { t } = useLocale();
+  const labelOf = (key: string) => t(key);
+  const selected = navItems.find((item) => item.to === location.pathname || (item.to !== '/' && location.pathname.startsWith(`${item.to}/`)))?.to;
   useEffect(() => { if (!appearance) void refreshFeature('appearance').catch(() => {}); }, [appearance]);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const held = useRef(false);
@@ -67,41 +80,45 @@ function Shell({ offlineDownloads = false, welcomePending = false }: { offlineDo
   useEffect(() => () => clearHold(), []);
   useEffect(() => { setProfileOpen(false); }, [location.pathname]);
   useEffect(() => {
-    // The main scroll container is shared across routes. Home restores its
-    // own saved position; Search restores its Discover history entry. Other routes start at the top instead of
-    // inheriting wherever the previous route left the scroller (which made
-    // Search/Library open partway down and drift further on repeat visits).
-    // Plain scrollTop assignment: instant, and safe where scrollTo is missing.
-    if (location.pathname !== '/' && location.pathname !== '/search') {
-      const main = document.querySelector<HTMLElement>('.main-area');
+    // The main scroll container is shared across routes. Forward navigation
+    // into a list starts at the top instead of inheriting the previous
+    // route's depth; Back/Forward never resets so the returning route can
+    // restore its anchor (Home/Search/Catalog/Library own theirs, other
+    // routes keep the live offset).
+    if (shouldResetMainScroll(location.pathname, navigationType)) {
+      // Plain scrollTop assignment: instant, and safe where scrollTo is missing.
+      const main = mainScroller();
       if (main) main.scrollTop = 0;
     }
-  }, [location.pathname]);
-  const navigation = <>{navItems.map(({ to,label,Icon }) => label === 'Settings' ? <div className="profile-anchor settings-profile-anchor" key={to}>
-    <Link to={to} className={`nav-link ${selected === label ? 'active' : ''}`} aria-current={selected === label ? 'page' : undefined} aria-haspopup="menu" aria-expanded={profileOpen} title="Settings — hold to switch profiles"
+  }, [location.pathname, navigationType]);
+  const navigation = <>{navItems.map(({ to,key,Icon }) => { const label = labelOf(key); return to === '/settings' ? <div className="profile-anchor settings-profile-anchor" key={to}>
+    <Link to={to} className={`nav-link ${selected === to ? 'active' : ''}`} aria-current={selected === to ? 'page' : undefined} aria-haspopup="menu" aria-expanded={profileOpen} title={`${label} — hold to switch profiles`}
       onPointerDown={event => { if (event.button !== 0) return; held.current=false; clearHold(); holdTimer.current=setTimeout(() => { held.current=true; setProfileOpen(true); },500); }}
       onPointerUp={clearHold} onPointerCancel={clearHold} onPointerLeave={clearHold}
       onClick={event => { if (held.current) { event.preventDefault(); held.current=false; } }}
       onContextMenu={event => { event.preventDefault(); clearHold(); setProfileOpen(true); }}
       onKeyDown={event => { if (event.key === 'ArrowDown' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); setProfileOpen(true); } }}>
-      <Avatar profile={selectedProfile} size="sm" /><span>Settings</span>
+      <Avatar profile={selectedProfile} size="sm" /><span>{label}</span>
     </Link>{profileOpen && <ProfileMenu holdGesture={held} onClose={() => setProfileOpen(false)} />}
-  </div> : <Link key={to} to={to} className={`nav-link ${selected === label ? 'active' : ''}`} aria-current={selected === label ? 'page' : undefined} title={label}><Icon size={19} strokeWidth={1.9} /><span>{label}</span></Link>)}</>;
+  </div> : <Link key={to} to={to} className={`nav-link ${selected === to ? 'active' : ''}`} aria-current={selected === to ? 'page' : undefined} title={label}
+    onClick={event => { if (to === '/search' && event.detail > 1 && location.pathname === '/search') event.preventDefault(); }}
+    onDoubleClick={to === '/search' ? event => { event.preventDefault(); setFocusSearch(true); if (location.pathname !== '/search') navigate('/search'); } : undefined}
+  ><Icon size={19} strokeWidth={1.9} /><span>{label}</span></Link>; })}</>;
   const sidebar = appearance?.navigationLayout === 'sidebar';
-  const isDetailsRoute = /^\/details\/[^/]+\/[^/]+$/.test(location.pathname);
+  const isDetailsRoute = /^\/(details\/[^/]+\/[^/]+|person\/[^/]+|entity\/[^/]+\/[^/]+)$/.test(location.pathname);
   const isStreamsRoute = /^\/details\/[^/]+\/[^/]+\/streams\/[^/]+$/.test(location.pathname);
   const isPlaybackRoute = location.pathname === '/playback';
   return <div className={`shell ${sidebar ? 'sidebar-layout' : 'topbar-layout'} ${location.pathname==='/'?'home-layout':''} ${isDetailsRoute?'details-layout':''} ${isStreamsRoute?'streams-layout':''} ${isPlaybackRoute?'playback-layout':''} nav-style-${navBarStyle} ${appearance?.navBarGlowEnabled ? 'nav-glow' : ''}`}>
-    {sidebar ? <aside className="side-nav">
+    {sidebar ? <aside className={`side-nav${sidebarExpanded(navBarStyle, sideHover, profileOpen) ? ' is-expanded' : ''}`} aria-expanded={sidebarExpanded(navBarStyle, sideHover, profileOpen)} onPointerEnter={() => setSideHover(true)} onPointerLeave={() => setSideHover(false)} onFocusCapture={() => setSideHover(true)} onBlurCapture={() => setSideHover(false)}>
       <nav className="side-nav-links" aria-label="Main navigation">{navigation}</nav>
     </aside> : <header className="topbar">
-      <LiquidNavigation labels={navItems.map(item => item.label)} visuals={navItems.map(item => <KotlinNavigationIcon key={item.label} label={item.label} />)} selectedIndex={navItems.findIndex(item => item.label === selected)} style={navBarStyle} heroEnabled={appearance?.home?.heroEnabled !== false} profileOpen={profileOpen} glowEnabled={appearance?.navBarGlowEnabled !== false} routeKey={location.pathname} onDragStart={clearHold} onDragSelect={index => { const item = navItems[index]; if (item) { held.current = false; navigate(item.to); } }}>{navigation}</LiquidNavigation>
+      <LiquidNavigation labels={navItems.map(item => labelOf(item.key))} visuals={navItems.map(item => <KotlinNavigationIcon key={item.key} route={item.to} />)} selectedIndex={navItems.findIndex(item => item.to === selected)} style={navBarStyle} heroEnabled={appearance?.home?.heroEnabled !== false} profileOpen={profileOpen} glowEnabled={appearance?.navBarGlowEnabled !== false} routeKey={location.pathname} onDragStart={clearHold} onDragSelect={index => { const item = navItems[index]; if (item) { held.current = false; navigate(item.to); } }}>{navigation}</LiquidNavigation>
     </header>}
     <main className={`main-area ${routeMotion}`}>
       <CachedHomeRoute profileId={session.activeProfile} />
       <Routes key={location.pathname}>
         <Route path="/" element={null} />
-        <Route path="/search" element={<SearchPage />} />
+        <Route path="/search" element={<SearchPage focusRequested={focusSearch} onFocusHandled={() => setFocusSearch(false)} />} />
         <Route path="/library" element={<LibraryPage />} />
         <Route path="/library/downloads" element={<DownloadsPage />} />
         <Route path="/downloads" element={<Navigate to="/library/downloads" replace />} />
@@ -114,6 +131,8 @@ function Shell({ offlineDownloads = false, welcomePending = false }: { offlineDo
         <Route path="/profiles/:id/edit" element={<ProfileEditorPage />} />
         <Route path="/catalog" element={<CatalogPage />} />
         <Route path="/details/:type/:id" element={<DetailsPage />} />
+        <Route path="/person/:tmdbId" element={<PersonPage />} />
+        <Route path="/entity/:kind/:entityId" element={<EntityPage />} />
         <Route path="/details/:type/:id/streams/:videoId" element={<StreamsPage />} />
         <Route path="/playback" element={<PlaybackSurfacePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -172,12 +191,15 @@ function AppContent() {
   },[state.session.status,launchPicker,offlineDownloads]);
   const appearance = useFeatureSnapshot<{ theme?: string; customThemeColors?: string[]; amoledEnabled?: boolean; cardStyle?: Parameters<typeof posterMetrics>[0] }>('appearance');
   useEffect(() => { void initialize(); }, []);
+  // Saved language drives translated chrome; load it at startup so the first
+  // paint already reflects the profile's locale and document direction.
+  useEffect(() => { void refreshFeature('about').catch(() => {}); }, []);
   const themeId = appearance?.theme ?? state.settings.theme;
-  const theme = state.settings.themes.find((item) => item.id.toLowerCase() === themeId.toLowerCase());
+  const entry = resolveThemeEntry(state.settings.themes, themeId);
   const customColors = appearance?.customThemeColors;
-  const isCustomTheme = themeId.toLowerCase() === 'custom';
   const cardMetrics = posterMetrics(appearance?.cardStyle);
-  const style = { '--movie-card-width': `${cardMetrics.width}px`, '--movie-card-radius': `${cardMetrics.radius}px`, '--movie-card-ratio': cardMetrics.ratio, '--app-bg': appearance?.amoledEnabled ? '#000000' : (isCustomTheme ? customColors?.[0] : theme?.background) ?? customColors?.[0] ?? '#0d0d0d', '--app-accent': (isCustomTheme ? customColors?.[1] : theme?.accent) ?? customColors?.[1] ?? '#f5f5f5', '--app-surface': (isCustomTheme ? customColors?.[2] : theme?.surface) ?? customColors?.[2] ?? '#1a1a1a' } as CSSProperties;
+  const style = { '--movie-card-width': `${cardMetrics.width}px`, '--movie-card-radius': `${cardMetrics.radius}px`, '--movie-card-ratio': cardMetrics.ratio, ...themeCssVars(entry, { amoled: appearance?.amoledEnabled, customColors }) } as CSSProperties;
+  useThemeRoot(style);
   const startupError = state.session.error ?? state.connectionMessage;
   const profileSetupRoute = location.pathname.startsWith('/profiles');
   const explicitPicker=location.pathname==='/profiles/choose';
@@ -206,11 +228,12 @@ function AppContent() {
           ? <ProfileChooser onSelected={() => { setLaunchPicker(false); navigate('/'); }} onBack={explicitPicker && !launchPicker && state.session.activeProfile !== null ? () => navigate(-1) : undefined} />
           : <Shell welcomePending={welcome.pending} />}
     {state.profileTransition && !startupLoading && !offlineDownloads && <ProfileLoadingScreen />}
-    {welcome.pending && state.status === 'ready' && (!startupLoading || offlineDownloads) && <RewriteWelcome onClose={welcome.dismiss} />}
+    {welcome.pending && state.status === 'ready' && !startupLoading && state.session.status !== 'signedOut' && !showPicker && !state.profileTransition && location.pathname === '/' && <RewriteWelcome onClose={welcome.dismiss} />}
   </div>;
 }
 
 export default function AppRoot() {
+  useFullscreenEscape();
   // Screens already render cached data or loading placeholders. Commit the
   // route at input priority so it cannot trail the pointer-driven nav bubble
   // behind background poster mounting and bridge snapshot updates.

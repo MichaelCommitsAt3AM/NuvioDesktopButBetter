@@ -29,7 +29,7 @@ export function BottomSheetPresence({ children, narrowOnly = false, onExitComple
     const timer = window.setTimeout(() => {
       setRetained(null);
       onExitRef.current?.();
-    }, 220);
+    }, 250);
     return () => window.clearTimeout(timer);
   }, [children, retained, animate]);
 

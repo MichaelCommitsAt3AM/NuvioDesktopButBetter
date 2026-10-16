@@ -91,3 +91,26 @@ it('stops polling on dismissal without erasing a pending code that Kotlin can re
   await act(async () => { await vi.advanceTimersByTimeAsync(20000); });
   expect(bridge.call).toHaveBeenCalledTimes(1);
 });
+
+it('allows API-key connection when the Premiumize OAuth client is not configured', async () => {
+  bridge.call.mockRejectedValueOnce({ code: 'DEVICE_AUTH_NOT_CONFIGURED' });
+  await mount();
+  expect(screen.getByRole('alert')).toHaveTextContent('Connect with your API key below.');
+  fireEvent.click(screen.getByRole('button', { name: 'Find my API key' }));
+  expect(bridge.call).toHaveBeenCalledWith('app.openExternal', { url: 'https://www.premiumize.me/account' });
+  fireEvent.change(screen.getByLabelText('Premiumize API key'), { target: { value: ' personal-key ' } });
+  expect(screen.getByLabelText('Premiumize API key')).toHaveValue(' personal-key ');
+  bridge.call.mockResolvedValueOnce({ valid: true });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })); });
+  expect(bridge.call).toHaveBeenCalledWith('debrid.validateKey', { providerId: 'premiumize', apiKey: 'personal-key' });
+  expect(bridge.call).toHaveBeenCalledWith('debrid.set', { providerId: 'premiumize', key: 'providerApiKey', value: 'personal-key' });
+  expect(close).toHaveBeenCalledOnce();
+});
+
+it('keeps the API-key alternative available after a device sign-in network failure', async () => {
+  bridge.call.mockRejectedValueOnce(new Error('Network unavailable'));
+  await mount();
+  expect(screen.getByLabelText('Premiumize API key')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  expect(bridge.call).not.toHaveBeenCalledWith('debrid.set', expect.anything());
+});

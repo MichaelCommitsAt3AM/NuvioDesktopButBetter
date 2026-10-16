@@ -1,5 +1,6 @@
 package com.nuvio.desktop.bridge.features
 
+import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.poster.CustomPosterScreen
 import com.nuvio.app.core.poster.CustomPosterUrlRepository
 import com.nuvio.app.core.ui.AppTheme
@@ -133,6 +134,7 @@ object AppearanceBridge {
         put("theme", ThemeSettingsRepository.selectedTheme.value.name.lowercase())
         put("customThemeColors", JsonArray(ThemeSettingsRepository.customThemeColors.value.colors.map { JsonPrimitive(colorHex(it)) }))
         put("customThemeGradientEnabled", MemberAccessRepository.access.value.tier != null)
+        put("trailerPlaybackMode", AppFeaturePolicy.trailerPlaybackMode.name.lowercase())
         put("amoledEnabled", ThemeSettingsRepository.amoledEnabled.value)
         put("navigationLayout", ThemeSettingsRepository.desktopNavigationLayout.value.name.lowercase())
         put("navBarStyle", ThemeSettingsRepository.navBarStyle.value.key)

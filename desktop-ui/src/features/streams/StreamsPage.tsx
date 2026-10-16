@@ -9,6 +9,8 @@ import { Dialog } from '../../components/Dialog';
 import { notifyDownloadStarted } from '../downloads/DownloadNotifications';
 import type { Addons, Stream } from '../../generated/contract';
 import { createPortal } from 'react-dom';
+import { useMenuNav } from '../../components/useMenuNav';
+import { StreamsBackdrop, StreamsTitle } from './StreamsArtwork';
 import './streams.css';
 
 type Selection = {
@@ -16,7 +18,7 @@ type Selection = {
   downloadFilterMode: string;
   autoPlayStreamId: string | null;
   autoPlay: { enabled: boolean; overlayVisible: boolean; message: string | null };
-  badges: { showFileSize: boolean; showAddonLogo: boolean; placement?: string };
+  badges: { showFileSize: boolean; showAddonLogo: boolean; placement?: string; backgroundMode?: string };
 };
 type PlaybackSettings = { showPlayerLoadingStatus: boolean; streamAutoPlayMode?: string; streamAutoPlayRegex?: string };
 type Presentation = {
@@ -90,6 +92,7 @@ export function StreamsPage() {
   const [notice, setNotice] = useState('');
   const [playbackStarting, setPlaybackStarting] = useState<{ resolvingDebrid: boolean } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ stream: Stream; x: number; y: number } | null>(null);
+  const menuNav = useMenuNav();
   const playback = useSelector(current => current.playback);
   // The details snapshot survives navigation. Only use it for this title;
   // Continue Watching can start playback without loading its details first.
@@ -216,7 +219,7 @@ export function StreamsPage() {
   };
 
   if (playbackStarting || waitingForAutomaticSelection) return <div className="streams-page streams-opening-page">
-    {heroArtwork && <img key={`${type}:${id}:${heroArtwork}`} className="streams-backdrop-image" src={heroArtwork} alt="" />}
+    <StreamsBackdrop url={heroArtwork} />
     <div className="streams-backdrop-shade" />
     <div className="streams-opening-overlay" role="status" aria-live="polite">
       {isResolvingStage || waitingForAutomaticSelection && !playbackStarting
@@ -226,18 +229,18 @@ export function StreamsPage() {
           <button className="streams-opening-back" type="button" aria-label="Close player" onClick={cancelPlayerStart}><X size={21} /></button>
         </nav>}
       <div className={`streams-opening-content${playbackLoadingSettings?.showPlayerLoadingStatus === false ? ' no-status' : ''}`}>
-        {titleLogo ? <img key={`${type}:${id}:${titleLogo}`} className="streams-opening-logo" src={titleLogo} alt="" /> : <h1>{title}</h1>}
+        <StreamsTitle url={titleLogo} title={title} opening />
         {playbackLoadingSettings?.showPlayerLoadingStatus !== false && <p>{playbackStarting ? loadingMessage : 'Finding streams…'}</p>}
       </div>
     </div>
   </div>;
 
-  return <div className="streams-page">
-    {heroArtwork && <img key={`${type}:${id}:${heroArtwork}`} className="streams-backdrop-image" src={heroArtwork} alt="" />}
+  return <div className={`streams-page${(selection?.badges.backgroundMode ?? 'normal').toLowerCase() === 'cinematic' ? ' streams-cinematic' : ''}`}>
+    <StreamsBackdrop url={heroArtwork} />
     <div className="streams-backdrop-shade" />
     <div className="streams-tablet-layout">
       <section className="streams-title-panel" aria-label={title}>
-        {titleLogo ? <img className="streams-title-logo" src={titleLogo} alt={title} /> : <strong className="streams-title-text">{title}</strong>}
+        <StreamsTitle url={titleLogo} title={title} />
         {episodeTitle && <span className="streams-episode-title">{seasonNumber != null ? `S${seasonNumber} ` : ''}{episodeNumber != null ? `E${episodeNumber} · ` : ''}{episodeTitle}</span>}
       </section>
       <section className="streams-glass-panel" aria-label="Available streams">
@@ -249,14 +252,14 @@ export function StreamsPage() {
         <div className="streams-provider-row" aria-label="Stream providers">
           <div className="streams-provider-filters">
             <button className="streams-filter-chip streams-refresh-chip" onClick={refreshStreams} aria-label="Refresh streams" title="Refresh streams"><RefreshCw className={streams.loading ? 'spin' : ''} size={19} /></button>
-            <button className={`streams-filter-chip ${provider === 'all' ? 'selected' : ''}`} onClick={() => void setFilter('all')}>All</button>
-            {groupsWithItems.map(group => <button className={`streams-filter-chip ${provider === group.id ? 'selected' : ''}`} key={group.id} onClick={() => void setFilter(group.id)}>{group.name}</button>)}
+            <button className={`streams-filter-chip ${provider === 'all' ? 'selected' : ''}`} aria-pressed={provider === 'all'} onClick={() => void setFilter('all')}>All</button>
+            {groupsWithItems.map(group => <button className={`streams-filter-chip ${provider === group.id ? 'selected' : ''}`} key={group.id} aria-pressed={provider === group.id} onClick={() => void setFilter(group.id)}>{group.name}</button>)}
           </div>
           <div className="streams-quality-wrap">
             <button className={`streams-filter-chip ${isDataSaver ? 'selected' : ''}`} onClick={() => setQualityOpen(value => !value)} aria-expanded={qualityOpen}>
               <Gauge size={18} /> {isDataSaver ? 'Data saver' : 'Best quality'}
             </button>
-            {qualityOpen && <div className="streams-quality-menu" role="menu">
+            {qualityOpen && <div className="streams-quality-menu" role="menu" onKeyDown={menuNav}>
               {['best_quality', 'data_saver'].map(mode => <button key={mode} role="menuitemradio" aria-checked={mode === (isDataSaver ? 'data_saver' : 'best_quality')} onClick={() => { void setDownloadFilter(mode); setQualityOpen(false); }}>
                 {mode === (isDataSaver ? 'data_saver' : 'best_quality') && <Check size={16} />}{mode === 'best_quality' ? 'Best quality' : 'Data saver'}
               </button>)}
@@ -304,17 +307,20 @@ function StreamCard({ stream, selection, busy, disabled, onPlay, onContextMenu }
   const details = stream.description?.trim();
   const fileSize = presentation?.fileSizeBytes != null ? formatSize(presentation.fileSizeBytes) : null;
   const providerLogo = selection?.badges.showAddonLogo ? presentation?.providerLogo : null;
+  const badgesTop = (selection?.badges.placement ?? 'bottom').toLowerCase() === 'top';
+  const badgeRow = showBadges && <span className="streams-card-badges">
+    {badges.map((badge, index) => badge.imageUrl ? <img key={`${badge.name}:${index}`} src={badge.imageUrl} alt={badge.name} title={badge.name} style={{ backgroundColor: badge.tagStyle?.toLowerCase() === 'filled' ? badge.tagColor || undefined : undefined, borderColor: badge.borderColor || undefined }} /> : <span key={`${badge.name}:${index}`} style={{ backgroundColor: badge.tagStyle?.toLowerCase() === 'filled' ? badge.tagColor || undefined : undefined, color: badge.textColor || undefined }}>{badge.name}</span>)}
+    {selection?.badges.showFileSize && fileSize && <strong>SIZE {fileSize}</strong>}
+  </span>;
   return <article className="streams-card" onContextMenu={onContextMenu}>
     <button className="streams-card-content" onClick={onPlay} disabled={disabled || !stream.playable} aria-label={`Play ${stream.name}`}>
       <span className="streams-card-copy">
+        {badgesTop && badgeRow}
         <span className="streams-card-title">{stream.name}</span>
         {details && <span className="streams-card-description">{details}</span>}
         {metaRows.map((row, index) => <span className="streams-card-metadata" key={index}>{row.map((value, valueIndex) => <span key={`${value}:${valueIndex}`}>{value}</span>)}</span>)}
         {providerLogo && <img className="streams-provider-logo" src={providerLogo} alt="Provider" />}
-        {showBadges && <span className="streams-card-badges">
-          {badges.map((badge, index) => badge.imageUrl ? <img key={`${badge.name}:${index}`} src={badge.imageUrl} alt={badge.name} title={badge.name} style={{ backgroundColor: badge.tagStyle?.toLowerCase() === 'filled' ? badge.tagColor || undefined : undefined, borderColor: badge.borderColor || undefined }} /> : <span key={`${badge.name}:${index}`} style={{ backgroundColor: badge.tagStyle?.toLowerCase() === 'filled' ? badge.tagColor || undefined : undefined, color: badge.textColor || undefined }}>{badge.name}</span>)}
-          {selection?.badges.showFileSize && fileSize && <strong>SIZE {fileSize}</strong>}
-        </span>}
+        {!badgesTop && badgeRow}
       </span>
       {busy && <span className="streams-card-play" aria-label="Starting playback"><LoaderCircle className="spin" size={18} /></span>}
     </button>
@@ -322,6 +328,7 @@ function StreamCard({ stream, selection, busy, disabled, onPlay, onContextMenu }
 }
 
 function StreamContextMenu({ stream, x, y, onClose, onCopy, onDownload }: { stream: Stream; x: number; y: number; onClose: () => void; onCopy: () => void; onDownload: () => void }) {
+  const onKeyDown = useMenuNav(onClose);
   useEffect(() => {
     const dismiss = (event: MouseEvent) => { if (!(event.target instanceof Element) || !event.target.closest('.stream-context-menu')) onClose(); };
     const keydown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
@@ -331,7 +338,7 @@ function StreamContextMenu({ stream, x, y, onClose, onCopy, onDownload }: { stre
   }, [onClose]);
   const left = Math.min(x, window.innerWidth - 250);
   const top = Math.min(y, window.innerHeight - 112);
-  return createPortal(<div className="stream-context-menu" role="menu" style={{ left: Math.max(8, left), top: Math.max(8, top) }}>
+  return createPortal(<div className="stream-context-menu" role="menu" style={{ left: Math.max(8, left), top: Math.max(8, top) }} onKeyDown={onKeyDown}>
     <button role="menuitem" disabled={!stream.url} onClick={onCopy}><Copy size={17} /> Copy stream link</button>
     <button role="menuitem" disabled={!stream.downloadable} onClick={onDownload}><Download size={17} /> Download file</button>
   </div>, document.body);

@@ -11,13 +11,17 @@
 .home-page .home-hero{display:block;height:var(--home-hero-height);min-height:0;margin:0;padding:0;background:#000;touch-action:pan-y;isolation:isolate}
 .home-loading-skeleton{padding-bottom:32px}.home-loading-hero{position:relative;height:var(--home-hero-height,620px);margin-bottom:24px;background:#111}.home-loading-hero-copy{position:absolute;left:var(--home-hero-inset,8%);bottom:var(--home-hero-bottom,100px);display:grid;width:min(540px,58%);gap:14px}.home-loading-hero-copy i{display:block;height:18px;border-radius:999px;background:#1b1b1b}.home-loading-hero-copy i:first-child{width:58%;height:42px}.home-loading-hero-copy i:last-child{width:120px;height:44px}.home-loading-shelf{padding-inline:var(--page-gutter,32px);margin:0 0 24px}.home-loading-heading{display:block;width:240px;height:23px;margin:0 0 22px;border-radius:999px;background:#151515}.home-loading-posters{display:flex;gap:10.8px;overflow:hidden}.home-loading-posters .poster-loading-card{width:var(--home-poster-width,176px)}
 .home-hero-background,.home-hero-side-fade,.home-hero-top-fade,.home-hero-bottom-fade{position:absolute;inset:0;pointer-events:none}
-.home-hero-background{background-size:cover;background-position:center 20%;animation:home-hero-enter 450ms ease-out}
+.home-hero-background{background-size:cover;background-position:center 20%;opacity:0}
+.home-hero-background.is-ready{opacity:1;animation:home-hero-enter 450ms ease-out}
 .home-hero-side-fade{background:linear-gradient(90deg,#000000f5 0%,#000000e6 8%,#000000c2 16%,#0000008a 26%,#0000004d 36%,#0000001f 46%,transparent 54%)}
 .home-hero-top-fade{height:173px;background:linear-gradient(#0009,transparent)}
 .home-hero-bottom-fade{top:auto;height:324px;background:linear-gradient(transparent,#000)}
 .home-page .home-hero-copy{position:absolute;left:var(--home-hero-inset);bottom:var(--home-hero-bottom);width:58%;max-width:none;animation:home-copy-enter 300ms ease-out}
 .home-page .hero-logo-button{display:block;width:74%;height:130px;margin:0;padding:0;border:0;background:none;cursor:pointer;text-align:left}
 .home-page .home-hero-copy .hero-logo{width:100%;height:100%;max-height:none;max-width:none;margin:0;object-position:left center}
+.home-page .hero-logo-ready{animation:home-title-reveal 450ms ease-out}
+@keyframes home-title-reveal{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.home-page .hero-logo-ready{animation:none}}
 .home-page .home-hero-copy h1{font-size:52px;line-height:1.08;letter-spacing:0;font-weight:800;margin:0}
 .hero-genres{font-size:15px;font-weight:600;color:#aaa;margin-top:13px}
 .home-page .home-hero-copy .hero-description{font-size:17.3px;line-height:26px;letter-spacing:0;color:#eee;max-width:none;margin:17px 0 26px;-webkit-line-clamp:3}
@@ -80,8 +84,11 @@
 .home-actions-options button:hover{background:#ffffff0d}.home-actions-options button.destructive{color:#df8096}
 .home-actions-options button.active{color:#fff}
 .home-actions-options button.active svg{fill:#fff;stroke:#1b1b1b}
-.poster-preview.home-preview{width:454px;background:#080808;border-radius:18px;border-color:#ffffff20}
-.home-preview-art{height:250px;background:#141414;overflow:hidden}
+.poster-preview.home-preview{width:calc(420px * var(--ui-scale, 1));background:#080808;border-radius:18px;border-color:#ffffff20}
+.home-preview-art{position:relative;height:250px;background:#141414;overflow:hidden}
+.hover-trailer{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 480ms ease}
+.hover-trailer.is-ready{opacity:1}
+@media(prefers-reduced-motion:reduce){.hover-trailer{transition:none}}
 .home-preview-art>.home-preview-backdrop{display:block;width:100%;height:100%;object-fit:cover;mask-image:linear-gradient(#000 70%,transparent);animation:home-preview-art-in 220ms ease-out}
 .home-preview .home-preview-logo{position:absolute;left:20px;top:175px;width:195px;height:58px;object-fit:contain;object-position:left;animation:home-preview-art-in 220ms ease-out}
 .home-preview .home-preview-title{animation:home-preview-art-in 220ms ease-out}

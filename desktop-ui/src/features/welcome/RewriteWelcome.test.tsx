@@ -10,7 +10,7 @@ function WelcomeHarness() {
 beforeEach(() => localStorage.clear());
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-it('introduces the rewrite before login and persists acknowledgement across launches', () => {
+it('introduces the rewrite and persists acknowledgement across launches', () => {
   const first = render(<WelcomeHarness />);
   expect(screen.getByRole('dialog', { name: 'Welcome to the new Nuvio' })).toBeInTheDocument();
   expect(screen.getByText(/faster to open/)).toBeInTheDocument();

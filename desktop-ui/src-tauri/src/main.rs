@@ -152,6 +152,8 @@ const ALLOWED_METHODS: &[&str] = &[
     "downloads.cancel",
     "downloads.remove",
     "downloads.markSeen",
+    "downloads.openFolder",
+    "trailers.resolveHover",
     "downloads.filter.snapshot",
     "downloads.filter.setMaxResolution",
     "downloads.filter.setSourceAllowed",

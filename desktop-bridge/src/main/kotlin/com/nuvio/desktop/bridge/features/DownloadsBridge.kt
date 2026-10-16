@@ -11,6 +11,7 @@ import com.nuvio.app.features.downloads.DownloadStatus
 import com.nuvio.app.features.downloads.StreamResolutionTier
 import com.nuvio.app.features.downloads.StreamSourceType
 import com.nuvio.app.features.streams.StreamItem
+import com.nuvio.app.features.downloads.DownloadsPlatformDownloader
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -41,6 +42,13 @@ object DownloadsBridge {
         "downloads.markSeen" -> {
             DownloadsRepository.ensureLoaded()
             DownloadsRepository.markCompletedSeen()
+            snapshot()
+        }
+        "downloads.openFolder" -> {
+            // Scoped to the backend-managed downloads directory resolved by
+            // the existing platform downloader; never an arbitrary path.
+            val opened = DownloadsPlatformDownloader.openDownloadsDirectory()
+            if (!opened) throw BridgeFeatureException("PLATFORM_UNAVAILABLE", "The downloads folder could not be opened on this device")
             snapshot()
         }
         "downloads.filter.snapshot" -> filterSnapshot()

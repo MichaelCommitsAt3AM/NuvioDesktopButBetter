@@ -26,10 +26,16 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- Premiumize supports browser sign-in with this fork’s registered app, plus an API-key alternative.
+- Stream-loading backgrounds and title artwork fade in after the images finish loading.
+- Escape exits fullscreen throughout the rewrite interface, including while a menu or dialog is open.
+
 - Home Layout and Detail Page sections share Kotlin-style rows with visibility switches and drag reordering. Home catalogs follow addon and collection updates, with catalog renaming, locked pinned collections, and hero source selection.
 - Playback sliders show their selectable stops. Skip Segments follows Kotlin's separate detection switch, automatic-skipping dialog, and AnimeSkip/IntroDB credential dialogs, including IntroDB key verification.
 
 **Desktop UI preview**
+- Selecting Update downloads and verifies the update, then automatically installs it and restarts Nuvio.
+- Custom themes use the same derived colors as Kotlin instead of mapping the three editor slots directly.
 - A one-time welcome introduces the faster rewritten interface and touchscreen support for both new and upgrading users.
 - Starting a search resets Discover's scroll immediately, and returning from a Discover title keeps Discover instead of reopening an old search.
 - Discover remembers your scroll position when you open a title and go back, with the restored cards kept stable as the grid loads.
@@ -37,7 +43,20 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Library cards use Home's right-click action menu; the extra “Manage lists” buttons below cards have been removed.
 - Library has a labeled Downloads button and a fullscreen control in the top-right corner; the header layout toggle has been removed.
 - The Downloads content filter labels its combined movies-and-series option “All”.
-- Bottom sheets slide up when opened and down when dismissed, including episode actions, narrow-window tracking pickers and the player's audio, subtitle and speed panels.
+- Featured Home backgrounds and title artwork wait until fully loaded and decoded before fading in, including on first launch.
+- Collection edits wait for successful saves, browsing restores the correct position, and dialogs follow the selected theme. Card-removal and sheet-drag animations have been corrected.
+- Continue Watching cards stay anchored while scrolling; placement animations only follow real layout movement.
+- The rewrite welcome waits for Home after profile selection. Double-click Search in the navigation bar to start typing immediately.
+- Bottom sheets slide up when opened and down when dismissed, including episode actions, narrow-window tracking pickers and the player's audio, subtitle and speed panels. A downward drag also closes them; short drags snap back.
+- Card depth settings light up posters, Continue Watching, episodes, cast, and trailers. Stream badge position and cinematic background settings take effect.
+- Details can show a full backdrop, no backdrop, or a dimmed wash from its background-mode setting. Catalog keeps its place when you open a title and go back.
+- The sidebar widens on hover or keyboard focus; the collection editor saves typing without a round trip per keystroke.
+- Library, Downloads, folders, details, and settings pages keep their scroll when you go back; the hero pager drags with snap-back and arrows, and poster previews match the original timing and placement.
+- Opening Home or Library actions lifts from the tapped card and returns to it; removing Continue Watching or Library titles plays a short ash effect with smooth neighbor motion.
+- Details can extract the artwork's dominant color, show person and company pages with back navigation, and open comment details with previous/next.
+- Downloads groups a compact Open folder button and a data saver settings icon at the right of its header; collection folders reorder by drag; PIN dots bounce.
+- App language now translates navigation, sign-in, back, downloads, and tracking settings using the original translations, with right-to-left support.
+- Hover trailers can play inside poster previews on supported systems; Windows keeps external playback.
 - On Windows, stream loading stays visible while the native player prepares its loading screen, avoiding the blank handoff before buffering.
 - Torbox and Premiumize use Kotlin-style account dialogs with browser approval, automatic status checks, API-key entry and disconnect actions.
 - Returning Home reuses its rendered cards and saved scroll position, and the top-bar bubble avoids repeated layout measurements during its animation.

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Building2, CheckCircle, CircleCheck, LoaderCircle, ListChecks, Play, RotateCw } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Building2, CheckCircle, ChevronLeft, ChevronRight, CircleCheck, LoaderCircle, ListChecks, Play, RotateCw } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot } from '../../bridge';
 import type { Media } from '../../generated/contract';
 import { InlineError } from '../../components/Status';
@@ -8,6 +8,10 @@ import { Dialog } from '../../components/Dialog';
 import { BottomSheetPresence } from '../../components/BottomSheetPresence';
 import { Poster } from '../../components/Poster';
 import { SeriesEpisodes } from './SeriesEpisodes';
+import { mediaKey, stableKeys } from '../../components/keys';
+import type { AppearanceSnapshot } from '../settings/appearanceStore';
+import { depthActive, depthVars } from '../../theme/cardDepth';
+import '../../theme/cardDepth.css';
 
 type Person = { name: string; role: string | null; photo: string | null; tmdbId: number | null };
 type Company = { name: string; logo: string | null; tmdbId: number | null };
@@ -24,9 +28,6 @@ export type ExtrasMeta = {
 };
 export type DetailsPrimaryAction = { label: string; videoId: string; seasonNumber: number | null; episodeNumber: number | null; episodeTitle: string | null; episodeThumbnail: string | null; resumePositionMs: number | null };
 type WatchedSnapshot = { loaded: boolean; episodeProgress?: Record<string, number>; watchedKeys: string[]; watched?: boolean; fullyWatched?: boolean; episodes?: Array<{ season: number | null; episode: number | null; videoId: string | null; key: string }> };
-type PersonDetail = { tmdbId: number; name: string; biography: string | null; birthday: string | null; deathday: string | null; placeOfBirth: string | null; profilePhoto: string | null; knownFor: string | null; movieCredits: Media[]; tvCredits: Media[] };
-type EntityBrowse = { header: { id: number; kind: string; name: string; logo: string | null; originCountry: string | null; secondaryLabel: string | null; description: string | null }; rails: Array<{ mediaType: string; railType: string; currentPage: number; hasMore: boolean; items: Media[] }> };
-type EntityRailPage = { page: number; hasMore: boolean; items: Media[] };
 type DetailComment = { id: number; authorDisplayName: string; authorUsername: string | null; comment: string; spoiler: boolean; containsInlineSpoilers: boolean; review: boolean; likes: number; rating: number | null; createdAt: string | null; updatedAt: string | null };
 type CommentsPage = { enabled: boolean; items: DetailComment[]; currentPage: number; pageCount: number; itemCount: number };
 type MetadataSettings = {
@@ -40,25 +41,27 @@ const headingStyle = { display: 'flex', alignItems: 'center', justifyContent: 's
 
 export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type: string; id: string; primaryAction?: DetailsPrimaryAction | null; onMetaLoaded?: (meta: ExtrasMeta) => void }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const settings = useFeatureSnapshot<MetadataSettings>('metadataSettings');
+  const appearance = useFeatureSnapshot<AppearanceSnapshot>('appearance');
+  const castDepthOn = depthActive(appearance?.cardDepth, 'cast');
+  const trailersDepthOn = depthActive(appearance?.cardDepth, 'trailers');
+  const depthStyle = appearance?.cardDepth ? depthVars(appearance.cardDepth) : undefined;
   const progressUpdates = useFeatureSnapshot('homeExtras');
   const loadGeneration = useRef(0);
   const [meta, setMeta] = useState<ExtrasMeta | null>(null);
   const [watched, setWatched] = useState<WatchedSnapshot | null>(null);
-  const [person, setPerson] = useState<PersonDetail | null>(null);
-  const [entity, setEntity] = useState<EntityBrowse | null>(null);
-  const [entityContext, setEntityContext] = useState<{ kind: string; id: number; sourceType: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [mutationBusy, setMutationBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [trailerError, setTrailerError] = useState<string | null>(null);
-  const [railPages, setRailPages] = useState<Record<string, EntityRailPage>>({});
   const [comments, setComments] = useState<DetailComment[]>([]);
   const [commentsPage, setCommentsPage] = useState(0);
   const [commentsPageCount, setCommentsPageCount] = useState(0);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const [revealedSpoilers, setRevealedSpoilers] = useState<Set<number>>(new Set());
+  const [selectedComment, setSelectedComment] = useState<number | null>(null);
   const [selectedTrailerCategory, setSelectedTrailerCategory] = useState('Trailer');
   const [selectedEpisode, setSelectedEpisode] = useState<Video | null>(null);
   const afterSheetExit = useRef<(() => void) | null>(null);
@@ -122,32 +125,16 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
   }, [meta?.videos]);
 
   const openMedia = (item: Media) => navigate(`/details/${encodeURIComponent(item.type)}/${encodeURIComponent(item.id)}`);
-  const openPerson = async (personId: number, personName: string, role: string | null) => {
-    setPerson(null);
-    setEntity(null);
-    setError(null);
-    setLoading(true);
-    try {
-      const result = await call<PersonDetail>('details.person', { personId, name: personName, preferCrew: /director|writer|producer/i.test(role ?? '') });
-      setPerson(result);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally { setLoading(false); }
+  const openPerson = (personId: number, personName: string, role: string | null, source: HTMLElement | null) => {
+    const bounds = source?.getBoundingClientRect();
+    navigate(`/person/${personId}`, { state: { name: personName, role, sourceRect: bounds ? { x: bounds.left, y: bounds.top, width: bounds.width, height: bounds.height } : null, origin: location.pathname + location.search } });
   };
-  const openEntity = async (kind: string, company: Company, sourceType: string) => {
+  const openEntity = (kind: string, company: Company, sourceType: string) => {
     if (company.tmdbId == null) return;
-    setEntity(null);
-    setPerson(null);
-    setEntityContext({ kind, id: company.tmdbId, sourceType });
-    setRailPages({});
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await call<EntityBrowse>('details.entity', { kind, entityId: company.tmdbId, name: company.name, sourceType });
-      setEntity(result);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally { setLoading(false); }
+    const params = new URLSearchParams();
+    if (company.name) params.set('name', company.name);
+    params.set('sourceType', sourceType);
+    navigate(`/entity/${kind}/${company.tmdbId}?${params}`, { state: { name: company.name, sourceType, origin: location.pathname + location.search } });
   };
   const toggleEpisode = async (video: Video) => {
     if (!meta) return;
@@ -183,21 +170,6 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
     try { await call('app.openExternal', { url }); }
     catch (cause) { setTrailerError(cause instanceof Error ? cause.message : 'Could not open trailer'); }
   };
-  const loadEntityPage = async (rail: EntityBrowse['rails'][number]) => {
-    if (!entityContext) return;
-    const key = `${rail.mediaType}:${rail.railType}`;
-    const current = railPages[key] ?? { page: rail.currentPage, hasMore: rail.hasMore, items: rail.items };
-    if (!current.hasMore) return;
-    const page = current.page + 1;
-    try {
-      const result = await call<EntityRailPage>('details.entity.page', { kind: entityContext.kind, entityId: entityContext.id, mediaType: rail.mediaType, railType: rail.railType, page });
-      setRailPages((previous) => {
-        const old = previous[key] ?? { page: rail.currentPage, hasMore: rail.hasMore, items: rail.items };
-        const seen = new Set(old.items.map((item) => `${item.type}:${item.id}`));
-        return { ...previous, [key]: { page: result.page, hasMore: result.hasMore, items: [...old.items, ...result.items.filter((item) => !seen.has(`${item.type}:${item.id}`))] } };
-      });
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-  };
   const loadMoreComments = async (forceRefresh = false) => {
     if (!meta || commentsLoading) return;
     const generation = loadGeneration.current;
@@ -211,14 +183,14 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
     finally { if (loadGeneration.current === generation) setCommentsLoading(false); }
   };
 
-  if (loading && !meta && !person && !entity) return <section style={sectionStyle}><div className="loading-block"><LoaderCircle className="spin" size={20} /><span>Loading cast, episodes, and related details…</span></div></section>;
-  if (error && !meta && !person && !entity) return <section style={sectionStyle}><InlineError message={error} onRetry={() => { setError(null); setLoading(true); void call<ExtrasMeta>('details.extras', { type, id }).then(setMeta).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause))).finally(() => setLoading(false)); }} /></section>;
+  if (loading && !meta) return <section style={sectionStyle}><div className="loading-block"><LoaderCircle className="spin" size={20} /><span>Loading cast, episodes, and related details…</span></div></section>;
+  if (error && !meta) return <section style={sectionStyle}><InlineError message={error} onRetry={() => { setError(null); setLoading(true); void call<ExtrasMeta>('details.extras', { type, id }).then(setMeta).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause))).finally(() => setLoading(false)); }} /></section>;
   if (!meta) return null;
 
   const watchedVideo = (video: Video) => watched?.episodes?.some((item) => item.season === video.season && item.episode === video.episode) ?? false;
   const renderMediaRail = (title: string, items: Media[], subtitle?: string) => items.length > 0 && <section style={sectionStyle} key={title}>
     <div style={headingStyle}><div><h2>{title}</h2>{subtitle && <p className="muted">{subtitle}</p>}</div></div>
-    <div className="shelf-track">{items.map((item, index) => <Poster key={`${item.type}:${item.id}:${index}`} item={item} onClick={() => openMedia(item)} />)}</div>
+    <div className="shelf-track">{stableKeys(items, (item) => mediaKey(item.type, item.id)).map((itemKey, index) => <Poster key={itemKey} item={items[index]} onClick={() => openMedia(items[index])} />)}</div>
   </section>;
 
   const sectionContents: Record<string, ReactNode> = {
@@ -237,8 +209,8 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
       <div style={headingStyle}><h2>Production</h2></div>
       {[['Companies', meta.productionCompanies, 'company'], ['Networks', meta.networks, 'network']].map(([heading, companies, kind]) => Array.isArray(companies) && companies.length > 0 && <div key={heading as string} className="details-extras-company-group"><h3>{heading as string}</h3><div className="details-extras-companies">{(companies as Company[]).map((company, index) => <button className="details-extras-company" key={`${company.name}:${company.tmdbId ?? index}`} type="button" disabled={company.tmdbId == null} onClick={() => void openEntity(kind as string, company, meta.type)}>{company.logo ? <img src={company.logo} alt="" loading="lazy" /> : <Building2 size={18} />}<span>{company.name}</span></button>)}</div></div>)}
     </section> : null,
-    CAST: meta.cast.length > 0 ? <section style={sectionStyle}><div style={headingStyle}><h2>Cast</h2></div><div className="details-extras-people">{meta.cast.map((member, index) => <button className="details-extras-person" key={`${member.name}:${member.tmdbId ?? index}`} type="button" disabled={member.tmdbId == null} onClick={() => member.tmdbId != null && void openPerson(member.tmdbId, member.name, member.role)}>{member.photo ? <img src={member.photo} alt="" loading="lazy" /> : <span className="details-extras-placeholder">{initials(member.name)}</span>}<span><strong>{member.name}</strong>{member.role && member.role.toLowerCase() !== 'cast' && <small>{member.role}</small>}</span></button>)}</div></section> : null,
-    TRAILERS: meta.trailers.length > 0 ? <section style={sectionStyle} className="details-extras-trailer-section"><div style={headingStyle}><h2>Trailers</h2><select className="details-trailer-select" aria-label="Trailer category" value={selectedTrailerCategory} onChange={(event) => setSelectedTrailerCategory(event.target.value)}>{[...new Set(meta.trailers.map((trailer) => trailer.type || 'Trailer'))].map((category) => <option key={category}>{category}</option>)}</select></div><div className="details-extras-trailers">{meta.trailers.filter((trailer) => (trailer.type || 'Trailer') === selectedTrailerCategory).map((trailer) => <button className="details-extras-trailer" type="button" key={trailer.id} onClick={() => void openTrailer(trailer.youtubeUrl)}><span className="details-extras-trailer-image"><img src={`https://img.youtube.com/vi/${trailer.key}/hqdefault.jpg`} alt="" loading="lazy" onError={(event) => { event.currentTarget.style.display = 'none'; }} /><Play size={22} fill="currentColor" /></span><span><strong>{trailer.displayName ?? trailer.name}</strong></span></button>)}</div>{trailerError && <InlineError message={trailerError} />}</section> : null,
+    CAST: meta.cast.length > 0 ? <section style={sectionStyle}><div style={headingStyle}><h2>Cast</h2></div><div className="details-extras-people">{meta.cast.map((member, index) => <button className="details-extras-person" key={`${member.name}:${member.tmdbId ?? index}`} type="button" disabled={member.tmdbId == null} onClick={(event) => { if (member.tmdbId != null) openPerson(member.tmdbId, member.name, member.role, event.currentTarget.querySelector('img') ?? event.currentTarget); }}><span className={`details-extras-person-art ${castDepthOn?'has-card-depth depth-frame':''}`} style={castDepthOn ? depthStyle : undefined}>{member.photo ? <img src={member.photo} alt="" loading="lazy" /> : <span className="details-extras-placeholder">{initials(member.name)}</span>}</span><span><strong>{member.name}</strong>{member.role && member.role.toLowerCase() !== 'cast' && <small>{member.role}</small>}</span></button>)}</div></section> : null,
+    TRAILERS: meta.trailers.length > 0 ? <section style={sectionStyle} className="details-extras-trailer-section"><div style={headingStyle}><h2>Trailers</h2><select className="details-trailer-select" aria-label="Trailer category" value={selectedTrailerCategory} onChange={(event) => setSelectedTrailerCategory(event.target.value)}>{[...new Set(meta.trailers.map((trailer) => trailer.type || 'Trailer'))].map((category) => <option key={category}>{category}</option>)}</select></div><div className="details-extras-trailers">{meta.trailers.filter((trailer) => (trailer.type || 'Trailer') === selectedTrailerCategory).map((trailer) => <button className="details-extras-trailer" type="button" key={trailer.id} onClick={() => void openTrailer(trailer.youtubeUrl)}><span className={`details-extras-trailer-image ${trailersDepthOn?'has-card-depth depth-frame':''}`} style={trailersDepthOn ? depthStyle : undefined}><img src={`https://img.youtube.com/vi/${trailer.key}/hqdefault.jpg`} alt="" loading="lazy" onError={(event) => { event.currentTarget.style.display = 'none'; }} /><Play size={22} fill="currentColor" /></span><span><strong>{trailer.displayName ?? trailer.name}</strong></span></button>)}</div>{trailerError && <InlineError message={trailerError} />}</section> : null,
     EPISODES: groupedVideos.length > 0 ? <SeriesEpisodes
       key={`${meta.type}:${meta.id}`}
       preferredSeason={(primaryAction ?? meta.primaryAction)?.seasonNumber}
@@ -259,10 +231,11 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
     /> : null,
     COMMENTS: (comments.length > 0 || commentsLoading || commentsError) ? <section style={sectionStyle}><div style={headingStyle}><h2>Comments & reviews</h2><button className="text-button" disabled={commentsLoading} onClick={() => void loadMoreComments(true)}><RotateCw size={13} /> Refresh</button></div>
       {commentsError && <InlineError message={commentsError} onRetry={() => void loadMoreComments(true)} />}{commentsLoading && comments.length === 0 && <div className="loading-block"><LoaderCircle className="spin" size={18} /><span>Loading comments…</span></div>}
-      <div className="details-extras-comments">{comments.map((comment) => { const isSpoiler = comment.spoiler || comment.containsInlineSpoilers; const revealed = revealedSpoilers.has(comment.id); return <article className={`details-extras-comment ${isSpoiler && !revealed ? 'spoiler-hidden' : ''}`} key={comment.id}>
-        <header><strong>{comment.authorDisplayName}</strong><span>{comment.review ? 'Review' : 'Comment'}{comment.rating != null ? ` · ${comment.rating}/10` : ''}{comment.likes ? ` · ${comment.likes} likes` : ''}</span>{comment.createdAt && <time>{comment.createdAt.slice(0, 10)}</time>}</header>
+      <div className="details-extras-comments">{comments.map((comment, index) => { const isSpoiler = comment.spoiler || comment.containsInlineSpoilers; const revealed = revealedSpoilers.has(comment.id); return <article className={`details-extras-comment ${isSpoiler && !revealed ? 'spoiler-hidden' : ''}`} key={comment.id}>
+        <header><strong>{comment.authorDisplayName}</strong><span>{comment.review ? 'Review' : 'Comment'}{comment.rating != null ? ` · ${comment.rating}/10` : ''}{comment.likes ? ` · ${comment.likes} likes` : ''}</span>{comment.createdAt && <time>{comment.createdAt.slice(0, 10)}</time>}<button className="text-button" type="button" onClick={() => setSelectedComment(index)}>Details</button></header>
         {isSpoiler && !revealed ? <button className="text-button" onClick={() => setRevealedSpoilers((previous) => new Set(previous).add(comment.id))}>Reveal spoiler</button> : <p>{comment.comment.replace(/\[\/?spoiler\]/gi, '')}</p>}
       </article>; })}</div>
+      {selectedComment != null && comments[selectedComment] && <CommentDetailSheet comment={comments[selectedComment]} position={selectedComment} total={comments.length} revealed={revealedSpoilers.has(comments[selectedComment].id)} onReveal={() => setRevealedSpoilers((previous) => new Set(previous).add(comments[selectedComment].id))} onPrevious={() => setSelectedComment((current) => current != null && current > 0 ? current - 1 : current)} onNext={() => setSelectedComment((current) => current != null && current < comments.length - 1 ? current + 1 : current)} onClose={() => setSelectedComment(null)} />}
       {commentsPage < commentsPageCount && <button className="button secondary" disabled={commentsLoading} onClick={() => void loadMoreComments()}>{commentsLoading ? <LoaderCircle className="spin" size={14} /> : null}Load more</button>}
     </section> : null,
     COLLECTION: groupedVideos.length === 0 && meta.collectionItems.length > 0 ? renderMediaRail(meta.collectionName ?? 'Collection', meta.collectionItems) : null,
@@ -294,22 +267,6 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
     {error && <InlineError message={error} />}
     <ConfiguredSections items={configuredSections} contents={sectionContents} tabLayout={settings?.tabLayout ?? false} episodeList={settings?.episodeCardStyle === 'list'} />
 
-    {person && <section style={sectionStyle} className="details-extras-browse">
-      <div style={headingStyle}><div><h2>{person.name}</h2><p className="muted">{[person.knownFor, person.birthday, person.deathday && `Died ${person.deathday}`, person.placeOfBirth].filter(Boolean).join(' · ')}</p></div><button className="button secondary" type="button" onClick={() => setPerson(null)}>Close</button></div>
-      {person.profilePhoto && <img className="details-extras-profile" src={person.profilePhoto} alt={person.name} />}
-      {person.biography && <p className="details-extras-biography">{person.biography}</p>}
-      {renderMediaRail('Movies', person.movieCredits)}{renderMediaRail('TV', person.tvCredits)}
-    </section>}
-
-    {entity && <section style={sectionStyle} className="details-extras-browse">
-      <div style={headingStyle}><div><h2>{entity.header.name}</h2><p className="muted">{[entity.header.kind, entity.header.originCountry, entity.header.secondaryLabel].filter(Boolean).join(' · ')}</p></div><button className="button secondary" type="button" onClick={() => setEntity(null)}>Close</button></div>
-      {entity.header.description && <p className="details-extras-biography">{entity.header.description}</p>}
-      {entity.rails.map((rail) => { const page = railPages[`${rail.mediaType}:${rail.railType}`]; return <section key={`${rail.mediaType}:${rail.railType}`} style={sectionStyle}>
-        <div style={headingStyle}><h3>{rail.mediaType.toUpperCase()} · {rail.railType.replace('_', ' ')}</h3>{(page?.hasMore ?? rail.hasMore) && <button className="text-button" type="button" onClick={() => void loadEntityPage(rail)}>Load more</button>}</div>
-        <div className="shelf-track">{(page?.items ?? rail.items).map((item, index) => <Poster key={`${item.type}:${item.id}:${index}`} item={item} onClick={() => openMedia(item)} />)}</div>
-      </section>; })}
-    </section>}
-    {(person || entity) && loading && <div className="loading-block"><LoaderCircle className="spin" size={18} /><span>Loading browse results…</span></div>}
     <button className="text-button details-extras-retry" type="button" onClick={() => { setLoading(true); void call<ExtrasMeta>('details.extras', { type, id }).then((result) => { setMeta(result); onMetaLoaded?.(result); }).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause))).finally(() => setLoading(false)); }}><RotateCw size={14} /> Refresh details</button>
     <BottomSheetPresence onExitComplete={() => { const action = afterSheetExit.current; afterSheetExit.current = null; action?.(); }}>
     {selectedEpisode && <Dialog label={`Actions for ${selectedEpisode.title}`} onClose={() => setSelectedEpisode(null)} className="episode-actions-dialog">
@@ -325,6 +282,32 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
     </Dialog>}
     </BottomSheetPresence>
   </div>;
+}
+
+export function CommentDetailSheet({ comment, position, total, revealed, onReveal, onPrevious, onNext, onClose }: {
+  comment: DetailComment; position: number; total: number; revealed: boolean;
+  onReveal: () => void; onPrevious: () => void; onNext: () => void; onClose: () => void;
+}) {
+  const isSpoiler = comment.spoiler || comment.containsInlineSpoilers;
+  const hidden = isSpoiler && !revealed;
+  return <BottomSheetPresence>
+    <Dialog label={`Comment by ${comment.authorDisplayName}`} onClose={onClose} className="comment-detail-dialog">
+      <div className="comment-detail-head">
+        <div><strong>{comment.authorDisplayName}</strong>{comment.authorUsername && <small>@{comment.authorUsername}</small>}</div>
+        <div className="comment-detail-pager">
+          <button className="icon-button" type="button" aria-label="Previous comment" disabled={position <= 0} onClick={onPrevious}><ChevronLeft size={20} /></button>
+          <span>{position + 1} / {total}</span>
+          <button className="icon-button" type="button" aria-label="Next comment" disabled={position >= total - 1} onClick={onNext}><ChevronRight size={20} /></button>
+        </div>
+      </div>
+      {comment.review && <p className="comment-detail-badge">Review{comment.rating != null ? ` · ${comment.rating}/10` : ''}</p>}
+      {!comment.review && <p className="muted">{[comment.rating != null ? `${comment.rating}/10` : '', comment.likes ? `${comment.likes} likes` : '', comment.createdAt?.slice(0, 10)].filter(Boolean).join(' · ')}</p>}
+      {hidden
+        ? <button className="text-button" type="button" onClick={onReveal}>Reveal spoiler</button>
+        : <p className="comment-detail-body">{comment.comment.replace(/\[\/?spoiler\]/gi, '')}</p>}
+      <div className="dialog-actions"><button className="button secondary" type="button" onClick={onClose}>Close</button></div>
+    </Dialog>
+  </BottomSheetPresence>;
 }
 
 function actionEpisodeCode(video: Video) {
@@ -376,6 +359,6 @@ function DetailSectionTabs({ members, contents }: {
   const selected = members.some((item) => item.key === active) ? active : (members[0]?.key ?? '');
   return <section className="details-tab-group">
     <div role="tablist" className="details-tab-list">{members.map((item) => <button key={item.key} type="button" role="tab" aria-selected={selected === item.key} onClick={() => setActive(item.key)}>{item.title}</button>)}</div>
-    <div role="tabpanel">{contents[selected]}</div>
+    <div role="tabpanel" key={selected} className="details-tab-panel">{contents[selected]}</div>
   </section>;
 }

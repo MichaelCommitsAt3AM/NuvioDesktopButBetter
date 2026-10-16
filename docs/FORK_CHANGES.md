@@ -4,9 +4,69 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Rewrite parity review corrections — 2026-10-16
+
+Placement animations now measure card layout offsets relative to the rail/grid rather than viewport rectangles. Page scrolling, horizontal scrolling, zoom and existing transforms no longer become false card-reordering deltas on a subsequent render. Hidden/replaced containers reset their measurements, and running animations are cancelled when their cards or container disappear. Actual removal/reordering retains its placement animation.
+
+The collection editor's loading path keeps hook order stable. Drafts are scoped to each editor/profile, commit in order, retain failed text, and must successfully flush before save or completion actions; saving no longer proceeds after a one-second wait or a rejected update. Late company pages and person retries are isolated from later routes. Back restores a saved zero offset, and Catalog restores a real item/offset measured from card coordinates, including header spacing, grid gaps, responsive columns and matching catalog context.
+
+Removal effects retain the original card slot through the last item, target the actual artwork, and discard stale work on profile changes. Sheet drag transforms own the surface after entry, with dismissal continuing from the dragged position. Theme tokens also reach body portals. Card depth uses Kotlin's border coverage and sheen formulas on artwork frames. Supported-platform hover trailers consume separate audio sources, synchronize their position/lifecycle with video, and stay clipped to the preview artwork. These corrections have automated coverage; native visual acceptance and macOS/Linux playback remain separate checks.
+
+### Decode featured artwork before revealing it — 2026-10-16
+
+The Home hero keeps its backdrop off screen until the full image has loaded and decoded, then starts its fade-in. This applies to the first feature on launch and later features, preventing partially decoded artwork from appearing. Obsolete image completions are ignored; failed artwork leaves the hero's text and actions available. Reduced motion reveals the decoded image without the entrance animation.
+
+The same decoded-image gate now covers the title/clearlogo artwork on the left. Its layout space remains reserved while loading, then the complete logo fades in. A failed logo falls back to the plain title, and late completions from a previous feature cannot reveal the wrong logo. Episode rating stars remain unchanged: IMDb's current public linking guidelines require express permission or a commercial content licence for logo use, and this checkout does not establish such permission.
+
+### Rewrite inline trailers and parity handoff — 2026-10-16
+
+Hover trailers play in-app on supported desktop platforms through a new scoped `trailers.resolveHover` bridge method that reuses Kotlin's meta peek, hero-trailer selection, and platform YouTube resolution (no new scraping). Playback honors the `trailerPlaybackMode` capability (`in_app` on macOS/Linux, `external` on Windows), the saved hover-preview trailer/sound/start settings, and autoplay policy (muted start, sound only when permitted). A single-owner policy guarantees one preview player at a time with teardown on takeover, route/profile change, hidden window, unmount, errors, or ending; the poster artwork is always the fallback. CSP `media-src` gains `https:` (matching the existing `img-src` level) so backend-resolved streams can play; no frames, scripts, or connectors change. Hero trailer playback stays behind the bridge's unsupported flag. Native macOS/Linux playback validation is explicitly pending.
+
+Parity handoff: the checklist in `DESKTOP_UI_PARITY.md` moves implemented areas to `built`; nothing is marked user-accepted. Frontend evidence: 51 test files / 293 tests green, `tsc` + Vite production build green, contract and locale `--check` green, `:composeApp:compileKotlinDesktop` green. Locales ship as on-demand chunks (App ~854KB JS; English inlined). Remaining runtime acceptance — paired captures/recordings across themes, viewports, DPI, inputs, and platforms; large-list measurements; installed migration and second-update journeys; macOS/Linux trailer and package checks — requires the native app and is listed as pending, not claimed.
+
+### Rewrite details depth, secondary screens, and localization — 2026-10-16
+
+Details gains a CORS-safe dominant-color service (`details/dominantColor.ts`) keyed by artwork with stale-request discard and negative caching; the DominantColor mode washes the backdrop with a 42% blend instead of the flat fallback. A rAF-throttled scroll listener drives a condensed header title and backdrop dimming through CSS variables with no per-pixel React state. Tabbed sections crossfade with interruption-safe keyed panels. Person (`/person/:tmdbId`) and entity (`/entity/:kind/:entityId`) are dedicated repository-backed routes with loading/error/retry, biography/credits and paginated company/network rails, origin-carrying Back, avatar shared motion with fallback, and generation-guarded fetches; the old inline panels and their stale-overwrite risk are removed. Gated comments gain a detail sheet with review badges, spoiler reveal, position, and previous/next navigation.
+
+Collection folders reorder by pointer drag (single `moveFolder` commit, elevation feedback, drop highlight) alongside the existing keyboard buttons. PIN dots pop with a bouncy spring approximation that never changes verification or lockout behavior and never retains digits; grid↔PIN crossfades match the reference timings. Auth modes crossfade. Downloads opens the backend-managed folder through a new scoped `downloads.openFolder` bridge method (`DownloadsPlatformDownloader.openDownloadsDirectory`, no arbitrary paths) with honest platform-failure errors; the method is registered in the contract schema and Tauri allowlist via `sync-methods.mjs`. Downloaded-show drill-down stays as inline expandable groups with search/offline behavior unchanged.
+
+Localization runs on generated catalogs (`scripts/desktop-ui/generate-locales.mjs`, 26 locales from canonical `strings.xml`, `--check` supported): typed `t`/`tp` with English fallback, `%1$s` interpolation, `Intl`-based plurals/numbers/sizes/dates, RTL detection, device-language first launch, and saved-language rendering with document lang/dir. The hand-maintained tracking copy is scoped to 25 fork-only MDBList keys (verified zero drift on the 87 shared keys); navigation, auth, Back, Downloads, and the language row render translated. Provider content is never translated. Remaining hardcoded surfaces (Home shelves/CW, Search/Discover, Catalog, Library/cloud, details sections, collections, streams, profiles/PIN labels, updater/progress copy, settings bodies) are inventoried below and stay English until migrated key by key.
+
+### Rewrite scroll restoration, hero/hover motion, and removal effects — 2026-10-16
+
+Scroll ownership is explicit: `.main-area` for page routes, `.settings-pane` for settings children; rails and sheets are never saved. A shared `navigation/scrollStore.ts` namespaces numeric offsets by profile, route, and list context (filters/sort/catalog/tab/query) with stale-response guards, bounded cancellable restores, and user-scroll interruption. The shell resets only on forward navigation; Back/Forward restores. Catalog measures its live grid instead of guessing columns/rows. Library, Downloads, collection folders, details, and settings children restore through the same store; Discover/Home keep their existing semantics. Only offsets are retained.
+
+The hero pager tracks pointer drags with 1:1 layer motion, fling/distance settle, snap-back, click-arrow buttons, keyboard support, click-after-drag suppression, reduced-motion and hidden-window autoplay pauses, adjacent artwork preload, and a stable starting item. Hover previews match `HomePosterHoverPreview.kt`: 420dp width, centered placement with 24dp overlap and 16px clamping, 260ms enter (fade/scale/slide), 120ms close delay with 170ms exit, wheel-over-preview dismissal, cross-card interruption, and Escape dismissal.
+
+The Home/Library action overlay lifts from the captured source card and returns to its live bounds, with a fade fallback when virtualization, data, route, or profile changes removed the source. Neighbor placement animates via FLIP on moved keys only. Destructive Continue Watching/Library removal arms a bounded ash effect (transform/opacity DOM particles, no canvas reads), calls the repository exactly once, and restores the card with an error on failure.
+
+### Rewrite card depth, streams, details backgrounds, sheets, sidebar, lists — 2026-10-16
+
+Card depth now follows `CardDepthStyleRepository`/`CardDepthEffect.kt` on all five surfaces (posters, Continue Watching, episode cards, cast, trailers): global enable plus per-surface toggles gate rendering, and edge strength, sheen strength, and edge coverage drive a gradient-only overlay clipped to the card shape. No per-card blur is introduced, and overlays sit on the artwork frame so action buttons stay clickable. The old static poster shadow is removed. Poster hover `will-change` is scoped to hover/focus instead of every card.
+
+Stream badge position (top/bottom) and stream background mode (normal/cinematic) from `StreamBadgeSettingsRepository` are consumed in `StreamsPage`: top placement renders the badge row above the title, cinematic applies a blurred dimmed backdrop. Badge rows scroll horizontally like `StreamCard.kt`. Provider chips use the active accent with on-accent text, carry `aria-pressed`, and have a focus ring.
+
+Details background modes from `MetaScreenSettingsRepository` are plumbed: Normal shows no backdrop, Cinematic the artwork backdrop, DominantColor a dimmed fallback wash until Phase 8 delivers real dominant-color extraction with stale-result handling.
+
+Bottom sheets gain pointer drag-to-dismiss with M3-style distance (quarter height) and velocity thresholds, snap-back, content-scroll arbitration, control-gesture exclusion, and interruption; reduced motion keeps instant behavior. Sheet exit timing moves 220ms → 250ms to match `sheetExitMillis`. The sidebar animates width over 200ms and expands on hover/focus for adaptive, or while the profile stack is open for compact; expanded/classic stay open. The hold-to-open profile gesture is unchanged. Menus gain arrow/Home/End keyboard navigation; dialog actions share an equal-width responsive rule; destructive buttons use the palette danger; dialog fields add hover/focus/disabled/error states; detail/stream skeletons respect reduced motion.
+
+Lists use duplicate-safe logical-ID keys (no index suffixes) across shelves, grids, catalog, and episodes. Library added-date sorting builds one lookup map instead of searching per comparison, and progressive fill restarts on sort/mode/layout changes. The rail observes only its container. Catalog drops the guessed six-column/260px math: it measures the live grid, saves anchors on the real `.main-area` scroller, and restores with bounded cancellable retries. The collection editor types into local drafts committing after a 500ms pause, on blur/Enter, or on unmount; save and navigation wait for in-flight commits. `heightDp` needs no bridge change: it is derived from width (3:2) in `PosterCardStyleRepository`. Hover-trailer flags and the poster transition stay disabled by platform/capability gates; tooltips and native-select restyling are deferred.
+
+### Rewrite derived theme palette — 2026-10-16
+
+The settings bridge now projects Kotlin's full derived `ThemeColorPalette` per theme (accent variant, on-accent colors, focus ring/background, accent gradient, native accent) instead of only background/accent/surface. The React shell resolves the active entry — including the custom theme — from that canonical list, so custom themes use the same lerped surfaces as Kotlin rather than mapping the three raw editor slots directly onto background/accent/surface. AMOLED still overrides only the page background, matching `buildColorScheme`. Shared focus outlines use the palette focus ring.
+
+Shared color tokens follow `defaultNuvioThemeTokens`: sheet/dialog resolve to the elevated surface, popover to the card surface; primary buttons use on-accent content with accent-38% disabled state; settings switches use accent track with on-accent thumb (unchecked: border-default track, muted thumb); dialog scrims use black-56%; form errors use the palette danger. Motion durations tokenize `NuvioTokens.Motion` (sheet enter 300ms / exit 250ms); jelly/spring curves stay with existing navigation motion since springs have no CSS equivalent. Raw custom colors remain only as a fallback for backends predating the projection.
+
+### Automatic installation after update download — 2026-10-16
+
+The rewrite's Update action downloads and verifies the signed package, then immediately starts installation and restart without a separate confirmation button. The banner explains this before downloading and moves directly into installation afterward. A failed download never installs. An installation error keeps the verified download and offers Retry update, avoiding another download or an automatic retry loop. About's isolated banner preview remains a simulation.
+
 ### Rewrite welcome and release acceptance — 2026-10-16
 
-New and upgrading installations see a one-time welcome explaining the faster rewritten desktop interface and touchscreen support. A device-local acknowledgement is independent of account/profile and future app versions. The dialog is available before sign-in, waits for startup readiness, works offline and defers the Continue Watching prompt until dismissed. Failed browser storage still allows dismissal for the current session.
+The rewrite welcome is now deferred until Home is actually visible after profile selection/loading. It no longer covers sign-in, the profile chooser, other routes or offline Downloads; its existing device-local acknowledgement remains unchanged. A double-click on the navigation Search item opens Search and focuses its field without changing the query or scrolling Discover. The focus request is consumed so returning from details does not repeat it.
+
+New and upgrading installations see a one-time welcome explaining the faster rewritten desktop interface and touchscreen support. A device-local acknowledgement is independent of account/profile and future app versions. The dialog appears on Home after startup and profile readiness, and defers the Continue Watching prompt until dismissed. Offline Downloads remains available without dismissing the welcome first. Failed browser storage still allows dismissal for the current session.
 
 Release CI verifies both macOS DMGs by mounting them read-only on their matching GitHub runner, checking production bundle identity and executable architecture, and running the packaged Java/backend token-guard smoke check. These package checks do not claim interactive macOS migration or playback acceptance. Linux packages retain runner identity, runtime and signing checks; installation/migration testing remains a separate user test on Linux.
 
@@ -563,3 +623,23 @@ The React rewrite's Settings hold popup follows Kotlin `ProfilePopupContent`: re
   since upstream's hold-to-speed replaced the fork's (§6). Remove them, or keep them to reduce merge friction.
 - Several fork changes deliberately comment code out instead of deleting it (Trakt UI, debrid "Sort results",
   TV login) to keep upstream merges simple.
+
+### Rewrite Downloads header controls
+
+The Downloads header groups a compact **Open folder** button and an adjacent sliders icon for **Data saver preferences** at the right edge. The icon keeps an accessible label and hover title, and both controls retain their existing actions and touch targets.
+
+### Rewrite fullscreen Escape shortcut
+
+A root-level keyboard listener exits the Tauri window from fullscreen on Escape across all rewrite screens, including startup, profile selection, and dialogs. It checks the native window state before setting windowed mode and leaves existing control dismissal and Kotlin player shortcuts intact.
+
+### Decoded stream artwork entrance
+
+Stream selection and player-opening backgrounds and title logos now wait for image load and bitmap decode before rendering and fading in. Logo space stays reserved while loading, failed logos fall back to the title, obsolete requests are ignored, and reduced-motion mode skips the fade and title pulse.
+
+### Premiumize connection without an OAuth client
+
+The Kotlin Premiumize integration uses a generated `PremiumizeConfig.CLIENT_ID` from `PREMIUMIZE_CLIENT_ID` in `local.properties`; the fork now defaults to its registered public client ID `350574336`, including when an override is blank. This applies to Kotlin and rewrite builds, locally and in CI. The rewrite now keeps its password-masked API-key field and validated Kotlin save path available after device authorization fails, including missing-client builds. A **Find my API key** button opens the official Premiumize account page. No user credentials or borrowed application IDs are bundled.
+
+Premiumize documents API-key Bearer authentication and device-code OAuth at https://www.premiumize.me/api. Other forks can register an app at https://www.premiumize.me/registerclient and override its client ID through `PREMIUMIZE_CLIENT_ID` in their local/CI properties. This fork’s public client ID is bundled by default; no CI secret update is required. An OAuth client secret is not needed for the existing device-code flow. Real account connection still requires user approval or a valid account API key.
+
+The registered fork client was verified against Premiumize’s live device authorization endpoint: HTTP 200 with a device/user code pair, a five-second polling interval, and a ten-minute lifetime. Full account approval remains a user-driven test.

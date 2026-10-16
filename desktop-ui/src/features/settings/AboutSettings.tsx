@@ -5,6 +5,7 @@ import { call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bri
 import { Dialog } from '../../components/Dialog';
 import { InlineError } from '../../components/Status';
 import { PageHeader } from '../../components/ui';
+import { useLocale } from '../../i18n/strings';
 import './aboutSettings.css';
 
 type AboutSnapshot = {
@@ -145,11 +146,12 @@ export function LicensesSettingsPage() {
 }
 
 export function LanguageSettingsControl() {
+  const { t } = useLocale();
   const snapshot = useFeatureSnapshot<AboutSnapshot>('about');
   const current = useSelector((state) => state.settings);
   const language = snapshot?.language ?? 'device';
   const languages = snapshot?.languages ?? [{ code: 'device', label: 'Device language' }];
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  return <div className="app-language-control"><label><span><strong>App language</strong><small>This interface is currently English; this selection saves the app locale used by Kotlin services.</small></span><select value={language} onChange={(event) => { setBusy(true); setError(''); void call('about.setLanguage', { language: event.target.value }).then(() => refreshFeature<AboutSnapshot>('about')).catch((cause) => setError(cause instanceof Error ? cause.message : 'Could not save language.')).finally(() => setBusy(false)); }} disabled={busy}>{languages.map((option) => <option key={option.code} value={option.code}>{option.label}</option>)}</select></label>{error && <small className="form-error">{error}</small>}{!snapshot && !current.themes.length && <small className="muted">Language choices load from the desktop service.</small>}</div>;
+  return <div className="app-language-control"><label><span><strong>{t('settings_appearance_app_language')}</strong><small>{languages.find((option) => option.code === language)?.label ?? ''}</small></span><select value={language} onChange={(event) => { setBusy(true); setError(''); void call('about.setLanguage', { language: event.target.value }).then(() => refreshFeature<AboutSnapshot>('about')).catch((cause) => setError(cause instanceof Error ? cause.message : 'Could not save language.')).finally(() => setBusy(false)); }} disabled={busy}>{languages.map((option) => <option key={option.code} value={option.code}>{option.label}</option>)}</select></label>{error && <small className="form-error">{error}</small>}{!snapshot && !current.themes.length && <small className="muted">Language choices load from the desktop service.</small>}</div>;
 }

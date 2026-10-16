@@ -9,7 +9,7 @@ const bridge = vi.hoisted(() => ({
 }));
 const movie = { id: 'movie', type: 'movie', name: 'Saved Movie', poster: 'poster.jpg', background: null, logo: null, description: '', releaseInfo: '2026', rating: null, genres: [] };
 vi.mock('../bridge', () => ({
-  useSelector: (select: (state: any) => unknown) => select({ library: { items: bridge.saved ? [movie] : [], loading: false, error: null } }),
+  useSelector: (select: (state: any) => unknown) => select({ library: { items: bridge.saved ? [movie] : [], loading: false, error: null }, session: { activeProfile: 7 } }),
   useFeatureSnapshot: (topic: string) => topic === 'homeWatched' ? { watchedKeys: bridge.watched ? ['movie:movie:-1:-1'] : [] }
     : topic === 'libraryExtras' ? { layout: bridge.layout, sort: 'added_desc', items: [], sections: [] } : undefined,
   call: (...args: unknown[]) => bridge.call(...args),

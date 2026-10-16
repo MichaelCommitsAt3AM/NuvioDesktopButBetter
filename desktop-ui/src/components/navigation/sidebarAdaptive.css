@@ -1,0 +1,41 @@
+/* Adaptive sidebar: hover/focus expansion with animated width.
+   Mirrors MainTabsDestination.kt animateDpAsState(200ms) between collapsed
+   76px and expanded 214px. Expanded/classic stay open; compact opens only
+   while the profile stack is open (React adds .is-expanded); adaptive opens
+   on hover, keyboard focus, or profile stack. Touch users keep the collapsed
+   icon rail, which remains fully tappable without hover. */
+.sidebar-layout .side-nav {
+  transition: width 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar-layout .main-area {
+  transition: margin-left 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar-layout.nav-style-adaptive .side-nav:not(.is-expanded),
+.sidebar-layout.nav-style-compact .side-nav:not(.is-expanded) {
+  width: calc(76px * var(--ui-scale, 1));
+}
+.sidebar-layout.nav-style-adaptive .side-nav:not(.is-expanded) .nav-link,
+.sidebar-layout.nav-style-compact .side-nav:not(.is-expanded) .nav-link {
+  justify-content: center;
+  padding: 0;
+}
+.sidebar-layout.nav-style-adaptive .side-nav:not(.is-expanded) .nav-link span,
+.sidebar-layout.nav-style-compact .side-nav:not(.is-expanded) .nav-link span {
+  display: none;
+}
+.sidebar-layout.nav-style-adaptive .side-nav:not(.is-expanded) .mini-brand img,
+.sidebar-layout.nav-style-compact .side-nav:not(.is-expanded) .mini-brand img {
+  width: calc(82px * var(--ui-scale, 1));
+  object-fit: contain;
+  object-position: left;
+}
+.sidebar-layout.nav-style-adaptive .side-nav:not(.is-expanded) ~ .main-area,
+.sidebar-layout.nav-style-compact .side-nav:not(.is-expanded) ~ .main-area {
+  margin-left: calc(76px * var(--ui-scale, 1));
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-layout .side-nav,
+  .sidebar-layout .main-area {
+    transition: none;
+  }
+}

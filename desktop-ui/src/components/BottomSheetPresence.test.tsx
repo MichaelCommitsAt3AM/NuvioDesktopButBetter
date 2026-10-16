@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { BottomSheetPresence } from './BottomSheetPresence';
@@ -30,7 +30,7 @@ it('retains the sheet and its title after an action, then restores focus after t
   expect(screen.getByRole('dialog')).toHaveAttribute('inert');
   expect(screen.getByText('Episode title')).toBeInTheDocument();
   expect(screen.getByRole('dialog').parentElement).toHaveClass('is-sheet-closing');
-  act(() => vi.advanceTimersByTime(219));
+  act(() => vi.advanceTimersByTime(249));
   expect(exited).not.toHaveBeenCalled();
   act(() => vi.advanceTimersByTime(1));
   expect(screen.queryByRole('dialog')).toBeNull();
@@ -52,7 +52,7 @@ it.each(['Escape', 'backdrop'])('animates dismissal through %s', method => {
   if (method === 'Escape') fireEvent.keyDown(document, { key: 'Escape' });
   else fireEvent.mouseDown(screen.getByRole('dialog').parentElement!);
   expect(screen.getByRole('dialog').parentElement).toHaveClass('is-sheet-closing');
-  act(() => vi.advanceTimersByTime(220));
+  act(() => vi.advanceTimersByTime(250));
   expect(screen.queryByRole('dialog')).toBeNull();
 });
 
@@ -63,7 +63,7 @@ it('cancels an old exit when reopened and cleans up the timer on unmount', () =>
   fireEvent.keyDown(document, { key: 'Escape' });
   act(() => vi.advanceTimersByTime(100));
   fireEvent.click(screen.getByText('Open sheet'));
-  act(() => vi.advanceTimersByTime(220));
+  act(() => vi.advanceTimersByTime(250));
   expect(screen.getByRole('dialog').parentElement).not.toHaveClass('is-sheet-closing');
   expect(exited).not.toHaveBeenCalled();
   fireEvent.keyDown(document, { key: 'Escape' });
@@ -88,6 +88,56 @@ it.each([false, true])('animates a responsive sheet only in a narrow window (%s)
   fireEvent.click(screen.getByText('Open sheet'));
   fireEvent.keyDown(document, { key: 'Escape' });
   expect(!!screen.queryByRole('dialog')).toBe(narrow);
-  act(() => vi.advanceTimersByTime(220));
+  act(() => vi.advanceTimersByTime(250));
   expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+describe('pointer drag dismissal', () => {
+  beforeEach(() => {
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ height: 400, width: 300, x: 0, y: 0, top: 0, left: 0, bottom: 0, right: 0, toJSON: () => ({}) } as DOMRect);
+  });
+  afterEach(() => { vi.restoreAllMocks(); });
+  // jsdom does not populate clientY on synthetic PointerEvents, so drive the
+  // pointer handlers with explicitly constructed events carrying coordinates.
+  // fireEvent wraps dispatch in act() so state settles synchronously.
+  const pointer = (node: HTMLElement, type: 'pointerdown' | 'pointermove' | 'pointerup', clientY: number) =>
+    fireEvent(node, new MouseEvent(type, { bubbles: true, clientY, button: 0 }));
+  const drag = (node: HTMLElement, fromY: number, toY: number) => {
+    pointer(node, 'pointerdown', fromY);
+    pointer(node, 'pointermove', toY);
+    pointer(node, 'pointerup', toY);
+  };
+
+  it('dismisses on a long downward drag and fires exit completion once', () => {
+    const exited = vi.fn();
+    render(<Sheet exited={exited} />);
+    fireEvent.click(screen.getByText('Open sheet'));
+    const surface = screen.getByRole('dialog');
+    pointer(surface, 'pointerdown', 200);
+    pointer(surface, 'pointermove', 360);
+    expect(surface.style.transform).toContain('translateY(160px)');
+    expect(surface).toHaveClass('sheet-dragged');
+    pointer(surface, 'pointerup', 360);
+    expect(surface.parentElement).toHaveClass('is-sheet-closing');
+    expect(surface.style.getPropertyValue('--sheet-exit-start')).toBe('160px');
+    act(() => vi.advanceTimersByTime(250));
+    expect(exited).toHaveBeenCalledTimes(1);
+  });
+
+  it('snaps back on a short drag without dismissing', () => {
+    render(<Sheet />);
+    fireEvent.click(screen.getByText('Open sheet'));
+    const surface = screen.getByRole('dialog');
+    drag(surface, 200, 210);
+    expect(screen.getByRole('dialog').parentElement).not.toHaveClass('is-sheet-closing');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('does not hijack gestures starting on inner controls', () => {
+    render(<Sheet />);
+    fireEvent.click(screen.getByText('Open sheet'));
+    const action = screen.getByText('Select action');
+    drag(action, 200, 360);
+    expect(screen.getByRole('dialog').parentElement).not.toHaveClass('is-sheet-closing');
+  });
 });

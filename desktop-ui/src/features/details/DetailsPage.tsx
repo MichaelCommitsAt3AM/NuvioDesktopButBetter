@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useNavigationType, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { Check, CircleCheck, Maximize, MoreHorizontal, Play, Plus } from 'lucide-react';
 import { BackButton } from '../../components/BackButton';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
+import { mainScroller, scrollKey, useActiveProfileId, useListScrollRestore } from '../../navigation/scrollStore';
+import { cachedDominantColor, fetchDominantColor } from './dominantColor';
 import { InlineError } from '../../components/Status';
 import { DetailsExtras, type ExtrasMeta, type DetailsPrimaryAction } from './DetailsExtras';
 import './details.css';
@@ -21,6 +23,10 @@ export function DetailsPage() {
   const [actionError, setActionError] = useState('');
   const [watched, setWatched] = useState<{ loaded: boolean; watched?: boolean; fullyWatched?: boolean; primaryAction?: DetailsPrimaryAction | null; contentKey?: string }>({ loaded: false });
   const homeExtras = useFeatureSnapshot('homeExtras');
+  const metadataSettings = useFeatureSnapshot<{ backgroundMode?: string }>('metadataSettings');
+  useEffect(() => { if (!metadataSettings) void refreshFeature('metadataSettings').catch(() => {}); }, [metadataSettings]);
+  const navigationType = useNavigationType();
+  const profileId = useActiveProfileId();
   const [watchBusy, setWatchBusy] = useState(false);
   const [extraMeta, setExtraMeta] = useState<ExtrasMeta | null>(null);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
@@ -48,6 +54,33 @@ export function DetailsPage() {
   useEffect(() => { setActionsOpen(false); setSavedOverride(null); setActionError(''); }, [type, id]);
   useEffect(() => () => { if (playHoldTimer.current !== null) window.clearTimeout(playHoldTimer.current); }, []);
   const media = details.media?.id === id && details.media.type === type ? details.media : null;
+  // Returning from streams/person/entity restores the details offset once
+  // content is present; a new title starts at the top via the shell reset.
+  useListScrollRestore(scrollKey(profileId, `/details/${type}/${id}`, ''), navigationType, !!media);
+  // Scroll-driven header: transform/opacity presentation without a React
+  // state update per pixel. The var rides the page for the condensed title
+  // and the document root for the portaled backdrop (cleared on leave).
+  const pageRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const scroller = mainScroller();
+    const page = pageRef.current;
+    if (!scroller || !page) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const progress = Math.min(1, scroller.scrollTop / 320).toFixed(3);
+      page.style.setProperty('--details-scroll', progress);
+      document.documentElement.style.setProperty('--details-scroll', progress);
+    };
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(update); };
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    update();
+    return () => {
+      scroller.removeEventListener('scroll', onScroll);
+      if (frame) cancelAnimationFrame(frame);
+      document.documentElement.style.removeProperty('--details-scroll');
+    };
+  }, [type, id]);
   const primaryAction = (watched.contentKey === `${type}:${id}` ? watched.primaryAction : null) ?? (extraMeta?.id === id && extraMeta.type === type ? extraMeta.primaryAction : undefined);
   const saved = savedOverride ?? library.items.some((item) => item.id === id && item.type === type);
   useEffect(() => { setExtraMeta(null); }, [type, id]);
@@ -120,11 +153,33 @@ export function DetailsPage() {
     playHoldTimer.current = null;
   };
 
+  // Kotlin default is DominantColor; Normal shows no backdrop, Cinematic the
+  // artwork backdrop, DominantColor a dominant wash (Phase 8 completes real
+  // dominant-color extraction; until then it falls back to the artwork
+  // backdrop so the mode switch still has an observable effect).
+  const backgroundMode = (metadataSettings?.backgroundMode ?? 'dominant_color').toLowerCase();
+  const showBackdrop = backgroundMode !== 'normal';
+  const [dominant, setDominant] = useState<string | null>(null);
+  useEffect(() => {
+    const token = { cancelled: false };
+    const url = media?.background;
+    if (backgroundMode !== 'dominant_color' || !url || backdropFailed) { setDominant(null); return; }
+    const known = cachedDominantColor(url);
+    if (known !== undefined) { setDominant(known); return; }
+    setDominant(null);
+    void fetchDominantColor(url, token).then((color) => { if (!token.cancelled) setDominant(color); });
+    return () => { token.cancelled = true; };
+  }, [media?.background, backgroundMode, backdropFailed, type, id]);
+  const backdropImage = media?.background
+    ? (dominant ? `linear-gradient(color-mix(in srgb, ${dominant} 42%, transparent), transparent 75%), ` : '') + `var(--title-backdrop-shade),url("${media.background}")`
+    : undefined;
+
   return <>
-    {media?.background && !backdropFailed && createPortal(<div className="detail-viewport-backdrop" aria-hidden="true" style={{ backgroundImage: `var(--title-backdrop-shade),url("${media.background}")` }} />, document.body)}
-    <div className="detail-page">
+    {showBackdrop && media?.background && !backdropFailed && createPortal(<div className={`detail-viewport-backdrop${backgroundMode === 'dominant_color' ? ' detail-dominant-fallback' : ''}`} aria-hidden="true" style={{ backgroundImage: backdropImage }} />, document.body)}
+    <div className="detail-page" ref={pageRef}>
     {(media || details.loading) && <div className="detail-screen-controls">
       <BackButton className="detail-back" onClick={() => navigate(-1)} />
+      {media && <span className="detail-condensed-title" aria-hidden="true">{media.name}</span>}
       {media && <button className="detail-fullscreen" type="button" aria-label="Toggle fullscreen" onClick={() => { const window = getCurrentWindow(); void window.isFullscreen().then((fullscreen) => window.setFullscreen(!fullscreen)).catch(() => {}); }}><Maximize size={20} /></button>}
     </div>}
     {details.loading && loadTimedOut && <InlineError message="This title is taking longer than expected to load." onRetry={() => { setLoadTimedOut(false); void actions.loadDetails(type, id); }} />}

@@ -27,9 +27,56 @@
   font-synthesis:none;
   text-rendering:optimizeLegibility;
   -webkit-font-smoothing:antialiased;
-  --app-bg:#0d0d0d;
-  --app-accent:#f5f5f5;
-  --app-surface:#1a1a1a;
+  --app-bg:#0D0D0D;
+  --app-accent:#F5F5F5;
+  --app-surface:#222222;
+  --settings-surface:#1A1A1A;
+  --app-surface-sheet:#1A1A1A;
+  --app-surface-dialog:#1A1A1A;
+  --app-surface-popover:#222222;
+  --app-accent-variant:#E0E0E0;
+  --app-accent-strong:#E0E0E0;
+  --app-on-accent:#111111;
+  --on-accent:#111111;
+  --app-on-accent-variant:#111111;
+  --app-focus-ring:#FFFFFF;
+  --app-focus-bg:#303030;
+  --app-gradient:linear-gradient(135deg, #F5F5F5);
+  --app-native-accent:#F5F5F5;
+  --text-primary:#F5F7F8;
+  --text-secondary:#B8BEC5;
+  --text-muted:#969CA3;
+  --text-inverse:#111111;
+  --border-subtle:rgba(37, 42, 42, 0.55);
+  --border-default:#252A2A;
+  --border-strong:#3A4040;
+  --border-focus:#FFFFFF;
+  --scrim:rgba(0, 0, 0, 0.56);
+  --overlay-hover:rgba(255, 255, 255, 0.08);
+  --overlay-pressed:rgba(255, 255, 255, 0.12);
+  --overlay-selected:rgba(255, 255, 255, 0.15);
+  --overlay-disabled:rgba(0, 0, 0, 0.38);
+  --success:#66BB6A;
+  --warning:#FFC857;
+  --danger:#E36A8A;
+  --info:#42A5F5;
+  --shimmer:rgba(255, 255, 255, 0.10);
+  --skeleton:rgba(255, 255, 255, 0.06);
+  --motion-fast:150ms;
+  --motion-normal:220ms;
+  --motion-sheet-enter:300ms;
+  --motion-sheet-exit:250ms;
+  --motion-slow:400ms;
+  --motion-cinematic:700ms;
+  --easing-standard:cubic-bezier(0.2, 0, 0, 1);
+  --easing-decelerate:cubic-bezier(0, 0, 0, 1);
+  --easing-accelerate:cubic-bezier(0.3, 0, 1, 1);
+  --radius-card:24px;
+  --radius-sheet:24px;
+  --radius-dialog:28px;
+  --radius-button:16px;
+  --radius-chip:999px;
+  --radius-poster:12px;
   --text:#f5f7f8;
   --subtle:#b8bec5;
   --muted:#969ca3;
@@ -67,7 +114,7 @@ a {
   text-decoration:none
 }
 button:focus-visible,a:focus-visible,input:focus-visible {
-  outline:calc(2px * var(--ui-scale, 1)) solid var(--app-accent);
+  outline:calc(2px * var(--ui-scale, 1)) solid var(--app-focus-ring, var(--app-accent));
   outline-offset:calc(3px * var(--ui-scale, 1))
 }
 .app {
@@ -455,10 +502,14 @@ button:focus-visible,a:focus-visible,input:focus-visible {
 }
 .button.primary {
   background:var(--app-accent);
-  color:#131416
+  color:var(--app-on-accent, #111111)
 }
 .button.primary:hover {
   filter:brightness(.91)
+}
+.button.primary:disabled {
+  background:color-mix(in srgb, var(--app-accent) 38%, transparent);
+  color:color-mix(in srgb, var(--app-on-accent, #111111) 38%, transparent)
 }
 .button.secondary {
   background:rgba(255,255,255,.075);
@@ -471,6 +522,31 @@ button:focus-visible,a:focus-visible,input:focus-visible {
 .button.full {
   width:100%;
   min-height:calc(42px * var(--ui-scale, 1))
+}
+.button.destructive {
+  background:var(--danger, #E36A8A);
+  color:var(--app-on-accent, #111111)
+}
+.button.destructive:hover {
+  filter:brightness(.92)
+}
+.button.destructive:disabled {
+  background:color-mix(in srgb, var(--danger, #E36A8A) 38%, transparent);
+  color:color-mix(in srgb, var(--app-on-accent, #111111) 38%, transparent)
+}
+.dialog-actions {
+  display:flex;
+  gap:calc(10px * var(--ui-scale, 1));
+  margin-top:calc(18px * var(--ui-scale, 1))
+}
+.dialog-actions>* {
+  flex:1;
+  min-width:0
+}
+@media(max-width:480px) {
+  .dialog-actions {
+    flex-direction:column
+  }
 }
 .text-button {
   display:inline-flex;
@@ -1169,7 +1245,7 @@ button:focus-visible,a:focus-visible,input:focus-visible {
   position:absolute;
   inset:0;
   border-radius:calc(99px * var(--ui-scale, 1));
-  background:#3d4148;
+  background:var(--border-default, #252A2A);
   transition:background .16s
 }
 .switch span:after {
@@ -1180,18 +1256,18 @@ button:focus-visible,a:focus-visible,input:focus-visible {
   width:calc(14px * var(--ui-scale, 1));
   height:calc(14px * var(--ui-scale, 1));
   border-radius:50%;
-  background:#d0d3d7;
+  background:var(--text-muted, #969CA3);
   transition:transform .16s
 }
 .switch input:checked+span {
-  background:#e4e6e9
+  background:var(--app-accent)
 }
 .switch input:checked+span:after {
   transform:translateX(calc(15px * var(--ui-scale, 1)));
-  background:#18191b
+  background:var(--app-on-accent, #111111)
 }
 .switch input:focus-visible+span {
-  outline:calc(2px * var(--ui-scale, 1)) solid var(--app-accent);
+  outline:calc(2px * var(--ui-scale, 1)) solid var(--app-focus-ring, var(--app-accent));
   outline-offset:calc(3px * var(--ui-scale, 1))
 }
 .account-section {
@@ -1255,7 +1331,7 @@ button:focus-visible,a:focus-visible,input:focus-visible {
 }
 .form-error {
   margin:calc(3px * var(--ui-scale, 1)) 0;
-  color:#ee91a6;
+  color:var(--danger, #ee91a6);
   font-size:calc(11px * var(--ui-scale, 1) * var(--desktop-font-scale, 1.08));
   line-height:1.5
 }
@@ -1444,15 +1520,15 @@ button:focus-visible,a:focus-visible,input:focus-visible {
   display:grid;
   place-items:center;
   padding:calc(20px * var(--ui-scale, 1));
-  background:rgba(0,0,0,.64);
+  background:var(--scrim, rgba(0,0,0,.64));
   backdrop-filter:blur(calc(5px * var(--ui-scale, 1)))
 }
 .dialog-surface {
   width:min(calc(360px * var(--ui-scale, 1)),100%);
   padding:calc(17px * var(--ui-scale, 1));
-  border:calc(1px * var(--ui-scale, 1)) solid #373a40;
+  border:calc(1px * var(--ui-scale, 1)) solid var(--border-default, #373a40);
   border-radius:calc(13px * var(--ui-scale, 1));
-  background:#1b1c20;
+  background:var(--app-surface-dialog, var(--settings-surface, var(--app-surface)));
   box-shadow:0 calc(20px * var(--ui-scale, 1)) calc(80px * var(--ui-scale, 1)) #0009
 }
 .dialog-surface label {
@@ -1471,6 +1547,26 @@ button:focus-visible,a:focus-visible,input:focus-visible {
   background:#131417;
   color:var(--text);
   font-size:calc(13px * var(--ui-scale, 1) * var(--desktop-font-scale, 1.08))
+}
+.dialog-surface input:hover,
+.dialog-surface select:hover,
+.dialog-surface textarea:hover {
+  border-color:var(--border-strong, rgba(255,255,255,.2))
+}
+.dialog-surface input:focus-visible,
+.dialog-surface select:focus-visible,
+.dialog-surface textarea:focus-visible {
+  border-color:var(--border-focus, var(--app-accent));
+  outline:none
+}
+.dialog-surface input:disabled,
+.dialog-surface select:disabled,
+.dialog-surface textarea:disabled {
+  opacity:.55
+}
+.dialog-surface input[aria-invalid="true"],
+.dialog-surface textarea[aria-invalid="true"] {
+  border-color:var(--danger, #E36A8A)
 }
 
 

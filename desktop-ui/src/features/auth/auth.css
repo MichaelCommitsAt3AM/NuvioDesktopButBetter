@@ -72,6 +72,9 @@
   line-height: 1.5;
 }
 .auth-form { display: grid; gap: 0; margin-top: clamp(30px, 2.45vw, 40px); }
+.auth-form-crossfade{animation:auth-form-in 200ms ease-out}
+@keyframes auth-form-in{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.auth-form-crossfade{animation:none}}
 .auth-field {
   position: relative;
   display: flex !important;

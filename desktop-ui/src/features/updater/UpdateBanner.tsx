@@ -43,9 +43,9 @@ export function UpdateBanner() {
   const downloading = banner.phase === 'downloading';
   const installing = banner.phase === 'installing';
   const ready = banner.phase === 'downloaded';
-  const subtitle = real && update.error ? update.error : installing ? 'Installing and restarting…' : ready ? 'Ready to install • Nuvio will restart' : downloading
+  const subtitle = real && update.error ? update.error : installing ? 'Installing and restarting…' : ready ? 'Preparing installation…' : downloading
     ? real && update.progress === null ? 'Downloading…' : `Downloading… ${Math.round(banner.progress * 100)}%`
-    : complete ? 'Banner test complete' : 'Update available';
+    : complete ? 'Banner test complete' : real ? 'Update available • Installs and restarts after download' : 'Update available';
   return <>
     <div className={`update-banner-wrap${closing ? ' is-closing' : ''}`} ref={wrapRef}>
       <div className="update-banner-clip">
@@ -57,7 +57,7 @@ export function UpdateBanner() {
         <small>{subtitle}</small>
       </span>
       <button type="button" className="update-banner-icon-button is-filled" aria-label="Release notes" onClick={() => setNotesOpen(true)}><Info size={20} /></button>
-      {!downloading && !complete && !installing && <button type="button" className="update-banner-action" onClick={() => { if (real) { void (ready ? installUpdate() : downloadUpdate()); } else startTestDownload(); }}>{ready ? 'Install and restart' : 'Update'}</button>}
+      {!downloading && !complete && !installing && <button type="button" className="update-banner-action" onClick={() => { if (real) { void (ready ? installUpdate() : downloadUpdate()); } else startTestDownload(); }}>{real && update.error ? 'Retry update' : 'Update'}</button>}
       {!downloading && !installing && <button type="button" className="update-banner-icon-button" aria-label="Dismiss update banner" onClick={dismiss}><X size={20} /></button>}
     </div>
       </div>

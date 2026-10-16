@@ -324,7 +324,13 @@
       ],
       "properties": {
         "networkCondition": {
-          "enum": ["Unknown", "Checking", "Online", "NoInternet", "ServersUnreachable"]
+          "enum": [
+            "Unknown",
+            "Checking",
+            "Online",
+            "NoInternet",
+            "ServersUnreachable"
+          ]
         },
         "status": {
           "enum": [
@@ -408,6 +414,30 @@
                 "type": "string"
               },
               "settingsSurface": {
+                "type": "string"
+              },
+              "accentVariant": {
+                "type": "string"
+              },
+              "onAccent": {
+                "type": "string"
+              },
+              "onAccentVariant": {
+                "type": "string"
+              },
+              "focusRing": {
+                "type": "string"
+              },
+              "focusBackground": {
+                "type": "string"
+              },
+              "accentGradient": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "nativeAccent": {
                 "type": "string"
               }
             }
@@ -826,6 +856,8 @@
             "downloads.cancel",
             "downloads.remove",
             "downloads.markSeen",
+            "downloads.openFolder",
+            "trailers.resolveHover",
             "downloads.filter.snapshot",
             "downloads.filter.setMaxResolution",
             "downloads.filter.setSourceAllowed",

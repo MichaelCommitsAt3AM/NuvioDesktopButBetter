@@ -1,7 +1,7 @@
 .profile-popup-scrim{position:fixed;inset:0;z-index:100;border:0;background:transparent;cursor:default}
 .profile-popup{--s:var(--ui-scale,1);position:fixed;z-index:101;box-sizing:border-box;width:calc((24px + 80px * var(--profile-columns)) * var(--s));max-width:calc(100vw - 32px);max-height:min(65vh,420px);overflow:auto;padding:calc(12px * var(--s));border:calc(.5px * var(--s)) solid #ffffff12;border-radius:calc(22px * var(--s));background:#1c1c1ef0;box-shadow:0 calc(12px * var(--s)) calc(24px * var(--s)) #0005;backdrop-filter:blur(24px);animation:profile-popup-open 180ms cubic-bezier(.4,0,.2,1) both;will-change:transform,opacity}
 .profile-popup.closing{pointer-events:none;animation:profile-popup-close-scale 160ms cubic-bezier(.4,0,.2,1) both,profile-popup-close-fade 140ms cubic-bezier(.4,0,.2,1) both}
-.profile-popup-grid{display:grid;grid-template-columns:repeat(var(--profile-columns),minmax(0,1fr));gap:calc(4px * var(--s))}
+.profile-popup-grid{display:grid;grid-template-columns:repeat(var(--profile-columns),minmax(0,1fr));gap:calc(4px * var(--s));animation:profile-pin-enter 180ms 20ms both}
 .profile-popup-tile{display:flex;flex-direction:column;align-items:center;gap:calc(6px * var(--s));padding:calc(8px * var(--s)) calc(4px * var(--s));border:0;border-radius:calc(8px * var(--s));background:transparent;color:#969ca3;transition:transform 90ms,background-color 90ms;cursor:pointer;min-width:0}
 .profile-popup-tile[aria-checked=true]{color:#f5f5f5}
 .profile-popup-tile:hover:not([aria-checked=true]),.profile-popup-tile.held-hover:not([aria-checked=true]){transform:scale(1.04);background:#ffffff24;color:#f5f5f5}
@@ -18,3 +18,4 @@
 @keyframes profile-popup-close-scale{from{transform:scale(1)}to{transform:scale(.96)}}
 @keyframes profile-popup-close-fade{from{opacity:1}to{opacity:0}}
 @keyframes profile-pin-enter{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion: reduce){.profile-popup-grid,.profile-popup .pin-entry{animation:none}}

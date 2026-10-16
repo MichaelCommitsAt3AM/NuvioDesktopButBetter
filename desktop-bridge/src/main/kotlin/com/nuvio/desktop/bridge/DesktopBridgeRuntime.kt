@@ -1005,6 +1005,11 @@ class DesktopBridgeRuntime {
             buildJsonObject {
             put("id", choice.name.lowercase()); put("label", choice.name.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase))
             put("background", palette.background.hex()); put("accent", palette.secondary.hex()); put("surface", palette.backgroundCard.hex()); put("settingsSurface", palette.backgroundElevated.hex())
+            put("accentVariant", palette.secondaryVariant.hex())
+            put("onAccent", palette.onSecondary.hex()); put("onAccentVariant", palette.onSecondaryVariant.hex())
+            put("focusRing", palette.focusRing.hex()); put("focusBackground", palette.focusBackground.hex())
+            put("accentGradient", JsonArray(palette.accentGradient.map { JsonPrimitive(it.hex()) }))
+            put("nativeAccent", "#${palette.nativeAccentHex.removePrefix("#")}".uppercase())
         } }))
     }
 

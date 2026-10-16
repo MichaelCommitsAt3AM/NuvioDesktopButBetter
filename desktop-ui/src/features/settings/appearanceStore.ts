@@ -6,6 +6,7 @@ export type AppearanceSnapshot = {
   themes?: Array<{ id: string; label: string; background: string; accent: string; surface: string }>;
   customThemeColors: string[];
   customThemeGradientEnabled: boolean;
+  trailerPlaybackMode?: string;
   amoledEnabled: boolean;
   navigationLayout: 'sidebar' | 'topbar';
   navBarStyle: 'adaptive' | 'expanded' | 'compact' | 'classic';

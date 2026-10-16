@@ -98,6 +98,55 @@ describe('Continue Watching snapshot loading', () => {
     expect(document.querySelector('.home-cw-skeleton')).toBeNull();
   });
 
+  describe('hero pager', () => {
+    const heroes = [
+      { id: 'one', type: 'movie', name: 'First feature', background: null, logo: null, genres: [], description: '' },
+      { id: 'two', type: 'movie', name: 'Second feature', background: null, logo: null, genres: [], description: '' },
+    ];
+    const pointer = (node: HTMLElement, type: 'pointerdown' | 'pointermove' | 'pointerup', clientX: number) =>
+      fireEvent(node, new MouseEvent(type, { bubbles: true, clientX, button: 0 }));
+
+    it('advances on a long drag and snaps back on a short one', () => {
+      bridge.state.session.activeProfile = 9101;
+      bridge.state.home.hero = heroes;
+      render(<MemoryRouter><HomePage /></MemoryRouter>);
+      const hero = screen.getByRole('region', { name: 'Featured titles' });
+      expect(hero).toHaveTextContent('First feature');
+      pointer(hero, 'pointerdown', 300);
+      pointer(hero, 'pointermove', 100);
+      pointer(hero, 'pointerup', 100);
+      expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('Second feature');
+      const settled = screen.getByRole('region', { name: 'Featured titles' });
+      pointer(settled, 'pointerdown', 300);
+      pointer(settled, 'pointermove', 290);
+      pointer(settled, 'pointerup', 290);
+      expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('Second feature');
+    });
+
+    it('does not open details when a drag settles into a page change', () => {
+      bridge.state.session.activeProfile = 9102;
+      bridge.state.home.hero = heroes;
+      render(<MemoryRouter><HomePage /></MemoryRouter>);
+      const hero = screen.getByRole('region', { name: 'Featured titles' });
+      const details = screen.getByRole('button', { name: 'View Details' });
+      pointer(hero, 'pointerdown', 300);
+      pointer(hero, 'pointermove', 100);
+      pointer(hero, 'pointerup', 100);
+      fireEvent.click(details);
+      expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('Second feature');
+    });
+
+    it('moves with click arrows in both directions', () => {
+      bridge.state.session.activeProfile = 9103;
+      bridge.state.home.hero = heroes;
+      render(<MemoryRouter><HomePage /></MemoryRouter>);
+      fireEvent.click(screen.getByRole('button', { name: 'Show next featured title' }));
+      expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('Second feature');
+      fireEvent.click(screen.getByRole('button', { name: 'Show previous featured title' }));
+      expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('First feature');
+    });
+  });
+
   it('closes the continue watching actions dialog when an option is chosen', async () => {
     render(<MemoryRouter><HomePage /></MemoryRouter>);
     await act(async () => {

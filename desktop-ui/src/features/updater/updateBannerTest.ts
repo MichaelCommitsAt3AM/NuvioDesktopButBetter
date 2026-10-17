@@ -36,6 +36,7 @@ function stopTimer() {
 }
 
 export function showTestBanner() {
+  if (!import.meta.env.DEV) return;
   stopTimer();
   publish({ visible: true, phase: 'available', progress: 0 });
 }

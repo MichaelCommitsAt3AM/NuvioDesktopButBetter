@@ -1,5 +1,6 @@
 package com.nuvio.app.features.details
 
+import com.nuvio.app.isDesktop
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -81,7 +82,7 @@ data class MetaScreenSettingsUiState(
     val cinematicBackground: Boolean = MetaScreenBackgroundMode.Default.usesBackdropBackground,
     val heroTrailerPlayback: Boolean = false,
     val tabLayout: Boolean = false,
-    val episodeCardStyle: MetaEpisodeCardStyle = MetaEpisodeCardStyle.Horizontal,
+    val episodeCardStyle: MetaEpisodeCardStyle = MetaEpisodeCardStyle.Default,
     val blurUnwatchedEpisodes: Boolean = false,
     val posterTransitionEnabled: Boolean = false,
     val showOverallRatings: Boolean = true,
@@ -94,6 +95,8 @@ enum class MetaEpisodeCardStyle {
     ;
 
     companion object {
+        val Default: MetaEpisodeCardStyle get() = if (isDesktop) List else Horizontal
+
         fun parse(raw: String?): MetaEpisodeCardStyle? = when (raw?.lowercase()) {
             "horizontal" -> Horizontal
             "list" -> List
@@ -135,7 +138,7 @@ private data class StoredMetaScreenSettingsPayload(
     val heroTrailerPlayback: Boolean = false,
     @SerialName("tvStyleLayout")
     val tabLayout: Boolean = false,
-    val episodeCardStyle: String = "horizontal",
+    val episodeCardStyle: String = MetaEpisodeCardStyle.persist(MetaEpisodeCardStyle.Default),
     @SerialName("blur_unwatched_episodes")
     val blurUnwatchedEpisodes: Boolean = false,
     @SerialName("poster_transition_enabled")
@@ -219,7 +222,7 @@ object MetaScreenSettingsRepository {
     private var backgroundMode: MetaScreenBackgroundMode = MetaScreenBackgroundMode.Default
     private var heroTrailerPlayback: Boolean = false
     private var tabLayout: Boolean = false
-    private var episodeCardStyle: MetaEpisodeCardStyle = MetaEpisodeCardStyle.Horizontal
+    private var episodeCardStyle: MetaEpisodeCardStyle = MetaEpisodeCardStyle.Default
     private var blurUnwatchedEpisodes: Boolean = false
     private var showOverallRatings: Boolean = true
     private var episodeRatingsVisibility: EpisodeRatingsVisibility = EpisodeRatingsVisibility.SHOW_ALL
@@ -241,7 +244,7 @@ object MetaScreenSettingsRepository {
                 heroTrailerPlayback = parsed.heroTrailerPlayback
                 tabLayout = parsed.tabLayout
                 episodeCardStyle = MetaEpisodeCardStyle.parse(parsed.episodeCardStyle)
-                    ?: MetaEpisodeCardStyle.Horizontal
+                    ?: MetaEpisodeCardStyle.Default
                 blurUnwatchedEpisodes = parsed.blurUnwatchedEpisodes
                 posterTransitionEnabled = parsed.posterTransitionEnabled
                 showOverallRatings = parsed.showOverallRatings
@@ -264,7 +267,7 @@ object MetaScreenSettingsRepository {
         backgroundMode = MetaScreenBackgroundMode.Default
         heroTrailerPlayback = false
         tabLayout = false
-        episodeCardStyle = MetaEpisodeCardStyle.Horizontal
+        episodeCardStyle = MetaEpisodeCardStyle.Default
         blurUnwatchedEpisodes = false
         posterTransitionEnabled = false
         showOverallRatings = true
@@ -352,7 +355,7 @@ object MetaScreenSettingsRepository {
         backgroundMode = MetaScreenBackgroundMode.Default
         heroTrailerPlayback = false
         tabLayout = false
-        episodeCardStyle = MetaEpisodeCardStyle.Horizontal
+        episodeCardStyle = MetaEpisodeCardStyle.Default
         blurUnwatchedEpisodes = false
         posterTransitionEnabled = false
         showOverallRatings = true
@@ -365,7 +368,7 @@ object MetaScreenSettingsRepository {
         cinematicBackground: Boolean,
         heroTrailerPlayback: Boolean = false,
         tabLayout: Boolean,
-        episodeCardStyle: MetaEpisodeCardStyle = MetaEpisodeCardStyle.Horizontal,
+        episodeCardStyle: MetaEpisodeCardStyle = MetaEpisodeCardStyle.Default,
         blurUnwatchedEpisodes: Boolean = false,
         backgroundMode: MetaScreenBackgroundMode? = null,
         posterTransitionEnabled: Boolean = false,
@@ -406,7 +409,7 @@ object MetaScreenSettingsRepository {
         backgroundMode = MetaScreenBackgroundMode.Default
         heroTrailerPlayback = false
         tabLayout = false
-        episodeCardStyle = MetaEpisodeCardStyle.Horizontal
+        episodeCardStyle = MetaEpisodeCardStyle.Default
         blurUnwatchedEpisodes = false
         posterTransitionEnabled = false
         showOverallRatings = true

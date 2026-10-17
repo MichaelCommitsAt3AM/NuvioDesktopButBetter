@@ -1,5 +1,8 @@
 package com.nuvio.desktop.bridge
 
+import com.nuvio.desktop.bridge.features.KidsBridge
+import com.nuvio.app.features.profiles.forKidsCatalogs
+
 import androidx.compose.ui.graphics.toArgb
 import com.nuvio.desktop.bridge.features.ProfilesBridge
 import com.nuvio.desktop.bridge.features.AppearanceBridge
@@ -220,6 +223,7 @@ class DesktopBridgeRuntime {
                         // Read after acquiring the lock: a profile switch may have
                         // replaced both repositories while this observer waited.
                         homeCatalogLifecycle.update(epoch, AddonRepository.uiState.value.addons, CollectionRepository.collections.value)
+                        emit("home", homeJson())
                         emit("appearance", AppearanceBridge.snapshot())
                     }
                 }
@@ -273,7 +277,26 @@ class DesktopBridgeRuntime {
                 }
             }
         }
-        scope.launch { ProfileRepository.state.collect {
+        scope.launch {
+            var previousProfile: Int? = null
+            var previousPolicy: String? = null
+            ProfileRepository.state.collect { profiles ->
+            val profile = profiles.activeProfile
+            val policy = profile?.let { "${it.kidsEnabled}|${it.kidsMaxRating}|${it.kidsConfigId}|${it.kidsServiceUrl}" }
+            if (previousProfile == profile?.profileIndex && previousPolicy != null && previousPolicy != policy) {
+                rpcMutex.withLock {
+                    playbackAdapter?.stop()
+                    advanceEpoch()
+                    MetaDetailsRepository.clear()
+                    StreamsRepository.clear()
+                    lastDetails = null
+                    loadedVideoId = null
+                    HomeRepository.clear()
+                    refreshHomeAfterAddonChange()
+                }
+            }
+            previousProfile = profile?.profileIndex
+            previousPolicy = policy
             emit("profiles", ProfilesBridge.snapshot())
             // The picker uses session profiles; publish cloud changes there too.
             if (sessionStatus == "signedIn" && sessionProfilesReady) emit("session", sessionJson())
@@ -350,9 +373,11 @@ class DesktopBridgeRuntime {
                             // A stop must be able to cancel a start resolving under rpcMutex.
                             // This also cancels starts still queued behind another RPC.
                             requestJobs.remove("playback")?.cancel()
+                            KidsBridge.authorize(method, params)
                             dispatch(method, params, id)
                         } else rpcMutex.withLock {
                             if (requestEpoch != null && requestEpoch != epoch) error("STALE_EPOCH")
+                            KidsBridge.authorize(method, params)
                             dispatch(method, params, id)
                         }
                     } } finally {
@@ -363,7 +388,10 @@ class DesktopBridgeRuntime {
                             if (epochAtStart != epoch && method !in epochChangingMethods) {
                                 call.respond(HttpStatusCode.Conflict, errorBody(id, epoch, "stale_epoch", "Request became stale while running"))
                             } else {
-                                call.respond(buildJsonObject { put("id", id); put("epoch", epoch); put("result", it) })
+                                val committedEpoch = epoch
+                                val safeResult = KidsBridge.sanitize(it)
+                                if (committedEpoch != epoch) call.respond(HttpStatusCode.Conflict, errorBody(id, epoch, "stale_epoch", "Profile changed while checking content"))
+                                else call.respond(buildJsonObject { put("id", id); put("epoch", epoch); put("result", safeResult) })
                             }
                         },
                         onFailure = { error ->
@@ -464,7 +492,7 @@ class DesktopBridgeRuntime {
                         (AuthRepository.state.value as? AuthState.Authenticated)?.userId != state.userId
                     ) return@collect
                     if (AppFeaturePolicy.pluginsEnabled) PluginRepository.onProfileChanged(profileId)
-                    val enabledAddons = AddonRepository.uiState.value.addons.enabledAddons()
+                    val enabledAddons = AddonRepository.uiState.value.addons.enabledAddons().forKidsCatalogs()
                     // Match AppGate/MainAppContent: load the profile's home catalog settings
                     // before refreshing home so the featured hero sources and catalog order
                     // are initialized for the first snapshot.
@@ -521,6 +549,10 @@ class DesktopBridgeRuntime {
             require(ProfileRepository.state.value.profiles.any { it.profileIndex == selected }) { "Profile does not exist" }
             ProfilesBridge.authorizeSelection(selected, params.optionalStr("pin"))
             playbackAdapter?.stop()
+            MetaDetailsRepository.clear()
+            StreamsRepository.clear()
+            lastDetails = null
+            loadedVideoId = null
             advanceEpoch()
             ProfileRepository.switchToProfile(selected)
             updateProfileSync()
@@ -531,7 +563,11 @@ class DesktopBridgeRuntime {
             sessionJson()
         }
         "home.snapshot" -> homeJson()
-        "home.refresh" -> { HomeRepository.refresh(AddonRepository.uiState.value.addons, force = true); homeJson() }
+        "home.refresh" -> {
+            if (AddonRepository.uiState.value.profileLoadError != null) AddonRepository.pullFromServer(ProfileRepository.activeProfileId)
+            HomeRepository.refresh(AddonRepository.uiState.value.addons, force = true)
+            homeJson()
+        }
         "addons.snapshot" -> addonsJson()
         "addons.install" -> {
             val raw = params.str("url")
@@ -609,10 +645,15 @@ class DesktopBridgeRuntime {
             emit("streamSelection", streamSelectionJson())
             snapshot
         }
-        "streams.resolve" -> resolveStream(params.str("streamId"))
+        "streams.resolve" -> {
+            val record = synchronized(streamRegistry) { streamRegistry[params.str("streamId")] } ?: error("Stream is no longer available")
+            KidsBridge.requireMedia(record.meta?.type, record.meta?.id)
+            resolveStream(params.str("streamId"))
+        }
         "playback.start" -> {
             val record = synchronized(streamRegistry) { streamRegistry[params.str("streamId")] }
                 ?: error("Stream is no longer available")
+            KidsBridge.requireMedia(record.meta?.type, record.meta?.id)
             val result = (playbackAdapter ?: error("Native playback is unavailable"))
                 .start(
                     record.stream,
@@ -813,7 +854,8 @@ class DesktopBridgeRuntime {
     }
 
     private suspend fun refreshHomeAfterAddonChange() {
-        val enabledAddons = AddonRepository.uiState.value.addons.enabledAddons()
+        AddonRepository.initialize()
+        val enabledAddons = AddonRepository.uiState.value.addons.enabledAddons().forKidsCatalogs()
         HomeCatalogSettingsRepository.syncCatalogs(enabledAddons)
         HomeCatalogSettingsRepository.syncCollections(
             collections = CollectionRepository.collections.value,
@@ -867,6 +909,7 @@ class DesktopBridgeRuntime {
     }
 
     private suspend fun sendInitialSnapshots(sender: suspend (JsonObject) -> Unit) {
+        val snapshotEpoch = epoch
         listOf(
             "session" to sessionJson(), "home" to homeJson(), "library" to libraryJson(),
             "addons" to addonsJson(), "settings" to settingsJson(), "search" to searchJson("idle-${epoch}", ""),
@@ -880,7 +923,11 @@ class DesktopBridgeRuntime {
             "authOptions" to AuthOptionsBridge.snapshot(),
             "catalog" to CatalogBridge.snapshot("catalog")!!, "discover" to CatalogBridge.snapshot("discover")!!,
             "searchHistory" to CatalogBridge.snapshot("searchHistory")!!,
-        ).forEach { (topic, data) -> sender(eventJson(topic, data)) }
+        ).forEach { (topic, data) ->
+            val safeData = KidsBridge.sanitizeTopic(topic, data)
+            if (snapshotEpoch != epoch) return
+            sender(eventJson(topic, safeData))
+        }
     }
 
     private fun emit(topic: String, data: JsonObject) {
@@ -888,7 +935,9 @@ class DesktopBridgeRuntime {
         runtimeScope?.launch {
             eventMutex.withLock {
                 if (emittedEpoch != epoch) return@withLock
-                val message = eventJson(topic, data)
+                val safeData = KidsBridge.sanitizeTopic(topic, data)
+                if (emittedEpoch != epoch) return@withLock
+                val message = eventJson(topic, safeData)
                 eventClients.forEach { client ->
                     try {
                         client(message)
@@ -937,12 +986,14 @@ class DesktopBridgeRuntime {
 
     private fun profileJson(profile: NuvioProfile) = buildJsonObject {
         put("id", profile.profileIndex); put("name", profile.name); putNullable("avatarUrl", profile.avatarUrl)
-        put("color", profile.avatarColorHex); put("locked", profile.pinEnabled)
+        put("color", profile.avatarColorHex); put("kidsEnabled", profile.kidsEnabled); put("kidsMaxRating", profile.kidsMaxRating)
+        put("locked", profile.pinEnabled)
     }
 
     private fun homeJson() = buildJsonObject {
         val state = HomeRepository.uiState.value
-        put("loading", state.isLoading); putNullable("error", state.errorMessage)
+        val addons = AddonRepository.uiState.value
+        put("loading", isHomeContentLoading(state.isLoading, addons)); putNullable("error", homeContentError(state.errorMessage, addons, state.sections.isNotEmpty() || state.heroItems.isNotEmpty()))
         put("hero", JsonArray(state.heroItems.map(::mediaJson)))
         put("shelves", JsonArray(state.sections.map(::shelfJson)))
         put("continueWatching", JsonArray(WatchProgressRepository.continueWatching().map { entry -> buildJsonObject {

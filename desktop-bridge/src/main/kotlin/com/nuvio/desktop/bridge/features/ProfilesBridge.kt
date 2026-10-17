@@ -12,6 +12,8 @@ import com.nuvio.app.features.profiles.NuvioProfile
 import com.nuvio.app.features.profiles.ProfilePushPayload
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.profiles.normalizedAvatarUrl
+import com.nuvio.app.features.addons.AddonRepository
+import com.nuvio.app.features.addons.AddonRow
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -35,8 +37,17 @@ object ProfilesBridge {
             ProfileBackgroundRepository.ensureLoaded()
             snapshot()
         }
+        "profiles.kids.configure" -> KidsBridge.configure(params)
         "profiles.create" -> create(params)
         "profiles.update" -> update(params)
+        "profiles.addons.snapshot" -> {
+            val profile = requireProfile(params.int("id"))
+            AddonRepository.flushPendingPushes()
+            JsonArray(AddonRepository.readProfileAddonSnapshot(profile.profileIndex).map { row -> buildJsonObject {
+                put("url", row.url); put("name", row.name?.takeIf { it.isNotBlank() } ?: row.url)
+                put("enabled", row.enabled)
+            } })
+        }
         "profiles.delete" -> delete(params)
         "profiles.pin.verify" -> pin(params, "verify")
         "profiles.pin.set" -> pin(params, "set")
@@ -90,6 +101,7 @@ object ProfilesBridge {
         val primaryAddons = params.optionalBool("usesPrimaryAddons") ?: false
         val allowlist = params.optionalStringList("primaryAddonsAllowlist")
         val addonSource = params.optionalProfileIndex("addonSyncProfileId")
+        val copiedAddons = prepareAddonCopy(params, null, addonSource)
         ProfileRepository.checkAddonLinkAvailable(null, addonSource)
         ProfileRepository.createProfile(
             name = name,
@@ -125,6 +137,15 @@ object ProfilesBridge {
             }
         }
         if (addonSource != null) ProfileRepository.setAddonProfileLink(created.profileIndex, addonSource)
+        if (copiedAddons != null) {
+            try {
+                AddonRepository.saveIndependentProfileAddons(created.profileIndex, copiedAddons)
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                throw BridgeFeatureException("PROFILE_CREATED_ADDON_COPY_FAILED", "Profile was created, but add-ons could not be copied. Open All profiles and edit ${created.name} to retry")
+            }
+        }
         return snapshot()
     }
 
@@ -132,6 +153,7 @@ object ProfilesBridge {
         val index = params.int("id")
         val profile = requireProfile(index)
         val addonSource = if (params.has("addonSyncProfileId")) params.optionalProfileIndex("addonSyncProfileId") else profile.addonSyncProfileId
+        val copiedAddons = prepareAddonCopy(params, index, addonSource)
         if (addonSource != profile.addonSyncProfileId) ProfileRepository.checkAddonLinkAvailable(index, addonSource)
         val name = params.optionalStr("name")?.trim()?.requireValidName() ?: profile.name
         val addons = params.optionalBool("usesPrimaryAddons") ?: profile.usesPrimaryAddons
@@ -169,7 +191,27 @@ object ProfilesBridge {
             throw BridgeFeatureException("PROFILE_UPDATE_FAILED", "Profile changes were not saved")
         }
         if (params.has("addonSyncProfileId")) ProfileRepository.setAddonProfileLink(index, addonSource)
+        if (copiedAddons != null) AddonRepository.saveIndependentProfileAddons(index, copiedAddons)
         return snapshot()
+    }
+
+    private suspend fun prepareAddonCopy(params: JsonObject, target: Int?, liveSource: Int?): List<AddonRow>? {
+        val source = params.optionalProfileIndex("addonCopyProfileId") ?: return null
+        requireProfile(source)
+        if (source == target || liveSource != null) throw BridgeFeatureException("INVALID_ARGUMENT", "Choose a different profile and turn off Sync all add-ons to copy")
+        if (target != null && ProfileRepository.state.value.profiles.any { it.addonSyncProfileId == target }) {
+            throw BridgeFeatureException("INVALID_ARGUMENT", "Other profiles sync with this profile. Unlink them before replacing its add-ons")
+        }
+        val urls = params.optionalStringList("addonCopyUrls")
+            ?: throw BridgeFeatureException("INVALID_ARGUMENT", "Select the add-ons to copy")
+        AddonRepository.flushPendingPushes()
+        val rows = AddonRepository.readProfileAddonSnapshot(source)
+        return selectCopiedAddons(rows, urls)
+    }
+
+    internal fun selectCopiedAddons(rows: List<AddonRow>, urls: List<String>): List<AddonRow> {
+        if (urls.any { url -> rows.none { it.url == url } }) throw BridgeFeatureException("INVALID_ARGUMENT", "Source add-ons changed. Reload the selection and try again")
+        return rows.sortedBy { it.sortOrder }.filter { it.url in urls }.distinctBy { it.url }
     }
 
     private suspend fun delete(params: JsonObject): JsonElement {
@@ -266,6 +308,7 @@ object ProfilesBridge {
         put("id", profile.profileIndex); put("name", profile.name); put("avatarColorHex", profile.avatarColorHex)
         putNullable("avatarId", profile.avatarId); putNullable("avatarUrl", profile.avatarUrl)
         putNullable("backgroundId", profile.profileBackgroundId); putNullable("backgroundUrl", profile.profileBackgroundUrl)
+        put("kidsEnabled", profile.kidsEnabled); put("kidsMaxRating", profile.kidsMaxRating); putNullable("kidsServiceUrl", profile.kidsServiceUrl)
         put("locked", profile.pinEnabled); putNullable("pinLockedUntil", profile.pinLockedUntil)
         put("usesPrimaryAddons", profile.usesPrimaryAddons); put("usesPrimaryPlugins", profile.usesPrimaryPlugins)
         put("addonSyncProfileId", profile.addonSyncProfileId?.let(::JsonPrimitive) ?: JsonNull)

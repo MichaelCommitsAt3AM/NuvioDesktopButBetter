@@ -229,10 +229,8 @@ internal actual fun CollectionCardRemoteImage(
 
     var composeBitmap by remember(imageUrl) { mutableStateOf<ImageBitmap?>(null) }
 
-    // Prefetch as soon as the card becomes visible (not on hover) so the codec is already
-    // downloaded/decoded and cached by the time the user actually hovers - hover then reads
-    // straight from gifCodecCache with zero network/decode delay.
-    if (animateIfPossible) {
+    // Fetch animations when they will play; the static cover handles idle cards.
+    if (shouldAnimate) {
         LaunchedEffect(imageUrl) {
             if (synchronized(gifCodecCache) { !gifCodecCache.containsKey(imageUrl) }) {
                 loadDesktopGifCodec(imageUrl)

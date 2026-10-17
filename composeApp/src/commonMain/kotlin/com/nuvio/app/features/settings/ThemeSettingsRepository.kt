@@ -4,6 +4,7 @@ import com.nuvio.app.core.ui.AppTheme
 import com.nuvio.app.core.ui.CustomThemeColors
 import com.nuvio.app.core.ui.NativeTabBridge
 import com.nuvio.app.core.ui.ThemeColors
+import com.nuvio.app.isDesktop
 import com.nuvio.app.features.membership.MemberAccessRepository
 import com.nuvio.app.features.membership.availableAppThemes
 import com.nuvio.app.features.membership.resolveAppTheme
@@ -28,7 +29,7 @@ object ThemeSettingsRepository {
     private val _customThemeColors = MutableStateFlow(CustomThemeColors.solid(CustomThemeColors.Default.second))
     val customThemeColors: StateFlow<CustomThemeColors> = _customThemeColors.asStateFlow()
 
-    private val _amoledEnabled = MutableStateFlow(false)
+    private val _amoledEnabled = MutableStateFlow(isDesktop)
     val amoledEnabled: StateFlow<Boolean> = _amoledEnabled.asStateFlow()
 
     private val _liquidGlassNativeTabBarEnabled = MutableStateFlow(false)
@@ -65,7 +66,7 @@ object ThemeSettingsRepository {
         _selectedTheme.value = AppTheme.WHITE
         _customThemePreference.value = CustomThemeColors.Default
         _customThemeColors.value = CustomThemeColors.solid(CustomThemeColors.Default.second)
-        _amoledEnabled.value = false
+        _amoledEnabled.value = isDesktop
         _liquidGlassNativeTabBarEnabled.value = false
         _desktopNavigationLayout.value = DesktopNavigationLayout.Default
         NativeTabBridge.publishAccentColor(ThemeColors.White.nativeAccentHex)
@@ -90,7 +91,7 @@ object ThemeSettingsRepository {
         _selectedThemePreference.value = theme
         _customThemePreference.value = CustomThemeColors.decode(ThemeSettingsStorage.loadCustomThemeColors())
         applyEffectiveTheme()
-        _amoledEnabled.value = ThemeSettingsStorage.loadAmoledEnabled() ?: false
+        _amoledEnabled.value = ThemeSettingsStorage.loadAmoledEnabled() ?: isDesktop
         val liquidGlassEnabled = ThemeSettingsStorage.loadLiquidGlassNativeTabBarEnabled() ?: false
         _liquidGlassNativeTabBarEnabled.value = liquidGlassEnabled
         NativeTabBridge.publishLiquidGlassEnabled(liquidGlassEnabled)

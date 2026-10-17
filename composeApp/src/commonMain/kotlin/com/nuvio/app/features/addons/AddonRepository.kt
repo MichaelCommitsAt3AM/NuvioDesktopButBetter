@@ -2,6 +2,7 @@ package com.nuvio.app.features.addons
 
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.network.SupabaseProvider
+import com.nuvio.app.core.auth.AuthState
 import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.auth.isAnonymous
 import com.nuvio.app.core.sync.putSyncOriginClientId
@@ -57,7 +58,7 @@ object AddonRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val log = Logger.withTag("AddonRepository")
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
-    private val _uiState = MutableStateFlow(AddonsUiState())
+    private val _uiState = MutableStateFlow(AddonsUiState(profileLoadPending = true))
     val uiState: StateFlow<AddonsUiState> = _uiState.asStateFlow()
 
     // Guards initialized/currentProfileId/activeRefreshJobs, all of which
@@ -87,10 +88,15 @@ object AddonRepository {
         val storedUrls = dedupeManifestUrls(AddonStorage.loadInstalledAddonUrls(currentProfileId))
         val enabledByUrl = loadLocalEnabledStates()
         log.d { "initialize() — local addon count: ${storedUrls.size}" }
-        if (storedUrls.isEmpty()) return
+        val awaitingCloud = AuthRepository.state.value.let { it is AuthState.Loading || (it is AuthState.Authenticated && !it.isAnonymous) }
+        if (storedUrls.isEmpty()) {
+            _uiState.update { it.copy(profileLoadPending = awaitingCloud, profileLoadError = null) }
+            return
+        }
 
         val existingByUrl = _uiState.value.addons.associateBy(ManagedAddon::manifestUrl)
         _uiState.value = AddonsUiState(
+            profileLoadPending = awaitingCloud,
             addons = storedUrls.map { manifestUrl ->
                 existingByUrl[manifestUrl].toPendingAddon(
                     manifestUrl = manifestUrl,
@@ -121,7 +127,7 @@ object AddonRepository {
             }
         }
         if (!shouldReset) return
-        _uiState.value = AddonsUiState()
+        _uiState.value = AddonsUiState(profileLoadPending = true)
     }
 
     fun clearLocalState() {
@@ -204,6 +210,11 @@ object AddonRepository {
             }
         }.onFailure { e ->
             log.e(e) { "pullFromServer() — FAILED" }
+            synchronized(stateLock) {
+                if (currentProfileId == effectiveProfileId && ProfileRepository.activeProfileId == effectiveProfileId && AuthRepository.state.value == accountAtStart) {
+                    _uiState.update { it.copy(profileLoadPending = false, profileLoadError = "Could not load this profile's add-ons. Check your connection and try again.") }
+                }
+            }
         }
     }
 
@@ -528,6 +539,21 @@ object AddonRepository {
             }
             _uiState.value.addons.filter { it.enabled && it.manifest == null }.forEach { refreshAddon(it.manifestUrl) }
         }
+    }
+
+    /** Persist a one-time selection after the caller has removed the target's live link. */
+    suspend fun saveIndependentProfileAddons(profileId: Int, rows: List<AddonRow>) {
+        flushPendingPushes()
+        check(ProfileRepository.state.value.profiles.first { it.profileIndex == profileId }.addonSyncProfileId == null)
+        val ordered = rows.distinctBy { it.url }.mapIndexed { index, row -> row.copy(sortOrder = index) }
+        if (!AuthRepository.state.value.isAnonymous) {
+            SupabaseProvider.client.postgrest.rpc("sync_push_addons", buildJsonObject {
+                put("p_profile_id", profileId)
+                put("p_addons", json.encodeToJsonElement(ordered.map { AddonPushItem(it.url, it.name.orEmpty(), it.enabled, it.sortOrder) }))
+                putSyncOriginClientId()
+            })
+        }
+        applyProfileAddonSnapshot(addonGroupMembers(ProfileRepository.state.value.profiles, profileId), ordered)
     }
 
     private fun loadLocalEnabledStates(): Map<String, Boolean> =

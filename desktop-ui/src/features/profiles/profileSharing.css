@@ -1,0 +1,22 @@
+/* The form grid supplies card spacing; avoid adding the shared section margin too. */
+.profile-editor-form>.settings-section{margin:0}
+/* Keep shared card typography and spacing; scope labels above the general form rule. */
+.profile-editor-form .profile-source-picker{justify-content:space-between;width:100%;text-align:left;cursor:pointer;font:inherit}
+.profile-source-picker:hover,.profile-editor-form .profile-addon-copy-row:hover{background:color-mix(in srgb,var(--app-accent) 8%,var(--app-surface))}
+.profile-addon-copy{margin-top:calc(12px * var(--ui-scale,1))}
+.profile-addon-copy>p{font-size:calc(10px * var(--ui-scale,1));line-height:1.5}
+.profile-editor-form .profile-addon-copy-row{display:flex;align-items:center;justify-content:space-between;gap:calc(12px * var(--ui-scale,1));min-height:calc(46px * var(--ui-scale,1));padding:calc(8px * var(--ui-scale,1)) calc(13px * var(--ui-scale,1));border-bottom:1px solid #ffffff12;cursor:pointer}
+.profile-addon-copy-row>span{display:grid;gap:calc(3px * var(--ui-scale,1));min-width:0}
+.profile-addon-copy-row strong{overflow-wrap:anywhere;font-size:calc(11px * var(--ui-scale,1));font-weight:600}
+.profile-addon-copy-row small{color:var(--muted,#999);font-size:calc(9px * var(--ui-scale,1));font-weight:400}
+.profile-addon-copy-row input{width:calc(16px * var(--ui-scale,1));height:calc(16px * var(--ui-scale,1));margin:0;flex:none;accent-color:var(--app-accent);color-scheme:dark}
+.profile-source-dialog .dialog-surface{width:min(480px,90vw);padding:26px;border:0;border-radius:30px;background:var(--settings-surface,var(--app-surface));max-height:80vh;overflow:auto;color:var(--text)}
+.profile-source-dialog h2{font-size:24px;line-height:31px;margin:0 0 20px;font-weight:500}
+.profile-source-dialog .settings-dialog-options{display:grid;gap:4px;max-height:52vh;overflow:auto}
+.profile-source-dialog .settings-dialog-option{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:54px;width:100%;padding:12px;border:0;border-radius:12px;background:none;color:inherit;text-align:left;font:inherit;font-size:18px;cursor:pointer}
+.profile-source-dialog .settings-dialog-option:hover,.profile-source-dialog .settings-dialog-option:focus-visible{background:color-mix(in srgb,var(--app-accent) 10%,transparent)}
+.profile-kids-fields{display:grid;gap:16px;margin-top:20px}
+.profile-kids-fields label{display:grid;gap:8px}
+.profile-kids-fields input,.profile-kids-fields select{width:100%;padding:14px 16px;border:1px solid #ffffff24;border-radius:12px;background:var(--app-surface);color:var(--text);font:inherit;color-scheme:dark;box-sizing:border-box}
+.profile-kids-fields small{color:var(--muted,#aaa);line-height:1.6}
+.profile-kids-fields details>label{margin-top:16px}

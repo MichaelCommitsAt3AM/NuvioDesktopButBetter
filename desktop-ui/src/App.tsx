@@ -76,6 +76,8 @@ function Shell({ offlineDownloads = false, welcomePending = false }: { offlineDo
   // startup never flashes the compact bar at users who selected extended.
   const navBarStyle = appearance?.navBarStyle ?? 'expanded';
   const selectedProfile = session.profiles.find(profile => profile.id === session.activeProfile);
+  const kidsProfile = selectedProfile?.kidsEnabled === true;
+  const kidsRouteAllowed = ['/', '/search', '/library', '/playback', '/settings'].includes(location.pathname) || location.pathname.startsWith('/details/') || location.pathname.startsWith('/settings/');
   const clearHold = () => { if (holdTimer.current) clearTimeout(holdTimer.current); holdTimer.current = null; };
   useEffect(() => () => clearHold(), []);
   useEffect(() => { setProfileOpen(false); }, [location.pathname]);
@@ -115,6 +117,7 @@ function Shell({ offlineDownloads = false, welcomePending = false }: { offlineDo
       <LiquidNavigation labels={navItems.map(item => labelOf(item.key))} visuals={navItems.map(item => <KotlinNavigationIcon key={item.key} route={item.to} />)} selectedIndex={navItems.findIndex(item => item.to === selected)} style={navBarStyle} heroEnabled={appearance?.home?.heroEnabled !== false} profileOpen={profileOpen} glowEnabled={appearance?.navBarGlowEnabled !== false} routeKey={location.pathname} onDragStart={clearHold} onDragSelect={index => { const item = navItems[index]; if (item) { held.current = false; navigate(item.to); } }}>{navigation}</LiquidNavigation>
     </header>}
     <main className={`main-area ${routeMotion}`}>
+      {kidsProfile && !kidsRouteAllowed ? <div className="page"><h1>Kids profile</h1><p>Switch to the parent profile to use this feature.</p><Link className="button secondary" to="/">Go Home</Link></div> : <>
       <CachedHomeRoute profileId={session.activeProfile} />
       <Routes key={location.pathname}>
         <Route path="/" element={null} />
@@ -137,6 +140,7 @@ function Shell({ offlineDownloads = false, welcomePending = false }: { offlineDo
         <Route path="/playback" element={<PlaybackSurfacePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </>}
     </main>
     {!offlineDownloads && !welcomePending && <LaunchResumePrompt />}
   </div>;
@@ -165,7 +169,7 @@ function AppContent() {
       setOfflineStartup(false);
     }
   }, [offlineStartup, state.status, state.session.status, state.session.networkCondition, navigate]);
-  const offlineDownloads = offlineStartup === true && (location.pathname === '/library/downloads' || location.pathname === '/playback');
+  const offlineDownloads = state.session.status !== 'loading' && !state.session.profiles.find(profile => profile.id === state.session.activeProfile)?.kidsEnabled && offlineStartup === true && (location.pathname === '/library/downloads' || location.pathname === '/playback');
   useEffect(()=>{
     if(state.session.status==='signedOut'){setLaunchPicker(null);return;}
     if(offlineDownloads||state.session.status!=='signedIn'||launchPicker!==null)return;
@@ -215,7 +219,7 @@ function AppContent() {
   }}>
     {state.status !== 'ready' && <ConnectionNotice status={state.status} />}
     <UpdateBanner />
-    <DownloadNotifications />
+    {!state.session.profiles.find(profile => profile.id === state.session.activeProfile)?.kidsEnabled && <DownloadNotifications />}
     {offlineDownloads && state.status === 'ready'
       ? <Shell offlineDownloads welcomePending={welcome.pending} />
       : state.session.status === 'loading' && state.status === 'disconnected'

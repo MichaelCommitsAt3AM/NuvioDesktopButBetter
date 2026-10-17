@@ -2,6 +2,7 @@ package com.nuvio.desktop.bridge
 
 import com.nuvio.app.features.addons.ManagedAddon
 import com.nuvio.app.features.addons.enabledAddons
+import com.nuvio.app.features.profiles.forKidsCatalogs
 import com.nuvio.app.features.addons.isWaitingForFirstEnabledManifest
 import com.nuvio.app.features.collection.Collection
 import com.nuvio.app.features.home.buildAddonCatalogRefreshSignature
@@ -16,7 +17,7 @@ internal class BridgeHomeCatalogLifecycle(
 
     // Called under the runtime RPC mutex, with the current profile's inputs.
     suspend fun update(generation: Long, addons: List<ManagedAddon>, collections: List<Collection>) {
-        val enabled = addons.enabledAddons()
+        val enabled = addons.enabledAddons().forKidsCatalogs()
         if (enabled.isWaitingForFirstEnabledManifest()) return
         val input = Triple(generation, buildAddonCatalogRefreshSignature(enabled), collections)
         if (input == lastInput) return

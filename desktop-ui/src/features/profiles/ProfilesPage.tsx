@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Check, ChevronRight, LockKeyhole, Pencil, Plus, RefreshCw, ShieldCheck, Trash2, UserRound } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { PageHeader } from '../../components/ui';
 import { Dialog } from '../../components/Dialog';
 import { ProfileUnlockDialog } from './PinDialogs';
@@ -15,6 +15,7 @@ function ImageAvatar({ profile, avatarUrl, size = 'lg' }: { profile: ProfileReco
 }
 
 export function ProfilesPage() {
+  const navigate = useNavigate();
   const session = useSelector((state) => state.session);
   const { snapshot, loading, error, refresh, run, setError } = useProfiles();
   const [rememberSaving, setRememberSaving] = useState(false);
@@ -41,7 +42,7 @@ export function ProfilesPage() {
     event?.preventDefault();
     if (!switching) return;
     setBusy(true); setError('');
-    try { await actions.selectProfile(switching.id, switching.locked ? switchPin : undefined); await refresh(); setSwitching(null); setSwitchPin(''); }
+    try { await actions.selectProfile(switching.id, switching.locked ? switchPin : undefined); navigate('/', { replace: true }); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not switch profile.'); }
     finally { setBusy(false); }
   }
@@ -62,6 +63,6 @@ export function ProfilesPage() {
       {session.email && <p className="profile-footnote">Profiles sync with {session.email}.</p>}
     </>}
     {deleting && <Dialog label={`Delete ${deleting.name}`} onClose={() => setDeleting(null)}><div className="dialog-head"><strong>Delete {deleting.name}?</strong></div><p className="muted">This permanently removes this profile and its profile-specific settings.</p>{error && <p className="form-error" role="alert">{error}</p>}<div className="dialog-actions"><button className="button secondary" onClick={() => setDeleting(null)} disabled={busy}>Cancel</button><button className="button destructive" onClick={() => void remove()} disabled={busy}><Trash2 size={15} />{busy ? 'Deletingâ€¦' : 'Delete profile'}</button></div></Dialog>}
-    {switching && (switching.locked ? <ProfileUnlockDialog profile={switching} onClose={() => setSwitching(null)} onSelected={async () => { await refresh(); setSwitching(null); }} /> : <Dialog label={`Switch to ${switching.name}`} onClose={() => { setSwitching(null); setSwitchPin(''); }}><form onSubmit={(event) => void switchProfile(event)}><div className="dialog-head"><strong>Switch to {switching.name}</strong></div>{switching.locked ? <label>Profile PIN<input autoFocus inputMode="numeric" type="password" autoComplete="current-password" maxLength={4} value={switchPin} onChange={(event) => setSwitchPin(event.target.value.replace(/\D/g, ''))} required /></label> : <p className="muted">Open this profile?</p>}{error && <p className="form-error" role="alert">{error}</p>}<div className="dialog-actions"><button type="button" className="button secondary" onClick={() => setSwitching(null)} disabled={busy}>Cancel</button><button className="button primary" disabled={busy || (switching.locked && switchPin.length !== 4)}>{busy ? 'Switchingâ€¦' : switching.locked ? 'Unlock and switch' : 'Switch profile'}</button></div></form></Dialog>)}
+    {switching && (switching.locked ? <ProfileUnlockDialog profile={switching} onClose={() => setSwitching(null)} onSelected={() => navigate('/', { replace: true })} /> : <Dialog label={`Switch to ${switching.name}`} onClose={() => { setSwitching(null); setSwitchPin(''); }}><form onSubmit={(event) => void switchProfile(event)}><div className="dialog-head"><strong>Switch to {switching.name}</strong></div>{switching.locked ? <label>Profile PIN<input autoFocus inputMode="numeric" type="password" autoComplete="current-password" maxLength={4} value={switchPin} onChange={(event) => setSwitchPin(event.target.value.replace(/\D/g, ''))} required /></label> : <p className="muted">Open this profile?</p>}{error && <p className="form-error" role="alert">{error}</p>}<div className="dialog-actions"><button type="button" className="button secondary" onClick={() => setSwitching(null)} disabled={busy}>Cancel</button><button className="button primary" disabled={busy || (switching.locked && switchPin.length !== 4)}>{busy ? 'Switchingâ€¦' : switching.locked ? 'Unlock and switch' : 'Switch profile'}</button></div></form></Dialog>)}
   </div>;
 }

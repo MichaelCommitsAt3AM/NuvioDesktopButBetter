@@ -42,7 +42,7 @@ internal class NuvioSkiaImageDecoder(
         val decodeStartNanos = if (NuvioImageTelemetry.enabled) System.nanoTime() else 0L
 
         // Skia needs the whole encoded image up front: https://github.com/JetBrains/skiko/issues/741
-        val bytes = source.source().use { it.readByteArray() }
+        val bytes = source.source().use { it.readBoundedImageBytes() }
         // Addon artwork is untrusted network content. Bound the read before it ever reaches
         // Skia — a pathological or malicious response shouldn't get to allocate native memory
         // proportional to whatever size it claims.

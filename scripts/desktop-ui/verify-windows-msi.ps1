@@ -29,4 +29,7 @@ while ($record = $view.Fetch()) { $names += ($record.StringData(1) -split '\|')[
 foreach ($name in @('Nuvio.exe', 'java.exe', 'classpath.txt', 'player_bridge.dll', 'libmpv-2.dll', 'WebView2Loader.dll')) {
     if ($names -notcontains $name) { throw "MSI is missing required runtime file: $name" }
 }
+if (@($names | Where-Object { $_ -eq 'Nuvio.exe' }).Count -ne 2) {
+    throw 'MSI must contain both the main Nuvio.exe and the branded backend Nuvio.exe.'
+}
 Write-Output 'MSI identity, upgrade version and bundled runtime checks passed.'

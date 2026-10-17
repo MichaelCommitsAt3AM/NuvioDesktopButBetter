@@ -1,5 +1,7 @@
 package com.nuvio.app.features.search
 
+import com.nuvio.app.features.profiles.forKidsCatalogs
+
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.i18n.localizedMediaTypeLabel
 import com.nuvio.app.features.addons.AddonCatalog
@@ -83,7 +85,7 @@ object SearchRepository {
             return
         }
 
-        val enabledAddons = addons.enabledAddons()
+        val enabledAddons = addons.enabledAddons().forKidsCatalogs()
         val hasPendingAddonManifests = enabledAddons.hasPendingEnabledManifests()
         val addonManifestErrorMessage = enabledAddons.firstEnabledManifestError()
         val activeAddons = enabledAddons.filter { it.manifest != null }
@@ -222,7 +224,7 @@ object SearchRepository {
         addons: List<ManagedAddon>,
         forceRefresh: Boolean = false,
     ) {
-        val enabledAddons = addons.enabledAddons()
+        val enabledAddons = addons.enabledAddons().forKidsCatalogs()
         val hasPendingAddonManifests = enabledAddons.hasPendingEnabledManifests()
         val addonManifestErrorMessage = enabledAddons.firstEnabledManifestError()
         val activeAddons = enabledAddons.filter { it.manifest != null }

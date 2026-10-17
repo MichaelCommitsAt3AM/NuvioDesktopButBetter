@@ -1,5 +1,7 @@
 package com.nuvio.app.features.home
 
+import com.nuvio.app.features.profiles.forKidsCatalogs
+
 import co.touchlab.kermit.Logger
 import com.nuvio.app.features.addons.ManagedAddon
 import com.nuvio.app.features.addons.AddonRepository
@@ -54,7 +56,7 @@ object HomeRepository {
     private var publishedSectionsByKey: Map<String, HomeCatalogSection> = emptyMap()
 
     fun refresh(addons: List<ManagedAddon>, force: Boolean = false) {
-        val activeAddons = addons.enabledAddons()
+        val activeAddons = addons.enabledAddons().forKidsCatalogs()
         val requests = buildHomeCatalogDefinitions(activeAddons)
         currentDefinitions = requests
         val requestCacheKeys = requests.mapTo(mutableSetOf(), HomeCatalogDefinition::cacheKey)
@@ -124,40 +126,29 @@ object HomeRepository {
                 putAll(cachedSections)
             }
             var firstErrorMessage: String? = null
-            var batchIndex = 0
+            var completedCount = 0
+            var publishedFirstResult = false
 
-            prioritizedRequests.chunked(HOME_CATALOG_FETCH_BATCH_SIZE).forEach { batch ->
-                if (activeRequestKey != requestKey) return@launch
-                val results = batch.map { request ->
-                    async {
-                        request to runCatching {
-                            request.toSection(forceRefresh = force)
-                        }
-                    }
-                }.awaitAll()
-
-                if (activeRequestKey != requestKey) return@launch
-
-                results.mapNotNull { (request, result) ->
-                    result.getOrNull()?.let { section -> request.cacheKey to section }
-                }.forEach { (cacheKey, section) ->
-                    loadedSections[cacheKey] = section
-                    cachedSectionTimestamps = cachedSectionTimestamps + (cacheKey to kotlin.time.Clock.System.now().toEpochMilliseconds())
+            forEachHomeCatalogResult(prioritizedRequests, HOME_CATALOG_FETCH_BATCH_SIZE, fetch = { request ->
+                request to runCatching { request.toSection(forceRefresh = force) }
+            }) { (request, result) ->
+                if (activeRequestKey != requestKey) return@forEachHomeCatalogResult
+                val section = result.getOrNull()
+                if (section != null) {
+                    loadedSections[request.cacheKey] = section
+                    cachedSectionTimestamps = cachedSectionTimestamps + (request.cacheKey to kotlin.time.Clock.System.now().toEpochMilliseconds())
                 }
-                if (firstErrorMessage == null) {
-                    firstErrorMessage = results.firstNotNullOfOrNull { (_, result) ->
-                        result.exceptionOrNull()?.message
-                    }
-                }
+                if (firstErrorMessage == null) firstErrorMessage = result.exceptionOrNull()?.message
                 cachedSections = loadedSections.toMap()
                 lastErrorMessage = firstErrorMessage
-                if (batchIndex == 0 || (batchIndex + 1) % HOME_CATALOG_PUBLISH_INTERVAL == 0) {
+                completedCount++
+                if ((!publishedFirstResult && section != null) || completedCount % (HOME_CATALOG_FETCH_BATCH_SIZE * HOME_CATALOG_PUBLISH_INTERVAL) == 0) {
                     publishCurrentState(
                         isLoading = true,
                         requestKey = requestKey,
                     )
+                    publishedFirstResult = true
                 }
-                batchIndex++
             }
 
             if (activeRequestKey != requestKey) return@launch
@@ -184,7 +175,7 @@ object HomeRepository {
             requestKey = currentRequestKey,
         )
         ensureCollectionHeroFallback(
-            addons = AddonRepository.uiState.value.addons.enabledAddons(),
+            addons = AddonRepository.uiState.value.addons.enabledAddons().forKidsCatalogs(),
             forceRefresh = false,
             refreshSources = false,
             requestKey = currentRequestKey,

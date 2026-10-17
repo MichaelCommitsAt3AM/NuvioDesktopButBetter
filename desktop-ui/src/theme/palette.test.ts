@@ -42,7 +42,7 @@ describe('theme palette mapping', () => {
   });
 
   it('maps the White preset to Kotlin derived surfaces, not raw slots', () => {
-    const vars = themeCssVars(white) as Record<string, string>;
+    const vars = themeCssVars(white, { amoled: false }) as Record<string, string>;
     expect(vars['--app-bg']).toBe('#0D0D0D');
     expect(vars['--app-accent']).toBe('#F5F5F5');
     // Card surface differs from the legacy '#1A1A1A' direct mapping.
@@ -71,7 +71,7 @@ describe('theme palette mapping', () => {
       surface: '#241C26',
       settingsSurface: '#1D1620',
     };
-    const vars = themeCssVars(customEntry, { customColors: ['#B75AFF', '#EC70A9', '#FFB37A'] }) as Record<string, string>;
+    const vars = themeCssVars(customEntry, { amoled: false, customColors: ['#B75AFF', '#EC70A9', '#FFB37A'] }) as Record<string, string>;
     // Must not map raw slots directly (old bug: bg=#B75AFF, accent=#EC70A9, surface=#FFB37A).
     expect(vars['--app-bg']).toBe('#0E0C10');
     expect(vars['--app-accent']).toBe('#AAB2BE');
@@ -85,8 +85,13 @@ describe('theme palette mapping', () => {
     expect(vars['--settings-surface']).toBe('#1A1A1A');
   });
 
+  it('defaults to AMOLED before appearance settings arrive', () => {
+    expect((themeCssVars(white) as Record<string, string>)['--app-bg']).toBe('#000000');
+    expect((themeCssVars(undefined) as Record<string, string>)['--app-bg']).toBe('#000000');
+  });
+
   it('falls back safely without an entry', () => {
-    const vars = themeCssVars(undefined) as Record<string, string>;
+    const vars = themeCssVars(undefined, { amoled: false }) as Record<string, string>;
     expect(vars['--app-bg']).toBe(FALLBACK_THEME.background);
     expect(vars['--app-accent']).toBe(FALLBACK_THEME.accent);
   });
@@ -99,7 +104,7 @@ describe('theme palette mapping', () => {
   });
 
   it('emits static Kotlin text, scrim and status tokens', () => {
-    const vars = themeCssVars(white) as Record<string, string>;
+    const vars = themeCssVars(white, { amoled: false }) as Record<string, string>;
     expect(vars['--text-primary']).toBe(STATIC_TOKENS.textPrimary);
     expect(vars['--text-muted']).toBe(STATIC_TOKENS.textMuted);
     expect(vars['--scrim']).toBe('rgba(0, 0, 0, 0.56)');
@@ -109,7 +114,7 @@ describe('theme palette mapping', () => {
   });
 
   it('emits NuvioTokens motion durations', () => {
-    const vars = themeCssVars(white) as Record<string, string>;
+    const vars = themeCssVars(white, { amoled: false }) as Record<string, string>;
     expect(vars['--motion-sheet-enter']).toBe(`${MOTION_TOKENS.sheetEnterMs}ms`);
     expect(vars['--motion-sheet-exit']).toBe(`${MOTION_TOKENS.sheetExitMs}ms`);
     expect(MOTION_TOKENS.sheetEnterMs).toBe(300);

@@ -181,7 +181,7 @@ fun main(args: Array<String>) {
             title = if (smokePlayerUrl == null) "Nuvio" else "Nuvio Player Smoke",
             state = windowState,
             icon = painterResource(appIconState.selected.transparentPreviewResource),
-            init = ::configureMacosWindowBeforePeer,
+            init = ::configureDesktopWindowBeforePeer,
         ) {
             LaunchedEffect(Unit) {
                 markStartup("window_content_first_composition")
@@ -312,6 +312,14 @@ private fun configureDesktopChrome() {
     if (System.getProperty("os.name").contains("mac", ignoreCase = true)) {
         System.setProperty("apple.awt.application.appearance", MacosDarkAquaAppearance)
     }
+}
+
+private fun configureDesktopWindowBeforePeer(window: androidx.compose.ui.awt.ComposeWindow) {
+    // Paint the native window dark before the peer is created so the very first
+    // frame is dark instead of the default white. SideEffect below re-applies
+    // it once the content pane exists.
+    window.background = NuvioDesktopNativeBackground
+    configureMacosWindowBeforePeer(window)
 }
 
 // application {} applies Compose's Swing globals, which on Linux include Skiko's

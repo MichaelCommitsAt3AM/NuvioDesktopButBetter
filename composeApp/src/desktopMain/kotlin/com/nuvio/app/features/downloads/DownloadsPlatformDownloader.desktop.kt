@@ -11,12 +11,45 @@ import kotlinx.coroutines.launch
 import java.awt.Desktop
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
+import java.io.OutputStream
+import kotlinx.coroutines.currentCoroutineContext
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 import kotlin.io.path.createDirectories
+
+internal suspend fun copyDesktopDownload(
+    input: InputStream,
+    output: OutputStream,
+    startingBytes: Long,
+    totalBytes: Long?,
+    onProgress: (Long, Long?) -> Unit,
+    nanoTime: () -> Long = System::nanoTime,
+) {
+    var transferred = startingBytes
+    var reported = startingBytes
+    var lastReport = nanoTime()
+    onProgress(transferred, totalBytes)
+    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+    while (true) {
+        currentCoroutineContext().ensureActive()
+        val count = input.read(buffer)
+        if (count < 0) break
+        if (count == 0) continue
+        output.write(buffer, 0, count)
+        transferred += count
+        val now = nanoTime()
+        if (now - lastReport >= 250_000_000L) {
+            onProgress(transferred, totalBytes)
+            reported = transferred
+            lastReport = now
+        }
+    }
+    if (transferred != reported) onProgress(transferred, totalBytes)
+}
 
 private val desktopDownloadHttpClient: HttpClient = HttpClient.newBuilder()
     .connectTimeout(Duration.ofSeconds(60))
@@ -77,20 +110,9 @@ internal actual object DownloadsPlatformDownloader {
                     contentRangeHeader = response.headers().firstValue("Content-Range").orElse(null),
                     contentLength = response.headers().firstValue("Content-Length").orElse(null)?.toLongOrNull(),
                 )
-                var downloadedBytes = startingBytes
-                onProgress(downloadedBytes, totalBytes)
-
                 response.body().use { input ->
                     FileOutputStream(tempFile, appendToTemp).use { output ->
-                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                        while (true) {
-                            ensureActive()
-                            val read = input.read(buffer)
-                            if (read <= 0) break
-                            output.write(buffer, 0, read)
-                            downloadedBytes += read.toLong()
-                            onProgress(downloadedBytes, totalBytes)
-                        }
+                        copyDesktopDownload(input, output, startingBytes, totalBytes, onProgress)
                         output.flush()
                     }
                 }

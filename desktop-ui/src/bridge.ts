@@ -15,6 +15,7 @@ type State = {
   home: Home;
   library: Library;
   addons: Addon[];
+  addonsReady: boolean;
   settings: Settings;
   search: Search;
   details: Details;
@@ -30,7 +31,7 @@ const emptySession: Session = { status: 'loading', email: null, version: '', act
 const emptyState: State = {
   status: 'starting', profileTransition: null, connectionMessage: null, session: emptySession,
   home: { loading: true, error: null, hero: [], shelves: [] },
-  library: { loading: true, error: null, items: [] }, addons: [],
+  library: { loading: true, error: null, items: [] }, addons: [], addonsReady: false,
   settings: { theme: 'white', themes: [] },
   search: { requestId: '', query: '', loading: false, error: null, shelves: [] },
   details: { requestId: '', loading: false, error: null, media: null, episodes: [], cast: [], related: [] },
@@ -116,7 +117,7 @@ function acceptEvent(event: Event) {
       update((current) => ({ ...current, library: data as unknown as Library }));
       break;
     case 'addons':
-      update((current) => ({ ...current, addons: (data as Addons).items }));
+      update((current) => ({ ...current, addons: (data as Addons).items ?? [], addonsReady: true }));
       break;
     case 'settings':
       update((current) => ({ ...current, settings: data as unknown as Settings }));
@@ -286,11 +287,14 @@ async function snapshot(method: string, key: 'home' | 'library' | 'settings' | '
   try {
     const result = await call<unknown>(method);
     if (generation !== reconcileGeneration || requestedEpoch !== activeEpoch || (revisions.get(revisionKey) ?? -1) !== startingRevision) return;
-    if (key === 'addons') update((current) => ({ ...current, addons: (result as Addons).items }));
+    if (key === 'addons') update((current) => ({ ...current, addons: (result as Addons).items ?? [], addonsReady: true }));
     else update((current) => ({ ...current, [key]: result } as State));
   } catch (error) {
     if (generation !== reconcileGeneration || requestedEpoch !== activeEpoch) return;
     if (key === 'home' || key === 'library') update((current) => ({ ...current, [key]: { ...current[key], loading: false, error: errorMessage(error) } }));
+    // A failed addons snapshot can't confirm anything, but it must not leave
+    // Home on the loading shimmer forever; Home surfaces its own error state.
+    if (key === 'addons') update((current) => ({ ...current, addonsReady: true }));
   }
 }
 

@@ -475,11 +475,11 @@ impl BridgeManager {
             .runtime_dir
             .join("runtime")
             .join("bin")
-            .join(if cfg!(windows) { "java.exe" } else { "java" });
+            .join(if cfg!(windows) { "Nuvio.exe" } else { "java" });
         let java = if !cfg!(debug_assertions) {
             if !bundled_java.is_file() {
                 return Err(
-                    "bundled Java runtime is missing from the staged bridge resources".into(),
+                    "bundled backend launcher is missing from the staged bridge resources; run bundle-java.mjs".into(),
                 );
             }
             bundled_java
@@ -1026,6 +1026,16 @@ fn safe_error_code(code: &str) -> String {
         return code.into();
     }
     const CODES: &[&str] = &[
+        "PARENT_REQUIRED",
+        "SIGN_IN_REQUIRED",
+        "KIDS_SETUP_INVALID",
+        "KIDS_ADDON_DEPENDENTS",
+        "TMDB_KEY_REQUIRED",
+        "INVALID_KIDS_SERVER",
+        "KIDSSCREEN_UNAVAILABLE",
+        "KIDSSCREEN_REQUEST_FAILED",
+        "KIDS_POLICY_SAVE_FAILED",
+        "KIDS_TITLE_BLOCKED",
         "PROFILE_PIN_REQUIRED",
         "PROFILE_PIN_REJECTED",
         "PROFILE_CREATE_FAILED",
@@ -1092,6 +1102,16 @@ fn validate_response(
 
 fn safe_error_message(code: &str) -> String {
     match safe_error_code(code).as_str() {
+        "PARENT_REQUIRED" => "Switch to an adult profile to change these settings.",
+        "SIGN_IN_REQUIRED" => "Sign in to set up a kids profile.",
+        "KIDS_SETUP_INVALID" => "Choose a secondary profile and a supported age rating.",
+        "KIDS_ADDON_DEPENDENTS" => "Unlink other profiles sharing this profile's add-ons before enabling kids mode.",
+        "TMDB_KEY_REQUIRED" => "Enter your TMDB API key to set up or change this kids profile.",
+        "INVALID_KIDS_SERVER" => "Enter a valid HTTPS KidsScreen address, or use localhost for development.",
+        "KIDSSCREEN_UNAVAILABLE" => "KidsScreen could not be reached. Check its server address and your connection.",
+        "KIDSSCREEN_REQUEST_FAILED" => "KidsScreen could not validate the request. Check your TMDB API key and server configuration.",
+        "KIDS_POLICY_SAVE_FAILED" => "Kids profile settings could not be saved. Check your connection and that the latest database migration is installed.",
+        "KIDS_TITLE_BLOCKED" => "This title could not be verified for this kids profile.",
         "AUTH_REQUIRED" => "Please sign in to continue.",
         "PROFILE_PIN_REQUIRED" => "Enter this profile’s PIN to continue.",
         "PROFILE_PIN_REJECTED" => "The PIN is incorrect or temporarily locked. Try again later.",
@@ -1361,6 +1381,18 @@ mod tests {
             "This feature is not available in this app build."
         );
         assert_eq!(safe_error_code("AUTH_REQUIRED"), "AUTH_REQUIRED");
+        for code in [
+            "TMDB_KEY_REQUIRED",
+            "KIDSSCREEN_UNAVAILABLE",
+            "KIDSSCREEN_REQUEST_FAILED",
+            "KIDS_POLICY_SAVE_FAILED",
+        ] {
+            assert_eq!(safe_error_code(code), code);
+            assert_ne!(
+                safe_error_message(code),
+                "The operation could not be completed."
+            );
+        }
         assert_eq!(safe_error_code("TOKEN_abcd"), "BRIDGE_ERROR");
         assert_eq!(
             safe_error_message("TOKEN_abcd"),

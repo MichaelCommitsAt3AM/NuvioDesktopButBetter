@@ -7,7 +7,7 @@ import { actions, call, disposeBridge, getSnapshot } from './bridge';
 import { isAutomaticStreamSelectionEnabled, streamAddonNames } from './features/streams/StreamsPage';
 import type { Addons } from './generated/contract';
 
-const bridgeMock = vi.hoisted(() => ({ networkCondition: undefined as string | undefined, deferPlayback:false, deferProfiles:false, multipleProfiles:false, homeLoading:false, rejectSelection:false, failSessionSnapshot:false, failSignOut:false, streamAutoPlayMode:'MANUAL', epoch:5,activeProfile:7 as number|null,sessionStatus:'signedIn',listeners: new Map<string, (event: { payload: unknown }) => void>(), requests: [] as Array<{ id: string; method: string; params: Record<string, unknown> }> }));
+const bridgeMock = vi.hoisted(() => ({ kidsProfile:false, networkCondition: undefined as string | undefined, deferPlayback:false, deferProfiles:false, multipleProfiles:false, homeLoading:false, rejectSelection:false, failSessionSnapshot:false, failSignOut:false, streamAutoPlayMode:'MANUAL', epoch:5,activeProfile:7 as number|null,sessionStatus:'signedIn',listeners: new Map<string, (event: { payload: unknown }) => void>(), requests: [] as Array<{ id: string; method: string; params: Record<string, unknown> }> }));
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(async (name: string, callback: (event: { payload: unknown }) => void) => {
@@ -41,7 +41,7 @@ vi.mock('@tauri-apps/api/core', () => ({
     if (request.method === 'profiles.select' && bridgeMock.rejectSelection) throw new Error('Selection failed');
     if (request.method === 'playback.start') return bridgeMock.deferPlayback ? new Promise(() => {}) : { id: request.id, epoch: bridgeMock.epoch, result: { started: true, host: 'tauri-window' } };
     if (request.method === 'profiles.snapshot' && bridgeMock.deferProfiles) return new Promise(() => {});
-    const cachedProfiles = [{id:7,name:'Michael',color:'#1E88E5',avatarUrl:null,locked:false}, ...(bridgeMock.multipleProfiles ? [{id:8,name:'Guest',color:'#FF0000',avatarUrl:null,locked:true}] : [])];
+    const cachedProfiles = [{id:7,name:'Michael',color:'#1E88E5',avatarUrl:null,locked:false,kidsEnabled:bridgeMock.kidsProfile}, ...(bridgeMock.multipleProfiles ? [{id:8,name:'Guest',color:'#FF0000',avatarUrl:null,locked:true}] : [])];
     const defaults: Record<string, unknown> = {
       'session.snapshot': { networkCondition: bridgeMock.networkCondition, status: bridgeMock.sessionStatus, email: 'person@example.com', version: '1.0', activeProfile: bridgeMock.activeProfile, profiles: cachedProfiles, capabilities: [], error: null },
       'downloads.snapshot': { items: [], hasUnseenCompleted: false, filter: {} },
@@ -83,7 +83,7 @@ async function openPreparedStream() {
 }
 
 describe('desktop bridge UI workflow', () => {
-  beforeEach(() => { window.history.replaceState({}, '', '/'); bridgeMock.networkCondition=undefined;bridgeMock.deferPlayback=false;bridgeMock.deferProfiles=false;bridgeMock.multipleProfiles=false;bridgeMock.homeLoading=false;bridgeMock.rejectSelection=false;bridgeMock.failSessionSnapshot=false;bridgeMock.failSignOut=false;bridgeMock.streamAutoPlayMode='MANUAL';bridgeMock.epoch=5;bridgeMock.activeProfile=7;bridgeMock.sessionStatus='signedIn';bridgeMock.listeners.clear(); bridgeMock.requests.length = 0; });
+  beforeEach(() => { window.history.replaceState({}, '', '/'); bridgeMock.kidsProfile=false;bridgeMock.networkCondition=undefined;bridgeMock.deferPlayback=false;bridgeMock.deferProfiles=false;bridgeMock.multipleProfiles=false;bridgeMock.homeLoading=false;bridgeMock.rejectSelection=false;bridgeMock.failSessionSnapshot=false;bridgeMock.failSignOut=false;bridgeMock.streamAutoPlayMode='MANUAL';bridgeMock.epoch=5;bridgeMock.activeProfile=7;bridgeMock.sessionStatus='signedIn';bridgeMock.listeners.clear(); bridgeMock.requests.length = 0; });
 
   it('defers the rewrite welcome until Home is visible after profile selection', async () => {
     const key = 'nuvio.rewrite-welcome.v1';
@@ -126,13 +126,16 @@ describe('desktop bridge UI workflow', () => {
     await waitFor(() => expect(input).toHaveFocus());
   });
 
-  it('opens Downloads directly when the native startup check reports no internet, without waiting for auth', async () => {
+  it('waits for profile identity before showing offline Downloads', async () => {
     bridgeMock.networkCondition = 'NoInternet';
     bridgeMock.sessionStatus = 'loading';
     bridgeMock.multipleProfiles = true;
     render(<AppRoot />);
+    await waitFor(() => expect(window.location.pathname).toBe('/library/downloads'));
+    expect(screen.queryByRole('heading', { name: 'Downloads' })).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Starting Nuvio' })).toBeInTheDocument();
+    await act(async () => emit({ topic: 'session', epoch: bridgeMock.epoch, revision: 999, data: { ...getSnapshot().session, status: 'signedIn' } }));
     expect(await screen.findByRole('heading', { name: 'Downloads' })).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/library/downloads');
     expect(screen.queryByText("Who's watching?")).toBeNull();
     expect(bridgeMock.requests.some(request => request.method === 'home.resumePrompt.consume')).toBe(false);
   });
@@ -345,6 +348,39 @@ describe('desktop bridge UI workflow', () => {
     await waitFor(()=>expect(screen.queryByRole('status',{name:'Loading profile'})).not.toBeInTheDocument());
     expect(screen.queryByText('Loading your home…')).not.toBeInTheDocument();
     await act(async()=>{emit({topic:'home',epoch:bridgeMock.epoch,revision:10,data:{loading:false,error:null,hero:[],shelves:[]}});});
+    expect(await screen.findByText('Your home is ready for content')).toBeInTheDocument();
+  });
+
+  it('keeps Home shimmer during a profile catalog load until content or a settled empty result arrives', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    bridgeMock.homeLoading = true;
+    await act(async () => { await actions.selectProfile(7); });
+    expect(await screen.findByRole('status', { name: 'Loading titles' })).toBeVisible();
+    await act(async () => { emit({ topic: 'home', epoch: bridgeMock.epoch, revision: 301, data: { loading: true, error: null, hero: [], shelves: [] } }); });
+    expect(screen.queryByText('Your home is ready for content')).not.toBeInTheDocument();
+    await act(async () => { emit({ topic: 'home', epoch: bridgeMock.epoch, revision: 302, data: { loading: false, error: null, hero: [], shelves: [{ key: 'new', title: 'New profile catalogs', subtitle: '', items: [media('new', 'New title')], hasMore: false }] } }); });
+    expect(await screen.findByText('New profile catalogs')).toBeVisible();
+    expect(screen.queryByRole('status', { name: 'Loading titles' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Your home is ready for content')).not.toBeInTheDocument();
+    await act(async () => { emit({ topic: 'home', epoch: bridgeMock.epoch, revision: 303, data: { loading: false, error: null, hero: [], shelves: [] } }); });
+    expect(await screen.findByText('Your home is ready for content')).toBeVisible();
+  });
+
+  it('holds the home shimmer while addon manifests resolve instead of flashing the empty state', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    bridgeMock.homeLoading = true;
+    await act(async () => { await actions.selectProfile(7); });
+    expect(await screen.findByRole('status', { name: 'Loading titles' })).toBeInTheDocument();
+    const pendingAddon = { id: 'https://example.invalid/manifest.json', name: 'Example', manifestUrl: 'https://example.invalid/manifest.json', enabled: true, description: null, logo: null, refreshing: true };
+    // Catalogs settle empty while an enabled addon's manifest is still fetching.
+    await act(async () => { emit({ topic: 'addons', epoch: bridgeMock.epoch, revision: 400, data: { items: [pendingAddon] } }); });
+    await act(async () => { emit({ topic: 'home', epoch: bridgeMock.epoch, revision: 401, data: { loading: false, error: null, hero: [], shelves: [] } }); });
+    expect(screen.getByRole('status', { name: 'Loading titles' })).toBeInTheDocument();
+    expect(screen.queryByText('Your home is ready for content')).not.toBeInTheDocument();
+    // Manifests settle with no addons installed: the empty state may now appear.
+    await act(async () => { emit({ topic: 'addons', epoch: bridgeMock.epoch, revision: 402, data: { items: [] } }); });
     expect(await screen.findByText('Your home is ready for content')).toBeInTheDocument();
   });
 
@@ -658,6 +694,35 @@ describe('desktop bridge UI workflow', () => {
       expect(document.querySelector('.home-page')).toBe(home);
       expect(home).toBeVisible();
     });
+  });
+
+  it('opens Settings on a normal click in a kids profile and keeps right-click profile switching', async () => {
+    bridgeMock.kidsProfile = true;
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    const settings = screen.getByRole('link', { name: /Settings/i });
+    fireEvent.click(settings);
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeVisible();
+    expect(screen.getByRole('link', { name: /Layout/ })).toBeVisible();
+    expect(screen.queryByRole('menu', { name: 'Profiles' })).not.toBeInTheDocument();
+    fireEvent.contextMenu(settings);
+    expect(await screen.findByRole('menu', { name: 'Profiles' })).toBeVisible();
+  });
+
+  it('shows kids settings as read-only across Layout and Content without dispatching changes', async () => {
+    bridgeMock.kidsProfile = true;
+    window.history.replaceState({}, '', '/settings/appearance');
+    render(<AppRoot />);
+    const amoled = await screen.findByRole('checkbox', { name: 'AMOLED Black' });
+    expect(amoled).toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent('Switch to an adult profile');
+    act(() => amoled.click());
+    expect(bridgeMock.requests.some(request => request.method === 'appearance.setAmoled')).toBe(false);
+    fireEvent.click(screen.getByRole('link', { name: 'General' }));
+    fireEvent.click(await screen.findByRole('link', { name: /Content & Discovery/ }));
+    expect(await screen.findByRole('checkbox', { name: 'Recent Searches' })).toBeDisabled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Addons/ })).toHaveAttribute('href', '/settings/content/addons');
   });
 
   it('refreshes Discover on entry and keeps its posters visible with recent searches open', async () => {

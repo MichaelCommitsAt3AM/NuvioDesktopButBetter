@@ -9,6 +9,9 @@ $staged = Join-Path $uiRoot 'src-tauri\resources\backend'
 if (-not (Test-Path -LiteralPath (Join-Path $backend 'runtime\bin\java.exe'))) {
     throw 'The packaged backend must include its private Java runtime in runtime\bin\java.exe.'
 }
+if (-not (Test-Path -LiteralPath (Join-Path $backend 'runtime\bin\Nuvio.exe'))) {
+    throw 'The packaged backend must include runtime\bin\Nuvio.exe. Run scripts/desktop-ui/bundle-java.mjs first.'
+}
 $entries = (Get-Content -LiteralPath (Join-Path $backend 'classpath.txt') -Raw).Trim().Split(';')
 foreach ($entry in $entries) {
     if ([IO.Path]::IsPathRooted($entry) -or $entry -match '(^|[\\/])\.\.([\\/]|$)' -or

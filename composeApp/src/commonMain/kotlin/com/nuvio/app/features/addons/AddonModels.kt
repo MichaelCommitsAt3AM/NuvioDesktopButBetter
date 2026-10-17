@@ -67,6 +67,8 @@ data class ManagedAddon(
 
 data class AddonsUiState(
     val addons: List<ManagedAddon> = emptyList(),
+    val profileLoadPending: Boolean = false,
+    val profileLoadError: String? = null,
 )
 
 data class AddonOverview(

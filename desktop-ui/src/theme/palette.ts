@@ -80,7 +80,7 @@ export function themeCssVars(
   entry: ThemeEntry | undefined,
   options: { amoled?: boolean; customColors?: string[] } = {},
 ): CSSProperties {
-  const { amoled = false, customColors } = options;
+  const { amoled = true, customColors } = options;
   const fallbackBg = customColors?.[0] ?? FALLBACK_THEME.background;
   const fallbackAccent = customColors?.[1] ?? FALLBACK_THEME.accent;
   const fallbackSurface = customColors?.[2] ?? FALLBACK_THEME.surface;

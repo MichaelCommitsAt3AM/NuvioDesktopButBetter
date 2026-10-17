@@ -46,7 +46,7 @@ function AppearancePage() {
       <CustomThemeColors snapshot={snapshot} onSaveColors={(colors) => update('appearance.setCustomTheme', { colors })} editing={customEditorOpen} onEditingChange={setCustomEditorOpen} />
     </section>
     <div className="appearance-section-label">DISPLAY</div><section className="settings-section appearance-display-section">
-      <ControlRow title="AMOLED Black" description="Use pure black backgrounds for OLED screens." checked={snapshot?.amoledEnabled ?? false} onChange={(enabled) => run('appearance.setAmoled', { enabled })} />
+      <ControlRow title="AMOLED Black" description="Use pure black backgrounds for OLED screens." checked={snapshot?.amoledEnabled ?? true} onChange={(enabled) => run('appearance.setAmoled', { enabled })} />
       <SettingsChoice title="Desktop navigation" value={(snapshot?.navigationLayout ?? 'topbar') === 'sidebar' ? 'Sidebar' : 'Top Bar'} onClick={() => setOpenChoice('layout')} />
       <SettingsChoice title={(snapshot?.navigationLayout ?? 'topbar') === 'sidebar' ? 'Sidebar Style' : 'Top Bar Style'} value={({ adaptive: 'Adaptive', expanded: 'Always Expanded', compact: 'Always Compact', classic: 'Classic' } as Record<string, string>)[snapshot?.navBarStyle ?? 'expanded']} onClick={() => setOpenChoice('style')} />
       <AppearanceNavRow to="/settings/appearance/hover-preview" icon={Play} title="Hover Preview" description="Configure poster hover cards and their opening delay." />

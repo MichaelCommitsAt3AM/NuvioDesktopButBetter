@@ -13,6 +13,9 @@ export type ProfileRecord = {
   pinLockedUntil: string | null;
   usesPrimaryAddons: boolean;
   addonSyncProfileId?: number | null;
+  kidsEnabled?: boolean;
+  kidsMaxRating?: string;
+  kidsServiceUrl?: string | null;
   usesPrimaryPlugins: boolean;
   primaryAddonsAllowlist: string[] | null;
 };

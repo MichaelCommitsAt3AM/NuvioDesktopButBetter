@@ -51,7 +51,7 @@ export function SettingsLanding() {
     else if(path==='updates')void checkUpdates();
     else if(path==='updates-test')showTestBanner();
   }
-  const rows=searching?searchSettings(query).map(entry=>({key:entry.key,path:entry.route,title:entry.title,description:settingsResultDescription(entry),icon:entries.find(row=>entry.route.startsWith(row.path))?.icon??Info})):entries.filter(entry=>entry.category===category).map(entry=>({...entry,key:entry.path}));
+  const rows=searching?searchSettings(query).map(entry=>({key:entry.key,path:entry.route,title:entry.title,description:settingsResultDescription(entry),icon:entries.find(row=>entry.route.startsWith(row.path))?.icon??Info})):entries.filter(entry=>entry.category===category&&(entry.path!=='updates-test'||import.meta.env.DEV)).map(entry=>({...entry,key:entry.path}));
   return <div className="page settings-root" onWheel={event=>{if(event.deltaY<0&& (document.querySelector('.settings-pane')?.scrollTop??0)===0)setSearchVisible(true);}}>
     <PageHeader title={title} action={<button className="icon-button" aria-label="Search settings" onClick={()=>{setSearchVisible(true);searchInput.current?.focus();}}><Search size={23}/></button>}/>
     {searchVisible&&<div className="settings-search-field"><Search size={23}/><input ref={searchInput} autoFocus className="settings-search" placeholder="Search Settings" aria-label="Search settings" value={query} onChange={event=>setQuery(event.target.value)} onKeyDown={event=>{if(event.key==='Escape'){setQuery('');event.stopPropagation();}}}/>{query&&<button className="icon-button" aria-label="Clear search" onClick={()=>{setQuery('');searchInput.current?.focus();}}><X size={23}/></button>}</div>}

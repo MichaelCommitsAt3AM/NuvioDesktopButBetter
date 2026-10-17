@@ -38,7 +38,8 @@ def collect_matches(root: Path, pattern: str, regex: re.Pattern[str]) -> set[str
 
 
 def main() -> int:
-    rpc_calls = collect_matches(KOTLIN_ROOT, "*.kt", RPC_CALL) - UPSTREAM_ONLY_RPCS
+    rpc_calls = (collect_matches(KOTLIN_ROOT, "*.kt", RPC_CALL)
+                 | collect_matches(REPO_ROOT / "desktop-bridge" / "src" / "main", "*.kt", RPC_CALL)) - UPSTREAM_ONLY_RPCS
     sql_functions = collect_matches(MIGRATIONS_ROOT, "*.sql", SQL_FUNCTION)
     missing = sorted(rpc_calls - sql_functions)
 

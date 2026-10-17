@@ -307,6 +307,12 @@
         },
         "locked": {
           "type": "boolean"
+        },
+        "kidsEnabled": {
+          "type": "boolean"
+        },
+        "kidsMaxRating": {
+          "type": "string"
         }
       }
     },
@@ -791,7 +797,9 @@
             "search.historyUse",
             "search.historyEnabled",
             "search.historyRecord",
+            "profiles.kids.configure",
             "profiles.snapshot",
+            "profiles.addons.snapshot",
             "profiles.create",
             "profiles.update",
             "profiles.delete",

@@ -65,3 +65,4 @@ dev/
 /resources/backend/
 /desktop-ui/src-tauri/tauri.release.conf.json
 /release-assets/
+/.codex-remote-attachments/

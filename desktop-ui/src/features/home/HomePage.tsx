@@ -48,24 +48,11 @@ const homeViewPositions=new Map<string,{scrollTop:number;heroIndex:number}>();
 const consumedHomeScrollResets=new Set<string>();
 // Mirrors HOME_HERO_ITEM_LIMIT in HomeRepository.
 const MAX_HERO_ITEMS = 8;
-// The backend can emit a settled-but-empty home snapshot before catalogs
-// resolve. Hold the empty state back briefly so a slow first snapshot never
-// flashes "install an addon" at users who already have addons.
-const HOME_EMPTY_STATE_GRACE_MS = 600;
-
-function useConfirmedHomeEmpty(isEmpty: boolean): boolean {
-  const [confirmed, setConfirmed] = useState(false);
-  useEffect(() => {
-    if (!isEmpty) { setConfirmed(false); return; }
-    const timer = window.setTimeout(() => setConfirmed(true), HOME_EMPTY_STATE_GRACE_MS);
-    return () => window.clearTimeout(timer);
-  }, [isEmpty]);
-  return confirmed;
-}
-
 export function HomePage() {
   const visible = useContext(HomeVisibility);
   const home = useSelector((current) => current.home);
+  const addons = useSelector((current) => current.addons) ?? [];
+  const addonsReady = useSelector((current) => current.addonsReady);
   const location = useLocation();
   const navigate = useNavigate();
   const appearance = useFeatureSnapshot<AppearanceSnapshot>('appearance');
@@ -199,7 +186,13 @@ export function HomePage() {
   const continueWatchingLoading = !extrasSnapshotState.settled || extrasSnapshotState.profileId !== profileId;
   const continueWatchingVisible = preferences?.isVisible ?? true;
   const homeEmpty = !home.loading && !home.error && !home.shelves.length && !hero;
-  const showHomeEmpty = useConfirmedHomeEmpty(homeEmpty);
+  // An empty catalog snapshot is provisional until the profile's addons are
+  // confirmed: an enabled addon whose manifest is still resolving means
+  // catalogs may still arrive. Show the card shimmer until then so startup
+  // goes straight to the loading animation instead of flashing the
+  // "install an addon" empty state for a second.
+  const addonsSettled = addonsReady && !addons.some((addon) => addon.enabled && addon.refreshing);
+  const showHomeEmpty = homeEmpty && addonsSettled;
   const cwRemoval = useDisintegratingRemoval(continueItems, (entry) => `${entry.parentMetaId}:${entry.videoId}`, profileId);
   const upcomingRemoval = useDisintegratingRemoval(upcoming, (entry) => `${entry.parentMetaId}:next:${entry.videoId}`, profileId);
   const cwRailRef = useRef<HTMLDivElement>(null);
@@ -227,7 +220,7 @@ export function HomePage() {
     </section>}
     {actionError && <InlineError message={actionError} onRetry={() => setActionError(null)} />}
     {home.error && <InlineError message={home.error} onRetry={() => void actions.homeRefresh()} />}
-    {(home.loading || (homeEmpty && !showHomeEmpty)) && !home.shelves.length && <HomeLoadingSkeleton showHero={!hero && appearance?.home.heroEnabled !== false} />}
+    {(home.loading && !home.shelves.length) || (homeEmpty && !showHomeEmpty) ? <HomeLoadingSkeleton showHero={!hero && appearance?.home.heroEnabled !== false} /> : null}
 
     {continueWatchingVisible && (continueWatchingLoading || cwRemoval.visible.length > 0) && <section className="home-cw-section" aria-busy={continueWatchingLoading}>
       <div className="home-cw-heading"><h2>Continue Watching</h2></div>

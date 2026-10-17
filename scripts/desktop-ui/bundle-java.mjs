@@ -15,9 +15,14 @@ if (!existsSync(runtime)) {
   const result = spawnSync(path.join(process.env.JAVA_HOME, 'bin', process.platform === 'win32' ? 'jlink.exe' : 'jlink'), ['--add-modules', modules.join(','), '--strip-debug', '--no-header-files', '--no-man-pages', '--output', runtime], { stdio: 'inherit' });
   if (result.error || result.status !== 0) throw new Error('Failed to bundle Java: ' + (result.error?.message ?? result.status));
 }
-const java = path.join(runtime, 'bin', process.platform === 'win32' ? 'java.exe' : 'java');
-const result = spawnSync(java, ['-version'], { stdio: 'inherit' });
+const stockJava = path.join(runtime, 'bin', process.platform === 'win32' ? 'java.exe' : 'java');
+const result = spawnSync(stockJava, ['-version'], { stdio: 'inherit' });
 if (result.error || result.status !== 0) throw new Error('The bundled Java runtime cannot run.');
+if (process.platform === 'win32') {
+  const build = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'scripts/desktop-ui/build-windows-launcher.ps1'), '-RuntimeDirectory', runtime], { stdio: 'inherit' });
+  if (build.error || build.status !== 0) throw new Error('Failed to build branded backend launcher: ' + (build.error?.message ?? build.status));
+}
+const java = process.platform === 'win32' ? path.join(runtime, 'bin', 'Nuvio.exe') : stockJava;
 const native = path.join(backend, 'native');
 mkdirSync(native, { recursive: true });
 const nativeFiles = readdirSync(native, { recursive: true }).map(String);
@@ -27,4 +32,8 @@ for (const name of expected) if (!nativeFiles.some(file => path.basename(file) =
 // the actual staged JARs without starting a UI, account session or HTTP server.
 const smoke = spawnSync(java, ['-cp', jars.map(name => path.join(backend, 'lib', name)).join(path.delimiter), 'com.nuvio.desktop.bridge.MainKt'], { input: '', encoding: 'utf8', timeout: 15000 });
 if (smoke.error || smoke.status === 0 || !smoke.stderr?.includes('Missing bridge token on stdin')) throw new Error('Packaged Kotlin bridge entry point cannot load: ' + (smoke.error?.message ?? smoke.stderr));
+if (process.platform === 'win32') {
+  const tests = spawnSync(process.execPath, ['--test', path.join(root, 'scripts/desktop-ui/windows-launcher.test.mjs')], { stdio: 'inherit' });
+  if (tests.error || tests.status !== 0) throw new Error('Branded backend launcher integration tests failed.');
+}
 console.log(`Staged ${jars.length} backend JARs and a private Java runtime.`);

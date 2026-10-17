@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { ArrowLeft, Check, LockKeyhole, Save, Shield, Sparkles, Trash2, UserRound, WandSparkles, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, LockKeyhole, Save, Shield, Sparkles, Trash2, UserRound, WandSparkles, X } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Avatar, PageHeader } from '../../components/ui';
 import { Dialog } from '../../components/Dialog';
 import { ProfilePinManager } from './PinDialogs';
 import { InlineError } from '../../components/Status';
 import { useProfiles, type AvatarChoice, type ProfileRecord } from './profileStore';
+import { call } from '../../bridge';
+import './profileSharing.css';
 
 const defaultColor = '#1E88E5';
+const kidsServiceUrl = 'https://kids-screen.vercel.app';
+type CopyAddon = { url: string; name: string; enabled: boolean };
 
 export function ProfileEditorPage() {
   const { id } = useParams();
@@ -23,10 +27,24 @@ export function ProfileEditorPage() {
   const [backgroundId, setBackgroundId] = useState<string | null>(null);
   const [backgroundUrl, setBackgroundUrl] = useState('');
   const [syncAddons, setSyncAddons] = useState(false);
+  const [kidsEnabled, setKidsEnabled] = useState(false);
+  const [kidsMaxRating, setKidsMaxRating] = useState('G');
+  const [kidsApiKey, setKidsApiKey] = useState('');
+  const savedProfileId = useRef<number | null>(null);
   const [addonSyncProfileId, setAddonSyncProfileId] = useState<number | null>(null);
+  const [syncAllAddons, setSyncAllAddons] = useState(true);
+  const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
+  const [copyAddons, setCopyAddons] = useState<CopyAddon[]>([]);
+  const [copyUrls, setCopyUrls] = useState<string[]>([]);
+  const [copyLoading, setCopyLoading] = useState(false);
+  const [copyError, setCopyError] = useState('');
+  const [copyLoadedSource, setCopyLoadedSource] = useState<number | null>(null);
+  const [copyRetry, setCopyRetry] = useState(0);
   const availableProfiles = (snapshot?.items ?? []).filter((item) => item.id !== editingId);
   const validAddonSource = !syncAddons || availableProfiles.some((item) => item.id === addonSyncProfileId);
+  const copyReady = !syncAddons || syncAllAddons || (!copyLoading && !copyError && copyLoadedSource === addonSyncProfileId);
   const [saving, setSaving] = useState(false);
+  const [creationIncomplete, setCreationIncomplete] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
@@ -50,7 +68,24 @@ export function ProfileEditorPage() {
     setBackgroundUrl(profile?.backgroundUrl ?? '');
     setSyncAddons(profile?.addonSyncProfileId != null);
     setAddonSyncProfileId(profile?.addonSyncProfileId ?? null);
+    setSyncAllAddons(!profile?.kidsEnabled);
+    setKidsEnabled(profile?.kidsEnabled ?? false);
+    setKidsMaxRating(profile?.kidsMaxRating ?? 'G');
+    savedProfileId.current = editingId;
   }, [snapshot, editingId, profile?.id]);
+
+  useEffect(() => {
+    setCopyLoadedSource(null); setCopyAddons([]); setCopyUrls([]); setCopyError('');
+    if (!syncAddons || syncAllAddons || addonSyncProfileId === null) { setCopyLoading(false); return; }
+    let cancelled = false;
+    setCopyLoading(true);
+    void call<CopyAddon[]>('profiles.addons.snapshot', { id: addonSyncProfileId }).then(items => {
+      if (cancelled) return;
+      setCopyAddons(items); setCopyUrls(items.map(item => item.url)); setCopyLoadedSource(addonSyncProfileId);
+    }).catch(cause => { if (!cancelled) setCopyError(cause instanceof Error ? cause.message : 'Could not load source add-ons.'); })
+      .finally(() => { if (!cancelled) setCopyLoading(false); });
+    return () => { cancelled = true; };
+  }, [syncAddons, syncAllAddons, addonSyncProfileId, copyRetry]);
 
   function chooseAvatar(avatar: AvatarChoice) {
     if (avatar.memberOnly) return;
@@ -66,10 +101,13 @@ export function ProfileEditorPage() {
   }
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (!name.trim() || urlInvalid || !validAddonSource) return;
+    if (!name.trim() || urlInvalid || !validAddonSource || !copyReady || saving || creationIncomplete) return;
     setSaving(true); setError('');
+    const kidsChanged = kidsEnabled !== !!profile?.kidsEnabled || (kidsEnabled && (kidsMaxRating !== (profile?.kidsMaxRating ?? 'G') || kidsServiceUrl !== (profile?.kidsServiceUrl ?? kidsServiceUrl) || !!kidsApiKey.trim()));
+    if (kidsEnabled && (kidsChanged || !profile?.kidsEnabled) && !kidsApiKey.trim() && (!profile?.kidsEnabled || kidsMaxRating !== profile.kidsMaxRating || kidsServiceUrl !== profile.kidsServiceUrl)) { setError('Enter your TMDB API key to set up this kids profile.'); setSaving(false); return; }
+    const targetId = savedProfileId.current ?? editingId;
     const params: Record<string, unknown> = {
-      ...(editingId !== null ? { id: editingId } : {}),
+      ...(targetId !== null ? { id: targetId } : {}),
       name: name.trim(),
       avatarColorHex: color,
       avatarId: safeAvatarUrl ? null : avatarId,
@@ -77,14 +115,25 @@ export function ProfileEditorPage() {
       backgroundId,
       backgroundUrl: backgroundUrl.trim() || null,
       usesPrimaryAddons: false,
-      addonSyncProfileId: syncAddons ? addonSyncProfileId : null,
+      addonSyncProfileId: syncAddons && syncAllAddons && !kidsEnabled ? addonSyncProfileId : null,
+      ...(syncAddons && !syncAllAddons ? { addonCopyProfileId: addonSyncProfileId, addonCopyUrls: copyUrls } : {}),
       usesPrimaryPlugins: profile?.usesPrimaryPlugins ?? false,
       primaryAddonsAllowlist: null,
     };
     try {
-      await run(editingId === null ? 'profiles.create' : 'profiles.update', params);
+      const result = await run(targetId === null ? 'profiles.create' : 'profiles.update', params);
+      const finalId = targetId ?? result?.items.find(item => !snapshot?.items.some(existing => existing.id === item.id))?.id;
+      if (finalId != null) savedProfileId.current = finalId;
+      if (kidsChanged) {
+        if (finalId == null) throw new Error('Profile was saved. Open All profiles to finish kids setup.');
+        await run('profiles.kids.configure', { id: finalId, enabled: kidsEnabled, maxRating: kidsMaxRating, serviceUrl: kidsServiceUrl, apiKey: kidsApiKey.trim() });
+        setKidsApiKey('');
+      }
       navigate('/profiles');
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save profile.'); }
+    } catch (cause) {
+      if (cause instanceof Error && 'code' in cause && cause.code === 'PROFILE_CREATED_ADDON_COPY_FAILED') setCreationIncomplete(true);
+      setError(cause instanceof Error ? cause.message : 'Could not save profile.');
+    }
     finally { setSaving(false); }
   }
   const visibleAvatarUrl = safeAvatarUrl || selectedAvatar?.url || null;
@@ -122,20 +171,41 @@ export function ProfileEditorPage() {
 
       <section className="settings-section profile-sharing-section">
         <div className="settings-section-heading"><span className="settings-icon"><Shield size={18} /></span><div><h2>Content and privacy</h2><p>Keep add-ons separate or sync them with another profile.</p></div></div>
-        <div className="settings-row-card"><span className="settings-row-copy"><strong>Sync add-ons with another profile</strong><span>Keep additions, removals, and add-on settings in sync between both profiles.</span></span><label className="switch" aria-label="Sync add-ons with another profile"><input type="checkbox" checked={syncAddons} disabled={!availableProfiles.length} onChange={(event) => setSyncAddons(event.target.checked)} /><span /></label></div>
+        <div className="settings-row-card"><span className="settings-row-copy"><strong>Sync add-ons with another profile</strong><span>{kidsEnabled ? 'Copy playback providers once. KidsScreen supplies all browsing catalogs and search.' : 'Keep additions, removals, and add-on settings in sync between both profiles.'}</span></span><label className="switch" aria-label="Sync add-ons with another profile"><input type="checkbox" checked={syncAddons} disabled={!availableProfiles.length} onChange={(event) => setSyncAddons(event.target.checked)} /><span /></label></div>
         {!availableProfiles.length && <p className="muted">Create another profile to enable add-on syncing.</p>}
-        {syncAddons && <label className="profile-url-field">Sync with profile<select value={addonSyncProfileId ?? ''} onChange={(event) => setAddonSyncProfileId(event.target.value ? Number(event.target.value) : null)} required><option value="" disabled>Select a profile</option>{availableProfiles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small>This profile will use the selected profile's current add-ons. Future changes from either profile are shared. Turning sync off keeps the current add-ons.</small></label>}
+        {syncAddons && <>
+          <button type="button" className="settings-row-card profile-source-picker" aria-haspopup="dialog" onClick={() => setSourcePickerOpen(true)}><span className="settings-row-copy"><strong>Sync with profile</strong><span>{availableProfiles.find(item => item.id === addonSyncProfileId)?.name ?? 'Select a profile'}</span></span><ChevronDown size={18} /></button>
+          <div className="settings-row-card"><span className="settings-row-copy"><strong>Sync all add-ons</strong><span>{kidsEnabled ? 'Kids profiles use an independent copy. Catalogs from Cinemeta, AIOMetadata and other copied providers are excluded from browsing.' : syncAllAddons ? 'Keep all add-ons and future changes in sync.' : 'Copy selected add-ons once. Future changes will not be synced.'}</span></span><label className="switch" aria-label="Sync all add-ons"><input type="checkbox" checked={syncAllAddons} disabled={kidsEnabled} onChange={event => setSyncAllAddons(event.target.checked)} /><span /></label></div>
+          {!syncAllAddons && <div className="profile-addon-copy">
+            <p className="muted">Choose the add-ons to copy. Saving replaces this profile’s add-ons with your selection and removes its ongoing sync link.</p>
+            {addonSyncProfileId === null ? <p className="muted">Select a source profile first.</p> : copyLoading ? <p role="status">Loading add-ons…</p> : copyError ? <InlineError message={copyError} onRetry={() => setCopyRetry(value => value + 1)} /> : <>
+              {copyAddons.map(addon => <label className="profile-addon-copy-row" key={addon.url}><span><strong>{addon.name}</strong><small>{addon.enabled ? 'Enabled' : 'Disabled in source profile'}</small></span><input type="checkbox" checked={copyUrls.includes(addon.url)} onChange={event => setCopyUrls(urls => event.target.checked ? [...urls, addon.url] : urls.filter(url => url !== addon.url))} /></label>)}
+              {copyLoadedSource !== null && !copyAddons.length && <p className="muted">This profile has no add-ons to copy.</p>}
+            </>}
+          </div>}
+        </>}
       </section>
+
+      {editingId !== 1 && <section className="settings-section profile-sharing-section">
+        <div className="settings-section-heading"><span className="settings-icon"><Shield size={18} /></span><div><h2>Kids profile</h2><p>Browse stories within the age limit you choose.</p></div></div>
+        <div className="settings-row-card"><span className="settings-row-copy"><strong>Kids account</strong><span>Use KidsScreen for catalogs and search. Verify ratings throughout Nuvio.</span></span><label className="switch" aria-label="Kids account"><input type="checkbox" checked={kidsEnabled} onChange={event => { setKidsEnabled(event.target.checked); if (event.target.checked) setSyncAllAddons(false); }} /><span /></label></div>
+        {kidsEnabled && <div className="profile-kids-fields">
+          <label>Maximum Age Rating<select value={kidsMaxRating} onChange={event => setKidsMaxRating(event.target.value)}><option value="G">G — General audiences</option><option value="PG">PG — Parental guidance</option><option value="PG-13">PG-13 — Teens</option></select></label>
+          <label>TMDB API key<input type="password" autoComplete="off" value={kidsApiKey} onChange={event => setKidsApiKey(event.target.value)} aria-describedby={profile?.kidsEnabled ? 'kids-api-key-status' : undefined} placeholder={profile?.kidsEnabled ? '••••••••••••••••' : 'Your personal TMDB API key'} /></label>
+          {profile?.kidsEnabled && <small id="kids-api-key-status">Key already configured. Leave this field unchanged to keep it, or enter your key again when changing the age limit.</small>}
+          <small>The key is validated and stored encrypted by KidsScreen. Unrated titles and TV-14/TV-MA series are hidden. Featured titles use the same rating checks.</small>
+        </div>}
+      </section>}
 
       {profile && <section className="settings-section profile-pin-section">
         <div className="settings-section-heading"><span className="settings-icon"><LockKeyhole size={18} /></span><div><h2>Profile PIN</h2><p>{profile.locked ? 'A PIN is required before anyone can switch to this profile.' : 'Protect this profile with a four digit PIN.'}</p></div></div>
         <button type="button" className={profile.locked ? 'button secondary' : 'button secondary'} onClick={() => setPinAction(profile.locked ? 'clear' : 'set')}>{profile.locked ? <X size={15} /> : <LockKeyhole size={15} />}{profile.locked ? 'Remove PIN' : 'Set a PIN'}</button>
       </section>}
 
-      <div className="profile-editor-footer"><span>{editingId === null ? 'You can change these details later.' : `Profile ${profile?.id ?? ''}`}</span><button className="button primary" disabled={saving || !name.trim() || urlInvalid || !validAddonSource}>{saving ? <span className="spin" /> : <Save size={15} />}{saving ? 'Savingâ€¦' : editingId === null ? 'Create profile' : 'Save changes'}</button></div>
+      <div className="profile-editor-footer"><span>{profile && profile.id > 1 && <button type="button" className="button destructive" disabled={saving || deleting} onClick={() => { setDeleteError(''); setConfirmDelete(true); }}><Trash2 size={15} />Delete profile</button>}{editingId === null && 'You can change these details later.'}</span><button className="button primary" disabled={saving || creationIncomplete || !name.trim() || urlInvalid || !validAddonSource || !copyReady}>{saving ? <span className="spin" /> : <Save size={15} />}{saving ? 'Savingâ€¦' : editingId === null ? 'Create profile' : 'Save changes'}</button></div>
     </form>
-    {profile && profile.id > 1 && <button type="button" className="button destructive" disabled={saving || deleting} onClick={() => { setDeleteError(''); setConfirmDelete(true); }}><Trash2 size={15} />Delete profile</button>}
     {confirmDelete && profile && <Dialog label={`Delete ${profile.name}`} onClose={() => { if (!deleting) setConfirmDelete(false); }}><div className="dialog-head"><strong>Delete {profile.name}?</strong></div><p className="muted">This permanently removes this profile and its profile-specific settings.</p>{deleteError && <p className="form-error" role="alert">{deleteError}</p>}<div className="dialog-actions"><button type="button" className="button secondary" disabled={deleting} onClick={() => setConfirmDelete(false)}>Cancel</button><button type="button" className="button destructive" disabled={deleting} onClick={() => void removeProfile()}><Trash2 size={15} />{deleting ? 'Deleting…' : 'Delete profile'}</button></div></Dialog>}
+    {sourcePickerOpen && <Dialog label="Sync with profile" onClose={() => setSourcePickerOpen(false)} className="settings-choice-dialog profile-source-dialog"><h2>Sync with profile</h2><div className="settings-dialog-options">{availableProfiles.map(item => <button type="button" className="settings-dialog-option" aria-pressed={item.id === addonSyncProfileId} key={item.id} onClick={() => { setAddonSyncProfileId(item.id); setSourcePickerOpen(false); }}><span>{item.name}</span><span className={`settings-radio ${item.id === addonSyncProfileId ? 'selected' : ''}`} aria-hidden="true" /></button>)}</div></Dialog>}
     {pinAction && profile && <ProfilePinManager action={pinAction} profile={profile} onClose={() => setPinAction(null)} onDone={() => setPinAction(null)} />}
   </div>;
 }

@@ -11,16 +11,18 @@ internal object EmbeddedTauriPlayerHost {
     private var onAttached: (() -> Unit)? = null
 
     private var onPresented: (() -> Unit)? = null
+    private var onPresentationFailed: (() -> Unit)? = null
 
     @Volatile
     private var fullscreen = false
 
     private var onToggleFullscreen: (() -> Unit)? = null
 
-    fun begin(windowHwnd: Long?, attached: (() -> Unit)? = null, initialFullscreen: Boolean = false, toggleFullscreen: (() -> Unit)? = null, presented: (() -> Unit)? = null) {
+    fun begin(windowHwnd: Long?, attached: (() -> Unit)? = null, initialFullscreen: Boolean = false, toggleFullscreen: (() -> Unit)? = null, presented: (() -> Unit)? = null, presentationFailed: (() -> Unit)? = null) {
         hwnd = windowHwnd?.takeIf { it != 0L }
         onAttached = attached
         onPresented = presented
+        onPresentationFailed = presentationFailed
         fullscreen = hwnd != null && initialFullscreen
         onToggleFullscreen = toggleFullscreen
     }
@@ -38,6 +40,14 @@ internal object EmbeddedTauriPlayerHost {
 
     fun playerPresented() {
         val callback = onPresented
+        onPresented = null
+        onPresentationFailed = null
+        callback?.invoke()
+    }
+
+    fun playerPresentationFailed() {
+        val callback = onPresentationFailed
+        onPresentationFailed = null
         onPresented = null
         callback?.invoke()
     }
@@ -57,6 +67,7 @@ internal object EmbeddedTauriPlayerHost {
         hwnd = null
         onAttached = null
         onPresented = null
+        onPresentationFailed = null
         fullscreen = false
         onToggleFullscreen = null
     }

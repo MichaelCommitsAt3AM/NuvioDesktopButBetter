@@ -471,7 +471,7 @@ std::string hresultMessage(const char *operation, HRESULT hr) {
     return builder.str();
 }
 
-std::wstring webViewUserDataDirectory() {
+std::wstring webViewUserDataDirectory(HWND host = nullptr) {
     PWSTR localAppData = nullptr;
     HRESULT result = SHGetKnownFolderPath(FOLDERID_LocalAppData, KF_FLAG_CREATE, nullptr, &localAppData);
     if (FAILED(result) || !localAppData) {
@@ -480,7 +480,12 @@ std::wstring webViewUserDataDirectory() {
     }
     std::wstring directory(localAppData);
     CoTaskMemFree(localAppData);
-    directory += L"\\Nuvio\\WebView2";
+    // WebView2 cannot share a browser process across different DPI awareness
+    // modes. JVM warm-up uses the JVM's context; an embedded Tauri HWND may use
+    // a different one. Keep their browser profiles separate without deleting data.
+    auto context = host ? GetWindowDpiAwarenessContext(host) : GetThreadDpiAwarenessContext();
+    auto awareness = GetAwarenessFromDpiAwarenessContext(context);
+    directory += L"\\Nuvio\\WebView2\\controls-dpi-" + std::to_wstring(static_cast<int>(awareness));
     int createResult = SHCreateDirectoryExW(nullptr, directory.c_str(), nullptr);
     if (createResult != ERROR_SUCCESS && createResult != ERROR_ALREADY_EXISTS && createResult != ERROR_FILE_EXISTS) {
         throw std::runtime_error("Failed to create WebView2 user data directory");
@@ -1380,6 +1385,7 @@ private:
     ComPtr<ICoreWebView2> webView;
     EventRegistrationToken messageToken = {};
     EventRegistrationToken acceleratorToken = {};
+    EventRegistrationToken controlsNavigationToken = {};
 
     std::mutex uiTaskMutex;
     std::deque<std::function<void()>> uiTasks;
@@ -1409,6 +1415,7 @@ private:
     std::atomic_bool controlsWebReady = false;
     bool deferPresentation = false;
     bool controlsPresented = false;
+    bool controlsFirstStateSubmitted = false;
     std::atomic_bool layoutSubviewsPending = false;
     std::mutex controlsMutex;
     std::string pendingControlsJson;
@@ -1470,6 +1477,8 @@ private:
     ) {
         registerWindowClasses();
         uiThreadId = GetCurrentThreadId();
+        // Child windows and WebView2 must agree with the owning shell's DPI mode.
+        SetThreadDpiAwarenessContext(GetWindowDpiAwarenessContext(hostHwnd));
         HRESULT oleResult = OleInitialize(nullptr);
         didOleInitialize = SUCCEEDED(oleResult);
         if (FAILED(oleResult)) {
@@ -1549,6 +1558,10 @@ private:
             webView->remove_WebMessageReceived(messageToken);
             messageToken.value = 0;
         }
+        if (webView && controlsNavigationToken.value != 0) {
+            webView->remove_NavigationCompleted(controlsNavigationToken);
+            controlsNavigationToken.value = 0;
+        }
         if (controller && acceleratorToken.value != 0) {
             controller->remove_AcceleratorKeyPressed(acceleratorToken);
             acceleratorToken.value = 0;
@@ -1620,8 +1633,16 @@ private:
         doneCv->wait_for(waitLock, std::chrono::milliseconds(kUiTaskTimeoutMs), [&]() { return *done; });
     }
 
+    void failControlsInitialization(HRESULT result) {
+        // The Kotlin host owns cleanup. Stop audio while it unwinds the failed
+        // start instead of continuing invisible playback until the timeout.
+        setPaused(true);
+        sendPlayerEvent("nativeControlsFailed", static_cast<double>(result));
+    }
+
     void startWebView(const std::string &controlsUrl) {
-        std::wstring userDataDir = webViewUserDataDirectory();
+        sendPlayerEvent("bridgeControlsDpiAwareness", static_cast<double>(GetAwarenessFromDpiAwarenessContext(GetWindowDpiAwarenessContext(containerHwnd))));
+        std::wstring userDataDir = webViewUserDataDirectory(containerHwnd);
         auto weakSelf = weak_from_this();
         HRESULT result = CreateCoreWebView2EnvironmentWithOptions(
             nullptr,
@@ -1631,7 +1652,9 @@ private:
                 [weakSelf, controlsUrl](HRESULT envResult, ICoreWebView2Environment *createdEnvironment) -> HRESULT {
                     auto self = weakSelf.lock();
                     if (!self || self->shuttingDown.load()) return S_OK;
+                    self->sendPlayerEvent("bridgeControlsEnvironment", static_cast<double>(envResult));
                     if (FAILED(envResult) || !createdEnvironment) {
+                        self->failControlsInitialization(FAILED(envResult) ? envResult : E_UNEXPECTED);
                         return S_OK;
                     }
                     self->environment = createdEnvironment;
@@ -1642,11 +1665,17 @@ private:
                             [controllerWeakSelf, controlsUrl](HRESULT controllerResult, ICoreWebView2Controller *createdController) -> HRESULT {
                                 auto controllerSelf = controllerWeakSelf.lock();
                                 if (!controllerSelf || controllerSelf->shuttingDown.load()) return S_OK;
+                                controllerSelf->sendPlayerEvent("bridgeControlsController", static_cast<double>(controllerResult));
                                 if (FAILED(controllerResult) || !createdController) {
+                                    controllerSelf->failControlsInitialization(FAILED(controllerResult) ? controllerResult : E_UNEXPECTED);
                                     return S_OK;
                                 }
                                 controllerSelf->controller = createdController;
                                 createdController->get_CoreWebView2(&controllerSelf->webView);
+                                if (!controllerSelf->webView) {
+                                    controllerSelf->failControlsInitialization(E_UNEXPECTED);
+                                    return S_OK;
+                                }
 
                                 ComPtr<ICoreWebView2Controller2> controller2;
                                 if (SUCCEEDED(createdController->QueryInterface(IID_PPV_ARGS(&controller2))) && controller2) {
@@ -1705,6 +1734,20 @@ private:
                                         &controllerSelf->messageToken
                                     );
                                     controllerSelf->layoutNativeSubviews();
+                                    controllerSelf->webView->add_NavigationCompleted(
+                                        Callback<ICoreWebView2NavigationCompletedEventHandler>(
+                                            [messageWeakSelf](ICoreWebView2 *, ICoreWebView2NavigationCompletedEventArgs *args) -> HRESULT {
+                                                auto self = messageWeakSelf.lock();
+                                                if (!self || self->shuttingDown.load() || !args) return S_OK;
+                                                BOOL success = FALSE;
+                                                COREWEBVIEW2_WEB_ERROR_STATUS status = COREWEBVIEW2_WEB_ERROR_STATUS_UNKNOWN;
+                                                args->get_IsSuccess(&success);
+                                                args->get_WebErrorStatus(&status);
+                                                self->sendPlayerEvent("bridgeControlsNavigation", success ? 0.0 : static_cast<double>(status));
+                                                return S_OK;
+                                            }
+                                        ).Get(), &controllerSelf->controlsNavigationToken
+                                    );
                                     std::wstring url = toWide(controlsUrl);
                                     controllerSelf->webView->Navigate(url.c_str());
                                     controllerSelf->focusNativeControls();
@@ -1713,7 +1756,7 @@ private:
                             }
                         ).Get()
                     );
-                    (void)controllerResult;
+                    if (FAILED(controllerResult)) self->failControlsInitialization(controllerResult);
                     return S_OK;
                 }
             ).Get()
@@ -1928,7 +1971,22 @@ private:
             L"(function(){if(!window.playerControls)return 'missing';window.playerControls(JSON.parse(" +
             javaScriptStringLiteral(controlsJson) +
             L"));return 'applied';})()";
-        webView->ExecuteScript(script.c_str(), nullptr);
+        if (controlsFirstStateSubmitted) {
+            webView->ExecuteScript(script.c_str(), nullptr);
+            return;
+        }
+        controlsFirstStateSubmitted = true;
+        sendPlayerEvent("bridgeControlsInitialStateSubmitted", 0.0);
+        auto weakSelf = weak_from_this();
+        webView->ExecuteScript(script.c_str(), Callback<ICoreWebView2ExecuteScriptCompletedHandler>(
+            [weakSelf](HRESULT result, LPCWSTR resultJson) -> HRESULT {
+                auto self = weakSelf.lock();
+                if (!self || self->shuttingDown.load()) return S_OK;
+                const bool applied = resultJson && std::wstring(resultJson) == L"\"applied\"";
+                self->sendPlayerEvent("bridgeControlsInitialStateResult", FAILED(result) ? static_cast<double>(result) : applied ? 1.0 : 0.0);
+                return S_OK;
+            }
+        ).Get());
     }
 
     void syncControls() {
@@ -1958,6 +2016,11 @@ private:
         std::string type = extractJsonString(messageJson, L"type");
         if (type.empty()) return;
         double value = extractJsonNumber(messageJson, L"value", 0.0);
+
+        if (type.rfind("bridgeControls", 0) == 0) {
+            sendPlayerEvent(type, value);
+            return;
+        }
 
         if (type == "controlsPresented") {
             if (controlsPresented || !controlsWebReady.load()) return;

@@ -11,6 +11,7 @@ import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.window.WindowState
 import com.nuvio.app.core.ui.NuvioTheme
 import com.nuvio.app.core.ui.ProvideDesktopWindowInsets
+import com.nuvio.app.core.diagnostics.DesktopDiagnostics
 import com.nuvio.app.features.debrid.DirectDebridPlaybackResolver
 import com.nuvio.app.features.debrid.DirectDebridPlayableResult
 import com.nuvio.app.features.details.MetaDetails
@@ -41,6 +42,7 @@ import javax.swing.SwingUtilities
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.job
 import kotlinx.coroutines.swing.Swing
@@ -115,6 +117,7 @@ class NativePlayback(
         }
         val episode = videoId?.let { id -> meta.videos.firstOrNull { it.id == id } }
         val embeddedInTauri = DesktopHostOs.current == DesktopHostOs.WINDOWS && nativeHostWindow != null
+        DesktopDiagnostics.record("bridge_playback_start", "embedded=$embeddedInTauri")
         withPreparedPlaybackHost(
             dispatcher = Dispatchers.Swing,
             prepare = { prepareWindow(meta.name, embeddedInTauri) },
@@ -163,7 +166,13 @@ class NativePlayback(
                         EmbeddedTauriPlayerHost.begin(
                             nativeHostWindow,
                             initialFullscreen = nativeHostFullscreen,
-                            presented = { presented.complete(Unit) },
+                            presented = {
+                                DesktopDiagnostics.record("bridge_playback_presented")
+                                presented.complete(Unit)
+                            },
+                            presentationFailed = {
+                                presented.completeExceptionally(IllegalStateException("The native player controls could not be initialized. Please restart Nuvio and try again."))
+                            },
                             toggleFullscreen = {
                                 onPlaybackStateChanged(buildJsonObject {
                                     snapshot().forEach { (key, value) -> put(key, value) }
@@ -281,8 +290,19 @@ class NativePlayback(
                 // Preserve React's artwork until the native loading UI replaces it.
                 // Cancellation/failure leaves ownership with withPreparedPlaybackHost,
                 // which tears down the partially attached session.
-                if (embeddedInTauri) withTimeout(20_000) { presented.await() }
+                // A presentation timeout must surface as a regular failure: letting
+                // the TimeoutCancellationException escape would cancel the bridge
+                // request handler, which answers the RPC with no response at all and
+                // leaves the UI stuck on "Building player..." while audio plays.
+                try {
+                    DesktopDiagnostics.record("bridge_playback_await_presentation", "embedded=$embeddedInTauri")
+                    if (embeddedInTauri) withTimeout(20_000) { presented.await() }
+                } catch (timeout: TimeoutCancellationException) {
+                    DesktopDiagnostics.recordFailure("player_present_timeout", timeout)
+                    throw IllegalStateException("The player did not finish loading in time. Please try again.", timeout)
+                }
                 playbackState = "playing"
+                DesktopDiagnostics.record("bridge_playback_handoff_ready")
                 playbackPhase = "buffering"
                 publishState()
                 buildJsonObject { put("started", true); put("host", if (embeddedInTauri) "tauri-window" else "native-window") }

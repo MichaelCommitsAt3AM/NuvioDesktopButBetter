@@ -54,6 +54,8 @@ Close the original Compose app before using the source preview: the two implemen
 
 ## Upstream sync procedure
 
+Windows player presentation regression: run `./gradlew :composeApp:desktopTest --tests '*WindowsPlayerPresentationTest'`. This uses the real JNI/mpv/WebView2 controls with a temporary silent WAV and an offscreen native host, keeps warm-up alive under a different DPI mode, and checks initial state application, presentation acknowledgement and native surface visibility. It requires the Windows native build dependencies and installed WebView2 Runtime. The test skips other operating systems and is included in the release workflow's existing `com.nuvio.desktop.bridge.*` test filter. Windows desktop tests rebuild the DLL when necessary and track its contents as a test input.
+
 1. Merge upstream normally and resolve the small build hook if necessary.
 2. Compile `:composeApp:stageBridgeRuntime`. Repository API changes should be repaired in `desktop-bridge/`, preserving Kotlin ownership of business logic.
 3. Run `node scripts/desktop-ui/inventory-parity.mjs --check`. Review original UI changes against the parity checklist before regenerating the inventory. It normalizes only the documented community repository visibility hook. Update the canonical schema when bridge behavior changes; run `sync-methods.mjs` to synchronize RPC allowlists, regenerate types, and adjust the affected React features.

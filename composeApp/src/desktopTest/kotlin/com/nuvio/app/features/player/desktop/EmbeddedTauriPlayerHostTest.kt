@@ -43,6 +43,28 @@ class EmbeddedTauriPlayerHostTest {
         assertFalse(EmbeddedTauriPlayerHost.isFullscreen())
     }
 
+    @Test fun presentationFailureIsDeliveredOnceAndCannotPresentAfterwards() {
+        var failures = 0
+        var presentations = 0
+        EmbeddedTauriPlayerHost.begin(1L, presented = { presentations++ }, presentationFailed = { failures++ })
+        EmbeddedTauriPlayerHost.playerPresentationFailed()
+        EmbeddedTauriPlayerHost.playerPresentationFailed()
+        EmbeddedTauriPlayerHost.playerPresented()
+        assertEquals(1, failures)
+        assertEquals(0, presentations)
+    }
+
+    @Test fun successfulPresentationOrClearDropsTheFailureCallback() {
+        var failures = 0
+        EmbeddedTauriPlayerHost.begin(1L, presented = {}, presentationFailed = { failures++ })
+        EmbeddedTauriPlayerHost.playerPresented()
+        EmbeddedTauriPlayerHost.playerPresentationFailed()
+        EmbeddedTauriPlayerHost.begin(1L, presentationFailed = { failures++ })
+        EmbeddedTauriPlayerHost.clear()
+        EmbeddedTauriPlayerHost.playerPresentationFailed()
+        assertEquals(0, failures)
+    }
+
     @Test fun closingFullscreenPlaybackPreservesTheShellMode() {
         var shellFullscreen = false
         EmbeddedTauriPlayerHost.begin(1L, toggleFullscreen = { shellFullscreen = !shellFullscreen })

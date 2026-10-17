@@ -9,6 +9,15 @@ import org.gradle.api.tasks.TaskAction
 def desktopKotlin = extensions.getByName('kotlin')
 desktopKotlin.sourceSets.getByName('desktopMain').kotlin.srcDir(rootProject.file('desktop-bridge/src/main/kotlin'))
 desktopKotlin.sourceSets.getByName('desktopTest').kotlin.srcDir(rootProject.file('desktop-bridge/src/test/kotlin'))
+
+// The Windows bridge suite includes the real cross-DPI WebView2 presentation
+// regression. Never let it run against a stale native DLL from an earlier build.
+if (System.getProperty('os.name').startsWith('Windows')) {
+    tasks.named('desktopTest') {
+        dependsOn('buildWindowsPlayerBridge', 'prepareWindowsPlayerRuntime')
+        inputs.file(layout.buildDirectory.file('native/windows/player_bridge.dll')).withPropertyName('windowsPlayerBridge')
+    }
+}
 def ktorVersion = extensions.getByName('versionCatalogs').named('libs').findVersion('ktor').get().requiredVersion
 ['core', 'cio', 'websockets', 'content-negotiation'].each {
     dependencies.add('desktopMainImplementation', "io.ktor:ktor-server-${it}:${ktorVersion}")

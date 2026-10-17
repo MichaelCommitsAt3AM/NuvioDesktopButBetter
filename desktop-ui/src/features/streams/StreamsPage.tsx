@@ -65,6 +65,7 @@ export function StreamsPage() {
   const lastAuto = useRef('');
   const cancelStartingPlayback = useRef(false);
   const pendingPlayback = useRef(false);
+  const startingStreamId = useRef<string | null>(null);
   useEffect(() => () => {
     if (!pendingPlayback.current) return;
     cancelStartingPlayback.current = true;
@@ -117,6 +118,7 @@ export function StreamsPage() {
     setBusy(streamId); setError('');
     cancelStartingPlayback.current = false;
     pendingPlayback.current = true;
+    startingStreamId.current = streamId;
     const selectedStream = streams.groups.flatMap(group => group.streams).find(item => item.id === streamId);
     const selectedPresentation = selectedStream?.presentation as Presentation | undefined;
     setPlaybackStarting({ resolvingDebrid: selectedPresentation?.resolvingDebrid === true });
@@ -126,18 +128,21 @@ export function StreamsPage() {
       const result = await actions.playback(streamId, type, id, episodeTitle ?? title, { videoId, startFromBeginning });
       setConsent(null);
       if (cancelStartingPlayback.current) {
+        startingStreamId.current = null;
         if (result.started) await call('playback.stop').catch(() => {});
         return;
       }
       if (result.started) {
         pendingPlayback.current = false;
+        startingStreamId.current = null;
         if (result.host === 'tauri-window') navigate('/playback', { replace: true });
         else navigate(-1);
       }
-      else setPlaybackStarting(null);
+      else { startingStreamId.current = null; setPlaybackStarting(null); }
       await call('streams.autoplay.consume').catch(() => {});
     } catch (cause) {
-      if (cancelStartingPlayback.current) return;
+      if (cancelStartingPlayback.current) { startingStreamId.current = null; return; }
+      startingStreamId.current = null;
       setPlaybackStarting(null);
       if (cause instanceof BridgeError && cause.code === 'P2P_CONSENT_REQUIRED') setConsent(streamId);
       else { setError(cause instanceof Error ? cause.message : String(cause)); if (automatic) await call('streams.autoplay.skip', { streamId }).catch(() => {}); }
@@ -159,6 +164,32 @@ export function StreamsPage() {
     if (manual || !streamId || streamId === lastAuto.current || busy || consent) return;
     lastAuto.current = streamId; void play(streamId, false, true);
   }, [selection?.autoPlayStreamId, busy, consent, manual]);
+  const prevPlaybackState = useRef(playback.state);
+  useEffect(() => {
+    // The playback.start RPC answer can be lost (e.g. a cancelled start tears
+    // down its own request handler), which would strand the UI on "Building
+    // player..." even though audio is already playing. The bridge also reports
+    // playback transitions as events, so drive the handoff off those too.
+    const previous = prevPlaybackState.current;
+    prevPlaybackState.current = playback.state;
+    if (!playbackStarting || !startingStreamId.current) return;
+    // Native state and the selected stream/host arrive in separate events.
+    // Match the complete snapshot even if an earlier event already said playing.
+    // Clearing startingStreamId below makes the handoff run only once.
+    if (playback.state === 'playing' && playback.host === 'tauri-window' && playback.streamId === startingStreamId.current) {
+      startingStreamId.current = null;
+      pendingPlayback.current = false;
+      setPlaybackStarting(null);
+      navigate('/playback', { replace: true });
+      void call('streams.autoplay.consume').catch(() => {});
+    } else if ((previous === 'starting' || previous === 'playing') && (playback.state === 'failed' || playback.state === 'cancelled')) {
+      // The RPC rejection carries the better message and clears this same
+      // state if it arrives later, so a generic message here is safe.
+      startingStreamId.current = null;
+      setPlaybackStarting(null);
+      setError('The player stopped before playback started.');
+    }
+  }, [playback, playbackStarting, navigate]);
   const setFilter = async (addonId: string) => {
     setProvider(addonId);
     try { await call('streams.filter.set', { addonId: addonId === 'all' ? null : addonId }); }
@@ -210,6 +241,7 @@ export function StreamsPage() {
   const isResolvingStage = playback.phase === 'resolving' || playbackStarting?.resolvingDebrid === true && playback.phase !== 'preparing' && playback.phase !== 'buffering';
   const cancelPlayerStart = () => {
     cancelStartingPlayback.current = true;
+    startingStreamId.current = null;
     if (pendingPlayback.current) {
       pendingPlayback.current = false;
       void call('playback.stop').catch(() => {});

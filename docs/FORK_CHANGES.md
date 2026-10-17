@@ -4,6 +4,13 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Rewrite native player presentation and regression coverage — 2026-10-17
+
+Fixed Windows playback starting audio while the loading artwork remained visible. The JVM warm-up WebView and embedded Tauri host use different DPI awareness modes; native player threads now match the host and WebView2 profiles are partitioned by DPI awareness. Native controls initialization failures pause mpv and reject the Kotlin presentation wait so existing cleanup releases the player promptly. Presentation timeouts become regular RPC errors. Privacy-safe diagnostics cover native controls initialization, presentation and the frontend event handoff.
+
+The stream screen accepts the matching playing snapshot even when host details arrive in a later event. A real Windows JNI/mpv/WebView2 regression keeps warm-up open, creates a host in a different DPI mode, and requires initial state application, presentation acknowledgement and a visible native surface. It is included in the existing release CI bridge test filter. Windows tests depend on the native build and track the DLL as an input. Restoring a shared browser profile reproduces the original 0x8007139F test failure; restoring the fix passes. Six Kotlin host lifecycle tests and the frontend handoff tests also pass. Live logs and user testing confirm working playback.
+
+
 ### Rewrite parity review corrections — 2026-10-16
 
 Placement animations now measure card layout offsets relative to the rail/grid rather than viewport rectangles. Page scrolling, horizontal scrolling, zoom and existing transforms no longer become false card-reordering deltas on a subsequent render. Hidden/replaced containers reset their measurements, and running animations are cancelled when their cards or container disappear. Actual removal/reordering retains its placement animation.

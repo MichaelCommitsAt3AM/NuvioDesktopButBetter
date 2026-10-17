@@ -34,6 +34,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Playback sliders show their selectable stops. Skip Segments follows Kotlin's separate detection switch, automatic-skipping dialog, and AnimeSkip/IntroDB credential dialogs, including IntroDB key verification.
 
 **Desktop UI preview**
+- Playback reliably switches from loading to the native player, including on Windows systems with different display-scaling modes.
 - Selecting Update downloads and verifies the update, then automatically installs it and restarts Nuvio.
 - Custom themes use the same derived colors as Kotlin instead of mapping the three editor slots directly.
 - A one-time welcome introduces the faster rewritten interface and touchscreen support for both new and upgrading users.

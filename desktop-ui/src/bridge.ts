@@ -133,6 +133,7 @@ function acceptEvent(event: Event) {
       update((current) => (data as Streams).requestId === current.streams.requestId ? { ...current, streams: data as Streams } : current);
       break;
     case 'playback':
+      reportDiagnostic(`Playback event state=${(data as PlaybackState).state} phase=${(data as PlaybackState).phase ?? '-'} active=${(data as PlaybackState).active} host=${(data as PlaybackState).host ?? '-'} stream=${Boolean((data as PlaybackState).streamId)}`);
       update((current) => ({ ...current, playback: { ...current.playback, ...(data as Partial<PlaybackState>) } }));
       break;
     case 'catalog': update(current => ({ ...current, catalog: data as Catalog })); break;

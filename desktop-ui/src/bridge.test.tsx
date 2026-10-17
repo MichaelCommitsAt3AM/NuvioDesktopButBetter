@@ -183,6 +183,53 @@ describe('desktop bridge UI workflow', () => {
     await waitFor(() => expect(bridgeMock.requests.filter(request => request.method === 'playback.stop')).toHaveLength(1));
   });
 
+  it('leaves the opening screen when playback events report a started player', async () => {
+    bridgeMock.deferPlayback = true;
+    await openPreparedStream();
+    await act(async () => { emit({ topic: 'playback', epoch: bridgeMock.epoch, revision: 901,
+      data: { state: 'starting', phase: 'preparing', active: true, error: null } }); });
+    expect(await screen.findByText('Building player…')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Player')).not.toBeInTheDocument();
+    // The playback.start RPC answer is still in flight; the playing event alone
+    // must complete the handoff to the player surface.
+    await act(async () => { emit({ topic: 'playback', epoch: bridgeMock.epoch, revision: 902,
+      data: { state: 'playing', phase: 'buffering', active: true, host: 'tauri-window', streamId: 'prepared', error: null } }); });
+    expect(await screen.findByLabelText('Player')).toBeInTheDocument();
+    expect(screen.queryByText('Building player…')).not.toBeInTheDocument();
+  });
+
+  it('hands off when host details arrive after the native playing snapshot', async () => {
+    bridgeMock.deferPlayback = true;
+    await openPreparedStream();
+    await act(async () => emit({ topic: 'playback', epoch: bridgeMock.epoch, revision: 901,
+      data: { state: 'starting', phase: 'preparing', active: true, error: null } }));
+    // NativePlayback publishes its snapshot before playback.start emits the
+    // selected stream and host. Keep these as separate renders, as in production.
+    await act(async () => emit({ topic: 'playback', epoch: bridgeMock.epoch, revision: 902,
+      data: { state: 'playing', phase: 'buffering', active: true, error: null } }));
+    expect(screen.getByText('Buffering…')).toBeInTheDocument();
+    await act(async () => emit({ topic: 'playback', epoch: bridgeMock.epoch, revision: 903,
+      data: { state: 'playing', active: true, host: 'tauri-window', streamId: 'another-stream', error: null } }));
+    expect(screen.queryByLabelText('Player')).not.toBeInTheDocument();
+    await act(async () => emit({ topic: 'playback', epoch: bridgeMock.epoch, revision: 904,
+      data: { state: 'playing', active: true, host: 'tauri-window', streamId: 'prepared', error: null } }));
+    expect(await screen.findByLabelText('Player')).toBeInTheDocument();
+    expect(document.querySelector('.streams-opening-overlay')).toBeNull();
+    expect(bridgeMock.requests.some(request => request.method === 'playback.stop')).toBe(false);
+  });
+
+  it('clears the opening screen when playback events report a failed start', async () => {
+    bridgeMock.deferPlayback = true;
+    await openPreparedStream();
+    await act(async () => { emit({ topic: 'playback', epoch: bridgeMock.epoch, revision: 901,
+      data: { state: 'starting', phase: 'preparing', active: true, error: null } }); });
+    expect(await screen.findByText('Building player…')).toBeInTheDocument();
+    await act(async () => { emit({ topic: 'playback', epoch: bridgeMock.epoch, revision: 902,
+      data: { state: 'failed', phase: 'failed', active: false, error: 'PLAYBACK_FAILED' } }); });
+    await waitFor(() => expect(document.querySelector('.streams-opening-overlay')).toBeNull());
+    expect(screen.queryByLabelText('Player')).not.toBeInTheDocument();
+  });
+
   it('cancels a prepared player if the stream page is unmounted', async () => {
     bridgeMock.deferPlayback = true;
     const view = await openPreparedStream();

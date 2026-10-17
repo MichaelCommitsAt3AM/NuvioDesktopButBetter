@@ -611,10 +611,18 @@ internal class NativePlayerController(
     }
 
     private fun handlePlayerEvent(type: String, value: Double) {
+        if (type.startsWith("bridgeControls") || type == "nativeControlsReady" || type == "nativeControlsPresented" || type == "nativeControlsFailed") {
+            DesktopDiagnostics.record("player_presentation_event", "type=$type value=$value handle=$handle releasing=$releaseRequested")
+            if (type.startsWith("bridgeControls")) return
+        }
         if (type.shouldLogNativeControlEvent()) {
             log.d { "event received handle=$handle type=$type value=$value" }
         }
         when (type) {
+            "nativeControlsFailed" -> {
+                if (!releaseRequested) EmbeddedTauriPlayerHost.playerPresentationFailed()
+                return
+            }
             "nativeControlsPresented" -> {
                 if (!releaseRequested) EmbeddedTauriPlayerHost.playerPresented()
                 return

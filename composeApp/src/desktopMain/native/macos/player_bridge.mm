@@ -3334,11 +3334,11 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_layoutNativeSubvie
 ) {
 }
 
-extern "C" JNIEXPORT void JNICALL
+extern "C" JNIEXPORT jboolean JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_reparentSurfaceNative(
     JNIEnv *, jobject, jlong handle, jlong hostViewPtr
 ) {
-    if (handle == 0 || hostViewPtr == 0) return;
+    if (handle == 0 || hostViewPtr == 0) return JNI_FALSE;
     MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
     NSView *hostView = (__bridge NSView *)(void *)(intptr_t)hostViewPtr;
     // AWT can query Java focus while the PiP window becomes key. Its main thread
@@ -3349,6 +3349,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_reparentSurfaceNat
                             withObject:hostView
                          waitUntilDone:YES
                                  modes:@[NSRunLoopCommonModes, @"AWTRunLoopMode"]];
+    return JNI_TRUE;
 }
 
 extern "C" JNIEXPORT void JNICALL

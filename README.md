@@ -30,7 +30,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 - Home keeps shimmering placeholders while a switched profile’s add-ons and catalogs load, showing the empty state only once loading settles.
 - Switching profiles returns to Home. AMOLED Black and List episode cards are the desktop defaults; saved choices are kept.
-- Kids-profile settings show a neutral notice with read-only controls. Previously configured TMDB keys show masked dots in the profile editor.
+- Kids-profile settings are editable like any other profile's. Previously configured TMDB keys show masked dots in the profile editor.
 - Profile editing uses tighter card spacing, matching add-on sharing cards and a compact selection list. Kids profiles keep independent add-ons and use KidsScreen for browsing. Keep “Sync all add-ons” on for ongoing sharing, or turn it off to copy only the checked add-ons once.
 
 - Premiumize supports browser sign-in with this fork’s registered app, plus an API-key alternative.
@@ -43,6 +43,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 **Desktop UI preview**
 - Playback opens the player reliably when startup events arrive separately, avoiding a loading screen with audio playing behind it.
 - The rewrite's native player handles Windows display-scaling differences so its controls and video appear after loading.
+- Windows playback repairs stuck video sizing without a fullscreen toggle, and Picture-in-Picture uses a window that matches the player's display scaling.
 - Downloads publish progress less often, Home shows ready catalogs sooner, and artwork loading uses less background work.
 - The Windows backend appears as Nuvio in Task Manager instead of OpenJDK.
 - The About page's test update banner is available only in debug builds.

@@ -97,6 +97,11 @@ export async function call<T>(method: string, params: Record<string, unknown> = 
   return (await request(method, params, withEpoch, id)).result as T;
 }
 
+/** Privacy-safe layout breadcrumb for the shell diagnostic log (sizes only). */
+export function reportPlaybackDiagnostic(message: string) {
+  reportDiagnostic(`playback-layout: ${message}`);
+}
+
 function eventPayload<T>(event: Event): T {
   return event.data as T;
 }
@@ -135,7 +140,18 @@ function acceptEvent(event: Event) {
       break;
     case 'playback':
       reportDiagnostic(`Playback event state=${(data as PlaybackState).state} phase=${(data as PlaybackState).phase ?? '-'} active=${(data as PlaybackState).active} host=${(data as PlaybackState).host ?? '-'} stream=${Boolean((data as PlaybackState).streamId)}`);
-      update((current) => ({ ...current, playback: { ...current.playback, ...(data as Partial<PlaybackState>) } }));
+      // toggleHostFullscreen is consumed by the Tauri shell (it owns the window)
+      // and must not linger in UI state, where a stale flag would look like a
+      // pending request to every later reader of the playback snapshot.
+      {
+        const { toggleHostFullscreen: _dropped, ...fields } = data as Partial<PlaybackState> & { toggleHostFullscreen?: unknown };
+        void _dropped;
+        update((current) => {
+          const merged = { ...current.playback, ...fields };
+          delete (merged as Record<string, unknown>).toggleHostFullscreen;
+          return { ...current, playback: merged };
+        });
+      }
       break;
     case 'catalog': update(current => ({ ...current, catalog: data as Catalog })); break;
     case 'discover': update(current => ({ ...current, discover: data as Discover })); break;

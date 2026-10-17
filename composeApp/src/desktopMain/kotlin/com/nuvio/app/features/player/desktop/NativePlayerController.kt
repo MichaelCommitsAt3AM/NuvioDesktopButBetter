@@ -533,6 +533,7 @@ internal class NativePlayerController(
     private fun scheduleNativeLayoutRefresh() {
         if (DesktopHostOs.current != DesktopHostOs.WINDOWS) return
         if (!layoutRefreshScheduled.compareAndSet(false, true)) return
+        DesktopDiagnostics.record("player_layout_refresh_requested", "handle=$handle")
         SwingUtilities.invokeLater {
             layoutRefreshScheduled.set(false)
             if (!isHostDisplayable()) return@invokeLater
@@ -547,6 +548,17 @@ internal class NativePlayerController(
             .onFailure { error -> log.w(error) { "failed to resolve PiP native host ${host.javaClass.name}" } }
             .getOrNull() ?: return false
         return nativeReparent(current, pointer)
+    }
+
+    fun enterNativePictureInPicture(title: String, aspectRatio: Float): Boolean =
+        handle.takeIf { it != 0L }?.let { NativePlayerBridge.enterPictureInPicture(it, title, aspectRatio) } ?: false
+
+    fun updateNativePictureInPicture(title: String, aspectRatio: Float) {
+        handle.takeIf { it != 0L }?.let { NativePlayerBridge.updatePictureInPicture(it, title, aspectRatio) }
+    }
+
+    fun closeNativePictureInPicture() {
+        handle.takeIf { it != 0L }?.let(NativePlayerBridge::closePictureInPicture)
     }
 
     /** Restore to the same parent used at attach, including the Tauri-owned HWND. */
@@ -624,7 +636,13 @@ internal class NativePlayerController(
                 return
             }
             "nativeControlsPresented" -> {
-                if (!releaseRequested) EmbeddedTauriPlayerHost.playerPresented()
+                if (!releaseRequested) {
+                    EmbeddedTauriPlayerHost.playerPresented()
+                    // The native side re-asserts the container size when it shows
+                    // it; mirror that here so a stale AWT-side layout cannot keep
+                    // the surface at its creation size either.
+                    scheduleNativeLayoutRefresh()
+                }
                 return
             }
             "nativeControlsReady" -> {

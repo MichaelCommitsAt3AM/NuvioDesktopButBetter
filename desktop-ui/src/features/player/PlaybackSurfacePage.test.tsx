@@ -3,10 +3,11 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { PlaybackSurfacePage } from './PlaybackSurfacePage';
 
-const bridge = vi.hoisted(() => ({ playback: { state: 'playing', isInPip: true }, call: vi.fn() }));
+const bridge = vi.hoisted(() => ({ playback: { state: 'playing', isInPip: true }, call: vi.fn(), reportPlaybackDiagnostic: vi.fn() }));
 vi.mock('../../bridge', () => ({
   useSelector: (select: (state: unknown) => unknown) => select({ playback: bridge.playback }),
   call: bridge.call,
+  reportPlaybackDiagnostic: bridge.reportPlaybackDiagnostic,
 }));
 beforeEach(() => {
   bridge.playback = { state: 'playing', isInPip: true };

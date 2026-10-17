@@ -40,6 +40,25 @@ class KidsBridgeTest {
     }
 
     @Test
+    fun kidsProfilesCanChangeSettingsButNotContentManagement() {
+        val allowed = listOf(
+            "settings.setTheme", "appearance.setAmoled", "appearance.setAppIcon", "posters.setPattern",
+            "homePreferences.setEnabled", "home.preferences.setStyle", "continueWatching.setStyle",
+            "search.historyEnabled", "metadataSettings.set", "playbackSettings.set", "p2p.setEnabled",
+            "about.setLanguage", "advanced.setSentry", "downloads.filter.setMaxResolution",
+            "streams.badges.setPlacement", "streams.filter.set", "tmdb.set", "mdblist.set", "debrid.set",
+            "simkl.connect", "trackingSettings.set", "plugins.addRepository", "addons.install",
+            "profiles.rememberLast.set", "session.signOut", "app.openExternal",
+        )
+        val blocked = listOf(
+            "profiles.create", "profiles.delete", "profiles.kids.configure", "profiles.pin.set",
+            "downloads.enqueue", "cloud.play", "collections.editor.save", "library.membership",
+        )
+        for (method in allowed) assertTrue(KidsBridge.allowsSettingsMutation(method), method)
+        for (method in blocked) assertFalse(KidsBridge.allowsSettingsMutation(method), method)
+    }
+
+    @Test
     fun serviceAddressRequiresHttpsExceptOnLoopback() {
         assertEquals("http://127.0.0.1:7879", KidsBridge.normalizeService("http://127.0.0.1:7879/"))
         assertEquals("https://kids.example", KidsBridge.normalizeService("https://kids.example"))

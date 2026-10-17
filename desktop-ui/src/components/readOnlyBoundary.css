@@ -1,6 +1,0 @@
-.inline-notice{display:flex;align-items:flex-start;gap:10px;padding:14px 16px;margin:0 0 20px;border:1px solid var(--line,#ffffff18);border-radius:12px;background:var(--app-surface,#1a1a1a);color:var(--muted,#aaa);font-size:14px;line-height:1.5}
-.inline-notice>svg{flex:none;margin-top:2px}
-.read-only-boundary{border:0;padding:0;margin:0;min-width:0}
-.read-only-boundary.is-read-only :is(button,input,select,textarea,[role="switch"],[role="slider"],[draggable="true"]){cursor:not-allowed}
-.read-only-boundary.is-read-only :is(.settings-section,.settings-control-row,.settings-choice-row,.theme-grid,.settings-nav-card):not(:is(.settings-section,.settings-nav-card) *){opacity:.48;filter:grayscale(1)}
-.read-only-boundary.is-read-only>button{opacity:.48}

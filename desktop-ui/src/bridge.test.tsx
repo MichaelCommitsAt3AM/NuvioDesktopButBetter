@@ -246,6 +246,18 @@ describe('desktop bridge UI workflow', () => {
     expect(bridgeMock.requests.some(request => request.method === 'playback.stop')).toBe(false);
   });
 
+  it('does not retain the shell-owned fullscreen toggle flag in playback state', async () => {
+    bridgeMock.deferPlayback = true;
+    await openPreparedStream();
+    await act(async () => { emit({ topic: 'playback', epoch: bridgeMock.epoch, revision: 901,
+      data: { state: 'playing', phase: 'buffering', active: true, host: 'tauri-window', streamId: 'prepared', error: null, toggleHostFullscreen: true } }); });
+    expect(await screen.findByLabelText('Player')).toBeInTheDocument();
+    expect(getSnapshot().playback).not.toHaveProperty('toggleHostFullscreen');
+    await act(async () => { emit({ topic: 'playback', epoch: bridgeMock.epoch, revision: 902,
+      data: { state: 'playing', phase: 'buffering', active: true, host: 'tauri-window', streamId: 'prepared', error: null } }); });
+    expect(getSnapshot().playback).not.toHaveProperty('toggleHostFullscreen');
+  });
+
   it('shows cached profiles while the cosmetic snapshot is still pending and accepts cloud profile updates', async () => {
     bridgeMock.multipleProfiles = true;
     bridgeMock.deferProfiles = true;
@@ -709,18 +721,21 @@ describe('desktop bridge UI workflow', () => {
     expect(await screen.findByRole('menu', { name: 'Profiles' })).toBeVisible();
   });
 
-  it('shows kids settings as read-only across Layout and Content without dispatching changes', async () => {
+  it('lets kids profiles change settings across Layout and Content', async () => {
     bridgeMock.kidsProfile = true;
     window.history.replaceState({}, '', '/settings/appearance');
     render(<AppRoot />);
     const amoled = await screen.findByRole('checkbox', { name: 'AMOLED Black' });
-    expect(amoled).toBeDisabled();
-    expect(screen.getByRole('status')).toHaveTextContent('Switch to an adult profile');
-    act(() => amoled.click());
-    expect(bridgeMock.requests.some(request => request.method === 'appearance.setAmoled')).toBe(false);
+    expect(amoled).toBeEnabled();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    fireEvent.click(amoled);
+    await waitFor(() => expect(bridgeMock.requests.some(request => request.method === 'appearance.setAmoled')).toBe(true));
     fireEvent.click(screen.getByRole('link', { name: 'General' }));
     fireEvent.click(await screen.findByRole('link', { name: /Content & Discovery/ }));
-    expect(await screen.findByRole('checkbox', { name: 'Recent Searches' })).toBeDisabled();
+    const recent = await screen.findByRole('checkbox', { name: 'Recent Searches' });
+    expect(recent).toBeEnabled();
+    fireEvent.click(recent);
+    await waitFor(() => expect(bridgeMock.requests.some(request => request.method === 'search.historyEnabled')).toBe(true));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Addons/ })).toHaveAttribute('href', '/settings/content/addons');
   });

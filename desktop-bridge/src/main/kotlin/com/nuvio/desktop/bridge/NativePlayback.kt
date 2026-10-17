@@ -155,6 +155,12 @@ class NativePlayback(
                     current.resumePrompt.enter(playbackVideoId)
                     window.title = meta.name
                     if (embeddedInTauri) {
+                        // Layout-debugging breadcrumb: the Tauri HWND the native
+                        // surface is parented under, sampled at attach time.
+                        DesktopDiagnostics.record(
+                            "bridge_playback_embedded_host",
+                            "hwnd=$nativeHostWindow fullscreen=$nativeHostFullscreen",
+                        )
                         // The Compose window keeps the upstream player controller alive offscreen. The
                         // actual mpv + controls HWNDs are created directly under Tauri's HWND; keeping
                         // this transparent host visible to AWT preserves the Canvas peer and player
@@ -169,8 +175,7 @@ class NativePlayback(
                             presented = {
                                 DesktopDiagnostics.record("bridge_playback_presented")
                                 presented.complete(Unit)
-                            },
-                            presentationFailed = {
+                            },                            presentationFailed = {
                                 presented.completeExceptionally(IllegalStateException("The native player controls could not be initialized. Please restart Nuvio and try again."))
                             },
                             toggleFullscreen = {

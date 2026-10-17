@@ -34,6 +34,19 @@ class NativePlayerPipRestoreTest {
         assertEquals(listOf(123L, 456L), parents)
     }
 
+    @Test fun unresolvableReparentTargetReportsFailureWithoutTouchingNative() {
+        var calls = 0
+        val controller = NativePlayerController(
+            host = NativePlayerHost(),
+            isHostDisplayable = { true },
+            nativeReparent = { _, _ -> calls++; true },
+        )
+        controller.setNativeHandleForTest(42L)
+        // A PiP host with no native peer must not claim the surface moved.
+        assertFalse(controller.reparentSurface(NativePlayerHost()))
+        assertEquals(0, calls)
+    }
+
     @Test fun unavailableParentAndNativeFailureDoNotReportSuccessfulRestore() {
         var displayable = false
         var parent = 0L

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { call, useSelector } from '../../bridge';
+import { call, reportPlaybackDiagnostic, useSelector } from '../../bridge';
 import './playback.css';
 
 /** Keeps browsing content out from behind the embedded native player while it buffers. */
@@ -11,6 +11,16 @@ export function PlaybackSurfacePage() {
   const restore = useCallback(() => {
     setRestoreError(false);
     void call('playback.restoreFromPip').catch(() => setRestoreError(true));
+  }, []);
+
+  useEffect(() => {
+    // Layout-debugging breadcrumb for the shell log: the webview-side truth
+    // to correlate against the native host/container rects in nuvio-player.log.
+    const describe = (when: string) => reportPlaybackDiagnostic(
+      `webview ${when}: css=${window.innerWidth}x${window.innerHeight} dpr=${window.devicePixelRatio} screen=${window.screen.width}x${window.screen.height}`);
+    describe('mounted');
+    const timer = window.setTimeout(() => describe('settled'), 2000);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {

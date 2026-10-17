@@ -841,6 +841,17 @@ void stopWebView2Warmup() {
     }
 }
 
+ // Diagnostic packing for layout breadcrumbs: exact for sizes below 100000px.
+ // Decode with width = floor(value / 100000), height = value % 100000.
+ static double packWindowSize(LONG width, LONG height) {
+     return static_cast<double>(width) * 100000.0 + static_cast<double>(height);
+ }
+
+ // Bump when the layout/reparent path changes so logs identify the running code.
+ constexpr double kLayoutInstrumentationVersion = 3.0;
+
+ void configureNativePipWindow(HWND window, jlong handle, float ratio);
+
 class WindowsMpvWebPlayer : public std::enable_shared_from_this<WindowsMpvWebPlayer> {
     struct InitializationState {
         std::mutex mutex;
@@ -1071,7 +1082,7 @@ public:
 
     void syncNativeBounds(int width, int height) {
         if (shuttingDown.load() || width <= 0 || height <= 0) return;
-        if (hostHwnd && IsWindow(hostHwnd)) {
+        if (hostHwnd && IsWindow(hostHwnd) && hostHwnd != GetAncestor(hostHwnd, GA_ROOT)) {
             SetWindowPos(hostHwnd, nullptr, 0, 0, width, height,
                          SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS);
         }
@@ -1080,6 +1091,68 @@ public:
                          SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS);
         }
         layoutNativeSubviewsAsync();
+    }
+
+    void resetLayoutCache() {
+        lastContainerLayoutWidth = -1;
+        lastContainerLayoutHeight = -1;
+        lastWebViewLayoutWidth = -1;
+        lastWebViewLayoutHeight = -1;
+    }
+
+    bool enterPictureInPicture(jlong handle, const std::wstring &title, float ratio) {
+        auto entered = std::make_shared<std::atomic_bool>(false);
+        sendUiTask([self = shared_from_this(), handle, title, ratio, entered]() {
+            if (self->shuttingDown.load() || self->pipHwnd) return;
+            // AWT and Tauri can have different DPI modes. Windows rejects an
+            // in-process SetParent between those modes (ERROR_INVALID_STATE).
+            // Create PiP on this thread, in the same mode as the video container.
+            MONITORINFO monitor = {sizeof(MONITORINFO)};
+            GetMonitorInfoW(MonitorFromWindow(self->hostHwnd, MONITOR_DEFAULTTONEAREST), &monitor);
+            int width = MulDiv(480, GetDpiForWindow(self->hostHwnd), 96);
+            int height = static_cast<int>(std::round(width / ratio));
+            HWND window = CreateWindowExW(WS_EX_TOPMOST, L"STATIC", title.c_str(),
+                WS_POPUP | WS_THICKFRAME | WS_CLIPCHILDREN,
+                monitor.rcWork.right - width - 24, monitor.rcWork.bottom - height - 24,
+                width, height, nullptr, nullptr, gModule, nullptr);
+            if (!window) return;
+            configureNativePipWindow(window, handle, ratio);
+            if (!self->reparentSurface(window)) {
+                DestroyWindow(window);
+                return;
+            }
+            self->pipHwnd = window;
+            ShowWindow(window, SW_SHOW);
+            self->focusNativeControls();
+            entered->store(true);
+        });
+        return entered->load();
+    }
+
+    void updatePictureInPicture(const std::wstring &title, float ratio) {
+        postUiTask([self = shared_from_this(), title, ratio]() {
+            if (!self->pipHwnd) return;
+            SetWindowTextW(self->pipHwnd, title.c_str());
+            SetPropW(self->pipHwnd, L"NuvioPipRatio",
+                reinterpret_cast<HANDLE>(static_cast<uintptr_t>(std::round(ratio * 10000.0f))));
+        });
+    }
+
+    void closePictureInPicture() {
+        sendUiTask([self = shared_from_this()]() {
+            // A failed restore must leave the PiP host and video alive.
+            if (self->pipHwnd && self->hostHwnd != self->pipHwnd) {
+                if (GetForegroundWindow() == self->pipHwnd) {
+                    SetForegroundWindow(GetAncestor(self->hostHwnd, GA_ROOT));
+                }
+                DestroyWindow(self->pipHwnd);
+                self->pipHwnd = nullptr;
+            }
+        });
+    }
+
+    void requestPictureInPictureRestore() {
+        sendPlayerEvent("pictureInPicture", 0.0);
     }
 
     void layoutNativeSubviewsAsync() {
@@ -1093,23 +1166,57 @@ public:
         });
     }
 
-    void reparentSurface(HWND newHost) {
-        if (!newHost || !IsWindow(newHost)) return;
-        sendUiTask([self = shared_from_this(), newHost]() {
-            if (self->shuttingDown.load() || !IsWindow(newHost) || !self->containerHwnd) return;
-            self->hostHwnd = newHost;
-            LONG_PTR hostStyle = GetWindowLongPtrW(newHost, GWL_STYLE);
-            hostStyle |= WS_CLIPCHILDREN;
-            SetWindowLongPtrW(newHost, GWL_STYLE, hostStyle);
-            SetParent(self->containerHwnd, newHost);
-            LONG_PTR style = GetWindowLongPtrW(self->containerHwnd, GWL_STYLE);
-            style |= WS_CHILD;
-            style &= ~WS_POPUP;
-            SetWindowLongPtrW(self->containerHwnd, GWL_STYLE, style);
-            self->layoutNativeSubviews();
-            ShowWindow(self->containerHwnd, SW_SHOW);
-            self->focusNativeControls();
+    // Returns true only when the container is parented under newHost when this
+    // returns. A late-running task re-validates newHost itself, so an aborted
+    // PiP host that was disposed while this was blocked is left untouched.
+    bool reparentSurface(HWND newHost) {
+        if (!newHost || !IsWindow(newHost)) return false;
+        if (shuttingDown.load() || !containerHwnd || !IsWindow(containerHwnd)) return false;
+        auto completed = std::make_shared<std::atomic_bool>(false);
+        auto moved = std::make_shared<std::atomic_bool>(false);
+        sendUiTask([self = shared_from_this(), newHost, completed, moved]() {
+            bool ok = false;
+            if (!self->shuttingDown.load() && IsWindow(newHost) && self->containerHwnd && IsWindow(self->containerHwnd)) {
+                LONG_PTR hostStyle = GetWindowLongPtrW(newHost, GWL_STYLE);
+                hostStyle |= WS_CLIPCHILDREN;
+                SetWindowLongPtrW(newHost, GWL_STYLE, hostStyle);
+                SetLastError(ERROR_SUCCESS);
+                SetParent(self->containerHwnd, newHost);
+                DWORD reparentError = GetLastError();
+                if (GetParent(self->containerHwnd) != newHost) {
+                    self->sendPlayerEvent("bridgeControlsLayoutReparentError", static_cast<double>(reparentError));
+                    completed->store(true);
+                    return;
+                }
+                self->hostHwnd = newHost;
+                LONG_PTR style = GetWindowLongPtrW(self->containerHwnd, GWL_STYLE);
+                style |= WS_CHILD;
+                style &= ~WS_POPUP;
+                SetWindowLongPtrW(self->containerHwnd, GWL_STYLE, style);
+                // The new host has a different size than the previous one; never
+                // trust the cached dimensions from the old home.
+                self->resetLayoutCache();
+                self->layoutNativeSubviews();
+                ShowWindow(self->containerHwnd, SW_SHOW);
+                self->focusNativeControls();
+                ok = (GetParent(self->containerHwnd) == newHost);
+                {
+                    RECT reparented = {};
+                    LONG reparentedWidth = 0;
+                    LONG reparentedHeight = 0;
+                    if (ok && GetClientRect(newHost, &reparented)) {
+                        reparentedWidth = std::max<LONG>(1, reparented.right - reparented.left);
+                        reparentedHeight = std::max<LONG>(1, reparented.bottom - reparented.top);
+                    }
+                    self->sendPlayerEvent(
+                        "bridgeControlsLayoutReparent",
+                        ok ? packWindowSize(reparentedWidth, reparentedHeight) : -1.0);
+                }
+            }
+            moved->store(ok);
+            completed->store(true);
         });
+        return completed->load() && moved->load();
     }
 
     void setPaused(bool paused) {
@@ -1370,6 +1477,7 @@ public:
 
 private:
     HWND hostHwnd = nullptr;
+    HWND pipHwnd = nullptr;
     HWND containerHwnd = nullptr;
     HWND messageHwnd = nullptr;
     LONG lastContainerLayoutWidth = -1;
@@ -1535,6 +1643,22 @@ private:
         if (!containerHwnd) {
             throw std::runtime_error("Unable to create native player container window.");
         }
+        // Creation-time geometry breadcrumb: host rect read, actual container
+        // rect right after creation, and whether presentation is deferred.
+        // Decoded offline from nuvio-player.log player_presentation_event lines.
+        sendPlayerEvent("bridgeControlsLayoutVersion", kLayoutInstrumentationVersion);
+        sendPlayerEvent("bridgeControlsLayoutCreate", packWindowSize(width, height));
+        {
+            RECT created = {};
+            LONG createdWidth = width;
+            LONG createdHeight = height;
+            if (GetClientRect(containerHwnd, &created)) {
+                createdWidth = std::max<LONG>(1, created.right - created.left);
+                createdHeight = std::max<LONG>(1, created.bottom - created.top);
+            }
+            sendPlayerEvent("bridgeControlsLayoutContainer", packWindowSize(createdWidth, createdHeight));
+        }
+        sendPlayerEvent("bridgeControlsLayoutDeferred", deferPresentation ? 1.0 : 0.0);
 
         startWebView(controlsUrl);
         startMpv(sourceUrl, headerLines, preferredAudioLanguages, preferredSubtitleLanguages, subtitlesDisabledAtStartup, playWhenReady, initialPositionMs, decoderPriority, nvidiaRtxSuperResolutionEnabled);
@@ -1575,6 +1699,10 @@ private:
         if (containerHwnd) {
             DestroyWindow(containerHwnd);
             containerHwnd = nullptr;
+        }
+        if (pipHwnd) {
+            DestroyWindow(pipHwnd);
+            pipHwnd = nullptr;
         }
         if (messageHwnd) {
             HWND hwnd = messageHwnd;
@@ -1897,16 +2025,42 @@ private:
             GetClientRect(rootWindow, &bounds);
             LONG rw = std::max<LONG>(1, bounds.right - bounds.left);
             LONG rh = std::max<LONG>(1, bounds.bottom - bounds.top);
-            SetWindowPos(hostHwnd, nullptr, 0, 0, rw, rh, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS);
+            if (hostHwnd != rootWindow) {
+                SetWindowPos(hostHwnd, nullptr, 0, 0, rw, rh, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS);
+            }
         } else {
             GetClientRect(hostHwnd, &bounds);
         }
         LONG width = std::max<LONG>(1, bounds.right - bounds.left);
         LONG height = std::max<LONG>(1, bounds.bottom - bounds.top);
+        // The container can end up a different size than requested without any
+        // host resize in between (stale creation size, a third party resizing
+        // it behind our back). The poller is the backstop: compare against the
+        // container's actual size, not just our cache, so a desync heals here
+        // instead of persisting until the next host resize.
+        LONG actualWidth = width;
+        LONG actualHeight = height;
+        if (containerHwnd && IsWindow(containerHwnd)) {
+            RECT actual = {};
+            if (GetClientRect(containerHwnd, &actual)) {
+                actualWidth = std::max<LONG>(1, actual.right - actual.left);
+                actualHeight = std::max<LONG>(1, actual.bottom - actual.top);
+            }
+        }
         if (
             containerHwnd &&
-            (width != lastContainerLayoutWidth || height != lastContainerLayoutHeight)
+            (width != lastContainerLayoutWidth || height != lastContainerLayoutHeight ||
+             width != actualWidth || height != actualHeight)
         ) {
+            if (
+                width == lastContainerLayoutWidth && height == lastContainerLayoutHeight &&
+                (width != actualWidth || height != actualHeight)
+            ) {
+                // Cache matched but the window did not: report once per correction.
+                sendPlayerEvent("bridgeControlsLayoutCorrected", packWindowSize(width, height));
+                sendPlayerEvent("bridgeControlsLayoutActual", packWindowSize(actualWidth, actualHeight));
+            }
+            sendPlayerEvent("bridgeControlsLayoutApplied", packWindowSize(width, height));
             UINT visibility = (!deferPresentation || controlsPresented) ? SWP_SHOWWINDOW : 0;
             SetWindowPos(containerHwnd, HWND_TOP, 0, 0, width, height, visibility | SWP_NOACTIVATE | SWP_NOCOPYBITS);
             lastContainerLayoutWidth = width;
@@ -1921,6 +2075,24 @@ private:
             controller->put_IsVisible(TRUE);
             lastWebViewLayoutWidth = width;
             lastWebViewLayoutHeight = height;
+        }
+        // mpv creates its own HWND inside the wid container. Its parent hook
+        // only reacts to WM_WINDOWPOSCHANGED: a late-created or independently
+        // resized video window can stay small while both outer caches match.
+        // Check the actual child on every pass, including while paused. Do not
+        // synchronously enter mpv's window thread while it may be sending to us.
+        HWND video = FindWindowExW(containerHwnd, nullptr, L"mpv", nullptr);
+        if (video) {
+            RECT videoBounds = {};
+            POINT origin = {};
+            MapWindowPoints(video, containerHwnd, &origin, 1);
+            if (GetClientRect(video, &videoBounds) &&
+                (videoBounds.right != width || videoBounds.bottom != height || origin.x != 0 || origin.y != 0)) {
+                sendPlayerEvent("bridgeControlsLayoutVideoActual", packWindowSize(videoBounds.right, videoBounds.bottom));
+                sendPlayerEvent("bridgeControlsLayoutVideoTarget", packWindowSize(width, height));
+                SetWindowPos(video, nullptr, 0, 0, width, height,
+                    SWP_ASYNCWINDOWPOS | SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+            }
         }
     }
 
@@ -2029,6 +2201,21 @@ private:
                 SetWindowPos(containerHwnd, HWND_TOP, 0, 0, 0, 0,
                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
                 RedrawWindow(containerHwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+                // The container was sized while hidden, potentially before the
+                // host window had settled. Re-assert its size now that it is
+                // visible instead of trusting the cached creation size.
+                resetLayoutCache();
+                layoutNativeSubviews();
+                {
+                    RECT shown = {};
+                    LONG shownWidth = 0;
+                    LONG shownHeight = 0;
+                    if (containerHwnd && GetClientRect(containerHwnd, &shown)) {
+                        shownWidth = std::max<LONG>(1, shown.right - shown.left);
+                        shownHeight = std::max<LONG>(1, shown.bottom - shown.top);
+                    }
+                    sendPlayerEvent("bridgeControlsLayoutShown", packWindowSize(shownWidth, shownHeight));
+                }
             }
             focusNativeControls();
             sendPlayerEvent("nativeControlsPresented", 0.0);
@@ -2657,6 +2844,11 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_beginWindowDrag(JN
 }
 
 static LRESULT CALLBACK pipWindowSubclassProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    if (message == WM_CLOSE && GetPropW(hwnd, L"NuvioNativePip")) {
+        auto player = playerFromHandle(static_cast<jlong>(reinterpret_cast<intptr_t>(GetPropW(hwnd, L"NuvioPipPlayer"))));
+        if (player) player->requestPictureInPictureRestore();
+        return 0;
+    }
     WNDPROC oldProc = reinterpret_cast<WNDPROC>(GetPropW(hwnd, L"NuvioPipOldProc"));
 
     if (message == WM_NCCALCSIZE) {
@@ -2857,6 +3049,7 @@ static LRESULT CALLBACK pipWindowSubclassProc(HWND hwnd, UINT message, WPARAM wP
     }
 
     if (message == WM_NCDESTROY) {
+        RemovePropW(hwnd, L"NuvioNativePip");
         RemovePropW(hwnd, L"NuvioPipRatio");
         RemovePropW(hwnd, L"NuvioPipPlayer");
         RemovePropW(hwnd, L"NuvioPipOldProc");
@@ -2914,6 +3107,41 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setWindowResizable
         SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
 }
 
+namespace {
+void configureNativePipWindow(HWND window, jlong handle, float ratio) {
+    Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setWindowResizable(nullptr, nullptr,
+        static_cast<jlong>(reinterpret_cast<intptr_t>(window)), JNI_TRUE);
+    SetPropW(window, L"NuvioNativePip", reinterpret_cast<HANDLE>(1));
+    SetPropW(window, L"NuvioPipPlayer", reinterpret_cast<HANDLE>(static_cast<intptr_t>(handle)));
+    SetPropW(window, L"NuvioPipRatio",
+        reinterpret_cast<HANDLE>(static_cast<uintptr_t>(std::round(ratio * 10000.0f))));
+}
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_enterPictureInPicture(
+    JNIEnv *env, jobject, jlong handle, jstring title, jfloat ratio
+) {
+    auto player = playerFromHandle(handle);
+    return player && player->enterPictureInPicture(handle, toWide(jstringToUtf8(env, title)),
+        std::isfinite(ratio) && ratio > 0.05f ? ratio : 16.0f / 9.0f) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_updatePictureInPicture(
+    JNIEnv *env, jobject, jlong handle, jstring title, jfloat ratio
+) {
+    auto player = playerFromHandle(handle);
+    if (player) player->updatePictureInPicture(toWide(jstringToUtf8(env, title)),
+        std::isfinite(ratio) && ratio > 0.05f ? ratio : 16.0f / 9.0f);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_closePictureInPicture(JNIEnv *, jobject, jlong handle) {
+    auto player = playerFromHandle(handle);
+    if (player) player->closePictureInPicture();
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setWindowAspectRatio(
     JNIEnv *, jobject, jlong windowHwnd, jfloat ratio
@@ -2935,7 +3163,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_layoutNativeSubvie
     }
 }
 
-extern "C" JNIEXPORT void JNICALL
+extern "C" JNIEXPORT jboolean JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_reparentSurfaceNative(JNIEnv *, jobject, jlong handle, jlong hostViewPtr) {
     auto player = playerFromHandle(handle);
     if (player) {
@@ -2946,8 +3174,9 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_reparentSurfaceNat
                 SetPropW(rootWindow, L"NuvioPipPlayer", reinterpret_cast<HANDLE>(static_cast<intptr_t>(handle)));
             }
         }
-        player->reparentSurface(host);
+        return player->reparentSurface(host) ? JNI_TRUE : JNI_FALSE;
     }
+    return JNI_FALSE;
 }
 
 extern "C" JNIEXPORT void JNICALL

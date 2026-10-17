@@ -2,6 +2,7 @@ package com.nuvio.app.features.player.desktop
 
 import androidx.compose.ui.unit.IntSize
 import co.touchlab.kermit.Logger
+import com.nuvio.app.core.diagnostics.DesktopDiagnostics
 import com.nuvio.app.features.settings.AppIconRepository
 import java.awt.GraphicsEnvironment
 import java.awt.KeyboardFocusManager
@@ -29,6 +30,7 @@ internal object DesktopPlayerPictureInPicture {
     private var windowTitle = ""
     private var lastVideoSize = IntSize.Zero
     private var transition = false
+    private var nativePipEnabled = false
     private var lastToggleAtMs = 0L
 
     fun setHost(value: NativePlayerHost) = onEdt {
@@ -42,10 +44,12 @@ internal object DesktopPlayerPictureInPicture {
     fun setWindowTitle(title: String) = onEdt {
         windowTitle = title
         pipWindow?.updateWindowTitle(title)
+        if (nativePipEnabled) controller?.updateNativePictureInPicture(title, videoAspectRatio())
     }
 
     fun update(isPlaying: Boolean, videoSize: IntSize) = onEdt {
         lastVideoSize = videoSize
+        if (nativePipEnabled) controller?.updateNativePictureInPicture(windowTitle, videoAspectRatio())
         pipWindow?.let { window ->
             if (videoSize.width > 0 && videoSize.height > 0) {
                 val ratio = videoSize.width.toFloat() / videoSize.height.toFloat()
@@ -79,6 +83,8 @@ internal object DesktopPlayerPictureInPicture {
         val window = pipWindow
         pipWindow = null
         isEnabled = false
+        // Native player shutdown owns disposal of its PiP HWND and video child.
+        nativePipEnabled = false
         window?.dispose()
         host = null
         controller = null
@@ -92,6 +98,14 @@ internal object DesktopPlayerPictureInPicture {
         if (!mainHost.isDisplayable) return
 
         transition = true
+        if (DesktopHostOs.current == DesktopHostOs.WINDOWS) {
+            nativePipEnabled = player.enterNativePictureInPicture(windowTitle, videoAspectRatio())
+            isEnabled = nativePipEnabled
+            DesktopDiagnostics.record("pip_native_enter", "ok=$nativePipEnabled")
+            transition = false
+            if (isEnabled) notifyChanged()
+            return
+        }
         val owner = currentWindow() ?: SwingUtilities.getWindowAncestor(mainHost)
         val window = DesktopPlayerPipWindow(
             ownerWindow = null,
@@ -131,11 +145,16 @@ internal object DesktopPlayerPictureInPicture {
         }
         if (!player.reparentSurface(pipHost)) {
             log.w { "native surface reparent failed; closing PiP window" }
+            DesktopDiagnostics.record("pip_native_reparent", "ok=false stage=enter")
             window.dispose()
             pipWindow = null
             transition = false
             return
         }
+        DesktopDiagnostics.record("pip_native_reparent", "ok=true stage=enter")
+        // The surface changed homes; force-apply the PiP size instead of
+        // trusting whatever the layout cache holds from the main window.
+        player.layoutNativeSubviews()
         isEnabled = true
         log.d { "PiP entered" }
         transition = false
@@ -145,6 +164,21 @@ internal object DesktopPlayerPictureInPicture {
     }
 
     private fun restoreOnEdt() {
+        if (nativePipEnabled) {
+            val player = controller ?: return
+            transition = true
+            val restored = player.restoreSurface()
+            DesktopDiagnostics.record("pip_native_reparent", "ok=$restored stage=restore")
+            if (restored) {
+                player.closeNativePictureInPicture()
+                nativePipEnabled = false
+                isEnabled = false
+                player.requestKeyboardFocus()
+                notifyChanged()
+            }
+            transition = false
+            return
+        }
         val window = pipWindow ?: return
         val mainHost = host
         val player = controller
@@ -153,10 +187,12 @@ internal object DesktopPlayerPictureInPicture {
         if (mainHost != null && mainHost.isDisplayable && player != null) {
             val restored = player.restoreSurface()
             log.d { "restoring PiP native surface success=$restored" }
+            DesktopDiagnostics.record("pip_native_reparent", "ok=$restored stage=restore")
             if (!restored) {
                 transition = false
                 return
             }
+            player.layoutNativeSubviews()
             player.requestKeyboardFocus()
         }
         runCatching {

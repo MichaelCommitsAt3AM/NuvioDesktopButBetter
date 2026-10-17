@@ -40,6 +40,19 @@ object KidsBridge {
         "catalog.open", "catalog.snapshot", "catalog.loadMore", "catalog.refresh", "posters.resolve",
         "streams.resolve", "streams.snapshot", "streamSelection.snapshot",
     )
+    /** Settings screens stay editable in a kids profile; content management does not. */
+    private val settingsMethods = setOf("app.openExternal", "session.signOut")
+    private val settingsMethodPrefixes = listOf(
+        "settings.", "appearance.", "posters.", "homePreferences.", "home.", "continueWatching.",
+        "search.", "metadataSettings.", "playbackSettings.", "p2p.", "about.", "advanced.",
+        "downloads.filter.", "streams.badges.", "streams.filter.", "streams.downloadFilter.", "streams.autoplay.", "streams.cancel",
+        "tmdb.", "mdblist.", "debrid.", "simkl.",
+        "trackingSettings.", "integrations.", "plugins.", "addons.", "profiles.rememberLast.",
+    )
+
+    /** True when a kids profile may run this settings mutation; content-management methods are excluded. */
+    internal fun allowsSettingsMutation(method: String): Boolean =
+        method in settingsMethods || settingsMethodPrefixes.any { method.startsWith(it) }
 
     internal fun normalizeService(raw: String): String {
         val uri = runCatching { URI(raw.trim().trimEnd('/')) }.getOrElse { throw BridgeFeatureException("INVALID_KIDS_SERVER", "Enter a valid KidsScreen server address") }
@@ -139,6 +152,7 @@ object KidsBridge {
         if (method in setOf("library.add", "library.remove", "library.membership", "library.setMembership")) {
             requireMedia(params["type"]?.jsonPrimitive?.content, params["id"]?.jsonPrimitive?.content); return
         }
+        if (allowsSettingsMutation(method)) return
         throw BridgeFeatureException("PARENT_REQUIRED", "Switch to the parent profile to use this feature")
     }
 

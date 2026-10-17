@@ -60,10 +60,14 @@ internal object NativePlayerBridge {
     external fun setWindowResizable(windowHwnd: Long, enabled: Boolean)
     external fun setWindowAspectRatio(windowHwnd: Long, ratio: Float)
     external fun layoutNativeSubviews(handle: Long)
-    private external fun reparentSurfaceNative(handle: Long, hostViewPtr: Long)
+    /** Windows PiP is created in the native container's DPI mode. */
+    external fun enterPictureInPicture(handle: Long, title: String, aspectRatio: Float): Boolean
+    external fun updatePictureInPicture(handle: Long, title: String, aspectRatio: Float)
+    external fun closePictureInPicture(handle: Long)
+    private external fun reparentSurfaceNative(handle: Long, hostViewPtr: Long): Boolean
 
     fun reparentSurface(handle: Long, hostViewPtr: Long): Boolean =
-        runCatching { reparentSurfaceNative(handle, hostViewPtr) }.isSuccess
+        runCatching { reparentSurfaceNative(handle, hostViewPtr) }.getOrDefault(false)
     external fun setPaused(handle: Long, paused: Boolean)
     external fun seekTo(handle: Long, positionMs: Long)
     external fun seekBy(handle: Long, offsetMs: Long)

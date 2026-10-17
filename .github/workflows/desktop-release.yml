@@ -223,31 +223,31 @@ jobs:
           $sdkRoot = Join-Path $env:RUNNER_TEMP "nuget\Microsoft.Web.WebView2.$env:WEBVIEW2_VERSION"
           if (-not (Test-Path (Join-Path $sdkRoot 'build\native\x64\WebView2Loader.dll.lib'))) { throw 'WebView2 SDK is missing' }
           "WEBVIEW2_ROOT=$sdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        - name: Install Windows WebView2 Runtime
-          if: matrix.platform == 'windows'
-          shell: pwsh
-          run: |
-            $installer = Join-Path $env:RUNNER_TEMP 'MicrosoftEdgeWebview2Setup.exe'
-            Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $installer
-            $installation = Start-Process -FilePath $installer -ArgumentList '/silent', '/install' -WindowStyle Hidden -Wait -PassThru
-            $runtimeKeys = @(
-              'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
-              'HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
-              'HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
-            )
-            $runtime = $runtimeKeys | ForEach-Object { Get-ItemProperty -LiteralPath $_ -Name pv -ErrorAction SilentlyContinue } |
-              Where-Object { $_.pv -and $_.pv -ne '0.0.0.0' } | Select-Object -First 1
-            if (-not $runtime) { throw "WebView2 Runtime is unavailable (installer exit $($installation.ExitCode))" }
-            Write-Host "WebView2 Runtime $($runtime.pv)"
+      - name: Install Windows WebView2 Runtime
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'MicrosoftEdgeWebview2Setup.exe'
+          Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $installer
+          $installation = Start-Process -FilePath $installer -ArgumentList '/silent', '/install' -WindowStyle Hidden -Wait -PassThru
+          $runtimeKeys = @(
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+            'HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+            'HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          )
+          $runtime = $runtimeKeys | ForEach-Object { Get-ItemProperty -LiteralPath $_ -Name pv -ErrorAction SilentlyContinue } |
+            Where-Object { $_.pv -and $_.pv -ne '0.0.0.0' } | Select-Object -First 1
+          if (-not $runtime) { throw "WebView2 Runtime is unavailable (installer exit $($installation.ExitCode))" }
+          Write-Host "WebView2 Runtime $($runtime.pv)"
       - name: Install frontend dependencies and test
         working-directory: desktop-ui
         run: |
           npm ci
-            npm test -- --maxWorkers=1
+          npm test -- --maxWorkers=1
           npm run contract:check
           NUVIO_VALIDATE_TAURI_SCHEMA=1 node --test ../scripts/desktop-ui/release.test.mjs
       - name: Stage Kotlin backend
-          id: backend
+        id: backend
         run: |
           gradle_args=(:composeApp:stageBridgeRuntime :composeApp:desktopTest --tests 'com.nuvio.desktop.bridge.*' --no-configuration-cache --no-daemon --stacktrace)
           if [[ "$RUNNER_OS" == Windows ]]; then
@@ -259,13 +259,13 @@ jobs:
             ./gradlew "${gradle_args[@]}"
           fi
           node scripts/desktop-ui/bundle-java.mjs
-        - name: Upload failed backend test reports
-          if: failure() && steps.backend.outcome == 'failure'
-          uses: actions/upload-artifact@v7
-          with:
-            name: backend-test-reports-${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.format }}
-            path: composeApp/build/test-results/desktopTest/*.xml
-            if-no-files-found: warn
+      - name: Upload failed backend test reports
+        if: failure() && steps.backend.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-test-reports-${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.format }}
+          path: composeApp/build/test-results/desktopTest/*.xml
+          if-no-files-found: warn
       - name: Check Rust shell
         working-directory: desktop-ui/src-tauri
         run: |

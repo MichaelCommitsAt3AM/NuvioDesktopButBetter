@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit
 internal actual object AddonStorage {
     private val store = DesktopStorage.store("nuvio_addons")
     private val json = Json { ignoreUnknownKeys = true }
+    private const val cachedManifestsKey = "cached_manifest_payloads"
 
     actual fun loadInstalledAddonUrls(profileId: Int): List<String> =
         store.getString("installed_addon_urls_$profileId")
@@ -41,6 +42,19 @@ internal actual object AddonStorage {
 
     actual fun saveAddonEnabledStates(profileId: Int, states: Map<String, Boolean>) {
         store.putString("addon_enabled_states_$profileId", json.encodeToString(states))
+    }
+
+    actual fun loadCachedManifests(): String? = store.getString(cachedManifestsKey)
+
+    actual fun saveCachedManifests(payload: String) {
+        store.putString(cachedManifestsKey, payload.takeIf { it.isNotBlank() })
+    }
+
+    actual fun isAddonDefaultsSeeded(profileId: Int): Boolean =
+        store.getBoolean("addon_defaults_seeded_$profileId") ?: false
+
+    actual fun markAddonDefaultsSeeded(profileId: Int) {
+        store.putBoolean("addon_defaults_seeded_$profileId", true)
     }
 }
 

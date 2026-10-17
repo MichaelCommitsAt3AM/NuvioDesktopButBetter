@@ -31,6 +31,8 @@ actual object AddonStorage {
     private const val preferencesName = "nuvio_addons"
     private const val addonUrlsKey = "installed_manifest_urls"
     private const val addonEnabledStatesKey = "installed_manifest_enabled_states"
+    private const val cachedManifestsKey = "cached_manifest_payloads"
+    private const val addonDefaultsSeededKey = "addon_defaults_seeded"
 
     private var preferences: SharedPreferences? = null
 
@@ -69,6 +71,26 @@ actual object AddonStorage {
         preferences
             ?.edit()
             ?.putString("${addonEnabledStatesKey}_$profileId", payload)
+            ?.apply()
+    }
+
+    actual fun loadCachedManifests(): String? =
+        preferences?.getString(cachedManifestsKey, null)
+
+    actual fun saveCachedManifests(payload: String) {
+        preferences
+            ?.edit()
+            ?.putString(cachedManifestsKey, payload.takeIf { it.isNotBlank() })
+            ?.apply()
+    }
+
+    actual fun isAddonDefaultsSeeded(profileId: Int): Boolean =
+        preferences?.getBoolean("${addonDefaultsSeededKey}_$profileId", false) ?: false
+
+    actual fun markAddonDefaultsSeeded(profileId: Int) {
+        preferences
+            ?.edit()
+            ?.putBoolean("${addonDefaultsSeededKey}_$profileId", true)
             ?.apply()
     }
 }

@@ -29,6 +29,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Kids profiles can use the separate KidsScreen add-on, a personal TMDB API key. Profile PINs are optional. Home, featured titles, search, library, related titles and playback follow the chosen US rating limit. KidsScreen also excludes Horror movies regardless of rating. Setup uses the hosted KidsScreen service automatically and keeps the personal TMDB key field. This needs the kids-profile database migrations.
 
 - Home keeps shimmering placeholders while a switched profile’s add-ons and catalogs load, showing the empty state only once loading settles.
+- New accounts start with Cinemeta and AIOMetadata already installed, so Home has content without any setup. The app also pre-downloads other profiles' add-ons in the background (a few at a time) so switching profiles is fast.
 - Switching profiles returns to Home. AMOLED Black and List episode cards are the desktop defaults; saved choices are kept.
 - Kids-profile settings are editable like any other profile's. Previously configured TMDB keys show masked dots in the profile editor.
 - Profile editing uses tighter card spacing, matching add-on sharing cards and a compact selection list. Kids profiles keep independent add-ons and use KidsScreen for browsing. Keep “Sync all add-ons” on for ongoing sharing, or turn it off to copy only the checked add-ons once.
@@ -45,6 +46,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - The rewrite's native player handles Windows display-scaling differences so its controls and video appear after loading.
 - Windows playback repairs stuck video sizing without a fullscreen toggle, and Picture-in-Picture uses a window that matches the player's display scaling.
 - Downloads publish progress less often, Home shows ready catalogs sooner, and artwork loading uses less background work.
+- Switching profiles shows Home content faster: add-on manifests and unchanged Home catalogs are cached and reused instead of re-downloaded.
 - The Windows backend appears as Nuvio in Task Manager instead of OpenJDK.
 - The About page's test update banner is available only in debug builds.
 - Selecting Update downloads and verifies the update, then automatically installs it and restarts Nuvio.

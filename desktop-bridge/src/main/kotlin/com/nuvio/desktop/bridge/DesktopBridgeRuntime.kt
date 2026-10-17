@@ -122,6 +122,9 @@ interface BridgePlaybackAdapter {
     suspend fun shutdown() = stop()
 }
 
+/** Delay before warming other profiles' manifest caches after the active profile settles. */
+private const val ADDON_MANIFEST_PREFETCH_DELAY_MS = 2_000L
+
 /** Runtime for the local-only bridge consumed by the Tauri shell. */
 class DesktopBridgeRuntime {
     private data class StreamRecord(val stream: StreamItem, val meta: MetaDetails?, val videoId: String?)
@@ -491,6 +494,9 @@ class DesktopBridgeRuntime {
                     if (ProfileRepository.activeProfileId != profileId ||
                         (AuthRepository.state.value as? AuthState.Authenticated)?.userId != state.userId
                     ) return@collect
+                    // A brand-new main profile has no add-ons yet; install the built-in
+                    // defaults so the account is not stuck on an empty Home.
+                    AddonRepository.seedDefaultAddonsIfEmpty(profileId)
                     if (AppFeaturePolicy.pluginsEnabled) PluginRepository.onProfileChanged(profileId)
                     val enabledAddons = AddonRepository.uiState.value.addons.enabledAddons().forKidsCatalogs()
                     // Match AppGate/MainAppContent: load the profile's home catalog settings
@@ -504,6 +510,16 @@ class DesktopBridgeRuntime {
                     HomeRepository.refresh(enabledAddons)
                     LibraryRepository.ensureLoaded()
                     sessionError = null
+                    // Once the active profile has settled, warm every profile's
+                    // manifest cache so the next switch can paint Home immediately.
+                    runtimeScope?.launch {
+                        delay(ADDON_MANIFEST_PREFETCH_DELAY_MS)
+                        runCatching {
+                            AddonRepository.prefetchManifests(
+                                ProfileRepository.state.value.profiles.map { it.profileIndex },
+                            )
+                        }
+                    }
                 }.onFailure {
                     sessionProfilesReady = true
                     sessionError = safeMessage(it)
@@ -560,6 +576,12 @@ class DesktopBridgeRuntime {
             // reuse matching, fresh catalog entries instead of forcing every
             // catalog request to hit the network on each profile selection.
             refreshHomeAfterAddonChange()
+            // Pull this profile's add-ons from the cloud in the background: local
+            // storage can be stale, and the switch must not wait on the network.
+            runtimeScope?.launch {
+                runCatching { AddonRepository.pullFromServer(selected) }
+                runCatching { AddonRepository.seedDefaultAddonsIfEmpty(selected) }
+            }
             sessionJson()
         }
         "home.snapshot" -> homeJson()

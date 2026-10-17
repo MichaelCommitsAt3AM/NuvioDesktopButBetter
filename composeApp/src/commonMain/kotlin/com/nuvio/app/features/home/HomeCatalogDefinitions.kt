@@ -98,10 +98,10 @@ private class CatalogDescriptorSignature {
     }
 
     fun addAddon(addon: ManagedAddon) {
-        add(addon.userSetName)
+        // Identity only. Transient refresh state (isRefreshing/errorMessage) and
+        // the display name must not change a catalog's cache key, or a background
+        // manifest revalidation would discard cached sections and re-fetch them.
         add(addon.enabled)
-        add(addon.isRefreshing)
-        add(addon.errorMessage)
         add(addon.manifestUrl)
     }
 

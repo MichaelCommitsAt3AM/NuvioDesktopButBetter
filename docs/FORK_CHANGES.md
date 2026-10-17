@@ -4,6 +4,35 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Home hero: loading placeholder, no arrows — 2026-10-17
+
+Two featured-hero tweaks in the rewrite Home screen (`desktop-ui/src/features/home`):
+
+- A profile switch can stream shelves in before the featured hero resolves, which left the hero area blank for a moment. `HomePage` now renders the hero-sized shimmer (`.home-loading-hero`, same `--home-hero-height`) whenever the hero is enabled but not resolved while Home is still loading, and removes it once loading settles without a hero. Covered by `HomePage.test.tsx` (shimmer present while shelves show and loading; gone after settling).
+- Removed the previous/next arrow buttons from the featured hero. The indicator dots remain, and keyboard arrows, drag/swipe and auto-rotation are unchanged. The unused `.home-hero-arrow` CSS was dropped and the arrow-click test now drives the dots.
+
+### Bundled default add-ons and first-launch add-on warm-up — 2026-10-17
+
+A fresh account used to land on an empty Home until the user added add-ons manually, and the first switch to another profile was slow because that profile's manifests were not cached yet. Both are now handled automatically.
+
+- **Bundled defaults.** `AddonRepository.seedDefaultAddonsIfEmpty` installs `DEFAULT_ADDON_URLS` for a brand-new **main profile** (index 1) that has no add-ons: Cinemeta (`https://v3-cinemeta.strem.io/manifest.json`, keyless public add-on) and AIOMetadata (`https://aiometadata.elfhosted.com/stremio/<config-id>/manifest.json`). Neither requires any user input.
+- **AIOMetadata configuration id.** AIOMetadata has no config-free URL — the bare `…/stremio/manifest.json` returns 404 and the path segment *is* a saved configuration. This fork deliberately ships the owner's configuration id **`72194dd9-57a2-4c60-a4b1-462adfd81eae`** as the shared default (defined in `DEFAULT_ADDON_URLS`). Every new account therefore gets the same AIOMetadata provider mix; change that one constant to point at a different configuration.
+- **Seeded once.** `AddonStorage.isAddonDefaultsSeeded`/`markAddonDefaultsSeeded` (desktop, Android, iOS) record that a profile has been considered, so deliberately removing every add-on is not undone on the next launch. Seeding only runs once the add-on list is settled (`profileLoadPending` false and, for signed-in accounts, no `profileLoadError`), so a slow or failed cloud pull is never mistaken for an empty account.
+- **Parallel first-launch warm-up.** `AddonRepository.prefetchManifests` now gathers every *other* profile's add-on list — from the cloud (`readProfileAddonSnapshot`, cached back into local storage) for signed-in accounts, or local storage otherwise — and fetches the missing/stale manifests with a bounded concurrency (`MANIFEST_PREFETCH_CONCURRENCY = 4`). `DesktopBridgeRuntime` starts it ~2 s after the active profile settles (down from 8 s), so the first switch to another profile no longer needs a manifest round-trip. The active profile is skipped because its own load already fetches those manifests.
+
+Verification: `:composeApp:compileKotlinDesktop` compiles; add-on/Home/desktop-bridge suites pass under `:composeApp:desktopTest`. First-launch and first-switch behaviour verified by the rewrite preview.
+
+### Faster profile switching: add-on manifest cache and Home catalog reuse — 2026-10-17
+
+Switching profiles used to re-download every add-on manifest and then every Home catalog over the network, so a profile with different catalog add-ons could sit on the Home shimmer for seconds. Manifests are now cached by URL (in memory and persisted) and Home reuses matching cached catalogs, so a profile whose add-ons were fetched earlier in the session — or in a previous run — renders Home immediately.
+
+- `AddonManifestCache` (new) stores the raw manifest response per URL with a 12-hour TTL, a 200-entry cap and a debounced persisted blob (new `AddonStorage.loadCachedManifests`/`saveCachedManifests` on desktop, Android and iOS). Manifests are descriptor-only, so one URL-keyed cache is shared by every profile.
+- `AddonRepository` seeds rebuilt pending add-ons from the cache (`toPendingAddon`), re-fetches only missing or stale manifests, revalidates resolved manifests silently (without flipping `isRefreshing`), records successful fetches, logs cache hit/miss counts and fetch durations, and clears the cache when account data is wiped. `initialize()` no longer leaves `profileLoadPending` set for signed-in users once local add-ons are loaded, and `prefetchManifests` warms every profile's add-ons after the active profile settles.
+- `DesktopBridgeRuntime` pulls the selected profile's add-ons from the cloud in the background on `profiles.select` instead of making the switch wait, and schedules the warm-up after sign-in.
+- The Home catalog descriptor signature (`HomeCatalogDefinitions`) now covers identity only (enabled flag, manifest URL, manifest and catalog content). Transient refresh state and the display name no longer change cache keys, so a background revalidation cannot discard cached sections. `HomeRepository.refresh` keeps its in-memory section cache while a profile's manifests are still resolving, so catalogs shared with a previously visited profile are reused instead of re-fetched.
+
+Verification: new `AddonManifestCacheTest` and `AddonPendingSeedingTest`, plus an updated `HomeCatalogDefinitionTest`; the add-on, Home and desktop-bridge suites pass under `:composeApp:desktopTest`.
+
 ### Kids-profile settings are editable — 2026-10-17
 
 Kids profiles can now change their settings. `SettingsLayout` no longer wraps the settings pane in the kids-only `ReadOnlyBoundary`, so every category (Layout, Content & Discovery, Playback, Integrations, About, Advanced and their sub-pages) renders editable controls with no restriction notice. The read-only boundary, its context and the `InlineError` duplicate-message suppression that existed only for it are removed; `InlineNotice` had no other consumer and is gone with the styling it shared.

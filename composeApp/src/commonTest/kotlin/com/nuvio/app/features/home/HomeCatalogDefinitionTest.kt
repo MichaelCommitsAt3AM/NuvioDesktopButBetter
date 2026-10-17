@@ -32,7 +32,7 @@ class HomeCatalogDefinitionTest {
     }
 
     @Test
-    fun `addon refresh signature tracks unresolved terminal and loaded manifest states`() {
+    fun `addon refresh signature tracks catalog identity not transient refresh state`() {
         val pendingAddon = ManagedAddon(
             manifestUrl = "https://example.test/manifest.json",
             isRefreshing = true,
@@ -60,8 +60,16 @@ class HomeCatalogDefinitionTest {
         val loadedSignature = buildAddonCatalogRefreshSignature(listOf(loadedAddon))
 
         assertTrue(pendingSignature.isNotEmpty())
-        assertNotEquals(pendingSignature, failedSignature)
+        // Transient refresh state must not churn the signature: doing so would
+        // discard cached Home sections and force a refetch on every revalidation.
+        assertEquals(pendingSignature, failedSignature)
+        assertEquals(loadedSignature, buildAddonCatalogRefreshSignature(listOf(loadedAddon.copy(userSetName = "Renamed"))))
+        // Resolving a manifest and identity changes are tracked.
         assertNotEquals(pendingSignature, loadedSignature)
-        assertNotEquals(failedSignature, loadedSignature)
+        assertNotEquals(loadedSignature, buildAddonCatalogRefreshSignature(listOf(loadedAddon.copy(enabled = false))))
+        assertNotEquals(
+            loadedSignature,
+            buildAddonCatalogRefreshSignature(listOf(loadedAddon.copy(manifestUrl = "https://other.example/manifest.json"))),
+        )
     }
 }

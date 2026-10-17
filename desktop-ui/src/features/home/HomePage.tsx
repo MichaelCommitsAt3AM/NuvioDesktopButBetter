@@ -1,6 +1,6 @@
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Compass, Maximize, MoreHorizontal, RotateCcw, Trash2, Info, Play, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Compass, Maximize, MoreHorizontal, RotateCcw, Trash2, Info, Play } from 'lucide-react';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { EmptyState } from '../../components/EmptyState';
 import { InlineError } from '../../components/Status';
@@ -193,6 +193,12 @@ export function HomePage() {
   // "install an addon" empty state for a second.
   const addonsSettled = addonsReady && !addons.some((addon) => addon.enabled && addon.refreshing);
   const showHomeEmpty = homeEmpty && addonsSettled;
+  // A profile switch can stream shelves in before the featured hero resolves.
+  // Keep a hero-sized shimmer in that gap so the featured area does not sit
+  // blank for a moment and then pop in.
+  const heroEnabled = appearance?.home.heroEnabled !== false;
+  const heroLoading = heroEnabled && !hero && home.loading;
+  const showFullSkeleton = (home.loading && !home.shelves.length) || (homeEmpty && !showHomeEmpty);
   const cwRemoval = useDisintegratingRemoval(continueItems, (entry) => `${entry.parentMetaId}:${entry.videoId}`, profileId);
   const upcomingRemoval = useDisintegratingRemoval(upcoming, (entry) => `${entry.parentMetaId}:next:${entry.videoId}`, profileId);
   const cwRailRef = useRef<HTMLDivElement>(null);
@@ -216,11 +222,12 @@ export function HomePage() {
         <button className="hero-details-button" onClick={()=>openTitle(hero.type,hero.id)}>View Details</button>
       </div>
       <button className="home-fullscreen" aria-label="Toggle fullscreen" onClick={()=>{const window=getCurrentWindow();void window.isFullscreen().then(fullscreen=>window.setFullscreen(!fullscreen)).catch(error=>setActionError(String(error)));}}><Maximize size={24}/></button>
-      {heroItems.length>1&&<><button className="home-hero-arrow previous" aria-label="Show previous featured title" onClick={()=>moveHero(-1)}><ChevronLeft size={22}/></button><button className="home-hero-arrow next" aria-label="Show next featured title" onClick={()=>moveHero(1)}><ChevronRight size={22}/></button><div className="home-hero-dots">{heroItems.map((item,index)=><button key={`${item.type}:${item.id}`} aria-label={`Show featured title ${index+1}`} aria-current={index===heroIndex} onClick={()=>setHeroIndex(index)}/>)}</div></>}
+      {heroItems.length>1&&<div className="home-hero-dots">{heroItems.map((item,index)=><button key={`${item.type}:${item.id}`} aria-label={`Show featured title ${index+1}`} aria-current={index===heroIndex} onClick={()=>setHeroIndex(index)}/>)}</div>}
     </section>}
     {actionError && <InlineError message={actionError} onRetry={() => setActionError(null)} />}
     {home.error && <InlineError message={home.error} onRetry={() => void actions.homeRefresh()} />}
-    {(home.loading && !home.shelves.length) || (homeEmpty && !showHomeEmpty) ? <HomeLoadingSkeleton showHero={!hero && appearance?.home.heroEnabled !== false} /> : null}
+    {heroLoading && !showFullSkeleton ? <div className="home-loading-hero poster-loading-shimmer" role="status" aria-label="Loading featured titles"><span className="home-loading-hero-copy"><i className="poster-loading-shimmer"/><i className="poster-loading-shimmer"/><i className="poster-loading-shimmer"/></span></div> : null}
+    {showFullSkeleton ? <HomeLoadingSkeleton showHero={heroEnabled && !hero} /> : null}
 
     {continueWatchingVisible && (continueWatchingLoading || cwRemoval.visible.length > 0) && <section className="home-cw-section" aria-busy={continueWatchingLoading}>
       <div className="home-cw-heading"><h2>Continue Watching</h2></div>

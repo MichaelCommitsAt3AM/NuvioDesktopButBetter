@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Nuvio Desktop is a Kotlin Multiplatform + Compose Multiplatform media hub for Windows, macOS, and Linux. It's built from the same monorepo lineage as the separate NuvioMobile project — Android and iOS targets exist here too (`androidApp/`, `iosApp/`), sharing the same `com.nuvio.app` package and feature set in `composeApp/src/commonMain/`, but the desktop target (`composeApp/src/desktopMain/`) is this repo's primary focus. It's a client for the Stremio addon ecosystem — it does not host or distribute content itself (see README "Legal & DMCA" section before making any change that touches source/addon handling).
 
+> **This build is desktop-only.** All work here targets the desktop app (`composeApp/src/desktopMain/`, `desktop-bridge/`, `desktop-ui/`). The Android and iOS targets are shared monorepo lineage and are **not** built, tested, or supported from this working tree — don't spend time compiling, fixing, or verifying `androidApp`/`iosApp`, or the `androidMain`/`iosMain` source sets (they can fail to compile for reasons unrelated to desktop work).
+
 ## Commands
 
 ```bash
@@ -18,14 +20,14 @@ Nuvio Desktop is a Kotlin Multiplatform + Compose Multiplatform media hub for Wi
 ./scripts/build-macos-release-dmgs.sh --package-only    # macOS
 ./gradlew :composeApp:packageReleaseDeb                  # Linux
 
-# Android (shares the mobile flavor setup)
+# Android / iOS — NOT used by this fork's desktop build (see "Desktop only" above)
 ./gradlew :androidApp:assembleFullDebug
 ./gradlew :androidApp:assembleFullRelease
 
-# Tests
-./gradlew :composeApp:testAndroidHostTest     # Android host tests (also runs commonTest on the JVM)
-./gradlew :composeApp:desktopTest             # desktopMain-specific tests
-./gradlew :composeApp:iosSimulatorArm64Test   # iOS simulator target
+# Tests — use desktopTest; it also runs commonTest on the JVM.
+./gradlew :composeApp:desktopTest             # desktop tests + shared commonTest
+# ./gradlew :composeApp:testAndroidHostTest   # Android host tests — not used here
+# ./gradlew :composeApp:iosSimulatorArm64Test # iOS simulator target — not used here
 ```
 
 Aggregate Android tasks (`build`, `assemble*`, `bundle*` without a flavor) fail fast unless a distribution is picked via `-Pnuvio.android.distribution=full|playstore` (or `NUVIO_ANDROID_DISTRIBUTION` in `local.properties`) — see Distribution flavors below.
@@ -70,6 +72,8 @@ There's no Koin/Hilt/Dagger — repositories and services are plain objects/clas
 This is a personal fork (`origin` = `MichaelCommitsAt3AM/NuvioDesktopButBetter`) of upstream `NuvioMedia/NuvioDesktop`, tracked via an `upstream` remote and periodically merged. `CONTRIBUTING.md`'s strict PR-scoping policy governs contributions back to the upstream project — it does not apply to work done directly on this fork.
 
 `docs/FORK_CHANGES.md` is the detailed reference of everything this fork changes versus upstream. Whenever a fork-only feature, fix, or behavior change lands (or an upstream sync supersedes or removes one), update the matching section there in the same change. If the change is user-visible, also update the short plain-language "What's different from upstream" list in `README.md`.
+
+`docs/KNOWN_ISSUES.md` lists fork-specific bugs that are described (with the places to look) but not yet fixed. Add an entry there when a bug is understood but intentionally left for later.
 
 ### Versioning
 

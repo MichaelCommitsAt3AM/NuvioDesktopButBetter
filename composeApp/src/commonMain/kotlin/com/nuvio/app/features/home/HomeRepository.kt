@@ -58,10 +58,17 @@ object HomeRepository {
     fun refresh(addons: List<ManagedAddon>, force: Boolean = false) {
         val activeAddons = addons.enabledAddons().forKidsCatalogs()
         val requests = buildHomeCatalogDefinitions(activeAddons)
+        // A profile switch rebuilds the addon list before its manifests resolve.
+        // An empty definition list then only means "not known yet", so keep the
+        // section cache: catalogs shared with an already-visited profile are
+        // reused once the manifests arrive instead of being re-fetched.
+        val definitionsPending = requests.isEmpty() && activeAddons.any { it.manifest == null }
         currentDefinitions = requests
-        val requestCacheKeys = requests.mapTo(mutableSetOf(), HomeCatalogDefinition::cacheKey)
-        cachedSections = cachedSections.filterKeys(requestCacheKeys::contains)
-        cachedSectionTimestamps = cachedSectionTimestamps.filterKeys(requestCacheKeys::contains)
+        if (!definitionsPending) {
+            val requestCacheKeys = requests.mapTo(mutableSetOf(), HomeCatalogDefinition::cacheKey)
+            cachedSections = cachedSections.filterKeys(requestCacheKeys::contains)
+            cachedSectionTimestamps = cachedSectionTimestamps.filterKeys(requestCacheKeys::contains)
+        }
         val requestKey = requests.joinToString(separator = "|", transform = HomeCatalogDefinition::cacheKey)
         currentRequestKey = requestKey
 
@@ -76,11 +83,18 @@ object HomeRepository {
             }
         }
 
+        log.d {
+            "refresh() — definitions=${requests.size} reused=${cachedSections.size} fetch=${requestsToFetch.size} pending=$definitionsPending"
+        }
+
         if (requests.isEmpty()) {
             activeJob?.cancel()
             activeJob = null
             activeRequestKey = null
-            cachedSections = emptyMap()
+            if (!definitionsPending) {
+                cachedSections = emptyMap()
+                cachedSectionTimestamps = emptyMap()
+            }
             lastErrorMessage = null
             publishCurrentState(
                 isLoading = false,

@@ -65,6 +65,18 @@ describe('Continue Watching snapshot loading', () => {
     expect(screen.queryByRole('region', { name: 'Featured titles' })).toBeNull();
   });
 
+  it('keeps a hero shimmer while a profile switch streams shelves before the featured hero', () => {
+    bridge.state.home = { loading: true, shelves: [{ key: 'kids', title: 'KidsScreen Family - Movies', items: [{ id: 'movie', type: 'movie', name: 'Movie', genres: [] }] }], hero: [] };
+    render(<MemoryRouter><HomePage /></MemoryRouter>);
+    expect(document.querySelector('.home-loading-hero')).not.toBeNull();
+  });
+
+  it('drops the hero shimmer once loading settles without a featured hero', () => {
+    bridge.state.home = { loading: false, shelves: [{ key: 'kids', title: 'KidsScreen Family - Movies', items: [{ id: 'movie', type: 'movie', name: 'Movie', genres: [] }] }], hero: [] };
+    render(<MemoryRouter><HomePage /></MemoryRouter>);
+    expect(document.querySelector('.home-loading-hero')).toBeNull();
+  });
+
   it('uses the selected Kotlin hero even when it belongs to a hidden catalog', () => {
     bridge.state.home.hero = [{ id: 'movie', type: 'movie', name: 'Selected title', genres: [] }];
     render(<MemoryRouter><HomePage /></MemoryRouter>);
@@ -136,13 +148,13 @@ describe('Continue Watching snapshot loading', () => {
       expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('Second feature');
     });
 
-    it('moves with click arrows in both directions', () => {
+    it('selects a featured title from the indicator dots', () => {
       bridge.state.session.activeProfile = 9103;
       bridge.state.home.hero = heroes;
       render(<MemoryRouter><HomePage /></MemoryRouter>);
-      fireEvent.click(screen.getByRole('button', { name: 'Show next featured title' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Show featured title 2' }));
       expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('Second feature');
-      fireEvent.click(screen.getByRole('button', { name: 'Show previous featured title' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Show featured title 1' }));
       expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('First feature');
     });
   });

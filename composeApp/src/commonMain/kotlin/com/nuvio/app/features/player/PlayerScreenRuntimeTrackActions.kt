@@ -9,6 +9,17 @@ private val PlayerScreenRuntime.subtitlePreferenceItemId: String
 internal val PlayerScreenRuntime.activeAddonSubtitleType: String
     get() = contentType ?: parentMetaType
 
+/**
+ * True when the user explicitly turned subtitles off for this playback. Used so a
+ * stale engine `isSelected` flag cannot make the UI re-select the old track after
+ * "None" was chosen.
+ */
+internal val PlayerScreenRuntime.subtitleSelectionExplicitlyOff: Boolean
+    get() = isUserExplicitSubtitleSelection &&
+        selectedSubtitleIndex < 0 &&
+        selectedAddonSubtitleId == null &&
+        !useCustomSubtitles
+
 internal val PlayerScreenRuntime.addonSubtitleFetchKey: String?
     get() = buildAddonSubtitleFetchKey(
         addons = addonsUiState.addons,
@@ -190,7 +201,11 @@ internal fun PlayerScreenRuntime.refreshTracks() {
     val selectedAudio = audioTracks.firstOrNull { it.isSelected }
     if (selectedAudio != null) selectedAudioIndex = selectedAudio.index
     val selectedSub = subtitleTracks.firstOrNull { it.isSelected }
-    if (selectedSub != null && !useCustomSubtitles) selectedSubtitleIndex = selectedSub.index
+    // Don't resurrect a selection from the engine's stale `isSelected` after the
+    // user explicitly chose "None"; the runtime state is authoritative then.
+    if (selectedSub != null && !useCustomSubtitles && !subtitleSelectionExplicitlyOff) {
+        selectedSubtitleIndex = selectedSub.index
+    }
     if (!playbackSnapshot.isLoading) {
         hasScannedTextTracksOnce = true
     }

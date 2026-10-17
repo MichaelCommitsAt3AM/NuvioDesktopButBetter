@@ -4,6 +4,22 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Result management: size filter uses min/max dropdowns — 2026-10-17
+
+The Connected Services → Result management → **Size range** filter previously offered a fixed list of preset ranges. It now opens a dialog with two dropdowns, **Minimum size** and **Maximum size**, each offering Any, 500 MB, 1 GB, 2 GB, 5 GB, 10 GB, 20 GB, 50 GB, 100 GB and **Custom…**. Choosing Custom reveals a GB text field under that dropdown. Save validates the bounds (a custom value must be greater than 0 GB and the maximum must be at least the minimum); Clear resets both to Any. The row summary now reads like `Any`, `Up to 10 GB`, `5 GB+` or `5 GB – 20 GB`.
+
+Covered by `DebridSizeRangeDialog.test.tsx`.
+
+### Player: subtitles stay off after choosing "None" — 2026-10-17
+
+Selecting **None** in the player's subtitle panel turned the subtitle off, but reopening the panel re-selected the previous language (for example English), so the choice looked lost. The panel derived the selected language from the engine's `track-list` `selected` flag, which can still report the old track right after mpv's `sid=no`.
+
+- `PlayerScreenRuntime.refreshTracks` no longer re-derives `selectedSubtitleIndex` from `isSelected` once the user explicitly chose "None" (`subtitleSelectionExplicitlyOff`).
+- The subtitle panel and the player-controls subtitle state now use `effectiveSubtitleLanguageKey`/`effectiveSubtitleOptionId`, which force the off language and clear the option when the user explicitly turned subtitles off, instead of falling back to the engine's stale selection.
+- The controls-message handlers (`selectBuiltInSubtitleTrack`, `selectAddonSubtitle`) now mark the selection as explicit so automatic selection cannot override it.
+
+Covered by new `SubtitleSelectionModelTest` cases: explicit off beats a stale selected track, and the effective helpers match the engine when not explicitly off.
+
 ### Home hero: loading placeholder, no arrows — 2026-10-17
 
 Two featured-hero tweaks in the rewrite Home screen (`desktop-ui/src/features/home`):

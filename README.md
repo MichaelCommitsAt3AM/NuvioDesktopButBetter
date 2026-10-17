@@ -45,6 +45,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Playback opens the player reliably when startup events arrive separately, avoiding a loading screen with audio playing behind it.
 - The rewrite's native player handles Windows display-scaling differences so its controls and video appear after loading.
 - Windows playback repairs stuck video sizing without a fullscreen toggle, and Picture-in-Picture uses a window that matches the player's display scaling.
+- Turning subtitles off in the player keeps them off: the subtitle panel no longer re-selects the previous language when it is reopened.
+- The Connected Services result size filter uses separate minimum and maximum dropdowns with presets and a custom GB value.
 - Downloads publish progress less often, Home shows ready catalogs sooner, and artwork loading uses less background work.
 - Switching profiles shows Home content faster: add-on manifests and unchanged Home catalogs are cached and reused instead of re-downloaded.
 - The Windows backend appears as Nuvio in Task Manager instead of OpenJDK.

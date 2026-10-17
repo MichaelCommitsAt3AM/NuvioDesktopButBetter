@@ -1078,6 +1078,8 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
             playerControlsLog.d {
                 "selectBuiltInSubtitleTrack index=$index wasCustom=$wasCustom tracks=${subtitleTracks.size} ${playerControlLogContext()}"
             }
+            isUserExplicitSubtitleSelection = true
+            preferredSubtitleSelectionApplied = true
             selectedSubtitleIndex = index
             selectedAddonSubtitleId = null
             useCustomSubtitles = false
@@ -1109,6 +1111,8 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
             playerControlsLog.d {
                 "selectAddonSubtitle index=${value.toInt()} addonId=${addon.id} language=${addon.language} ${playerControlLogContext()}"
             }
+            isUserExplicitSubtitleSelection = true
+            preferredSubtitleSelectionApplied = true
             selectedAddonSubtitleId = addon.id
             selectedSubtitleIndex = -1
             useCustomSubtitles = true
@@ -1540,15 +1544,18 @@ private data class PlayerControlSubtitleSelection(
 @Composable
 private fun PlayerScreenRuntime.buildPlayerControlSubtitleSelection(): PlayerControlSubtitleSelection {
     val selectedAddon = selectedAddonSubtitle
-    val selectedLanguageKey = selectedSubtitleLanguageKey(
+    // Respect an explicit "None" over the engine's possibly-stale selection.
+    val selectedLanguageKey = effectiveSubtitleLanguageKey(
         subtitleTracks = subtitleTracks,
         selectedSubtitleIndex = selectedSubtitleIndex,
         selectedAddonSubtitle = selectedAddon,
+        explicitlyOff = subtitleSelectionExplicitlyOff,
     )
-    val selectedOptionId = selectedSubtitleOptionId(
+    val selectedOptionId = effectiveSubtitleOptionId(
         subtitleTracks = subtitleTracks,
         selectedSubtitleIndex = selectedSubtitleIndex,
         selectedAddonSubtitle = selectedAddon,
+        explicitlyOff = subtitleSelectionExplicitlyOff,
     ).orEmpty()
     val languageItems = buildSubtitleLanguageItems(
         subtitleTracks = subtitleTracks,
@@ -1839,6 +1846,7 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
         subtitleStyle = subtitleStyle,
         subtitleDelayMs = subtitleDelayMs,
         selectedAddonSubtitle = selectedAddonSubtitle,
+        subtitleSelectionExplicitlyOff = subtitleSelectionExplicitlyOff,
         subtitleAutoSyncState = subtitleAutoSyncState,
         onBuiltInSubtitleTrackSelected = { index ->
             val wasCustom = useCustomSubtitles

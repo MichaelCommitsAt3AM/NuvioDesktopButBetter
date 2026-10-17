@@ -150,4 +150,16 @@ body:has(.settings-desktop) .debrid-template-dialog .debrid-template-actions{dis
 body:has(.settings-desktop) .debrid-template-dialog .debrid-template-actions .button{width:100%;min-height:48px;padding:10px 12px;border-radius:26px;font-size:17px}
 body:has(.settings-desktop) .debrid-template-dialog .debrid-template-actions .button.secondary{background:#303030;color:#f2f2f2}
 body:has(.settings-desktop) .debrid-template-dialog .debrid-template-actions .button.primary{background:#f3f3f3;color:#111}
+body:has(.settings-desktop) .debrid-size-dialog .dialog-surface{overflow:auto}
+body:has(.settings-desktop) .debrid-size-range-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;flex:none}
+body:has(.settings-desktop) .debrid-size-field{display:grid;gap:8px;min-width:0}
+body:has(.settings-desktop) .debrid-size-field-label{color:#9a9da2;font-size:16px;line-height:22px}
+body:has(.settings-desktop) .debrid-size-select{box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:56px;padding:12px 16px;border:1px solid #ffffff14;border-radius:12px;background:#292929;color:#f2f2f2;text-align:left;font-size:18px;line-height:24px;cursor:pointer;transition:background-color 120ms ease}
+body:has(.settings-desktop) .debrid-size-select:hover{background:#333333}
+body:has(.settings-desktop) .debrid-size-select[aria-expanded=true]{border-color:#ffffff45}
+body:has(.settings-desktop) .debrid-size-select>svg{flex:none;color:#b9bcc1}
+body:has(.settings-desktop) .debrid-size-custom-input{box-sizing:border-box;width:100%;min-height:48px;padding:10px 14px;border:1px solid #ffffff30;border-radius:12px;background:#191919;color:#f2f2f2;font-family:inherit;font-size:16px;line-height:24px;outline:none}
+body:has(.settings-desktop) .debrid-size-custom-input:focus{border-color:#ffffff75}
+body:has(.settings-desktop) .debrid-size-dialog .debrid-size-options{max-height:min(320px,40vh);margin-top:14px}
+@media(max-width:520px){body:has(.settings-desktop) .debrid-size-range-fields{grid-template-columns:minmax(0,1fr)}}
 

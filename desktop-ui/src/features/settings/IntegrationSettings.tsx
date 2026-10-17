@@ -1,6 +1,6 @@
 import './integrationSettings.css';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, Check, Cloud, Eye, EyeOff, Film, KeyRound, Link2, LoaderCircle, RotateCcw, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, Cloud, Eye, EyeOff, Film, KeyRound, Link2, LoaderCircle, RotateCcw, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot } from '../../bridge';
 import { Dialog } from '../../components/Dialog';
@@ -205,10 +205,7 @@ function DebridPreferenceDialogs({ active, setActive, preferences, onSave }: { a
   }
 
   if (active === 'sizeRange') {
-    const options: Array<[number, number]> = [[0, 0], [0, 5], [0, 10], [5, 20], [10, 50], [20, 100]];
-    const selected = `${preferences.sizeMinGb}-${preferences.sizeMaxGb}`;
-    return <DebridSingleChoiceDialog title="Size range" selected={selected} options={options.map(([min, max]) => ({ value: `${min}-${max}`, label: sizeRangeLabel(min, max) }))} onClose={() => setActive(null)} onSelect={(value) => {
-      const [min, max] = value.split('-').map(Number);
+    return <DebridSizeRangeDialog min={preferences.sizeMinGb} max={preferences.sizeMaxGb} onClose={() => setActive(null)} onSave={(min, max) => {
       onSave({ ...preferences, sizeMinGb: min, sizeMaxGb: max });
       setActive(null);
     }} />;
@@ -238,6 +235,76 @@ function DebridSingleChoiceDialog<T extends string | number>({ title, options, s
         <span>{option.label}</span>{isSelected && <Check size={20} strokeWidth={2} aria-hidden="true" />}
       </button>;
     })}</div>
+  </Dialog>;
+}
+
+const SIZE_PRESET_VALUES_GB = [0, 0.5, 1, 2, 5, 10, 20, 50, 100];
+const SIZE_CUSTOM_KEY = 'custom';
+
+function sizePresetKey(value: number): string {
+  if (value <= 0) return 'any';
+  return SIZE_PRESET_VALUES_GB.includes(value) ? String(value) : SIZE_CUSTOM_KEY;
+}
+function sizeOptionLabel(value: number): string {
+  if (value <= 0) return 'Any';
+  return value < 1 ? `${Math.round(value * 1000)} MB` : `${value} GB`;
+}
+function sizeKeyLabel(key: string, text: string): string {
+  if (key === 'any') return 'Any';
+  if (key === SIZE_CUSTOM_KEY) return text.trim() ? `${text.trim()} GB` : 'Custom';
+  return sizeOptionLabel(Number(key));
+}
+function sizeKeyValue(key: string, text: string): number | null {
+  if (key === 'any') return 0;
+  if (key === SIZE_CUSTOM_KEY) {
+    const value = Number(text.replace(',', '.'));
+    return Number.isFinite(value) && value > 0 ? value : null;
+  }
+  const value = Number(key);
+  return Number.isFinite(value) ? value : null;
+}
+
+export function DebridSizeRangeDialog({ min, max, onClose, onSave }: { min: number; max: number; onClose: () => void; onSave: (min: number, max: number) => void }) {
+  const [minKey, setMinKey] = useState(() => sizePresetKey(min));
+  const [maxKey, setMaxKey] = useState(() => sizePresetKey(max));
+  const [minText, setMinText] = useState(() => sizePresetKey(min) === SIZE_CUSTOM_KEY ? String(min) : '');
+  const [maxText, setMaxText] = useState(() => sizePresetKey(max) === SIZE_CUSTOM_KEY ? String(max) : '');
+  const [openField, setOpenField] = useState<'min' | 'max' | null>(null);
+  const [error, setError] = useState('');
+  const options = [...SIZE_PRESET_VALUES_GB.map((value) => ({ key: value <= 0 ? 'any' : String(value), label: sizeOptionLabel(value) })), { key: SIZE_CUSTOM_KEY, label: 'Custom…' }];
+  const keyOf = (kind: 'min' | 'max') => kind === 'min' ? minKey : maxKey;
+  const setKeyOf = (kind: 'min' | 'max', key: string) => { if (kind === 'min') setMinKey(key); else setMaxKey(key); };
+  const field = (kind: 'min' | 'max') => {
+    const label = kind === 'min' ? 'Minimum size' : 'Maximum size';
+    const key = keyOf(kind);
+    const text = kind === 'min' ? minText : maxText;
+    return <div className="debrid-size-field">
+      <span className="debrid-size-field-label">{label}</span>
+      <button type="button" className="debrid-size-select" aria-haspopup="listbox" aria-expanded={openField === kind} aria-label={label} onClick={() => setOpenField(openField === kind ? null : kind)}>
+        <span>{sizeKeyLabel(key, text)}</span><ChevronDown size={18} aria-hidden="true" />
+      </button>
+      {key === SIZE_CUSTOM_KEY && <input className="debrid-size-custom-input" type="number" min="0.1" step="0.1" inputMode="decimal" placeholder="Size in GB" aria-label={`${label} in GB`} value={text} onChange={(event) => { const value = event.target.value; if (kind === 'min') setMinText(value); else setMaxText(value); }} />}
+    </div>;
+  };
+  return <Dialog label="Size range" onClose={onClose} className="settings-choice-dialog debrid-result-dialog debrid-size-dialog">
+    <h2>Size range</h2>
+    <div className="debrid-size-range-fields">{field('min')}{field('max')}</div>
+    {openField && <div className="settings-dialog-options debrid-choice-options debrid-size-options" role="listbox" aria-label={openField === 'min' ? 'Minimum size' : 'Maximum size'}>
+      {options.map((option) => {
+        const selected = keyOf(openField) === option.key;
+        return <button type="button" role="option" aria-selected={selected} className={`settings-dialog-option${selected ? ' selected' : ''}`} key={option.key} onClick={() => { setKeyOf(openField, option.key); setOpenField(null); }}>
+          <span>{option.label}</span>{selected && <Check size={20} strokeWidth={2} aria-hidden="true" />}
+        </button>;
+      })}
+    </div>}
+    {error && <p className="form-error" role="alert">{error}</p>}
+    <DebridDialogActions onClear={() => { setMinKey('any'); setMaxKey('any'); setMinText(''); setMaxText(''); setError(''); }} onSave={() => {
+      const minValue = sizeKeyValue(minKey, minText);
+      const maxValue = sizeKeyValue(maxKey, maxText);
+      if (minValue == null || maxValue == null) { setError('Enter a size greater than 0 GB.'); return; }
+      if (maxValue > 0 && minValue > maxValue) { setError('Maximum size must be at least the minimum size.'); return; }
+      onSave(minValue, maxValue);
+    }} />
   </Dialog>;
 }
 
@@ -275,9 +342,9 @@ function selectionCountLabel(values: string[]) { return values.length ? `${value
 function resultCountLabel(value: number) { return value <= 0 ? 'All results' : `${value} results`; }
 function sizeRangeLabel(min: number, max: number) {
   if (min <= 0 && max <= 0) return 'Any';
-  if (min <= 0) return `Up to ${max}GB`;
-  if (max <= 0) return `${min}GB+`;
-  return `${min}-${max}GB`;
+  if (min <= 0) return `Up to ${sizeOptionLabel(max)}`;
+  if (max <= 0) return `${sizeOptionLabel(min)}+`;
+  return `${sizeOptionLabel(min)} – ${sizeOptionLabel(max)}`;
 }
 function preferenceChoiceLabel(value: string) {
   const special: Record<string, string> = { P2160: '2160p', P1440: '1440p', P1080: '1080p', P720: '720p', P576: '576p', P480: '480p', P360: '360p', UNKNOWN: 'Unknown', BLURAY_REMUX: 'BluRay REMUX', BLURAY: 'BluRay', WEB_DL: 'WEB-DL', WEBRIP: 'WEBRip', HDRIP: 'HDRip', HD_RIP: 'HC HD-Rip', DVDRIP: 'DVDRip', HDTV: 'HDTV', HDR_DV: 'HDR+DV', DV_ONLY: 'DV Only', HDR_ONLY: 'HDR Only', HDR10_PLUS: 'HDR10+', HDR10: 'HDR10', DV: 'DV', HDR: 'HDR', HLG: 'HLG', TEN_BIT: '10bit', THREE_D: '3D', IMAX: 'IMAX', AI: 'AI', SDR: 'SDR', H_OU: 'H-OU', H_SBS: 'H-SBS', ATMOS: 'Atmos', DD_PLUS: 'DD+', DD: 'DD', DTS_X: 'DTS:X', DTS_HD_MA: 'DTS-HD MA', DTS_HD: 'DTS-HD', DTS_ES: 'DTS-ES', DTS: 'DTS', TRUEHD: 'TrueHD', OPUS: 'OPUS', FLAC: 'FLAC', AAC: 'AAC', CH_7_1: '7.1', CH_6_1: '6.1', CH_5_1: '5.1', CH_2_0: '2.0', AV1: 'AV1', HEVC: 'HEVC', AVC: 'AVC', XVID: 'XviD', DIVX: 'DivX', EN: 'English', HI: 'Hindi', IT: 'Italian', ES: 'Spanish', FR: 'French', DE: 'German', PT: 'Portuguese', PL: 'Polish', CS: 'Czech', LA: 'Latino', JA: 'Japanese', KO: 'Korean', ZH: 'Chinese', HU: 'Hungarian', HE: 'Hebrew', RU: 'Russian', UK: 'Ukrainian', AR: 'Arabic', TR: 'Turkish', TA: 'Tamil', TE: 'Telugu', ML: 'Malayalam', KN: 'Kannada', NL: 'Dutch', SV: 'Swedish', NO: 'Norwegian', DA: 'Danish', FI: 'Finnish', EL: 'Greek', RO: 'Romanian', TH: 'Thai', VI: 'Vietnamese', ID: 'Indonesian', MULTI: 'Multi' };

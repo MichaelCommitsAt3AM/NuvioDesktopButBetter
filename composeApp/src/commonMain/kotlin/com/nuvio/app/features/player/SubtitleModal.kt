@@ -72,6 +72,7 @@ fun SubtitleModal(
     subtitleStyle: SubtitleStyleState,
     subtitleDelayMs: Int,
     selectedAddonSubtitle: AddonSubtitle?,
+    subtitleSelectionExplicitlyOff: Boolean,
     subtitleAutoSyncState: SubtitleAutoSyncUiState,
     onBuiltInTrackSelected: (Int) -> Unit,
     onAddonSubtitleSelected: (AddonSubtitle) -> Unit,
@@ -87,15 +88,19 @@ fun SubtitleModal(
 ) {
     val effectiveSelectedAddonSubtitle = selectedAddonSubtitle
         ?: addonSubtitles.findSelectedAddon(selectedAddonSubtitleId)
-    val playbackLanguageKey = selectedSubtitleLanguageKey(
+    // When the user explicitly turned subtitles off, ignore the engine's stale
+    // selection so the panel keeps showing "None" after it is reopened.
+    val playbackLanguageKey = effectiveSubtitleLanguageKey(
         subtitleTracks = subtitleTracks,
         selectedSubtitleIndex = selectedSubtitleIndex,
         selectedAddonSubtitle = effectiveSelectedAddonSubtitle,
+        explicitlyOff = subtitleSelectionExplicitlyOff,
     )
-    val playbackOptionId = selectedSubtitleOptionId(
+    val playbackOptionId = effectiveSubtitleOptionId(
         subtitleTracks = subtitleTracks,
         selectedSubtitleIndex = selectedSubtitleIndex,
         selectedAddonSubtitle = effectiveSelectedAddonSubtitle,
+        explicitlyOff = subtitleSelectionExplicitlyOff,
     )
     val subtitleStructureKey = subtitleTracksStructureKey(subtitleTracks)
     val addonStructureKey = addonSubtitlesStructureKey(addonSubtitles)

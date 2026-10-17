@@ -157,6 +157,54 @@ class SubtitleSelectionModelTest {
         )
     }
 
+    @Test
+    fun explicitOffWinsOverTheEnginesStaleSelectedTrack() {
+        // The engine can still report the old subtitle as selected right after
+        // `sid=no`, which previously made the panel re-select it on reopen.
+        val staleSelected = subtitleTrack(index = 1, language = "en").copy(isSelected = true)
+
+        assertEquals(
+            "en",
+            selectedSubtitleLanguageKey(listOf(staleSelected), selectedSubtitleIndex = -1, selectedAddonSubtitle = null),
+        )
+
+        assertEquals(
+            SubtitleOffLanguageKey,
+            effectiveSubtitleLanguageKey(
+                subtitleTracks = listOf(staleSelected),
+                selectedSubtitleIndex = -1,
+                selectedAddonSubtitle = null,
+                explicitlyOff = true,
+            ),
+        )
+        assertEquals(
+            null,
+            effectiveSubtitleOptionId(
+                subtitleTracks = listOf(staleSelected),
+                selectedSubtitleIndex = -1,
+                selectedAddonSubtitle = null,
+                explicitlyOff = true,
+            ),
+        )
+    }
+
+    @Test
+    fun effectiveSelectionMatchesTheEngineWhenNotExplicitlyOff() {
+        val tracks = listOf(
+            subtitleTrack(index = 0, language = "fr"),
+            subtitleTrack(index = 1, language = "en").copy(isSelected = true),
+        )
+
+        assertEquals(
+            selectedSubtitleLanguageKey(tracks, selectedSubtitleIndex = -1, selectedAddonSubtitle = null),
+            effectiveSubtitleLanguageKey(tracks, selectedSubtitleIndex = -1, selectedAddonSubtitle = null, explicitlyOff = false),
+        )
+        assertEquals(
+            selectedSubtitleOptionId(tracks, selectedSubtitleIndex = -1, selectedAddonSubtitle = null),
+            effectiveSubtitleOptionId(tracks, selectedSubtitleIndex = -1, selectedAddonSubtitle = null, explicitlyOff = false),
+        )
+    }
+
     private fun subtitleTrack(
         index: Int,
         language: String,

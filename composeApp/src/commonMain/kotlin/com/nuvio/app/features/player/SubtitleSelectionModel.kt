@@ -139,6 +139,22 @@ internal fun selectedSubtitleLanguageKey(
         ?: SubtitleOffLanguageKey
 }
 
+/**
+ * The language the panel should show. An explicit "None" wins over the engine's
+ * `isSelected` fallback, which can lag behind `sid=no` and make the UI re-select
+ * the previous subtitle after it is reopened.
+ */
+internal fun effectiveSubtitleLanguageKey(
+    subtitleTracks: List<SubtitleTrack>,
+    selectedSubtitleIndex: Int,
+    selectedAddonSubtitle: AddonSubtitle?,
+    explicitlyOff: Boolean,
+): String = if (explicitlyOff) {
+    SubtitleOffLanguageKey
+} else {
+    selectedSubtitleLanguageKey(subtitleTracks, selectedSubtitleIndex, selectedAddonSubtitle)
+}
+
 internal fun selectedSubtitleOptionId(
     subtitleTracks: List<SubtitleTrack>,
     selectedSubtitleIndex: Int,
@@ -153,6 +169,18 @@ internal fun selectedSubtitleOptionId(
             .firstOrNull { it.isSelected }
             ?.let { SubtitleSelectionOption.BuiltIn(it) }
             ?.id
+}
+
+/** [selectedSubtitleOptionId] variant where an explicit "None" clears the option. */
+internal fun effectiveSubtitleOptionId(
+    subtitleTracks: List<SubtitleTrack>,
+    selectedSubtitleIndex: Int,
+    selectedAddonSubtitle: AddonSubtitle?,
+    explicitlyOff: Boolean,
+): String? = if (explicitlyOff) {
+    null
+} else {
+    selectedSubtitleOptionId(subtitleTracks, selectedSubtitleIndex, selectedAddonSubtitle)
 }
 
 internal fun subtitleLanguageKey(language: String?): String {

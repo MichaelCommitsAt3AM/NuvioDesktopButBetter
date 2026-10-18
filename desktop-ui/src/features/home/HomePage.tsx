@@ -1,4 +1,4 @@
-import { useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useContext, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Compass, Maximize, MoreHorizontal, RotateCcw, Trash2, Info, Play } from 'lucide-react';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
@@ -259,7 +259,8 @@ function ContinueCard({ item, isBusy, disintegrating = false, onResume, onManual
   const [menuOpen, setMenuOpen] = useState(false);
   const artRef = useRef<HTMLButtonElement>(null);
   const [sourceRect, setSourceRect] = useState<SourceRect | null>(null);
-  const sourceKey = `cw:${item.parentMetaId}:${item.videoId}`;
+  const sourceInstance = useId();
+  const sourceKey = `cw:${item.parentMetaId}:${item.videoId}:${sourceInstance}`;
   const openActions = () => { setSourceRect(rectOf(artRef.current)); setMenuOpen(true); };
   const hold=useCardHold(openActions);
   const progress = Math.max(0, Math.min(100, item.progressPercent ?? item.progressFraction * 100));
@@ -274,9 +275,9 @@ function ContinueCard({ item, isBusy, disintegrating = false, onResume, onManual
       <span className="home-cw-badge">{badge}</span>
       <span className="home-cw-art-copy">{item.seasonNumber!=null&&item.episodeNumber!=null&&<small>S{item.seasonNumber} E{item.episodeNumber}</small>}<strong>{item.title}</strong>{item.episodeTitle&&<small>{item.episodeTitle}</small>}</span>
   </>;
-  return <article className={`home-cw-card ${menuOpen?'action-anchor-hidden':''} ${blurArtwork ? "blur-artwork" : ""} ${depthOn?'has-card-depth':''} ${disintegrating?'is-disintegrating':''}`} style={depthOn ? depthVars(appearance?.cardDepth) : undefined} data-source-key={sourceKey} data-flip-key={`${item.parentMetaId}:${item.videoId}`}>
+  return <article className={`home-cw-card ${menuOpen?'action-anchor-hidden':''} ${blurArtwork ? "blur-artwork" : ""} ${depthOn?'has-card-depth':''} ${disintegrating?'is-disintegrating':''}`} style={depthOn ? depthVars(appearance?.cardDepth) : undefined} data-flip-key={`${item.parentMetaId}:${item.videoId}`}>
     {disintegrating && <span className="disintegration-burst" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/></span>}
-    <button {...hold} ref={artRef} className={`home-cw-art ${depthOn?'depth-frame':''}`} onClick={onResume} onContextMenu={event=>{event.preventDefault();openActions();}} aria-label={`Resume ${item.title}`} style={{ backgroundImage: artwork ? `linear-gradient(0deg,rgba(0,0,0,.82),transparent 60%),url("${artwork}")` : undefined }}>
+    <button {...hold} data-source-key={sourceKey} ref={artRef} className={`home-cw-art ${depthOn?'depth-frame':''}`} onClick={onResume} onContextMenu={event=>{event.preventDefault();openActions();}} aria-label={`Resume ${item.title}`} style={{ backgroundImage: artwork ? `linear-gradient(0deg,rgba(0,0,0,.82),transparent 60%),url("${artwork}")` : undefined }}>
       {blurArtwork&&<span className="home-cw-blurred-image" style={{backgroundImage:artwork?`url("${artwork}")`:undefined}}/>}{cardContent}
     </button>
     <div className="home-cw-copy"><div className="home-cw-text"><strong title={item.title}>{item.title}</strong><span>{item.subtitle || (item.isNextUp ? 'Next episode' : item.providerName || 'Continue watching')}</span></div>

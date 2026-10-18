@@ -267,6 +267,13 @@ class NativePlayback(
                                     episodeNumber = episode?.episode,
                                     episodeTitle = episode?.title,
                                     episodeThumbnail = episode?.thumbnail,
+                                    // Match details playback: movie synopsis or the selected episode's overview.
+                                    // Empty metadata must not fall back to the stream's technical description.
+                                    pauseDescription = (if (meta.type == "series" || episode?.season != null || episode?.episode != null) {
+                                        episode?.overview
+                                    } else {
+                                        meta.description
+                                    }).orEmpty(),
                                     initialPositionMs = if (startFromBeginning) 0L else progress?.takeIf { it.isResumable }?.lastPositionMs ?: 0L,
                                     initialProgressFraction = if (startFromBeginning) null else progress?.takeIf { it.isResumable }?.progressFraction,
                                     contentLanguage = meta.language,

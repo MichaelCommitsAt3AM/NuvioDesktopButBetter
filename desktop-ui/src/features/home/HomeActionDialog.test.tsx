@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HomeActionDialog } from './HomeActionDialog';
+import { POSTER_CLOSE_MS } from '../../components/posterZoomMotion';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -18,7 +19,7 @@ describe('title action dialog dismissal', () => {
     expect(backdrop).toHaveClass('is-closing');
     expect(document.querySelector('.home-actions-content')).toHaveAttribute('inert');
     expect(onClose).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(160));
+    act(() => vi.advanceTimersByTime(POSTER_CLOSE_MS));
     expect(onClose).toHaveBeenCalledOnce();
   });
 
@@ -27,7 +28,7 @@ describe('title action dialog dismissal', () => {
     const view = render(<HomeActionDialog title="Movie" onClose={onClose}><button>Save</button></HomeActionDialog>);
     fireEvent.keyDown(document, { key: 'Escape' });
     view.unmount();
-    act(() => vi.advanceTimersByTime(200));
+    act(() => vi.advanceTimersByTime(POSTER_CLOSE_MS + 100));
     expect(onClose).not.toHaveBeenCalled();
   });
 

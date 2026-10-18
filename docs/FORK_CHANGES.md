@@ -4,6 +4,30 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Card action popup spring motion — 2026-10-18
+
+All shared `Poster` cards now use this popup unconditionally, including Search/Discover, search results, related titles, people/entity pages and collection pages. The alternate `View details / Manage lists / Toggle watched / Close` popup and its unused styling/imports are removed. All title cards share the artwork preview, library/watched actions, instance-specific source anchors and spring entrance/return. Artwork customization still follows each screen's existing settings. Route coverage includes Search, query results, details, collections and person pages alongside Home, Library and categories. Validation: all 400 frontend tests and the production frontend build pass; live visual confirmation remains pending.
+
+Expanded Home categories (`/catalog/...`) now use this same `HomeActionDialog` and its shared animations, artwork anchoring, add/remove-library and watched-state actions. Poster customization still uses the existing search/catalog artwork settings; the change is limited to the action menu. The popup imports its own styles so direct catalog entry does not depend on visiting Home first.
+
+Category closing follow-up: source keys now include React's stable per-card instance ID for posters and Continue Watching. Cached Home remains mounted behind a category page, so content-only keys could select its hidden copy of the same title; zero bounds then triggered the shrink/fade fallback rather than the return spring. Repeated titles on different shelves had the same ambiguity. Instance keys bind opening, snapshots and return geometry to the actual pressed artwork. A regression includes a hidden cached Home title before the visible category copy. All 30 affected poster/Home/dismissal/geometry tests and the production frontend build pass; live confirmation remains pending.
+
+Landing follow-up: poster anchors now identify the `.poster-frame`, and Continue Watching anchors identify the artwork button, rather than their outer wrappers containing labels and controls. Opening and closing therefore measure the same artwork rectangle. Continue Watching's lifted preview freezes a clone of the source card's computed typography/layout once and scales it as a whole (matching Kotlin's `drawLiftedPoster`), rather than switching between independently styled shelf and popup text. A ResizeObserver fits the frozen layout to the preview slot without frame-by-frame style reads. Regression coverage checks artwork-only target bounds and preservation of source font sizes; live landing verification remains with the user.
+
+Follow-up validation: the full 393-test suite passed after the landing/font fixes; the final catalog route addition passes all 13 targeted action/artwork/dismissal tests and the production frontend build. `git diff --check` passes. Rebuilding the embedded shell was blocked by Windows locking the running `target/debug/nuvio-desktop-shell.exe`; no running app was terminated.
+
+The poster and Continue Watching action popups now follow `core/ui/PosterZoomActionOverlay.kt`: non-bouncy expansion/collapse springs (stiffness 340/460, damping 1, threshold 0.0005), the menu spring (420, damping 0.8, threshold 0.01) delayed 60 ms, title translation, menu scaling from 0.62 around its top edge and row staggering at 0.07 increments. The scrim uses Kotlin's 260 ms standard easing, 45% dimming and 36 px blur, with an 80 ms exit delay and 140 ms menu fade. Browser spring keyframes are sampled once and played through Web Animations; there are no per-frame React updates or layout reads.
+
+The opening animation is installed before paint against untransformed destination bounds, uses top-left geometry and opaque artwork, and no longer competes with a CSS scale/fade. The dialog temporarily allows the travelling artwork outside its scroll box, avoiding clipped flights. The inherited generic dialog blur is explicitly disabled so only one fullscreen blur remains. Outside/Escape dismissal uses the collapse spring, including an interrupted entrance's current bounds; missing source cards shrink/fade in place, and reduced motion skips the animation.
+
+Validation: all 391 frontend tests, the production frontend build, `cargo build --features custom-protocol --locked`, and `git diff --check` pass. Visual smoothness on the user's release host remains unmeasured. This ports the popup entrance/dismissal; existing action execution and destructive card-removal effects are retained.
+
+### Player pause overlay uses the title synopsis — 2026-10-18
+
+The rewrite's `NativePlayback` launch now passes `pauseDescription` into the existing Kotlin player, matching `MetaDetailsScreen`: `meta.description` for movies and the selected video's `overview` for episodes. Previously the omitted argument made the player show the stream's technical description. Missing descriptions are passed as empty text so stream details do not reappear. Artwork, provider/episode labels, description layout and pause timing continue to use the existing Kotlin/native controls.
+
+Validation: `:composeApp:stageBridgeRuntime` and `git diff --check` pass. Live paused-playback acceptance remains pending.
+
 ### Cold manifest scheduling and stuck KidsScreen refresh — 2026-10-18
 
 Follow-up screenshots and source tracing identified the unresolved cause of KidsScreen staying “Refreshing” across restarts: `toPendingAddon` intentionally seeds uncached enabled sources with `isRefreshing=true`, while initialization and cloud inventory application only launched HTTP work when `!isRefreshing`. A brand-new managed catalog therefore had no fetch job at all; restarting reconstructed the same stuck state. The earlier missing-source repair alone did not resolve this scheduling bug, and the earlier bounded probe's pending state was not evidence of service slowness.

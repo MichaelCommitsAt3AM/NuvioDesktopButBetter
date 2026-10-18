@@ -72,14 +72,18 @@
 @keyframes home-copy-enter{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
 @media(pointer:coarse){:is(.home-page,.series-episodes) .horizontal-rail .rail-arrow:not(:disabled){opacity:1;transform:translateY(-50%);pointer-events:auto}}
 @media(prefers-reduced-motion:reduce){.home-hero-background,.home-page .home-hero-copy{animation:none}}
-.home-actions-dialog{background:transparent}
-.home-actions-dialog::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;backdrop-filter:blur(12px);background:#0008;animation:home-actions-scrim-in 160ms ease-out both}
+.home-actions-dialog{background:transparent;backdrop-filter:none}
+.home-actions-dialog::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;backdrop-filter:blur(36px);animation:home-actions-scrim-in 260ms cubic-bezier(.2,0,0,1) both;will-change:opacity}
+.home-actions-dialog::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;background:rgba(0,0,0,.45);animation:home-actions-scrim-in 260ms cubic-bezier(.2,0,0,1) both;will-change:opacity}
 .home-actions-dialog .dialog-surface{position:relative;z-index:1;width:324px;max-height:90vh;padding:0;background:none;border:0;box-shadow:none;overflow:auto;text-align:center}
-.home-actions-artwork{display:block;width:260px;height:min(390px,45vh);margin-inline:auto;border-radius:14px;overflow:hidden;animation:home-actions-artwork-in 160ms ease-out both}
+.home-actions-artwork{display:block;width:260px;height:min(390px,44vh);margin-inline:auto;border-radius:18px;overflow:hidden;transform-origin:top left;will-change:transform,opacity}
+.home-actions-dialog:is(.is-opening,.is-closing) .dialog-surface{overflow:visible}
+.home-actions-dialog .home-actions-options{will-change:transform,opacity}
 .home-actions-poster{width:260px;height:390px;max-height:45vh;object-fit:cover;border-radius:14px}
-.home-actions-dialog h2{margin:18px 0 8px;font-size:18px;font-weight:600;animation:home-actions-menu-in 160ms 30ms both}
-.home-actions-dialog p{margin:0 0 18px;color:#aaa;font-size:16px;animation:home-actions-menu-in 160ms 40ms both}
-.home-actions-options{margin-top:18px;background:#1b1b1b;border-radius:24px;overflow:hidden;transform-origin:top center;animation:home-actions-options-in 180ms 50ms ease-out both}
+.home-actions-dialog h2{margin:18px 0 8px;font-size:18px;font-weight:600}
+.home-actions-dialog p{margin:0 0 18px;color:#aaa;font-size:16px}
+.home-actions-copy{will-change:transform,opacity}
+.home-actions-options{margin-top:18px;background:#1b1b1b;border-radius:24px;overflow:hidden;transform-origin:top center}
 .home-actions-options button{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;width:100%;background:none;border:0;border-bottom:1px solid #ffffff08;color:#eee;font-size:17px;text-align:left;cursor:pointer}
 .home-actions-options button:hover{background:#ffffff0d}.home-actions-options button.destructive{color:#df8096}
 .home-actions-options button.active{color:#fff}
@@ -115,16 +119,13 @@
 .home-cw-zoom .home-cw-progress{background:#0005;border-radius:99px;overflow:hidden}.home-cw-zoom .home-cw-progress i{border-radius:99px}
 
 .poster-item.action-anchor-hidden .media-card,.home-cw-card.action-anchor-hidden .home-cw-art{visibility:hidden}
-.home-actions-dialog.is-closing::before{animation:home-actions-scrim-out 160ms ease-in both}
+.home-actions-dialog.is-closing::before,.home-actions-dialog.is-closing::after{animation:home-actions-scrim-out 260ms 80ms cubic-bezier(.2,0,0,1) both}
 .home-actions-content{display:contents}
-.home-actions-dialog.is-closing .dialog-surface{animation:home-actions-content-out 160ms cubic-bezier(.4,0,1,1) both;transform-origin:center center;pointer-events:none}
-.home-actions-dialog.is-closing .home-actions-artwork,.home-actions-dialog.is-closing h2,.home-actions-dialog.is-closing p,.home-actions-dialog.is-closing .home-actions-options{animation:none}
+.lifted-card-artwork{position:relative;width:100%;height:100%;overflow:hidden}
+.home-actions-dialog.is-closing .dialog-surface{pointer-events:none}
+.home-actions-dialog.is-closing .home-actions-copy,.home-actions-dialog.is-closing .home-actions-options{animation:home-actions-scrim-out 140ms both}
 @keyframes home-actions-scrim-in{from{opacity:0}to{opacity:1}}
 @keyframes home-actions-scrim-out{from{opacity:1}to{opacity:0}}
-@keyframes home-actions-artwork-in{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
-@keyframes home-actions-content-out{from{opacity:1;transform:translateY(0) scale(1)}to{opacity:0;transform:translateY(4px) scale(.98)}}
-@media(prefers-reduced-motion:reduce){.home-actions-dialog.is-closing .dialog-surface,.home-actions-dialog.is-closing::before{animation:none;opacity:0}}
-@keyframes home-actions-menu-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-@keyframes home-actions-options-in{from{opacity:0;transform:translateY(3px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(prefers-reduced-motion:reduce){.home-actions-dialog.is-closing .dialog-surface,.home-actions-dialog.is-closing::after{animation:none;opacity:0}}
 
 .home-cw-blurred-image{position:absolute;inset:-18px;background-size:cover;background-position:center;filter:blur(18px);pointer-events:none}.home-cw-blurred-image~span{z-index:1}

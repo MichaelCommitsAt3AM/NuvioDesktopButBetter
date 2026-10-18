@@ -26,6 +26,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- This fork permanently uses a React and Tauri desktop interface, backed by the existing Kotlin app logic and native player. Upstream improvements continue to be integrated and adapted to this interface.
 - Kids profiles can use the separate KidsScreen add-on, a personal TMDB API key. Profile PINs are optional. Home, featured titles, search, library, related titles and playback follow the chosen US rating limit. KidsScreen also excludes Horror movies regardless of rating. Setup uses the hosted KidsScreen service automatically and keeps the personal TMDB key field. This needs the kids-profile database migrations.
 
 - Home keeps shimmering placeholders while a switched profile’s add-ons and catalogs load, showing the empty state only once loading settles.
@@ -41,7 +42,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Home Layout and Detail Page sections share Kotlin-style rows with visibility switches and drag reordering. Home catalogs follow addon and collection updates, with catalog renaming, locked pinned collections, and hero source selection.
 - Playback sliders show their selectable stops. Skip Segments follows Kotlin's separate detection switch, automatic-skipping dialog, and AnimeSkip/IntroDB credential dialogs, including IntroDB key verification.
 
-**Desktop UI preview**
+**React/Tauri desktop interface**
 - Playback opens the player reliably when startup events arrive separately, avoiding a loading screen with audio playing behind it.
 - The rewrite's native player handles Windows display-scaling differences so its controls and video appear after loading.
 - Windows playback repairs stuck video sizing without a fullscreen toggle, and Picture-in-Picture uses a window that matches the player's display scaling.
@@ -189,7 +190,9 @@ git clone https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter.git
 cd NuvioDesktopButBetter
 ```
 
-Run from source:
+The React/Tauri rewrite is the primary desktop app. Follow the [rewrite build instructions](docs/DESKTOP_UI_REWRITE.md#build-the-windows-preview) to stage the Kotlin backend and build the React frontend and native shell. Official releases are built by GitHub Actions.
+
+Run the legacy Compose app for development comparisons:
 
 ```bash
 ./gradlew :composeApp:run
@@ -201,7 +204,7 @@ On Windows PowerShell:
 .\gradlew.bat :composeApp:run
 ```
 
-Build a package for the current host. This is for testing an installer locally; official releases are built by GitHub Actions:
+Build a legacy Compose package for the current host for installer comparisons only:
 
 ```bash
 ./gradlew :composeApp:packageReleaseDistributionForCurrentOS

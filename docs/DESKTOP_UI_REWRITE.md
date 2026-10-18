@@ -1,6 +1,6 @@
 # React/Tauri desktop migration
 
-The new desktop UI remains a development preview while installed-app migration and feature acceptance are completed. The desktop release workflow now packages the React/Tauri rewrite; the Compose entry point remains available for development and migration comparisons.
+As of 2026-10-18, the React/Tauri rewrite is permanently the primary desktop application. Kotlin remains the authoritative backend and native player implementation. The desktop release workflow packages the rewrite; the Compose entry point remains available for upstream reference and development/migration comparisons. Outstanding parity and installed-app acceptance checks remain required where applicable; they do not change the chosen frontend.
 
 ## Architecture and ownership
 
@@ -28,7 +28,7 @@ The sign-in action has explicit white/black colors. Theme color serialization us
 
 Playback opens the existing native Compose player in a separate window. It preserves the current native decoder, subtitle, controls and progress implementation, with debrid/P2P context and local/cloud playback passed internally. External web streams are handed to the browser. Sensitive source URLs and request headers are excluded from ordinary UI snapshots.
 
-This is still a parity migration, not a finished replacement. Remaining work includes full React localization; original motion/shared transitions and supported-platform embedded trailer previews; complete continue-watching launch prompts, last-link reuse and home shuffle behavior; remote list management; every conditional layout/state in original screens; native player ownership/event lifecycle; deep links and persistent multi-monitor window bounds. Some feature snapshot shapes still need strict canonical schemas. Release builds now have a signed native updater, bundled Java and rewrite CI packaging; the source preview without a signing key reports updates unavailable. Installed-app migration and update acceptance remain required. The source coverage and outstanding acceptance gates are tracked in [DESKTOP_UI_PARITY.md](DESKTOP_UI_PARITY.md).
+The earlier migration backlog included localization, motion/transitions, trailer previews, continue-watching flows, list management, conditional screen states, player lifecycle, deep links, window bounds and strict snapshot schemas. Consult [DESKTOP_UI_PARITY.md](DESKTOP_UI_PARITY.md) and subsequent entries in [FORK_CHANGES.md](FORK_CHANGES.md) for current implementation and acceptance evidence rather than treating that historical backlog as current status. Release builds have a signed native updater, bundled Java and rewrite CI packaging; a source build without a signing key reports updates unavailable. Installed-app migration and update acceptance remain required where applicable.
 
 ## Build the Windows preview
 
@@ -52,15 +52,26 @@ The debug executable is `desktop-ui/src-tauri/target/debug/nuvio-desktop-shell.e
 
 Close the original Compose app before using the source preview: the two implementations share Kotlin storage and background services. Development keeps the separate preview Tauri identifier. Generated release configuration uses the original production identifier and Windows MSI upgrade identity. Generated JARs, native files, frontend output and Cargo output are ignored by Git. Release packages and updater signatures are produced in CI; local installer packaging is for testing only.
 
-## Upstream sync procedure
+## Upstream sync workflow
+
+This workflow was agreed on 2026-10-18 and is recorded in `AGENTS.md`. Documenting it does not create branches or change the GitHub default branch.
+
+- Use one primary development/release branch containing the rewrite. The current rewrite branch is `feature/react-tauri-desktop-rewrite`; `origin/HEAD` currently points to `Dev`. A separate deliberate promotion can make the rewrite the default without maintaining two active products.
+- For each sync, create a short-lived `codex/sync-upstream-<release-or-date>` branch from the latest rewrite development tip. Fetch upstream, select an exact upstream commit/release and record its full SHA. Merge that target into the sync branch with normal merge ancestry; preserve that ancestry when integrating the completed branch back (no squash/rebase of the upstream merge).
+- Keep the imported upstream merge and subsequent bridge/React adaptations as separate commits on the same sync branch. Merge the completed batch back only after the rewrite works. A dedicated worktree can keep normal feature development independent. Do not require a separately maintained legacy Compose app to pass feature acceptance first.
+- Prefer small batches around upstream releases, with urgent fixes integrated sooner. Avoid wholesale directory replacement or blanket ours/theirs conflict resolution. Preserve fork-specific profiles, kids policies, database contracts, versioning, updater identity and release configuration during conflict review.
+
+For each batch, record the previous integrated upstream SHA, target SHA, affected behavior, frontend/bridge mappings, validation and any deliberately deferred changes in `FORK_CHANGES.md`. Classify each meaningful change as backend/native runtime, frontend adaptation, build/release, or irrelevant to this desktop fork. Backend and UI changes can occur in the same Kotlin file; paths alone are not enough. Reference-only Compose presentation changes may be retained in source without copying their design into React. Every relevant behavior needs an explicit implemented, already covered, or deferred decision; add understood outstanding bugs to `KNOWN_ISSUES.md`.
+
+Keep business rules in Kotlin and make bridge changes in `desktop-bridge/`. Translate upstream screen behavior into React deliberately, including loading/error/empty states, settings defaults and navigation. The canonical schema and generated TypeScript/Rust allowlists form the integration boundary. Native player changes still require rewrite playback validation even when they live in Compose files.
 
 Windows player presentation regression: run `./gradlew :composeApp:desktopTest --tests '*WindowsPlayerPresentationTest'`. This uses the real JNI/mpv/WebView2 controls with a temporary silent WAV and an offscreen native host, keeps warm-up alive under a different DPI mode, and checks initial state application, presentation acknowledgement and native surface visibility. It also requires the container to track host resizes and to heal after an out-of-band shrink without any host resize. It requires the Windows native build dependencies and installed WebView2 Runtime. The test skips other operating systems and is included in the release workflow's existing `com.nuvio.desktop.bridge.*` test filter. Windows desktop tests rebuild the DLL when necessary and track its contents as a test input.
 
-1. Merge upstream normally and resolve the small build hook if necessary.
-2. Compile `:composeApp:stageBridgeRuntime`. Repository API changes should be repaired in `desktop-bridge/`, preserving Kotlin ownership of business logic.
-3. Run `node scripts/desktop-ui/inventory-parity.mjs --check`. Review original UI changes against the parity checklist before regenerating the inventory. It normalizes only the documented community repository visibility hook. Update the canonical schema when bridge behavior changes; run `sync-methods.mjs` to synchronize RPC allowlists, regenerate types, and adjust the affected React features.
-4. Build the frontend and Rust shell. Validate the affected user journeys before promoting the preview to the default entry point.
-5. Keep `docs/FORK_CHANGES.md` and the README preview status current. Run rewrite CI in build-only mode and verify installed-app migration before publishing a replacement release.
+1. Review the delta between the previous upstream SHA and the pinned target, then merge on the sync branch and resolve conflicts with the ownership rules above. Preserve the fork Gradle hook and rewrite CI packaging.
+2. Compile `:composeApp:stageBridgeRuntime` and run relevant `:composeApp:desktopTest` coverage (including bridge tests). Repair repository API changes in `desktop-bridge/`, preserving Kotlin ownership. For auth/sync/schema changes, also pass the Supabase RPC contract, fresh-database and upgrade-database checks; add forward migrations rather than rewriting applied migrations.
+3. Run `node scripts/desktop-ui/inventory-parity.mjs --check`. Review changed original UI against the parity checklist before regenerating its inventory. The inventory is a review aid, not proof that behavior was ported; its baseline is currently hard-coded and must not be mistaken for the latest integrated upstream SHA. Update the canonical schema when bridge behavior changes, synchronize RPC allowlists with `sync-methods.mjs`, regenerate types and adjust affected React features/locales. Check generated outputs after regeneration.
+4. In `desktop-ui`, run `npm test`, `npm run contract:check` and `npm run build`. In `desktop-ui/src-tauri`, run `cargo fmt --check`, `cargo test --locked` and an embedded shell build. Validate affected user journeys through the actual rewrite, including backend events and native playback where touched. Record platform checks that still need another host.
+5. Reconcile any newer primary-branch changes and repeat affected checks before merging the batch back with its upstream ancestry intact. Keep `FORK_CHANGES.md` and the README current. Use CI build-only artifacts for platform/package checks when relevant, then follow the normal separate version-bump/release process; a sync is not itself authorization to publish a release.
 
 ## Rewrite release and update delivery
 

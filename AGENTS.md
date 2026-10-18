@@ -1,8 +1,12 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to coding agents working in this repository.
 
 ## What this is
+
+**Permanent desktop direction (2026-10-18): the React/TypeScript + Tauri rewrite is the primary application.** Implement and verify desktop features in `desktop-ui/` (React presentation and Rust/Tauri shell), with `desktop-bridge/` adapting the existing Kotlin backend. Kotlin repositories, storage, authentication, sync, stream resolution and native playback remain authoritative; do not duplicate business logic in React or Rust. The original Compose application remains an upstream reference and development comparison tool, not a second frontend that must receive every fork feature. Compose/native player code is still used by the rewrite: review those changes as runtime changes rather than dismissing all Compose changes as reference-only. Remaining parity/acceptance work does not change this permanent direction.
+
+For rewrite builds, architecture and release delivery, follow `docs/DESKTOP_UI_REWRITE.md`. `:composeApp:run` and the Compose packaging commands below target the legacy app; they do not validate or package the rewrite. Official releases use the existing React/Tauri desktop CI pipeline. Continue periodic upstream integration using the agreed workflow below. Do not merge upstream, rename branches or change the GitHub default branch merely to record this policy.
 
 Nuvio Desktop is a Kotlin Multiplatform + Compose Multiplatform media hub for Windows, macOS, and Linux. It's built from the same monorepo lineage as the separate NuvioMobile project — Android and iOS targets exist here too (`androidApp/`, `iosApp/`), sharing the same `com.nuvio.app` package and feature set in `composeApp/src/commonMain/`, but the desktop target (`composeApp/src/desktopMain/`) is this repo's primary focus. It's a client for the Stremio addon ecosystem — it does not host or distribute content itself (see README "Legal & DMCA" section before making any change that touches source/addon handling).
 
@@ -70,6 +74,26 @@ There's no Koin/Hilt/Dagger — repositories and services are plain objects/clas
 ## Fork context
 
 This is a personal fork (`origin` = `MichaelCommitsAt3AM/NuvioDesktopButBetter`) of upstream `NuvioMedia/NuvioDesktop`, tracked via an `upstream` remote and periodically merged. `CONTRIBUTING.md`'s strict PR-scoping policy governs contributions back to the upstream project — it does not apply to work done directly on this fork.
+
+### Upstream integration workflow (agreed 2026-10-18)
+
+Maintain one primary development/release line containing the React/Tauri rewrite. Each upstream sync uses a short-lived integration branch based on the latest rewrite, rather than a separately maintained Compose product. Determine the current rewrite development branch when starting a sync; do not assume the remote default branch already contains it.
+
+1. Fetch upstream and choose an exact upstream commit or release. Record the full previous integrated upstream SHA and target SHA, and review the changes between them. Prefer small batches around upstream releases, with urgent fixes integrated sooner.
+2. Create `codex/sync-upstream-<release-or-date>` from the latest rewrite development tip. A separate worktree may be used to keep feature development independent. Merge the pinned upstream target normally into this branch, preserving Git ancestry.
+3. Resolve conflicts deliberately, preserving shared Kotlin source paths, the fork Gradle hook, rewrite packaging, profiles/kids policies, database contracts, updater identity and versioning. Do not replace whole directories or use blanket ours/theirs resolutions. Keep shared Kotlin close to upstream and concentrate adaptation in `desktop-bridge/`.
+4. Review every meaningful upstream change by behavior, not only by file path:
+   - Kotlin repositories, storage, authentication, sync and stream resolution: integrate in Kotlin and repair bridge integration; do not duplicate business rules in React/Rust.
+   - Compose screens and interactions: translate relevant behavior into React, including loading/error/empty states, settings defaults and navigation. Retain original UI source for reference without requiring identical visual design or full acceptance of the legacy app first.
+   - Native player and desktop runtime: integrate and validate through rewrite playback, even when the changed code is Compose-based.
+   - Build/dependencies/release configuration and Supabase: reconcile with the rewrite pipeline and fork schema; use forward migrations rather than changing applied migrations.
+   - Mobile-only changes: retain where appropriate without spending time building, fixing or verifying mobile targets.
+5. Keep the upstream merge and subsequent bridge/React adaptations in separate commits on the same sync branch. Update the canonical bridge schema and generated contracts/allowlists/locales as needed. Review the UI inventory/parity checklist before regenerating baselines; generated output is not proof of behavioral parity.
+6. Validate the complete rewrite before integration: stage the Kotlin runtime, run relevant desktop/bridge tests, frontend tests/contract checks/production build, Rust formatting/tests and an embedded shell build. Exercise affected user journeys and native playback. Run the Supabase RPC contract/fresh-database/upgrade-database checks when relevant, and use CI build-only artifacts for affected platform/package checks. Record checks still pending on other hosts.
+7. Record upstream SHAs, affected behavior, bridge/React mappings and validation in `docs/FORK_CHANGES.md`. Give each relevant change an explicit implemented, already covered or deferred decision; record understood outstanding bugs in `docs/KNOWN_ISSUES.md`. Update the README for user-visible changes.
+8. Reconcile any newer rewrite development changes, repeat affected checks and merge the completed sync branch back while preserving upstream merge ancestry. Do not squash or rebase away the upstream merge. Follow the normal separate version-bump/release process afterward; completing a sync does not itself authorize publishing a release.
+
+The detailed commands and review guidance are in `docs/DESKTOP_UI_REWRITE.md`.
 
 `docs/FORK_CHANGES.md` is the detailed reference of everything this fork changes versus upstream. Whenever a fork-only feature, fix, or behavior change lands (or an upstream sync supersedes or removes one), update the matching section there in the same change. If the change is user-visible, also update the short plain-language "What's different from upstream" list in `README.md`.
 

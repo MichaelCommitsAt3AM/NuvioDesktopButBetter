@@ -4,6 +4,14 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Agreed upstream integration workflow — 2026-10-18
+
+`AGENTS.md` now records the approved upstream sync procedure directly: start each short-lived sync branch from the latest rewrite, preserve upstream merge ancestry, adapt bridge/React behavior in separate commits, validate the complete rewrite and record implemented/deferred decisions before integrating. The rewrite guide now identifies this as the agreed workflow rather than a proposal. No upstream sync or branch/default-branch change is performed by this documentation update.
+
+### Permanent React/Tauri desktop direction — 2026-10-18
+
+The rewrite is permanently the primary desktop application. React/TypeScript and Tauri own the interface and shell; the existing Kotlin backend and native player remain authoritative. The original Compose application remains available as an upstream reference and development comparison tool. `AGENTS.md`, `CLAUDE.md`, the README and rewrite guidance record this direction without treating outstanding acceptance checks as a reason to return to the old frontend. The rewrite guide proposes short-lived upstream sync branches based on the current rewrite, preserving upstream merge ancestry and adapting bridge/React behavior before integration. No branch/default-branch changes or upstream merge are performed by this documentation update.
+
 ### Result management: size filter uses min/max dropdowns — 2026-10-17
 
 The Connected Services → Result management → **Size range** filter previously offered a fixed list of preset ranges. It now opens a dialog with two dropdowns, **Minimum size** and **Maximum size**, each offering Any, 500 MB, 1 GB, 2 GB, 5 GB, 10 GB, 20 GB, 50 GB, 100 GB and **Custom…**. Choosing Custom reveals a GB text field under that dropdown. Save validates the bounds (a custom value must be greater than 0 GB and the maximum must be at least the minimum); Clear resets both to Any. The row summary now reads like `Any`, `Up to 10 GB`, `5 GB+` or `5 GB – 20 GB`.

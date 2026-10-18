@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
+**Permanent desktop direction (2026-10-18): the React/TypeScript + Tauri rewrite is the primary application.** Follow `AGENTS.md` for the desktop-only scope and ownership rules, and `docs/DESKTOP_UI_REWRITE.md` for builds and the recommended upstream integration workflow. Kotlin remains the authoritative backend, including native playback. The original Compose app is retained for upstream reference and development comparisons; the Compose run/packaging commands below target that legacy app. Remaining rewrite acceptance work does not imply a planned return to the original frontend.
+
 Nuvio Desktop is a Kotlin Multiplatform + Compose Multiplatform media hub for Windows, macOS, and Linux. It's built from the same monorepo lineage as the separate NuvioMobile project — Android and iOS targets exist here too (`androidApp/`, `iosApp/`), sharing the same `com.nuvio.app` package and feature set in `composeApp/src/commonMain/`, but the desktop target (`composeApp/src/desktopMain/`) is this repo's primary focus. It's a client for the Stremio addon ecosystem — it does not host or distribute content itself (see README "Legal & DMCA" section before making any change that touches source/addon handling).
 
 ## Commands

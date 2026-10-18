@@ -191,7 +191,7 @@ object ProfilesBridge {
             throw BridgeFeatureException("PROFILE_UPDATE_FAILED", "Profile changes were not saved")
         }
         if (params.has("addonSyncProfileId")) ProfileRepository.setAddonProfileLink(index, addonSource)
-        if (copiedAddons != null) AddonRepository.saveIndependentProfileAddons(index, copiedAddons)
+        if (copiedAddons != null) AddonRepository.importProfileAddons(index, copiedAddons)
         return snapshot()
     }
 
@@ -199,11 +199,9 @@ object ProfilesBridge {
         val source = params.optionalProfileIndex("addonCopyProfileId") ?: return null
         requireProfile(source)
         if (source == target || liveSource != null) throw BridgeFeatureException("INVALID_ARGUMENT", "Choose a different profile and turn off Sync all add-ons to copy")
-        if (target != null && ProfileRepository.state.value.profiles.any { it.addonSyncProfileId == target }) {
-            throw BridgeFeatureException("INVALID_ARGUMENT", "Other profiles sync with this profile. Unlink them before replacing its add-ons")
-        }
         val urls = params.optionalStringList("addonCopyUrls")
             ?: throw BridgeFeatureException("INVALID_ARGUMENT", "Select the add-ons to copy")
+        if (target != null && urls.isEmpty()) throw BridgeFeatureException("INVALID_ARGUMENT", "Select at least one add-on to import")
         AddonRepository.flushPendingPushes()
         val rows = AddonRepository.readProfileAddonSnapshot(source)
         return selectCopiedAddons(rows, urls)

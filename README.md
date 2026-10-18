@@ -26,6 +26,10 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- Settings search finds file size limits and other result filters, handles common wording and small typos, and jumps to the matching control.
+- Cast and trailers stay in horizontal rows in the installed rewrite.
+- Movie and show details keep the top-left area clear when you scroll down.
+
 - Home checks again if loading updates are missed and offers Retry when content takes too long, instead of leaving an endless loading screen.
 
 - Jellyfin and Emby libraries can be connected in Media servers settings, with connections saved per profile on this device. Media-server cloud sync and upstream watch parties remain unavailable on this fork.
@@ -34,10 +38,12 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Kids profiles can use the separate KidsScreen add-on, a personal TMDB API key. Profile PINs are optional. Home, featured titles, search, library, related titles and playback follow the chosen US rating limit. KidsScreen also excludes Horror movies regardless of rating. Setup uses the hosted KidsScreen service automatically and keeps the personal TMDB key field. This needs the kids-profile database migrations.
 
 - Home keeps shimmering placeholders while a switched profile’s add-ons and catalogs load, showing the empty state only once loading settles.
-- New accounts start with Cinemeta and AIOMetadata already installed, so Home has content without any setup. The app also pre-downloads other profiles' add-ons in the background (a few at a time) so switching profiles is fast.
+- New accounts automatically add Cinemeta and AIOMetadata. Their manifests, movie lists and artwork still need an internet connection on first launch; cached manifests speed up later launches and profile switches. Next Up metadata loads in the background so it cannot hold up Home and navigation.
 - Switching profiles returns to Home. AMOLED Black and List episode cards are the desktop defaults; saved choices are kept.
 - Kids-profile settings are editable like any other profile's. Previously configured TMDB keys show masked dots in the profile editor.
-- Profile editing uses tighter card spacing, matching add-on sharing cards and a compact selection list. Kids profiles keep independent add-ons and use KidsScreen for browsing. Keep “Sync all add-ons” on for ongoing sharing, or turn it off to copy only the checked add-ons once.
+- Profile creation and editing follow the Kotlin app’s layout, retaining Kids settings, accent colors and backgrounds. Editing offers a one-time add-on import that keeps existing add-ons, settings and order. New profiles can still sync all add-ons or copy a selection; Kids profiles keep independent add-ons and use KidsScreen for browsing.
+- Returning from profile editing keeps unsaved drafts local. Reselecting the current profile preserves loaded content, and Kids profiles recover a missing configured KidsScreen catalog when loading their add-ons.
+- Newly added or uncached add-ons start their manifest requests correctly, including KidsScreen after converting a profile; a pending badge no longer leaves them stuck refreshing across restarts.
 
 - Premiumize supports browser sign-in with this fork’s registered app, plus an API-key alternative.
 - Stream-loading backgrounds and title artwork fade in after the images finish loading.

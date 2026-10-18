@@ -94,6 +94,9 @@ internal fun List<ManagedAddon>.toOverview(): AddonOverview =
 internal fun List<ManagedAddon>.enabledAddons(): List<ManagedAddon> =
     filter { it.enabled }
 
+/** Pending UI state may precede a job; refreshAddon owns actual in-flight deduplication. */
+internal fun ManagedAddon.needsInitialManifestFetch(): Boolean = enabled && manifest == null
+
 internal fun List<ManagedAddon>.hasPendingEnabledManifests(): Boolean =
     any { addon -> addon.enabled && addon.isRefreshing }
 

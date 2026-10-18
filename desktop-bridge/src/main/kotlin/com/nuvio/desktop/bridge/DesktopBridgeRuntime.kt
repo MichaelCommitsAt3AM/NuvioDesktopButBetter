@@ -237,6 +237,7 @@ class DesktopBridgeRuntime {
         scope.launch { HomeRepository.uiState.collect { emit("home", homeJson()) } }
         scope.launch { WatchProgressRepository.uiState.collect { emit("home", homeJson()) } }
         scope.launch { WatchProgressRepository.uiState.collect { emit("homeExtras", HomeBridge.snapshot()) } }
+        scope.launch { HomeBridge.updates.collect { emit("homeExtras", HomeBridge.snapshot()) } }
         scope.launch { com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesRepository.uiState.collect { emit("homeExtras", HomeBridge.snapshot()) } }
         scope.launch { com.nuvio.app.features.watched.WatchedRepository.uiState.collect { emit("homeExtras", HomeBridge.snapshot()) } }
         scope.launch { com.nuvio.app.features.player.PlayerSettingsRepository.uiState.collect { emit("playbackSettings", PlaybackSettingsBridge.snapshot()) } }
@@ -433,6 +434,7 @@ class DesktopBridgeRuntime {
     }
 
     suspend fun stop() = lifecycle.withLock {
+        HomeBridge.reset()
         syncLifecycle.stop()
         runCatching { playbackAdapter?.shutdown() }
         server?.stop(250, 1_000)
@@ -573,7 +575,9 @@ class DesktopBridgeRuntime {
             lastDetails = null
             loadedVideoId = null
             advanceEpoch()
-            ProfileRepository.switchToProfile(selected)
+            // Returning from the editor and choosing the current profile must not
+            // clear loaded Home/settings repositories without a real profile change.
+            if (ProfileRepository.activeProfileId != selected) ProfileRepository.switchToProfile(selected)
             updateProfileSync()
             // ProfileRepository has already reset profile-scoped state. Let Home
             // reuse matching, fresh catalog entries instead of forcing every

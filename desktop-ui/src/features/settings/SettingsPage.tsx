@@ -19,6 +19,7 @@ import { DownloadFiltersPage } from '../downloads/DownloadFilters';
 import { ContinueWatchingStyleCheck, ContinueWatchingStylePreview } from './ContinueWatchingStylePreview';
 import './appearanceParity.css';
 import { HomeSettings } from './HomeSettings';
+import { SettingsSearchTarget } from './SettingsSearchTarget';
 
 const posterScreens = ['home', 'continue_watching', 'collections', 'library', 'search', 'details'];
 const screenNames: Record<string, string> = { home: 'Home', continue_watching: 'Continue Watching', collections: 'Collections', library: 'Library', search: 'Search', details: 'Details Screen' };
@@ -406,4 +407,4 @@ function SettingsContent() {
   return <SettingsRoot />;
 }
 
-export function SettingsPage() { return <SettingsLayout><SettingsContent /></SettingsLayout>; }
+export function SettingsPage() { return <SettingsLayout><SettingsContent /><SettingsSearchTarget /></SettingsLayout>; }

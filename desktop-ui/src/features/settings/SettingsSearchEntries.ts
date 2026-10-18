@@ -2,6 +2,8 @@
  * Routes intentionally point at concrete desktop Settings pages; row-level
  * entries share the route of the control they describe.
  */
+import { settingsMatchScore } from './settingsSearchMatching';
+
 export type SettingsSearchEntry = {
   key: string;
   title: string;
@@ -10,18 +12,27 @@ export type SettingsSearchEntry = {
   section: string;
   category: 'account' | 'general' | 'about' | 'advanced';
   route: string;
+  keywords?: string;
+  target?: string;
 };
 
-/** Kotlin SettingsSearch.kt matches every word across all five indexed fields. */
+/** Require every meaningful query word, then rank specific controls over page matches. */
 export function searchSettings(query: string, entries = settingsSearchEntries): SettingsSearchEntry[] {
-  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  if (!terms.length) return [];
-  return entries.filter(entry => !['account-delete', 'external-player'].includes(entry.key) && terms.every(term =>
-    [entry.title, entry.description, entry.page, entry.section, entry.category].join(' ').toLowerCase().includes(term)));
+  return entries.filter(entry => !['account-delete', 'external-player', 'tunneled-playback', 'dv7-hevc', 'libass-render'].includes(entry.key))
+    .map((entry, index) => ({ entry, index, score: settingsMatchScore(query, [
+      [entry.title, 50], [entry.keywords ?? '', 35], [entry.description, 20],
+      [entry.page, 10], [entry.section, 10], [entry.category, 5], [entry.route, 3],
+    ]) })).filter(result => result.score > 0)
+    .sort((a, b) => b.score - a.score || a.index - b.index).map(result => result.entry);
+}
+
+export function settingsResultRoute(entry: SettingsSearchEntry) {
+  return entry.route.startsWith('/settings/') ? `${entry.route}?setting=${encodeURIComponent(entry.key)}` : entry.route;
 }
 
 export function settingsResultDescription(entry: SettingsSearchEntry) {
-  return entry.description.trim() ? entry.description : [...new Set([entry.page, entry.section].filter(Boolean))].join(' - ');
+  const path = [...new Set([entry.page, entry.section].filter(Boolean))].join(' › ');
+  return entry.description.trim() ? `${path} — ${entry.description}` : path;
 }
 
 const page = (key: string, title: string, description: string, route: string, category: SettingsSearchEntry['category'] = 'general') => ({ key, title, description, page: title, section: '', category, route });
@@ -42,8 +53,8 @@ export const settingsSearchEntries: SettingsSearchEntry[] = [
   row('amoled', 'AMOLED black', 'Use a true black background.', 'Layout', 'Display', '/settings/appearance'),
   row('app-language', 'App language', 'Choose the language used by Nuvio.', 'Layout', 'Display', '/settings/appearance'),
   page('content-discovery', 'Content & Discovery', 'Manage addons and discovery sources.', '/settings/content'),
-  page('addons', 'Addons', 'Install and manage catalog, metadata, and stream addons.', '/settings/content'),
-  page('plugins', 'Plugins', 'Manage scraper plugins and their availability.', '/settings/content'),
+  page('addons', 'Addons', 'Install and manage catalog, metadata, and stream addons.', '/settings/content/addons'),
+  page('plugins', 'Plugins', 'Manage scraper plugins and their availability.', '/settings/content/plugins'),
   row('recent-searches', 'Recent searches', 'Clear or manage recent searches.', 'Content & Discovery', 'Search', '/settings/content'),
   page('playback', 'Playback', 'Player, subtitles, and auto-play', '/settings/playback'),
   row('loading-overlay', 'Show loading overlay', 'Show a loading indicator while playback starts.', 'Playback', 'Player', '/settings/playback'),
@@ -84,6 +95,56 @@ export const settingsSearchEntries: SettingsSearchEntry[] = [
   row('stream-addon-logo', 'Show addon logo', 'Show the source addon logo on stream rows.', 'Streams', 'Stream Display', '/settings/appearance/streams'),
   row('stream-size-badges', 'Stream size badges', 'Show file size labels on stream results.', 'Streams', 'Badges', '/settings/appearance/streams'),
   page('integrations', 'Integrations', 'Manage available integrations', '/settings/integrations'),
+  page('connected-services', 'Connected Services', 'Debrid providers, playable links, cloud library and result management.', '/settings/integrations/debrid'),
+  row('result-management', 'Result management', 'Filter and sort stream results by file size, resolution, quality, language and release group.', 'Connected Services', 'Result management', '/settings/integrations/debrid'),
+  { ...row('size-range', 'Size range', 'Choose the minimum and maximum file size in MB or GB, including custom sizes.', 'Connected Services', 'Result management', '/settings/integrations/debrid'), keywords: 'file size filter limit minimum maximum filesize' },
+  ...[
+    ['max-results', 'Max results', 'Limit how many stream results appear.'],
+    ['per-resolution-limit', 'Per resolution limit', 'Cap repeated 2160p 1080p 720p stream results.'],
+    ['per-quality-limit', 'Per quality limit', 'Cap repeated BluRay WEB-DL REMUX results.'],
+    ...['Preferred', 'Required', 'Excluded'].flatMap(mode => ['resolutions', 'qualities', 'visual tags', 'audio tags', 'languages', 'release groups'].map(kind => [
+      `${mode}-${kind}`.toLowerCase().replaceAll(' ', '-'), `${mode} ${kind}`,
+      `Filter stream results: ${mode.toLowerCase()} ${kind}. ${kind === 'visual tags' ? 'HDR Dolby Vision IMAX 10bit.' : kind === 'audio tags' ? 'Atmos TrueHD DTS AAC.' : kind === 'resolutions' ? '4K 2160p 1080p 720p.' : kind === 'qualities' ? 'BluRay WEB-DL REMUX.' : ''}`,
+    ])),
+  ].map(([key, title, description]) => row(`results-${key}`, title, description, 'Connected Services', 'Result management', '/settings/integrations/debrid')),
+  ...[
+    ['resolve-links', 'Resolve playable links', 'Enable debrid link resolution for Real Debrid AllDebrid TorBox Premiumize.'],
+    ['resolver-provider', 'Resolve with', 'Choose your resolver provider account.'],
+    ['prepare-links', 'Prepare links', 'Prepare instant playback links in advance.'],
+    ['links-to-prepare', 'Links to prepare', 'Choose how many links are prepared.'],
+    ['cloud-library', 'Cloud library', 'Browse your cloud files and downloads.'],
+    ['name-template', 'Name template', 'Customize stream result name formatting.'],
+    ['description-template', 'Description template', 'Customize stream result description formatting.'],
+  ].map(([key, title, description]) => row(key, title, description, 'Connected Services', 'Integrations', '/settings/integrations/debrid')),
+  page('media-servers', 'Media servers', 'Connect Jellyfin and Emby server libraries.', '/settings/integrations/servers'),
+  page('downloads', 'Downloads', 'Download filters, automatic download rules, data saver and allowed sources.', '/settings/downloads'),
+  page('peer-to-peer', 'Peer-to-peer', 'P2P torrent streaming, uploads, cache size and streaming profile.', '/settings/peer-to-peer'),
+  ...['Enable peer-to-peer streaming', 'Allow uploads', 'Hide torrent stats', 'Streaming profile', 'Cache size', 'Peer cache'].map(title => row(`p2p-${title.toLowerCase().replaceAll(' ', '-')}`, title, 'Torrent peer-to-peer streaming settings.', 'Peer-to-peer', 'Peer-to-peer streaming', '/settings/peer-to-peer')),
+  ...[
+    ['navigation', 'Desktop navigation', '/settings/appearance', 'Choose sidebar or top bar layout.'],
+    ['navigation-style', 'Navigation style', '/settings/appearance/navigation', 'Choose navigation appearance.'],
+    ['accent-glow', 'Accent glow', '/settings/appearance/navigation', 'Glow around the navigation selection.'],
+    ['custom-theme', 'Custom theme', '/settings/appearance', 'Customize accent colors and gradients.'],
+    ['app-icon', 'App Icon', '/settings/appearance', 'Choose application icon branding.'],
+    ['hover-enabled', 'Enable hover preview', '/settings/appearance/hover-preview', 'Show movie details on mouse hover.'],
+    ['hover-delay', 'Preview delay', '/settings/appearance/hover-preview', 'Wait before showing a poster preview.'],
+    ['hover-trailers', 'Play trailer previews', '/settings/appearance/hover-preview', 'Autoplay video previews on hover.'],
+    ['hover-sound', 'Trailer preview sound', '/settings/appearance/hover-preview', 'Mute or enable preview audio.'],
+    ['hover-start', 'Trailer start time', '/settings/appearance/hover-preview', 'Skip the beginning of trailer previews.'],
+  ].map(([key, title, route, description]) => row(key, title, description, 'Layout', 'Appearance', route)),
+  ...[
+    ['hold-to-speed', 'Hold to speed', 'Press and hold to temporarily speed up playback.'],
+    ['hold-speed', 'Hold playback speed', 'Choose fast forward speed while holding.'],
+    ['subtitle-size', 'Subtitle size', 'Change subtitle font text size.'],
+    ['subtitle-color', 'Text color', 'Change subtitle color.'],
+    ['subtitle-offset', 'Vertical offset', 'Move subtitle position up or down.'],
+    ['subtitle-bold', 'Bold subtitles', 'Use bold subtitle text.'],
+    ['forced-subtitles', 'Use Forced Subtitles', 'Display forced foreign language dialogue.'],
+    ['strip-sdh', 'Strip SDH Subtitles', 'Remove hearing impaired closed caption annotations.'],
+    ['rtx-super-resolution', 'RTX Video Super Resolution', 'NVIDIA AI video upscaling.'],
+    ['preload-next', 'Preload Next Episode Sources', 'Search for next episode streams in the background.'],
+  ].map(([key, title, description]) => row(key, title, description, 'Playback', 'Player', '/settings/playback')),
+  row('discord-presence', 'Discord Rich Presence', 'Show what you are watching in Discord activity.', 'Advanced', 'Integrations', '/settings/advanced', 'advanced'),
   page('tmdb', 'TMDB Enrichment', 'Configure metadata enrichment and your personal API key.', '/settings/integrations/tmdb'),
   row('tmdb-enable', 'Enable TMDB enrichment', 'Use TMDB to add artwork and information to supported pages.', 'TMDB Enrichment', 'TMDB Enrichment', '/settings/integrations/tmdb'),
   row('tmdb-api-key', 'Personal API key', 'Use your own TMDB API key, or leave blank to use the default.', 'TMDB Enrichment', 'TMDB Enrichment', '/settings/integrations/tmdb'),

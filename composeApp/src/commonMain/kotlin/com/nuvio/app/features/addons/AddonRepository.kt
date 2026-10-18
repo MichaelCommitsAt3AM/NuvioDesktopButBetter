@@ -89,8 +89,13 @@ object AddonRepository {
         log.d { "initialize() — loading local addons for profile $currentProfileId" }
 
         AddonManifestCache.ensureLoaded()
-        val storedUrls = dedupeManifestUrls(AddonStorage.loadInstalledAddonUrls(currentProfileId))
-        val enabledByUrl = loadLocalEnabledStates()
+        val storedEnabled = loadLocalEnabledStates()
+        val localRows = dedupeManifestUrls(AddonStorage.loadInstalledAddonUrls(currentProfileId)).mapIndexed { index, url ->
+            AddonRow(url, enabled = storedEnabled[url] ?: true, sortOrder = index)
+        }
+        val reconciledRows = reconcileManagedProfileAddons(localRows, ProfileRepository.state.value.activeProfile)
+        val storedUrls = reconciledRows.map { it.url }
+        val enabledByUrl = reconciledRows.associate { it.url to it.enabled }
         log.d { "initialize() — local addon count: ${storedUrls.size}" }
         val awaitingCloud = AuthRepository.state.value.let { it is AuthState.Loading || (it is AuthState.Authenticated && !it.isAnonymous) }
         if (storedUrls.isEmpty()) {
@@ -118,7 +123,7 @@ object AddonRepository {
         storedUrls.forEach { manifestUrl ->
             val addon = _uiState.value.addons.firstOrNull { it.manifestUrl == manifestUrl } ?: return@forEach
             if (!addon.enabled) return@forEach
-            val needsManifest = addon.manifest == null && !addon.isRefreshing
+            val needsManifest = addon.needsInitialManifestFetch()
             val needsRevalidate = addon.manifest != null && AddonManifestCache.isStale(manifestUrl)
             if (needsManifest || needsRevalidate) refreshAddon(manifestUrl)
         }
@@ -181,7 +186,7 @@ object AddonRepository {
                 .decodeList<AddonRow>()
 
             val rowsByUrl = linkedMapOf<String, AddonRow>()
-            rows.forEach { row ->
+            reconcileManagedProfileAddons(rows, ProfileRepository.state.value.profiles.firstOrNull { it.profileIndex == effectiveProfileId }).forEach { row ->
                 val manifestUrl = ensureManifestSuffix(row.url)
                 if (!rowsByUrl.containsKey(manifestUrl)) {
                     rowsByUrl[manifestUrl] = row.copy(url = manifestUrl)
@@ -214,7 +219,7 @@ object AddonRepository {
                 urls.forEach { url ->
                     val addon = _uiState.value.addons.firstOrNull { it.manifestUrl == url } ?: return@forEach
                     if (!addon.enabled) return@forEach
-                    val needsManifest = addon.manifest == null && !addon.isRefreshing
+                    val needsManifest = addon.needsInitialManifestFetch()
                     val needsRevalidate = addon.manifest != null && AddonManifestCache.isStale(url)
                     if (needsManifest || needsRevalidate) refreshAddon(url)
                 }
@@ -404,7 +409,7 @@ object AddonRepository {
                         addon
                     } else {
                         changed = true
-                        shouldRefresh = enabled && addon.manifest == null && !addon.isRefreshing
+                        shouldRefresh = enabled && addon.manifest == null
                         addon.copy(enabled = enabled)
                     }
                 },
@@ -436,6 +441,8 @@ object AddonRepository {
         // initialize() and pullFromServer() racing at startup) can't slip between the
         // check and the registration and start a second, redundant fetch.
         synchronized(stateLock) {
+            // UI pending state is seeded before a request exists. Only the job
+            // registry can establish that a manifest request is already running.
             val existingJob = activeRefreshJobs[manifestUrl]
             if (existingJob?.isActive == true) return@synchronized
 
@@ -642,11 +649,18 @@ object AddonRepository {
             }
             _uiState.value.addons.forEach { addon ->
                 if (!addon.enabled) return@forEach
-                val needsManifest = addon.manifest == null && !addon.isRefreshing
+                val needsManifest = addon.needsInitialManifestFetch()
                 val needsRevalidate = addon.manifest != null && AddonManifestCache.isStale(addon.manifestUrl)
                 if (needsManifest || needsRevalidate) refreshAddon(addon.manifestUrl)
             }
         }
+    }
+
+    /** Import into an independent target without losing its order or existing settings. */
+    suspend fun importProfileAddons(profileId: Int, imported: List<AddonRow>) {
+        flushPendingPushes()
+        val existing = readProfileAddonSnapshot(profileId)
+        saveIndependentProfileAddons(profileId, mergeProfileAddonImport(existing, imported))
     }
 
     /** Persist a one-time selection after the caller has removed the target's live link. */
@@ -849,7 +863,7 @@ internal fun ManagedAddon?.toPendingAddon(
 private fun dedupeManifestUrls(urls: List<String>): List<String> =
     urls.map(::ensureManifestSuffix).distinct()
 
-private fun ensureManifestSuffix(url: String): String {
+internal fun ensureManifestSuffix(url: String): String {
     val path = url.substringBefore("?").trimEnd('/')
     val query = url.substringAfter("?", "")
     val withSuffix = if (path.endsWith("/manifest.json")) path else "$path/manifest.json"

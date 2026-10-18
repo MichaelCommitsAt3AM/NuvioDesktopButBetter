@@ -43,6 +43,16 @@ class AddonPendingSeedingTest {
 
         assertNull(addon.manifest)
         assertTrue(addon.isRefreshing)
+        assertTrue(addon.needsInitialManifestFetch(), "A seeded pending flag must not prevent the first HTTP request")
+    }
+
+    @Test
+    fun `reloaded pending addons without a job remain eligible for fetching`() {
+        val pending = ManagedAddon(url, isRefreshing = true)
+        val reloaded = pending.toPendingAddon(url, enabled = true)
+        assertTrue(reloaded.isRefreshing)
+        assertTrue(reloaded.needsInitialManifestFetch())
+        assertFalse(reloaded.copy(enabled = false).needsInitialManifestFetch())
     }
 
     @Test
@@ -65,5 +75,6 @@ class AddonPendingSeedingTest {
 
         assertEquals("existing", addon.manifest?.id)
         assertFalse(addon.isRefreshing)
+        assertFalse(addon.needsInitialManifestFetch())
     }
 }

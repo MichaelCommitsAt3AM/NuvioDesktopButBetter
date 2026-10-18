@@ -42,6 +42,21 @@ it('keeps failed deletion visible and protects the primary profile', async () =>
   expect(screen.queryByRole('button', { name: 'Delete profile' })).not.toBeInTheDocument();
 });
 afterEach(cleanup);
+it('keeps abandoned profile edits and import selections local to the editor', async () => {
+  editor('/profiles/2/edit');
+  const card = screen.getByRole('heading', { name: 'Import add-ons' }).closest('section')!;
+  expect(within(card).getByRole('checkbox', { name: 'Import add-ons from another profile' })).not.toBeChecked();
+  fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'Abandoned name' } });
+  startImport();
+  await screen.findByRole('checkbox', { name: /One/ });
+  fireEvent.click(screen.getByRole('checkbox', { name: /One/ }));
+  fireEvent.click(screen.getByRole('link', { name: 'All profiles' }));
+  await screen.findByText('Saved');
+  expect(store.run).not.toHaveBeenCalled();
+  expect(store.call.mock.calls.every(([method]) => method === 'profiles.addons.snapshot')).toBe(true);
+  expect(store.snapshot.items[1].name).toBe('Family');
+  expect(store.snapshot.items[1].addonSyncProfileId).toBe(1);
+});
 function editor(path = '/profiles/new') {
   return render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/profiles/new" element={<ProfileEditorPage />} /><Route path="/profiles/:id/edit" element={<ProfileEditorPage />} /><Route path="/profiles" element={<p>Saved</p>} /></Routes></MemoryRouter>);
 }
@@ -49,21 +64,21 @@ it('requires a profile selection and saves a persistent link instead of a primar
   editor();
   fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'Kids' } });
   fireEvent.click(screen.getByRole('checkbox', { name: 'Sync add-ons with another profile' }));
-  expect(screen.getByRole('button', { name: 'Create profile' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Create Profile' })).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: /Sync with profile/ }));
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Family' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Create profile' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
   await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.create', expect.objectContaining({ addonSyncProfileId: 2, usesPrimaryAddons: false, primaryAddonsAllowlist: null })));
 });
-it('restores the selected source, excludes itself, and allows unlinking', async () => {
+it('preserves an existing live link during cosmetic edits without enabling import', async () => {
   editor('/profiles/2/edit');
-  expect(screen.getByRole('checkbox', { name: 'Sync add-ons with another profile' })).toBeChecked();
-  expect(screen.getByRole('checkbox', { name: 'Sync all add-ons' })).toBeChecked();
-  expect(screen.getByRole('button', { name: /Sync with profile/ })).toHaveTextContent('Main');
-  expect(screen.queryByRole('option', { name: 'Family' })).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Sync add-ons with another profile' }));
+  expect(screen.getByRole('checkbox', { name: 'Import add-ons from another profile' })).not.toBeChecked();
+  expect(screen.queryByRole('checkbox', { name: 'Sync all add-ons' })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
-  await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.update', expect.objectContaining({ id: 2, addonSyncProfileId: null })));
+  await waitFor(() => expect(store.run).toHaveBeenCalled());
+  const params = (store.run.mock.calls as unknown as [string, Record<string, unknown>][])[0][1];
+  expect(params).not.toHaveProperty('addonSyncProfileId');
+  expect(params).not.toHaveProperty('addonCopyProfileId');
 });
 it('cannot enable sync when there is no other profile', () => {
   store.snapshot.items = [];
@@ -73,13 +88,13 @@ it('cannot enable sync when there is no other profile', () => {
 it('does not present the old one-time copy flag as a live link', () => {
   store.snapshot.items[1] = { id: 2, name: 'Family', usesPrimaryAddons: true };
   editor('/profiles/2/edit');
-  expect(screen.getByRole('checkbox', { name: 'Sync add-ons with another profile' })).not.toBeChecked();
+  expect(screen.getByRole('checkbox', { name: 'Import add-ons from another profile' })).not.toBeChecked();
   expect(screen.queryByText('Use primary profile add-ons')).not.toBeInTheDocument();
 });
 
 it('copies checked add-ons once without creating a live link', async () => {
   editor('/profiles/2/edit');
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Sync all add-ons' }));
+  startImport();
   const one = await screen.findByRole('checkbox', { name: /One/ });
   expect(one).toBeChecked();
   expect(screen.getByRole('checkbox', { name: /Two/ })).toBeChecked();
@@ -87,12 +102,16 @@ it('copies checked add-ons once without creating a live link', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
   await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.update', expect.objectContaining({ id: 2, addonSyncProfileId: null, addonCopyProfileId: 1, addonCopyUrls: ['https://one/manifest.json'] })));
 });
-it('can return from partial selection to full live syncing', async () => {
-  editor('/profiles/2/edit');
+it('can return from partial selection to live syncing when creating a profile', async () => {
+  editor();
+  fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'New profile' } });
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Sync add-ons with another profile' }));
+  fireEvent.click(screen.getByRole('button', { name: /Sync with profile/ }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Main' }));
   fireEvent.click(screen.getByRole('checkbox', { name: 'Sync all add-ons' }));
   fireEvent.click(await screen.findByRole('checkbox', { name: /One/ }));
   fireEvent.click(screen.getByRole('checkbox', { name: 'Sync all add-ons' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
   await waitFor(() => expect(store.run).toHaveBeenCalled());
   const params = (store.run.mock.calls as unknown as [string, Record<string, unknown>][])[0][1];
   expect(params).toMatchObject({ addonSyncProfileId: 1 });
@@ -101,7 +120,7 @@ it('can return from partial selection to full live syncing', async () => {
 it('blocks saving on a failed source load and allows retry', async () => {
   store.call.mockRejectedValueOnce(new Error('Source unavailable'));
   editor('/profiles/2/edit');
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Sync all add-ons' }));
+  startImport();
   expect(await screen.findByText('Source unavailable')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
@@ -113,9 +132,9 @@ it('does not create a duplicate after a profile was created but copying failed',
   store.run.mockRejectedValueOnce(Object.assign(new Error('Profile created; open All profiles to retry copying.'), { code: 'PROFILE_CREATED_ADDON_COPY_FAILED' }));
   editor();
   fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'New profile' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Create profile' }));
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Create profile' })).toBeDisabled());
-  fireEvent.click(screen.getByRole('button', { name: 'Create profile' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Create Profile' })).toBeDisabled());
+  fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
   expect(store.run).toHaveBeenCalledTimes(1);
 });
 it('creates an independent empty list when every source add-on is unchecked', async () => {
@@ -127,7 +146,7 @@ it('creates an independent empty list when every source add-on is unchecked', as
   fireEvent.click(screen.getByRole('checkbox', { name: 'Sync all add-ons' }));
   fireEvent.click(await screen.findByRole('checkbox', { name: /One/ }));
   fireEvent.click(screen.getByRole('checkbox', { name: /Two/ }));
-  fireEvent.click(screen.getByRole('button', { name: 'Create profile' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
   await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.create', expect.objectContaining({ addonSyncProfileId: null, addonCopyProfileId: 1, addonCopyUrls: [] })));
 });
 
@@ -139,7 +158,7 @@ it('requires a TMDB key but no parent PIN before creating a kids profile', async
   expect(screen.getByLabelText('TMDB API key')).toHaveAttribute('type', 'password');
   expect(screen.queryByText('KidsScreen connection')).not.toBeInTheDocument();
   expect(screen.queryByLabelText('Server address')).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Create profile' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
   expect(store.run).not.toHaveBeenCalled();
   expect(screen.queryByLabelText('Parent PIN')).not.toBeInTheDocument();
   expect(store.setError).toHaveBeenCalledWith(expect.stringContaining('TMDB API key'));
@@ -150,12 +169,15 @@ it('configures KidsScreen after profile creation and passes a masked-key field v
   fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'Kids' } });
   fireEvent.click(screen.getByRole('checkbox', { name: 'Kids account' }));
   fireEvent.change(screen.getByLabelText('TMDB API key'), { target: { value: 'personal-key' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Create profile' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
   await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.kids.configure', { id: 3, enabled: true, maxRating: 'G', serviceUrl: 'https://kids-screen.vercel.app', apiKey: 'personal-key' }));
 });
 
-it('forces an independent copy when enabling kids mode and prevents re-enabling live sync', async () => {
-  editor('/profiles/2/edit');
+it('forces an independent copy when enabling kids mode during creation', async () => {
+  editor();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Sync add-ons with another profile' }));
+  fireEvent.click(screen.getByRole('button', { name: /Sync with profile/ }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Main' }));
   expect(screen.getByRole('checkbox', { name: 'Sync all add-ons' })).toBeChecked();
   fireEvent.click(screen.getByRole('checkbox', { name: 'Kids account' }));
   const syncAll = screen.getByRole('checkbox', { name: 'Sync all add-ons' });
@@ -164,11 +186,12 @@ it('forces an independent copy when enabling kids mode and prevents re-enabling 
   expect(await screen.findByRole('checkbox', { name: /One/ })).toBeChecked();
   expect(screen.getByText(/Catalogs from Cinemeta, AIOMetadata/)).toBeInTheDocument();
 });
-it('loads existing kids profiles with live sync disabled', () => {
+it('uses import-only editing for existing kids profiles', () => {
   store.snapshot.items[1].kidsEnabled = true;
   editor('/profiles/2/edit');
-  expect(screen.getByRole('checkbox', { name: 'Sync all add-ons' })).not.toBeChecked();
-  expect(screen.getByRole('checkbox', { name: 'Sync all add-ons' })).toBeDisabled();
+  expect(screen.getByRole('checkbox', { name: 'Import add-ons from another profile' })).not.toBeChecked();
+  expect(screen.queryByRole('checkbox', { name: 'Sync all add-ons' })).not.toBeInTheDocument();
+  expect(screen.getByRole('checkbox', { name: 'Kids account' })).toBeChecked();
 });
 
 it('shows saved-key dots without submitting them or reconfiguring an unchanged kids profile', async () => {
@@ -189,4 +212,25 @@ it('submits only the replacement key typed over the saved-key indicator', async 
   fireEvent.change(screen.getByLabelText('TMDB API key'), { target: { value: 'replacement-key' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
   await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.kids.configure', expect.objectContaining({ id: 2, apiKey: 'replacement-key' })));
+});
+
+function startImport() {
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Import add-ons from another profile' }));
+  fireEvent.click(screen.getByRole('button', { name: /Import from profile/ }));
+  expect(within(screen.getByRole('dialog')).queryByRole('button', { name: 'Family' })).not.toBeInTheDocument();
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Main' }));
+}
+
+it('blocks empty imports and does not unlink when import is cancelled', async () => {
+  editor('/profiles/2/edit');
+  startImport();
+  fireEvent.click(await screen.findByRole('checkbox', { name: /One/ }));
+  fireEvent.click(screen.getByRole('checkbox', { name: /Two/ }));
+  expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Import add-ons from another profile' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  await waitFor(() => expect(store.run).toHaveBeenCalled());
+  const params = (store.run.mock.calls as unknown as [string, Record<string, unknown>][])[0][1];
+  expect(params).not.toHaveProperty('addonCopyProfileId');
+  expect(params).not.toHaveProperty('addonSyncProfileId');
 });

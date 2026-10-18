@@ -22,10 +22,14 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.time.LocalDate
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 /** Desktop adapter for Home's richer continue-watching rows and controls. */
 object HomeBridge {
-    private var upcomingCache: List<JsonObject> = emptyList()
+    private val upcoming = BridgeBackgroundValue<List<JsonObject>>(emptyList(), CoroutineScope(SupervisorJob() + Dispatchers.Default))
+    internal val updates = upcoming.state
 
     suspend fun dispatch(method: String, params: JsonObject): JsonElement? = when (method) {
         "home.resumePrompt.consume" -> {
@@ -101,7 +105,7 @@ object HomeBridge {
             // it must not prevent displaying entries or settling an empty profile.
             put("loading", false)
             put("continueWatching", JsonArray(progress.map(::progressJson)))
-            put("upcoming", JsonArray(upcomingCache.filterNot { item ->
+            put("upcoming", JsonArray(upcoming.state.value.filterNot { item ->
                 val id = item["parentMetaId"]?.jsonPrimitive?.contentOrNull ?: return@filterNot false
                 val season = item["nextUpSeedSeasonNumber"]?.jsonPrimitive?.intOrNull ?: -1
                 val episode = item["nextUpSeedEpisodeNumber"]?.jsonPrimitive?.intOrNull ?: -1
@@ -128,7 +132,12 @@ object HomeBridge {
         val prefs = ContinueWatchingPreferencesRepository.uiState.value
         val entries = WatchProgressRepository.uiState.value.entries
             .filterNot { it.parentMetaId in WatchProgressRepository.uiState.value.hiddenContentIds }
-        upcomingCache = resolveUpNext(entries, prefs.dismissedNextUpKeys, prefs.showUnairedNextUp, prefs.upNextFromFurthestEpisode)
+        // dispatch runs under the runtime RPC mutex. Return local progress now;
+        // cold Next Up metadata may need many remote requests and must not block
+        // addon lifecycle observers, profile selection or other snapshots.
+        upcoming.refresh {
+            resolveUpNext(entries, prefs.dismissedNextUpKeys, prefs.showUnairedNextUp, prefs.upNextFromFurthestEpisode)
+        }
         return snapshot()
     }
 
@@ -188,7 +197,7 @@ object HomeBridge {
         compareValues(video.season ?: 0, season).takeIf { it != 0 }
             ?: compareValues(video.episode ?: 0, episode)
 
-    fun reset() { upcomingCache = emptyList() }
+    fun reset() { upcoming.reset() }
 
     private fun progressJson(entry: WatchProgressEntry) = buildJsonObject {
         put("parentMetaId", entry.parentMetaId); put("parentMetaType", entry.parentMetaType)

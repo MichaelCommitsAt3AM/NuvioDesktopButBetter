@@ -128,7 +128,9 @@ steps sequential and inspect their own exits if this recurs.
 `sync-methods.mjs` updates method/topic enums and the Rust allowlist; it does not
 prove that request/response shapes or feature wiring are complete. Review generated
 diffs. The UI inventory hashes original source; regeneration acknowledges review,
-not parity acceptance. Do not refresh it solely to silence a failing check.
+not parity acceptance. Source hashing normalizes CRLF to LF, so a Windows
+checkout and a Linux/macOS checkout produce the same checkpoint. Do not refresh
+it solely to silence a failing check.
 
 ## 5. Validate locally
 
@@ -237,3 +239,23 @@ ancestry. Do not force-push shared history. Keep incomplete or failed validation
 on the sync branch and report the remaining gates clearly. Branch/default-branch
 promotion and release publication are separate operations. Follow the existing
 separate version-bump and CI-only release process when a release is requested.
+
+## 8. Launch the local debug rewrite when requested
+
+After checks pass, the embedded debug build from step 5 can be opened directly;
+it does not need a Vite server or the legacy Compose entry point:
+
+```powershell
+$debugExe = (Resolve-Path 'desktop-ui/src-tauri/target/debug/nuvio-desktop-shell.exe').Path
+Start-Process -FilePath $debugExe -WorkingDirectory (Split-Path $debugExe) -WindowStyle Normal
+```
+
+Check for an existing Nuvio frontend first so two apps do not compete for shared
+Kotlin storage/services. If one must be replaced, close the known frontend
+gracefully; do not kill unrelated Java processes. Confirm the new shell process
+stays alive and its diagnostic log records a **new** ready handshake. The preview
+identifier is `com.nuvio.media.desktop.preview`; the shell writes
+`logs/bridge-diagnostics.log` under its Tauri app-data directory. Inspect only the
+needed diagnostic markers and do not print credentials or raw source URLs.
+Launching successfully is not user acceptance: leave the app open for testing and
+record the actual tested journeys separately.

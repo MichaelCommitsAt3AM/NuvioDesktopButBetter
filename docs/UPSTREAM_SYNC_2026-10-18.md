@@ -46,11 +46,12 @@
 11. Repeated generation intermittently failed opening unchanged files on Windows. Contract/validator generators now compare content before writing; the subsequent production build passed.
 12. React can silently discard correct Kotlin output: the library filtered globally ordered items instead of using per-section keys, and poster resolution skipped ID extraction/original-image fallback. Added adapter/DOM/projection regressions and fixed the actual flows.
 13. Repository-local `core.longpaths=true` addresses Windows internal checkpoint-ref path length errors; leave app metadata refs intact.
-14. Do not let generated inventory updates imply user acceptance. Native Windows regression coverage is evidence for that path; it does not establish macOS/Linux/provider/visual acceptance.
+14. Normalize inventory input line endings. Windows CRLF hashes differed from canonical Git/Linux LF hashes; all 165 normalized inventory entries were verified against committed Git blobs.
+15. Do not let generated inventory updates imply user acceptance. Native Windows regression coverage is evidence for that path; it does not establish macOS/Linux/provider/visual acceptance.
 
 ## Local validation
 
-- `:composeApp:stageBridgeRuntime :composeApp:desktopTest`: passed after fixes; 1712 tests, zero failures/errors, one skip. Includes both real Windows cross-DPI player presentation tests, service gates and server-to-Home refresh regression.
+- `:composeApp:stageBridgeRuntime :composeApp:desktopTest`: passed after fixes; 1712 tests, zero failures/errors, one skip (`DesktopWindowInsetsTest.titleBarClearanceSurvivesScalingAndFullscreenWithoutMovingTheBackdropOrResettingContent`). Includes both real Windows cross-DPI player presentation tests, service gates and server-to-Home refresh regression.
 - `npm test -- --maxWorkers=1`: 368 tests across 64 files passed, including connection credential clearing, explicit removal and stale-profile error handling. Follow-up native panel tests also cover populated → empty → identical results and unchanged-node stability.
 - `npm run build`: TypeScript and Vite production build passed. Existing chunk-size/dynamic-import warnings remain non-fatal.
 - `npm run contract:check`: passed.
@@ -63,7 +64,15 @@
 
 ## CI and promotion
 
-Initial candidate `02aece4f` passed all three database jobs in [run 39110983025](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/39110983025). Candidate `2b8a47ae` also passed all database jobs in [run 39111315867](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/39111315867). The first all-platform build [39110974347](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/39110974347) is superseded by the native-panel follow-up; final candidate CI evidence will be recorded before promotion. The local host has Supabase CLI but no Docker command, so fresh/upgrade database tests run in GitHub Actions. Build-only artifacts validate packaging; they do not publish a release.
+The final application candidate is `e922ed5d9f62ac98fd02d0a7a0f30bfe05c6a611`.
+
+- [Supabase Database Tests — 39111767074](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/39111767074): all three jobs passed (RPC contract, fresh database and migration upgrade).
+- [All-platform build-only — 39111768984](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/39111768984): all seven package jobs passed (Windows x64 MSI; macOS ARM64 and x86_64; Linux AppImage, DEB, RPM and Flatpak), including the platform runtime/package validation steps.
+- Earlier database runs `39110983025` and `39111315867` also passed. Build-only runs `39110974347` and `39111313843` were cancelled because later parity fixes superseded their candidates; their artifacts are not final evidence.
+- The local host has Supabase CLI but no Docker command; fresh/upgrade database tests ran in CI. No production migration, release tag or release publication was performed.
+- After application validation, only the review-inventory generator/checkpoint and workflow documentation changed. The application, canonical bridge schema, build configuration and CI workflows remain identical to the tested candidate. The normalized inventory was checked against all 165 canonical Git source blobs.
+
+The rebuilt embedded Windows debug shell was launched locally after CI passed on 2026-10-18. Its process stayed alive and the diagnostic log confirmed a new authenticated backend-ready handshake. The app was left open for the user's testing; this startup check is not visual/provider acceptance.
 
 ## Acceptance limits
 

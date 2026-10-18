@@ -26,7 +26,8 @@ const entries = [];
 for (const path of files.sort()) {
   const name = relative(root, path).replaceAll('\\', '/');
   if (!name.includes('/core/ui/') && !name.includes('/player-ui/') && !/(Screen|Page|Sheet|Dialog|Controls|Modal|Routes|Destination|AppGate|AppFeaturePolicy)/.test(name)) continue;
-  const source = await readFile(path, 'utf8');
+  // Git checkouts differ by host; line endings are not UI behavior changes.
+  const source = (await readFile(path, 'utf8')).replace(/\r\n/g, '\n');
   // The adapter reuses the original community repository; its sole source hook is visibility.
   const baselineSource = name.endsWith('/SupportersContributorsPage.kt')
     ? source.replace('internal object SupportersContributorsRepository', 'private object SupportersContributorsRepository')

@@ -115,6 +115,10 @@ node scripts/desktop-ui/generate-locales.mjs --check
 node scripts/desktop-ui/inventory-parity.mjs --check
 ```
 
+Repeated generation exposed intermittent Windows write-sharing errors on unchanged
+outputs. Contract/validator generators now skip identical content; keep generation
+steps sequential and inspect their own exits if this recurs.
+
 `sync-methods.mjs` updates method/topic enums and the Rust allowlist; it does not
 prove that request/response shapes or feature wiring are complete. Review generated
 diffs. The UI inventory hashes original source; regeneration acknowledges review,
@@ -164,6 +168,10 @@ Use the actual embedded rewrite for affected user journeys. Rebuild the native D
 when JNI or native code changes; `stageBridgeRuntime` and the Windows desktop-test
 hook arrange this. `WindowsPlayerPresentationTest` exercises real JNI/mpv/WebView2
 with a temporary silent WAV and a host window under a different DPI context.
+Exercise populated → loading/empty → identical results transitions in native
+HTML panels too. The first trial found stale episode/source comparison caches
+that prevented the same items from reappearing after a reload; DOM regressions
+now execute the production renderers from the Vitest suite.
 Automated checks do not replace real provider sign-in, a multi-user watch party,
 macOS/Linux playback, installed upgrade or visual acceptance; state what was and
 was not exercised.

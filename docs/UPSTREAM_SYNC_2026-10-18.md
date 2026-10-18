@@ -41,12 +41,14 @@
 7. Marketing version is not a source baseline. Preserve fork build code during merges; track the integrated upstream SHA separately. The old inventory used a hard-coded historical fork SHA; it now reads `upstream-baseline.json`.
 8. Native PowerShell command failures do not necessarily stop the shell. Check individual exit codes/log results; successful commands later in a batch can hide an earlier failure.
 9. New documentation can silently be ignored by the existing `docs/*` rule. Explicit sync-guide/report exceptions were added and verified with Git status.
-10. Do not let generated inventory updates imply user acceptance. Native Windows regression coverage is evidence for that path; it does not establish macOS/Linux/provider/visual acceptance.
+10. Audit native DOM cache transitions. Production-renderer tests reproduced episode/source lists staying empty after identical results returned; clear comparison caches when rendering an empty state.
+11. Repeated generation intermittently failed opening unchanged files on Windows. Contract/validator generators now compare content before writing; the subsequent production build passed.
+12. Do not let generated inventory updates imply user acceptance. Native Windows regression coverage is evidence for that path; it does not establish macOS/Linux/provider/visual acceptance.
 
 ## Local validation
 
 - `:composeApp:stageBridgeRuntime :composeApp:desktopTest`: passed after fixes; 1709 tests, zero failures/errors, one skip. Includes both real Windows cross-DPI player presentation tests, service gates and server-to-Home refresh regression.
-- `npm test -- --maxWorkers=1`: 361 tests across 61 files passed, including connection credential clearing, explicit removal and stale-profile error handling.
+- `npm test -- --maxWorkers=1`: 361 tests across 61 files passed, including connection credential clearing, explicit removal and stale-profile error handling. Follow-up native panel tests also cover populated → empty → identical results and unchanged-node stability.
 - `npm run build`: TypeScript and Vite production build passed. Existing chunk-size/dynamic-import warnings remain non-fatal.
 - `npm run contract:check`: passed.
 - `cargo fmt --check`, `cargo test --locked`: passed; nine Rust tests.
@@ -58,7 +60,7 @@
 
 ## CI and promotion
 
-CI validation is pending on the candidate branch; update this section with run links and outcomes before promotion. The local host has Supabase CLI but no Docker command, so fresh/upgrade database tests run in GitHub Actions. Build-only artifacts validate packaging; they do not publish a release.
+Initial candidate `02aece4f` passed all three database jobs in [run 39110983025](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/39110983025). The first all-platform build [39110974347](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/39110974347) is superseded by the native-panel follow-up; final candidate CI evidence will be recorded before promotion. The local host has Supabase CLI but no Docker command, so fresh/upgrade database tests run in GitHub Actions. Build-only artifacts validate packaging; they do not publish a release.
 
 ## Acceptance limits
 

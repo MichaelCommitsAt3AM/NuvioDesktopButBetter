@@ -1992,6 +1992,7 @@ const renderEpisodeList = (modalOpened = false) => {
 
   episodeList.textContent = "";
   if (items.length === 0) {
+    currentEpisodeItems = [];
     episodeList.textContent = "";
     appendEmptyTrackState(episodeList, state.noEpisodesLabel || "No episodes available");
     scrollEpisodeSelectionIntoView();
@@ -2040,6 +2041,7 @@ const renderEpisodeStreams = (modalOpened = false) => {
     items = items.filter(item => String(item.filterId || "") === episodeStreamFilterId);
   }
   if (items.length === 0) {
+    currentEpisodeStreamItems = [];
     episodeStreamList.textContent = "";
     appendEmptyTrackState(
       episodeStreamList,

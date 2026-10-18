@@ -4698,7 +4698,7 @@
     },
     {
       "source": "composeApp/src/desktopMain/resources/player-ui/controls.js",
-      "sha256": "c6396b1ddb9dbabcc8fd7c605fcf93bda493ef891aa6548d43c6e48da1f49efe",
+      "sha256": "121daaab58d3cfbea287b2d60261d62268aecf5a04e8c9f89922607da4a304a4",
       "composables": [],
       "actions": [
         "onEpisodesModalClosed",

@@ -32,5 +32,5 @@ if (process.argv.includes('--check')) {
   if (current !== content) throw new Error('Generated bridge types are stale. Run node scripts/desktop-ui/generate-contract.mjs.');
 } else {
   await mkdir(path.dirname(target), { recursive: true });
-  await writeFile(target, content);
+  if (await readFile(target, 'utf8').catch(() => '') !== content) await writeFile(target, content);
 }

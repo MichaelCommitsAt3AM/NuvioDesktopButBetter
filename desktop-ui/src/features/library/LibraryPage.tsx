@@ -18,7 +18,7 @@ import { usePlacementFlip } from '../../components/placementFlip';
 import { mediaKey } from '../../components/keys';
 import '../../components/disintegration.css';
 
-type Extras = { source: string; layout: string; sort: string; tabs: { key: string; title: string }[]; items: { id: string; type: string; savedAt: number; listKeys: string[]; category: string }[]; sections: { type: string; title: string; items: string[] }[] };
+type Extras = { sortOptions?: string[]; orderedKeys?: string[]; source: string; layout: string; sort: string; tabs: { key: string; title: string }[]; items: { id: string; type: string; savedAt: number; listKeys: string[]; category: string }[]; sections: { type: string; title: string; items: string[] }[] };
 type CloudType = 'torrent' | 'usenet' | 'webdownload' | 'file';
 type Cloud = { enabled: boolean; loading: boolean; loaded: boolean; providers: { id: string; name: string; error: string | null; items: { key: string; name: string; type: CloudType; status: string; size: number | null; progress?: number | null; files: { key: string; name: string; playable: boolean; size: number | null }[] }[] }[] };
 
@@ -42,6 +42,10 @@ export function LibraryPage() {
   const run = async (method: string, params: Record<string, unknown>, topic = 'libraryExtras') => { setError(''); try { await call(method, params); await refreshFeature(topic, topic === 'libraryExtras' ? 'library.extras' : 'cloud.snapshot'); } catch(cause) { setError(cause instanceof Error ? cause.message : String(cause)); } };
   const items = useMemo(() => {
     const result = [...library.items];
+    if (extras?.orderedKeys) {
+      const ranks = new Map(extras.orderedKeys.map((key, index) => [key, index]));
+      return result.sort((a, b) => (ranks.get(`${a.type}|${a.id}`) ?? Number.MAX_SAFE_INTEGER) - (ranks.get(`${b.type}|${b.id}`) ?? Number.MAX_SAFE_INTEGER));
+    }
     const sort = extras?.sort ?? 'added_desc';
     if (sort.startsWith('title')) result.sort((a,b) => a.name.localeCompare(b.name) * (sort === 'title_desc' ? -1 : 1));
     else if (sort.startsWith('added')) {
@@ -69,7 +73,9 @@ export function LibraryPage() {
       <button role="tab" aria-selected={mode === 'saved'} className={mode === 'saved' ? 'selected' : ''} onClick={() => setMode('saved')}>Saved</button>
       <button role="tab" aria-selected={mode === 'cloud'} className={mode === 'cloud' ? 'selected' : ''} onClick={() => setMode('cloud')}>Cloud</button>
     </div>
-    {mode === 'saved' && <div className="library-saved-spacer" aria-hidden="true" />}
+    {mode === 'saved' && <div className="library-saved-spacer">
+      {!!extras?.sortOptions?.length && <label>Sort <select aria-label="Library sort" value={extras.sort} onChange={event => void run('library.setSort', { sort: event.target.value })}>{extras.sortOptions.map(option => <option key={option} value={option}>{({ default: 'List order', added_desc: 'Recently added', added_asc: 'Oldest added', released_desc: 'Newest released', released_asc: 'Oldest released', title_asc: 'Title A–Z', title_desc: 'Title Z–A' } as Record<string, string>)[option] ?? option}</option>)}</select></label>}
+    </div>}
     {mode === 'cloud' && <>
       <div className="library-cloud-toolbar">
         <select aria-label="Cloud provider" className="library-cloud-filter" value={cloudProvider} onChange={event => { setCloudProvider(event.target.value); setCloudType(''); setSelectedCloudItem(null); }}><option value="">All</option>{cloud?.providers.map(provider => <option value={provider.id} key={provider.id}>{provider.name}</option>)}</select>

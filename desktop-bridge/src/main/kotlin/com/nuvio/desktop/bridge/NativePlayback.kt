@@ -107,8 +107,10 @@ class NativePlayback(
         publishState()
         try {
         requireNotNull(meta) { "Load matching title details before starting playback." }
-        if (stream.shouldOpenExternally) {
-            val uri = java.net.URI(requireNotNull(stream.externalOpenUrl))
+        val selectedStream = com.nuvio.app.features.streams.YouTubeStreamResolver.Default.resolve(stream)
+            ?: throw BridgeFeatureException("UNAVAILABLE", "The YouTube stream could not be resolved.")
+        if (selectedStream.shouldOpenExternally) {
+            val uri = java.net.URI(requireNotNull(selectedStream.externalOpenUrl))
             require(uri.scheme?.lowercase() in setOf("http", "https") && !uri.host.isNullOrBlank() && uri.userInfo == null) { "Unsupported external stream URL" }
             withContext(Dispatchers.IO) { java.awt.Desktop.getDesktop().browse(uri) }
             playbackState = "external"
@@ -122,7 +124,9 @@ class NativePlayback(
             dispatcher = Dispatchers.Swing,
             prepare = { prepareWindow(meta.name, embeddedInTauri) },
             resolve = {
-                val playable = if (!DirectDebridPlaybackResolver.shouldResolveToPlayableStream(stream)) stream else when (val resolved = DirectDebridPlaybackResolver.resolveToPlayableStream(stream, episode?.season, episode?.episode)) {
+                val playable = if (selectedStream.needsServerPreparation) {
+                    com.nuvio.app.features.servers.ServerPlayback.prepare(selectedStream)
+                } else if (!DirectDebridPlaybackResolver.shouldResolveToPlayableStream(selectedStream)) selectedStream else when (val resolved = DirectDebridPlaybackResolver.resolveToPlayableStream(selectedStream, episode?.season, episode?.episode)) {
                     is DirectDebridPlayableResult.Success -> resolved.stream
                     DirectDebridPlayableResult.MissingApiKey -> error("Connect the required debrid service before playback.")
                     DirectDebridPlayableResult.NotCached -> error("This stream is not cached by your debrid service.")

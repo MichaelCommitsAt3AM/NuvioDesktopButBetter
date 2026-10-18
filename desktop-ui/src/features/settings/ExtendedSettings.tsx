@@ -16,6 +16,7 @@ type PlaybackSnapshot = {
   preferredAudioLanguage: string; secondaryPreferredAudioLanguage: string | null; preferredSubtitleLanguage: string; secondaryPreferredSubtitleLanguage: string | null;
   subtitleStyle: { textColor: string; backgroundColor: string; outlineColor: string; outlineEnabled: boolean; outlineWidth: number; bold: boolean; fontSizeSp: number; bottomOffset: number; stripSdh: boolean; useForcedSubtitles: boolean; showOnlyPreferredLanguages: boolean };
   streamReuseLastLinkEnabled: boolean; streamReuseLastLinkCacheHours: number; streamAutoPlayMode: 'MANUAL' | 'FIRST_STREAM' | 'REGEX_MATCH'; streamAutoPlaySource: 'ALL_SOURCES' | 'INSTALLED_ADDONS_ONLY' | 'ENABLED_PLUGINS_ONLY'; streamAutoPlaySelectedAddons: string[]; streamAutoPlaySelectedPlugins: string[]; streamAutoPlayRegex: string; streamAutoPlayTimeoutSeconds: number;
+  holdToSpeedEnabled: boolean; holdToSpeedValue: number;
   skipIntroEnabled: boolean; autoSkipSegmentTypes: string[]; animeSkipEnabled: boolean; animeSkipClientIdConfigured: boolean; introDbApiKeyConfigured: boolean; introSubmitEnabled: boolean;
   animeSkipClientId: string; introDbApiKey: string;
   streamAutoPlayNextEpisodeEnabled: boolean; streamAutoPlayNextEpisodeFallbackEnabled: boolean; streamAutoPlayPreferBingeGroup: boolean; streamAutoPlayReuseBingeGroup: boolean; nextEpisodeThresholdMode: 'PERCENTAGE' | 'MINUTES_BEFORE_END'; nextEpisodeThresholdPercent: number; nextEpisodeThresholdMinutesBeforeEnd: number; preloadNextEpisodeSources: boolean; useLibass: boolean; nvidiaRtxSuperResolutionEnabled: boolean;
@@ -96,6 +97,8 @@ export function PlaybackSettingsPage() {
   const timeoutValues = [0, ...Array.from({ length: 10 }, (_, index) => index + 1), 15, 20, 25, 30, 2147483647];
   return <SubPage title="Playback" back="/settings">{error && <FeatureNotice error={error} retry={() => { void refresh(); }} />}
     <SettingCard icon={Film} title="Player">
+      <Toggle title="Hold to speed" description="Hold the player speed gesture to temporarily speed up playback." checked={s.holdToSpeedEnabled ?? true} onChange={(value) => set('holdToSpeedEnabled', value)} />
+      {(s.holdToSpeedEnabled ?? true) && <NumberField title="Hold playback speed" value={s.holdToSpeedValue ?? 2} min={1} max={4} step={0.25} suffix="×" onSave={(value) => set('holdToSpeedValue', value)} />}
       <Toggle title="Loading Overlay" description="Show loading screen until first video frame appears." checked={s.showLoadingOverlay} onChange={(value) => set('showLoadingOverlay', value)} />
       <Toggle title="Show loading status" description="Display step-by-step progress while the player is initializing." checked={s.showPlayerLoadingStatus} onChange={(value) => set('showPlayerLoadingStatus', value)} />
       <Toggle title="Pause Overlay" description="Show details overlay after 5 seconds while paused." checked={s.pauseOverlayEnabled} onChange={(value) => set('pauseOverlayEnabled', value)} />

@@ -107,6 +107,8 @@ object PlaybackSettingsBridge {
             put("streamAutoPlayRegex", state.streamAutoPlayRegex)
             put("streamAutoPlayTimeoutSeconds", state.streamAutoPlayTimeoutSeconds)
             put("decoderPriority", state.decoderPriority)
+            put("holdToSpeedEnabled", state.holdToSpeedEnabled)
+            put("holdToSpeedValue", state.holdToSpeedValue)
             put("skipIntroEnabled", state.skipIntroEnabled)
             put("autoSkipSegmentTypes", JsonArray(state.autoSkipSegmentTypes.map { JsonPrimitive(it.name) }.sortedBy { it.content }))
             put("animeSkipEnabled", state.animeSkipEnabled)
@@ -200,6 +202,8 @@ object PlaybackSettingsBridge {
                 if (priority !in 0..2) invalid(key)
                 PlayerSettingsRepository.setDecoderPriority(priority)
             }
+            "holdToSpeedEnabled" -> PlayerSettingsRepository.setHoldToSpeedEnabled(value.asBool(key))
+            "holdToSpeedValue" -> PlayerSettingsRepository.setHoldToSpeedValue(value.asFloat(key).also { if (it !in 1f..4f || (it * 4f) % 1f != 0f) invalid(key) })
             "skipIntroEnabled" -> PlayerSettingsRepository.setSkipIntroEnabled(value.asBool(key))
             "autoSkipSegmentTypes" -> {
                 val types = value.asStringSet(key).map { enumValue<AutoSkipSegmentType>(it) }.toSet()

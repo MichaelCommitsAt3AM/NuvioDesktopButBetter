@@ -14,7 +14,7 @@ for (const name of sources) {
   }
 }
 schema.$defs.Request.properties.method.enum = [...methods];
-for (const topic of ['plugins', 'libraryExtras', 'cloud', 'playbackSettings', 'metadataSettings', 'p2p', 'homeExtras', 'authOptions', 'integrations', 'tmdb', 'mdblist', 'debrid', 'simkl', 'trackingSettings', 'collections', 'collectionEditor', 'folderDetail', 'about', 'advanced', 'streamSelection']) {
+for (const topic of ['servers', 'plugins', 'libraryExtras', 'cloud', 'playbackSettings', 'metadataSettings', 'p2p', 'homeExtras', 'authOptions', 'integrations', 'tmdb', 'mdblist', 'debrid', 'simkl', 'trackingSettings', 'collections', 'collectionEditor', 'folderDetail', 'about', 'advanced', 'streamSelection']) {
   if (!schema.$defs.Event.properties.topic.enum.includes(topic)) schema.$defs.Event.properties.topic.enum.push(topic);
 }
 fs.writeFileSync(schemaPath, JSON.stringify(schema, null, 2) + '\n');

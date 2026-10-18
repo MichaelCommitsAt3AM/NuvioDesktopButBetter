@@ -93,7 +93,7 @@ Maintain one primary development/release line containing the React/Tauri rewrite
 7. Record upstream SHAs, affected behavior, bridge/React mappings and validation in `docs/FORK_CHANGES.md`. Give each relevant change an explicit implemented, already covered or deferred decision; record understood outstanding bugs in `docs/KNOWN_ISSUES.md`. Update the README for user-visible changes.
 8. Reconcile any newer rewrite development changes, repeat affected checks and merge the completed sync branch back while preserving upstream merge ancestry. Do not squash or rebase away the upstream merge. Follow the normal separate version-bump/release process afterward; completing a sync does not itself authorize publishing a release.
 
-The detailed commands and review guidance are in `docs/DESKTOP_UI_REWRITE.md`.
+The operational runbook is `docs/UPSTREAM_SYNC.md`; read it before every sync. Record each batch in a separate report and maintain `desktop-bridge/contract/upstream-baseline.json` with the integrated upstream SHA. Rewrite architecture/build details remain in `docs/DESKTOP_UI_REWRITE.md`.
 
 `docs/FORK_CHANGES.md` is the detailed reference of everything this fork changes versus upstream. Whenever a fork-only feature, fix, or behavior change lands (or an upstream sync supersedes or removes one), update the matching section there in the same change. If the change is user-visible, also update the short plain-language "What's different from upstream" list in `README.md`.
 

@@ -13,13 +13,14 @@ internal class BridgeHomeCatalogLifecycle(
     private val syncCollections: suspend (List<Collection>, List<ManagedAddon>) -> Unit,
     private val refreshHome: (List<ManagedAddon>) -> Unit,
 ) {
-    private var lastInput: Triple<Long, List<String>, List<Collection>>? = null
+    private data class Input(val generation: Long, val addons: List<String>, val collections: List<Collection>, val serverRevision: Int)
+    private var lastInput: Input? = null
 
     // Called under the runtime RPC mutex, with the current profile's inputs.
-    suspend fun update(generation: Long, addons: List<ManagedAddon>, collections: List<Collection>) {
+    suspend fun update(generation: Long, addons: List<ManagedAddon>, collections: List<Collection>, serverRevision: Int = 0) {
         val enabled = addons.enabledAddons().forKidsCatalogs()
         if (enabled.isWaitingForFirstEnabledManifest()) return
-        val input = Triple(generation, buildAddonCatalogRefreshSignature(enabled), collections)
+        val input = Input(generation, buildAddonCatalogRefreshSignature(enabled), collections, serverRevision)
         if (input == lastInput) return
         syncCatalogs(enabled)
         syncCollections(collections, enabled)

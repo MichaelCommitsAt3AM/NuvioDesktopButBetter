@@ -5,8 +5,26 @@ import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.tracking.TrackingProviderId
 import com.nuvio.app.features.cloud.*
 import kotlinx.serialization.json.*
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.*
 
 object LibraryExtrasBridge {
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default)
+    private var orderJob: kotlinx.coroutines.Job? = null
+    @Volatile private var providerOrders = LibraryProviderOrders()
+    val changes = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Synchronized private fun observeOrders() {
+        if (orderJob != null) return
+        orderJob = scope.launch {
+            combine(LibraryRepository.uiState, LibraryDisplaySettingsRepository.uiState) { state, display ->
+                Triple(state.sourceMode, state.sections.map { it.type }, effectiveLibrarySortOption(display.sortOption, state.sourceMode))
+            }.distinctUntilChanged().flatMapLatest { (source, keys, sort) ->
+                observeLibraryProviderOrders(source.librarySorter(), keys, sort)
+            }.collect { providerOrders = it; changes.emit(Unit) }
+        }
+    }
     suspend fun dispatch(method: String, params: JsonObject): JsonElement? = when (method) {
         "library.extras" -> snapshot()
         "library.setLayout" -> { LibraryDisplaySettingsRepository.setLayoutMode(LibraryLayoutMode.valueOf(params.str("layout").uppercase())); snapshot() }
@@ -41,15 +59,22 @@ object LibraryExtrasBridge {
     }
     fun snapshot(): JsonObject {
         LibraryRepository.ensureLoaded(); LibraryDisplaySettingsRepository.ensureLoaded()
+        observeOrders()
         val state = LibraryRepository.uiState.value; val display = LibraryDisplaySettingsRepository.uiState.value
+        val orders = providerOrders
+        val sort = if (orders.failed) LibrarySortOption.DEFAULT else effectiveLibrarySortOption(display.sortOption, state.sourceMode)
+        val sortedItems = sortLibraryItems(state.items, sort, state.sourceMode)
+        val sortedSections = sortLibrarySections(state.sections, sort, state.sourceMode, orders.ranks)
         return buildJsonObject {
-            put("source", state.sourceMode.name.lowercase()); put("layout", display.layoutMode.name.lowercase()); put("sort", display.sortOption.name.lowercase())
+            put("source", state.sourceMode.name.lowercase()); put("layout", display.layoutMode.name.lowercase()); put("sort", sort.name.lowercase())
+            put("sortOptions", JsonArray(availableLibrarySortOptions(state.sourceMode).map { JsonPrimitive(it.name.lowercase()) }))
+            put("orderedKeys", JsonArray(sortedItems.map { JsonPrimitive("${it.type}|${it.id}") }))
             put("tabs", tabs(null))
             put("items", JsonArray(state.items.map { item -> buildJsonObject {
                 put("id", item.id); put("type", item.type); put("savedAt", item.savedAtEpochMs)
                 put("listKeys", JsonArray(item.listKeys.map(::JsonPrimitive))); put("category", item.mediaCategory ?: item.type)
             } }))
-            put("sections", JsonArray(state.sections.map { section -> buildJsonObject {
+            put("sections", JsonArray(sortedSections.map { section -> buildJsonObject {
                 put("type", section.type); put("title", section.displayTitle)
                 put("items", JsonArray(section.items.map { JsonPrimitive("${it.type}|${it.id}") }))
             } }))

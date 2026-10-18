@@ -220,12 +220,13 @@ class DesktopBridgeRuntime {
             refreshHome = { HomeRepository.refresh(it) },
         )
         scope.launch {
-            combine(AddonRepository.uiState, CollectionRepository.collections) { _, _ -> Unit }
+            combine(AddonRepository.uiState, CollectionRepository.collections, com.nuvio.app.features.servers.ServerRepository.uiState) { _, _, _ -> Unit }
                 .collect {
                     rpcMutex.withLock {
                         // Read after acquiring the lock: a profile switch may have
                         // replaced both repositories while this observer waited.
-                        homeCatalogLifecycle.update(epoch, AddonRepository.uiState.value.addons, CollectionRepository.collections.value)
+                        homeCatalogLifecycle.update(epoch, AddonRepository.uiState.value.addons, CollectionRepository.collections.value, com.nuvio.app.features.servers.ServerRepository.uiState.value.revision)
+                        com.nuvio.app.features.servers.ServerMatcher.warm()
                         emit("home", homeJson())
                         emit("appearance", AppearanceBridge.snapshot())
                     }
@@ -256,6 +257,8 @@ class DesktopBridgeRuntime {
         scope.launch { com.nuvio.app.features.collection.CollectionRepository.collections.collect { emit("collections", CollectionsBridge.snapshot("collections")!!) } }
         scope.launch { com.nuvio.app.features.collection.CollectionEditorRepository.uiState.collect { emit("collectionEditor", CollectionsBridge.snapshot("collectionEditor")!!) } }
         scope.launch { com.nuvio.app.features.collection.FolderDetailRepository.uiState.collect { emit("folderDetail", CollectionsBridge.snapshot("folderDetail")!!) } }
+        scope.launch { com.nuvio.app.features.servers.ServerRepository.uiState.collect { emit("servers", ServersBridge.snapshot()) } }
+        scope.launch { LibraryExtrasBridge.changes.collect { emit("libraryExtras", LibraryExtrasBridge.snapshot()) } }
         scope.launch { LibraryRepository.uiState.collect { emit("library", libraryJson()) } }
         scope.launch { LibraryRepository.uiState.collect { emit("libraryExtras", LibraryExtrasBridge.snapshot()) } }
         scope.launch { com.nuvio.app.features.library.LibraryDisplaySettingsRepository.uiState.collect { emit("libraryExtras", LibraryExtrasBridge.snapshot()) } }
@@ -816,6 +819,7 @@ class DesktopBridgeRuntime {
             ?: DownloadsBridge.dispatch(method, params)
             ?: PluginsBridge.dispatch(method, params)
             ?: DetailsExtrasBridge.dispatch(method, params)
+            ?: ServersBridge.dispatch(method, params)
             ?: LibraryExtrasBridge.dispatch(method, params)
             ?: PlaybackSettingsBridge.dispatch(method, params)
             ?: MetadataSettingsBridge.dispatch(method, params)
@@ -849,6 +853,7 @@ class DesktopBridgeRuntime {
             "downloads" -> DownloadsBridge.snapshot()
             "plugins" -> PluginsBridge.snapshot()
             "cloud" -> LibraryExtrasBridge.cloudSnapshot()
+            "servers" -> ServersBridge.snapshot()
             "library" -> LibraryExtrasBridge.snapshot()
             "playbackSettings" -> PlaybackSettingsBridge.snapshot()
             "metadataSettings" -> MetadataSettingsBridge.snapshot()
@@ -940,7 +945,7 @@ class DesktopBridgeRuntime {
             "profiles" to ProfilesBridge.snapshot(), "appearance" to AppearanceBridge.snapshot(),
             "downloads" to DownloadsBridge.snapshot(),
             "plugins" to PluginsBridge.snapshot(),
-            "libraryExtras" to LibraryExtrasBridge.snapshot(), "cloud" to LibraryExtrasBridge.cloudSnapshot(),
+            "servers" to ServersBridge.snapshot(), "libraryExtras" to LibraryExtrasBridge.snapshot(), "cloud" to LibraryExtrasBridge.cloudSnapshot(),
             "homeExtras" to HomeBridge.snapshot(),
             "authOptions" to AuthOptionsBridge.snapshot(),
             "catalog" to CatalogBridge.snapshot("catalog")!!, "discover" to CatalogBridge.snapshot("discover")!!,

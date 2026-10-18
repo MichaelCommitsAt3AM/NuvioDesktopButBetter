@@ -4,6 +4,14 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Upstream 0.1.31-alpha integration — 2026-10-18
+
+Integrated upstream `e808a584e937d3ce148f5e023180586bc3545002` from previous baseline `d4bdf2588d46a4db7131e105efe6bd7576944a1b` on a short-lived rewrite sync branch, preserving the upstream merge. Kotlin/native fixes include buffering/reconnect and Windows renderer/shader changes, player panels/stream information, custom-poster resolution, TorBox large-library loading, restored continue-watching items and P2P engine 0.1.5. Fork DPI/presentation/PiP, subtitle intent, profile policies, image budgets and Tauri release configuration remain intact; the fork release version/build code is unchanged.
+
+The rewrite adds profile-scoped Jellyfin/Emby connection/library settings, backend-driven Home refresh on server changes, native-server playback preparation and YouTube-only stream resolution. Playback settings expose hold-to-speed. MDBList dynamic/liked/external lists use upstream repositories; React gains list visibility and Kotlin sort options, with provider order observation for sections. Credentials remain outside ordinary snapshots. Watch parties and server cloud sync are explicitly deferred/gated because this fork does not host their backend RPCs.
+
+Validation found and repaired an automatically merged native-constructor signature mismatch, Windows file/JAR handle leaks in upstream resource stamping/extraction, and Linux installer assertions that assumed POSIX paths on every host. Static RPC scanning now covers named arguments and watch-party wrapper calls. Database CI covers rewrite/sync branches and bridge source changes. Generated bridge contracts/locales are updated; the UI inventory reads the tracked upstream baseline. Local full desktop tests: 1709 total, zero failures, one skip; frontend: 361 passed; TypeScript/Vite production build, Rust formatting/nine tests/embedded build, RPC scanner regression/contract checks passed. Packaging checks: ten passed, one host-specific skip. CI and cross-platform/provider acceptance evidence is recorded in the [batch report](UPSTREAM_SYNC_2026-10-18.md); the reusable procedure is [UPSTREAM_SYNC.md](UPSTREAM_SYNC.md).
+
 ### Agreed upstream integration workflow — 2026-10-18
 
 `AGENTS.md` now records the approved upstream sync procedure directly: start each short-lived sync branch from the latest rewrite, preserve upstream merge ancestry, adapt bridge/React behavior in separate commits, validate the complete rewrite and record implemented/deferred decisions before integrating. The rewrite guide now identifies this as the agreed workflow rather than a proposal. No upstream sync or branch/default-branch change is performed by this documentation update.

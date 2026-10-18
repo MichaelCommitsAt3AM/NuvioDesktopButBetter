@@ -332,6 +332,15 @@ const ALLOWED_METHODS: &[&str] = &[
     "trackingSettings.refreshProgress",
     "playbackSettings.setAutoSkipType",
     "playbackSettings.saveSkipCredential",
+    "servers.snapshot",
+    "servers.connect",
+    "servers.refresh",
+    "servers.remove",
+    "servers.setEnabled",
+    "servers.setMetadata",
+    "servers.setWatchState",
+    "servers.setLibrary",
+    "mdblist.setListVisible",
 ];
 
 fn request_is_allowed(request: &BridgeRequest) -> bool {

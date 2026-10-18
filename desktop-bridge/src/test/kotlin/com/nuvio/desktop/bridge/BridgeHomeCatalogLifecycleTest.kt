@@ -10,6 +10,16 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class BridgeHomeCatalogLifecycleTest {
+    @Test fun serverChangesRefreshHomeWithoutAddonChanges() = runBlocking {
+        lifecycle.update(1, listOf(loaded), emptyList(), serverRevision = 1)
+        calls.clear()
+        lifecycle.update(1, listOf(loaded), emptyList(), serverRevision = 2)
+        assertEquals(listOf("catalogs:1", "collections:0", "home:1"), calls)
+        calls.clear()
+        lifecycle.update(1, listOf(loaded), emptyList(), serverRevision = 2)
+        assertTrue(calls.isEmpty())
+    }
+
     private val calls = mutableListOf<String>()
     private val lifecycle = BridgeHomeCatalogLifecycle(
         syncCatalogs = { calls += "catalogs:${it.size}" },

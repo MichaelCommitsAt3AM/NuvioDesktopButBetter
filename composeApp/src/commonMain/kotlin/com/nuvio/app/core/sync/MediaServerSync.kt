@@ -122,6 +122,7 @@ object MediaServerSync {
     }
 
     private fun canSync(profileId: Int): Boolean {
+        if (!com.nuvio.app.core.network.ServerConfigurationRepository.active.value.capabilities.mediaServerSync) return false
         val state = AuthRepository.state.value as? AuthState.Authenticated ?: return false
         return !state.isAnonymous && ProfileRepository.activeProfileId == profileId
     }

@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import type { Addon } from '../../generated/contract';
 import { PageHeader } from '../../components/ui';
+import { MediaServersSettings } from './MediaServersSettings';
 import { SettingsLayout } from './SettingsLayout';
 import { SettingsLanding } from './SettingsLanding';
 import { InlineError } from '../../components/Status';
@@ -390,6 +391,7 @@ function SettingsContent() {
   if (path === 'content/addons') return <AddonsSettings />;
   if (path === 'content/plugins') return <PluginsSettingsPage />;
   if (path === 'integrations') return <IntegrationsLanding />;
+  if (path === 'integrations/servers') return <MediaServersSettings />;
   if (path === 'integrations/tmdb') return <TmdbSettingsPage />;
   if (path === 'integrations/mdblist') return <MdbListSettingsPage />;
   if (path === 'integrations/debrid') return <DebridSettingsPage />;

@@ -19,6 +19,7 @@ captures
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
+__pycache__/
 logs/
 analysis/
 Docs
@@ -29,6 +30,7 @@ docs/*
 !docs/DESKTOP_UI_PARITY.md
 !docs/FORK_CHANGES.md
 !docs/KNOWN_ISSUES.md
+!docs/UPSTREAM_SYNC*.md
 SUPPORTER_COSMETICS.md
 # NOTE: upstream ignores supabase/migrations/ (they keep their schema private).
 # This fork version-controls the backend -- see CLAUDE.md "Supabase backend is

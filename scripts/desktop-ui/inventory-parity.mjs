@@ -40,7 +40,7 @@ for (const path of files.sort()) {
   });
 }
 const output = JSON.stringify({
-  baseline: '4fe67b7b',
+  baseline: JSON.parse(await readFile(resolve(root, 'desktop-bridge/contract/upstream-baseline.json'), 'utf8')).upstreamCommit,
   description: 'Source inventory, not a reachability proof. Desktop policy/conditions must be audited in the companion checklist. Regenerate after upstream merges and review added/changed controls.',
   entries,
 }, null, 2) + '\n';

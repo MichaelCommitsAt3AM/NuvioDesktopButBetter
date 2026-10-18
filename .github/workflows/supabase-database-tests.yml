@@ -4,16 +4,22 @@ on:
   pull_request:
     paths:
       - "composeApp/src/**/*.kt"
+      - "desktop-bridge/src/**/*.kt"
       - "scripts/check_supabase_rpc_contracts.py"
+      - "scripts/test_check_supabase_rpc_contracts.py"
       - "scripts/test-supabase-migration-upgrade.sh"
       - "supabase/**"
       - ".github/workflows/supabase-database-tests.yml"
   push:
     branches:
       - Dev
+      - feature/react-tauri-desktop-rewrite
+      - "codex/sync-upstream-**"
     paths:
       - "composeApp/src/**/*.kt"
+      - "desktop-bridge/src/**/*.kt"
       - "scripts/check_supabase_rpc_contracts.py"
+      - "scripts/test_check_supabase_rpc_contracts.py"
       - "scripts/test-supabase-migration-upgrade.sh"
       - "supabase/**"
       - ".github/workflows/supabase-database-tests.yml"
@@ -31,7 +37,9 @@ jobs:
         with:
           python-version: "3.x"
       - name: Check client RPC migration coverage
-        run: python scripts/check_supabase_rpc_contracts.py
+        run: |
+          python scripts/test_check_supabase_rpc_contracts.py
+          python scripts/check_supabase_rpc_contracts.py
 
   fresh-database:
     runs-on: ubuntu-latest

@@ -1041,7 +1041,16 @@
             "simkl.cancel",
             "trackingSettings.refreshProgress",
             "playbackSettings.setAutoSkipType",
-            "playbackSettings.saveSkipCredential"
+            "playbackSettings.saveSkipCredential",
+            "servers.snapshot",
+            "servers.connect",
+            "servers.refresh",
+            "servers.remove",
+            "servers.setEnabled",
+            "servers.setMetadata",
+            "servers.setWatchState",
+            "servers.setLibrary",
+            "mdblist.setListVisible"
           ]
         },
         "params": {
@@ -1124,7 +1133,8 @@
             "folderDetail",
             "about",
             "advanced",
-            "streamSelection"
+            "streamSelection",
+            "servers"
           ]
         },
         "epoch": {

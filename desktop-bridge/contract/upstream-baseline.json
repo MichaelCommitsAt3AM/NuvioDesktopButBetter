@@ -1,0 +1,8 @@
+{
+  "upstreamCommit": "e808a584e937d3ce148f5e023180586bc3545002",
+  "previousUpstreamCommit": "d4bdf2588d46a4db7131e105efe6bd7576944a1b",
+  "upstreamVersion": "0.1.31-alpha",
+  "rewriteBaseCommit": "5a4e7071902b29ce6ea370ef4f2872a3bb70d4b2",
+  "mergeCommit": "e823d4498c647f1fec7edbb4dd1569e642d48e17",
+  "report": "docs/UPSTREAM_SYNC_2026-10-18.md"
+}

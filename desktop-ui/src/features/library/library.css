@@ -13,7 +13,7 @@
 .library-source-switch{display:flex;align-items:center;gap:8px;margin:0 0 0}
 .library-source-switch button{height:27px;padding:0 12px;border:1px solid transparent;border-radius:999px;background:#1b1b1d;color:#a4a6aa;font:inherit;font-size:12px;font-weight:500;line-height:1;cursor:pointer}
 .library-source-switch button.selected{border-color:#a2a2a2;background:#454548;color:#f4f4f5}
-.library-saved-spacer{height:52px}
+.library-saved-spacer{min-height:52px;display:flex;align-items:center;gap:12px}.library-saved-spacer label{display:flex;align-items:center;gap:8px;font-size:13px}.library-saved-spacer select{max-width:220px}
 .library-page .library-shelf{margin:0 0 3px}
 .library-page .library-shelf .shelf-heading{align-items:center;margin:0 0 12px}
 .library-page .library-shelf .shelf-heading h2{margin:0;font-size:16px;line-height:22px;letter-spacing:-.015em;font-weight:550}

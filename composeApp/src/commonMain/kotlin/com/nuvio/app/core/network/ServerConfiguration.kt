@@ -9,6 +9,8 @@ data class ServerCapabilities(
     val emailPasswordAuth: Boolean,
     val tvLogin: Boolean,
     val watchParty: Boolean = false,
+    // Opt in only when sync_pull_media_servers/sync_push_media_servers are deployed.
+    val mediaServerSync: Boolean = false,
 )
 
 data class ServerConfiguration(

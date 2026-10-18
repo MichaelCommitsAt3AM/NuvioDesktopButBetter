@@ -26,7 +26,7 @@ internal object DesktopCache {
         resources.forEach { (relativePath, url) ->
             val target = resolveTarget(directory, relativePath)
             if (!Files.exists(target)) {
-                url.openStream().use { input ->
+                url.openConnection().apply { useCaches = false }.getInputStream().use { input ->
                     writeAtomically(target) { pending -> Files.copy(input, pending, StandardCopyOption.REPLACE_EXISTING) }
                 }
             }
@@ -54,11 +54,23 @@ internal object DesktopCache {
         return target
     }
 
-    private fun resourceStamp(url: URL): String =
-        when (val connection = url.openConnection()) {
-            is JarURLConnection -> connection.jarEntry.let { entry -> "${entry.size}:${entry.crc}" }
-            else -> "${connection.contentLengthLong}:${connection.lastModified}"
+    private fun resourceStamp(url: URL): String {
+        // FileURLConnection metadata access can open a stream on Windows. Read
+        // filesystem attributes directly, and never retain cached JarFiles.
+        if (url.protocol == "file") {
+            val path = Path.of(url.toURI())
+            return "${Files.size(path)}:${Files.getLastModifiedTime(path).toMillis()}"
         }
+        val connection = url.openConnection().apply { useCaches = false }
+        return if (connection is JarURLConnection) {
+            connection.jarFile.use { jar ->
+                val entry = requireNotNull(jar.getJarEntry(connection.entryName))
+                "${entry.size}:${entry.crc}"
+            }
+        } else {
+            connection.getInputStream().use { "${connection.contentLengthLong}:${connection.lastModified}" }
+        }
+    }
 
     private fun writeIfChanged(target: Path, bytes: ByteArray) {
         if (Files.exists(target) && Files.readAllBytes(target).contentEquals(bytes)) return

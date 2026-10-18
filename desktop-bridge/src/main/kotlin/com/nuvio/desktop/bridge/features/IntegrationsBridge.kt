@@ -77,6 +77,10 @@ object IntegrationsBridge {
         "tmdb.set" -> setTmdb(params)
         "mdblist.snapshot" -> mdbSnapshot()
         "mdblist.set" -> setMdb(params)
+        "mdblist.setListVisible" -> {
+            MdbListTracker.library.setListVisible(params.str("key"), params.bool("visible"))
+            mdbSnapshot()
+        }
         "mdblist.setProviderEnabled" -> setMdbProvider(params)
         "mdblist.connect" -> connectMdb()
         "mdblist.cancel" -> cancelMdb()
@@ -168,6 +172,9 @@ object IntegrationsBridge {
         val status = MdbListTracker.account.status.value.takeIf { it.scope == auth.scope }
         val sync = MdbListTracker.sync.state.value.takeIf { it.scope == auth.scope }
         return buildJsonObject {
+            put("listOptions", JsonArray(sync?.snapshot?.library?.listOptions().orEmpty().map { option -> buildJsonObject {
+                put("key", option.key); put("name", option.name); put("visible", option.visible)
+            } }))
             put("enabled", settings.enabled); put("hasApiKey", settings.hasApiKey)
             put("hasAccount", auth.isAuthenticated); put("hasCredentials", settings.hasCredentials); put("isActive", settings.isActive)
             put("useImdb", settings.useImdb); put("useTmdb", settings.useTmdb); put("useTomatoes", settings.useTomatoes)

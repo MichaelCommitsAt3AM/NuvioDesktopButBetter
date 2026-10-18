@@ -64,15 +64,36 @@
 
 ## CI and promotion
 
-The final application candidate is `e922ed5d9f62ac98fd02d0a7a0f30bfe05c6a611`.
+The all-platform CI application candidate is `e922ed5d9f62ac98fd02d0a7a0f30bfe05c6a611`. The later Home recovery change below has separate local validation; those CI runs do not include it.
 
 - [Supabase Database Tests — 39111767074](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/39111767074): all three jobs passed (RPC contract, fresh database and migration upgrade).
 - [All-platform build-only — 39111768984](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/39111768984): all seven package jobs passed (Windows x64 MSI; macOS ARM64 and x86_64; Linux AppImage, DEB, RPM and Flatpak), including the platform runtime/package validation steps.
 - Earlier database runs `39110983025` and `39111315867` also passed. Build-only runs `39110974347` and `39111313843` were cancelled because later parity fixes superseded their candidates; their artifacts are not final evidence.
 - The local host has Supabase CLI but no Docker command; fresh/upgrade database tests ran in CI. No production migration, release tag or release publication was performed.
-- After application validation, only the review-inventory generator/checkpoint and workflow documentation changed. The application, canonical bridge schema, build configuration and CI workflows remain identical to the tested candidate. The normalized inventory was checked against all 165 canonical Git source blobs.
+- The first follow-up changed only the review-inventory generator/checkpoint and workflow documentation. The normalized inventory was checked against all 165 canonical Git source blobs. Live testing subsequently required the React Home recovery change below.
 
 The rebuilt embedded Windows debug shell was launched locally after CI passed on 2026-10-18. Its process stayed alive and the diagnostic log confirmed a new authenticated backend-ready handshake. The app was left open for the user's testing; this startup check is not visual/provider acceptance.
+
+### Live Home loading follow-up
+
+The user reported an indefinite Home skeleton in that build. A controlled probe
+of the staged Kotlin backend, including selecting the active profile, returned
+ten shelves/eight hero items and finished loading without exceptions. Reopening
+the rebuilt debug shell displayed the hero, Continue Watching and catalog shelves
+in the real WebView. The original stall's exact trigger remains unconfirmed;
+restarting alone is not evidence of a root-cause repair.
+
+The React bridge previously relied on events after its initial Home snapshot.
+It now rechecks empty/loading Home every five seconds, retaining epoch/revision
+guards, and shows a recoverable Retry error after sixty seconds. Retry explicitly
+fetches current Home state instead of depending on another event. Diagnostic
+breadcrumbs record counts/epochs/revisions, never media payloads or credentials.
+Regression tests cover missed events, timeout/retry, failed retry and timer cleanup.
+Follow-up validation: all 371 frontend tests across 65 files passed; TypeScript/
+Vite production build and embedded Rust debug build passed. The three added
+recovery tests also passed alongside the 57 existing bridge workflow tests.
+These React-only follow-up checks do not replace or extend the earlier package
+CI claim to this newer application tree.
 
 ## Acceptance limits
 

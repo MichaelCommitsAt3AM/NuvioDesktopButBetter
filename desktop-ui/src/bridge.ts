@@ -47,6 +47,9 @@ const earlyEvents: Event[] = [];
 const revisions = new Map<string, number>();
 const subscribers = new Set<() => void>();
 let initialized = false;
+let homeRecoveryTimer: ReturnType<typeof setInterval> | undefined;
+let homeRecoveryFlight = false;
+let homePendingSince: number | undefined;
 let eventDisposers: Array<() => void> = [];
 let requestCounter = 0;
 let reconcileGeneration = 0;
@@ -59,6 +62,8 @@ export class BridgeError extends Error {
 
 function publish(next: State) {
   state = next;
+  if (next.home.loading && !next.home.shelves.length && !next.home.hero.length && next.session.status === 'signedIn') homePendingSince ??= Date.now();
+  else homePendingSince = undefined;
   subscribers.forEach((subscriber) => subscriber());
 }
 function update(updater: (current: State) => State) { publish(updater(state)); }
@@ -116,6 +121,7 @@ function acceptEvent(event: Event) {
       update((current) => ({ ...current, session: data as unknown as Session }));
       break;
     case 'home':
+      reportDiagnostic(`Home event epoch=${event.epoch} revision=${event.revision} loading=${(data as Home).loading} shelves=${(data as Home).shelves.length} hero=${(data as Home).hero.length}`);
       update((current) => ({ ...current, home: data as unknown as Home }));
       break;
     case 'library':
@@ -165,6 +171,10 @@ function acceptEvent(event: Event) {
 export async function initialize() {
   if (initialized) return;
   initialized = true;
+  // Events are the fast path. Recover an empty Home from backend truth if an
+  // update was missed during startup/profile reconciliation, with bounded UI wait.
+  clearInterval(homeRecoveryTimer);
+  homeRecoveryTimer = setInterval(() => { void recoverPendingHome(); }, 5_000);
   reportDiagnostic('React bridge initialization entered');
   const errors: string[] = [];
   try {
@@ -237,6 +247,20 @@ export async function initialize() {
   }
 }
 
+async function recoverPendingHome() {
+  if (homeRecoveryFlight || !sessionEpochReady || state.status !== 'ready' || homePendingSince === undefined) return;
+  const generation = reconcileGeneration;
+  const requestedEpoch = activeEpoch;
+  homeRecoveryFlight = true;
+  try {
+    await snapshot('home.snapshot', 'home', generation);
+    if (generation === reconcileGeneration && requestedEpoch === activeEpoch && homePendingSince !== undefined && Date.now() - homePendingSince >= 60_000) {
+      reportDiagnostic('Home loading deadline reached; showing retry');
+      update(current => ({ ...current, home: { ...current.home, loading: false, error: 'Content is taking too long to load. Please try again.' } }));
+    }
+  } finally { homeRecoveryFlight = false; }
+}
+
 function replayBufferedEvents(epoch: number) {
   const queued = earlyEvents.splice(0);
   queued.filter((event) => event.epoch === epoch).forEach(acceptEvent);
@@ -302,6 +326,7 @@ async function snapshot(method: string, key: 'home' | 'library' | 'settings' | '
   const startingRevision = revisions.get(revisionKey) ?? -1;
   try {
     const result = await call<unknown>(method);
+    if (key === 'home') reportDiagnostic(`Home snapshot generation=${generation} currentGeneration=${reconcileGeneration} epoch=${requestedEpoch} currentEpoch=${activeEpoch} revision=${startingRevision} currentRevision=${revisions.get(revisionKey) ?? -1}`);
     if (generation !== reconcileGeneration || requestedEpoch !== activeEpoch || (revisions.get(revisionKey) ?? -1) !== startingRevision) return;
     if (key === 'addons') update((current) => ({ ...current, addons: (result as Addons).items ?? [], addonsReady: true }));
     else update((current) => ({ ...current, [key]: result } as State));
@@ -375,7 +400,17 @@ export const actions = {
     }
   },
   finishProfileTransition() { update(current => ({ ...current, profileTransition: null })); },
-  async homeRefresh() { await call('home.refresh'); },
+  async homeRefresh() {
+    const requestedEpoch = activeEpoch;
+    const generation = reconcileGeneration;
+    update(current => ({ ...current, home: { ...current.home, loading: true, error: null } }));
+    try {
+      await call('home.refresh');
+      if (requestedEpoch === activeEpoch && generation === reconcileGeneration) await snapshot('home.snapshot', 'home', generation);
+    } catch (error) {
+      if (requestedEpoch === activeEpoch && generation === reconcileGeneration) update(current => ({ ...current, home: { ...current.home, loading: false, error: errorMessage(error) } }));
+    }
+  },
   async searchClear() {
     // Invalidate the old request before awaiting Kotlin: a late result must
     // not restore a query after the user has returned to Discover.
@@ -469,6 +504,10 @@ export function useSelector<T>(selector: (current: State) => T): T {
 }
 
 export function disposeBridge() {
+  clearInterval(homeRecoveryTimer);
+  homeRecoveryTimer = undefined;
+  homeRecoveryFlight = false;
+  homePendingSince = undefined;
   eventDisposers.forEach((dispose) => dispose());
   eventDisposers = [];
   initialized = false;

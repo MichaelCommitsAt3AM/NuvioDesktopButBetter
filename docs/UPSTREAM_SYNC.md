@@ -259,3 +259,11 @@ identifier is `com.nuvio.media.desktop.preview`; the shell writes
 needed diagnostic markers and do not print credentials or raw source URLs.
 Launching successfully is not user acceptance: leave the app open for testing and
 record the actual tested journeys separately.
+
+Verify that Home actually displays a featured title and catalog shelves after
+startup and profile selection. A healthy handshake and sign-in can coexist with
+an empty loading screen. Check privacy-safe Home event/snapshot diagnostics
+(epoch, revision, loading and counts), and distinguish Kotlin catalog loading
+from React delivery/reconciliation. Test missed-event recovery and the Retry
+state; React rechecks empty/loading Home every five seconds and bounds that wait
+at sixty seconds. Never mark a restart-only recovery as a proven root-cause fix.

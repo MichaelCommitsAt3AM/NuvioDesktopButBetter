@@ -1,6 +1,6 @@
 // Generated from desktop-bridge/contract/schema.json. Do not edit.
 export type Addons = { "items": Array<Addon>; };
-export type Media = { "id": string; "type": string; "name": string; "poster": string | null; "background": string | null; "logo": string | null; "description": string | null; "releaseInfo": string | null; "rating": string | null; "genres": Array<string>; };
+export type Media = { "id": string; "type": string; "name": string; "poster": string | null; "background": string | null; "logo": string | null; "description": string | null; "releaseInfo": string | null; "rating": string | null; "genres": Array<string>; "rawPoster"?: string | null; };
 export type Shelf = { "key": string; "title": string; "subtitle": string; "items": Array<Media>; "hasMore": boolean; };
 export type Home = { "loading": boolean; "error": string | null; "hero": Array<Media>; "shelves": Array<Shelf>; "continueWatching"?: Array<Media>; };
 export type Library = { "loading": boolean; "error": string | null; "items": Array<Media>; };

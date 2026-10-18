@@ -335,7 +335,7 @@ object DetailsExtrasBridge {
         put("id", item.id)
         put("type", item.type)
         put("name", item.name)
-        putNullable("poster", item.poster)
+        putNullable("poster", item.poster); putNullable("rawPoster", item.rawPosterUrl)
         putNullable("background", item.banner ?: item.landscapePoster)
         putNullable("logo", item.logo)
         putNullable("description", item.description)

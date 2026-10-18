@@ -27,7 +27,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 ## What's different from upstream
 
 - Jellyfin and Emby libraries can be connected in Media servers settings, with connections saved per profile on this device. Media-server cloud sync and upstream watch parties remain unavailable on this fork.
-- Playback includes upstream buffering and renderer improvements; hold-to-speed is configurable in Playback settings. MDBList includes dynamic/liked lists, list visibility settings and release-date sorting.
+- Playback includes upstream buffering and renderer improvements; hold-to-speed is configurable in Playback settings. MDBList includes dynamic/liked lists, list visibility settings and release-date sorting. Library can show individual lists in their saved order; custom posters fall back to original artwork when loading fails.
 - This fork permanently uses a React and Tauri desktop interface, backed by the existing Kotlin app logic and native player. Upstream improvements continue to be integrated and adapted to this interface.
 - Kids profiles can use the separate KidsScreen add-on, a personal TMDB API key. Profile PINs are optional. Home, featured titles, search, library, related titles and playback follow the chosen US rating limit. KidsScreen also excludes Horror movies regardless of rating. Setup uses the hosted KidsScreen service automatically and keeps the personal TMDB key field. This needs the kids-profile database migrations.
 

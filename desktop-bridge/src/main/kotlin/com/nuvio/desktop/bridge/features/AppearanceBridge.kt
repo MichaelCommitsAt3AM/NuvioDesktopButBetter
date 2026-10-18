@@ -37,6 +37,13 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 object AppearanceBridge {
+    internal fun resolvePosterPattern(pattern: String, id: String, type: String, shape: String, explicitImdbId: String? = null): String? {
+        if (shape != "poster" && "{shape}" !in pattern) return null
+        return com.nuvio.app.core.poster.CustomPosterUrlResolver.resolve(
+            pattern, com.nuvio.app.core.poster.CustomPosterUrlResolver.extractIds(id, explicitImdbId), type, shape,
+        )
+    }
+
     suspend fun dispatch(method: String, params: JsonObject): JsonElement? = when (method) {
         "appearance.snapshot" -> { synchronizeHomeCatalogs(); snapshot() }
         "appearance.setTheme" -> {

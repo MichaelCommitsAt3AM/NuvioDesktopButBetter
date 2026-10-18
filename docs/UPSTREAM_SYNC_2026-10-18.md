@@ -21,9 +21,10 @@
 | Jellyfin/Emby servers, mixed libraries, catalog/discover/search, native metadata and server watch state | Imported Kotlin providers/repositories; added React server settings and bridge commands/events/initial snapshots. Home lifecycle includes server revision changes and matcher warmup. Existing catalog/discover/details adapters reuse upstream repositories. Native playback resolves server targets before attaching the player. Real server credentials and playback are pending user/provider acceptance. |
 | Media-server cloud sync | Deferred. Neither RPC is deployed on this fork. `mediaServerSync` defaults false and gates the background sync path, keeping local connections usable without profile-sync failures. No migration is fabricated or deployed. |
 | Watch-party creation/join/invites, preview, host playback, avatars and native panels | Kotlin/native/reference sources imported. Official fork capability stays false because the `watch_party_*` RPCs/realtime backend are absent. React party page/invite wiring is deferred with that backend. TV login stays disabled for its existing missing-backend reason. |
-| MDBList dynamic/liked/external lists and sorting | Imported upstream Kotlin decoder/projection/library/sorter; React settings expose list visibility and library receives available/effective sort options and backend-ordered items/sections. Bridge observes remote provider ordering. Real-account external service acceptance is pending. |
+| MDBList dynamic/liked/external lists and sorting | Imported upstream Kotlin decoder/projection/library/sorter; React settings expose list visibility and library receives available/effective sort options and backend-ordered items/sections. Bridge observes remote provider ordering. A follow-up fixes React flattening that order, adds individual-list selection and preserves provider section order in shelves. Real-account external service acceptance is pending. |
 | TorBox large cloud libraries, continue-watching restoration, custom-poster resolution/deferred metadata and native cache limits | Kotlin changes imported. Existing React snapshots consume repository outputs; preserve this fork's explicit bounded image/cache policy rather than replacing it with upstream's simpler fixed budget. |
 | YouTube-only addon streams | Imported resolver; rewrite playback now resolves `ytId` before external/native playback. Existing upstream YouTube resolver/parser tests pass; actual provider video acceptance is separate. |
+| Custom poster bridge parity | Fixed ID extraction for IMDb/TMDB tokens, explicit library IMDb IDs, portrait-only pattern handling and original-artwork fallback. The original URL now crosses the typed bridge so failed custom artwork can recover instead of shimmering indefinitely. |
 | Desktop scrollbar/Compose spacing, dialogs and hero layout | Original source retained as reference. React has its own scrolling/layout and existing matching hero treatment; no blanket visual copying. Native panels still receive upstream changes because they are runtime UI. |
 | Localization | Regenerated React locales from the merged canonical XML, including new Croatian resources. |
 | P2P engine/dependencies | Imported 0.1.5 JAR/native binaries and dependency updates; desktop compilation and P2P tests pass. |
@@ -43,12 +44,14 @@
 9. New documentation can silently be ignored by the existing `docs/*` rule. Explicit sync-guide/report exceptions were added and verified with Git status.
 10. Audit native DOM cache transitions. Production-renderer tests reproduced episode/source lists staying empty after identical results returned; clear comparison caches when rendering an empty state.
 11. Repeated generation intermittently failed opening unchanged files on Windows. Contract/validator generators now compare content before writing; the subsequent production build passed.
-12. Do not let generated inventory updates imply user acceptance. Native Windows regression coverage is evidence for that path; it does not establish macOS/Linux/provider/visual acceptance.
+12. React can silently discard correct Kotlin output: the library filtered globally ordered items instead of using per-section keys, and poster resolution skipped ID extraction/original-image fallback. Added adapter/DOM/projection regressions and fixed the actual flows.
+13. Repository-local `core.longpaths=true` addresses Windows internal checkpoint-ref path length errors; leave app metadata refs intact.
+14. Do not let generated inventory updates imply user acceptance. Native Windows regression coverage is evidence for that path; it does not establish macOS/Linux/provider/visual acceptance.
 
 ## Local validation
 
-- `:composeApp:stageBridgeRuntime :composeApp:desktopTest`: passed after fixes; 1709 tests, zero failures/errors, one skip. Includes both real Windows cross-DPI player presentation tests, service gates and server-to-Home refresh regression.
-- `npm test -- --maxWorkers=1`: 361 tests across 61 files passed, including connection credential clearing, explicit removal and stale-profile error handling. Follow-up native panel tests also cover populated → empty → identical results and unchanged-node stability.
+- `:composeApp:stageBridgeRuntime :composeApp:desktopTest`: passed after fixes; 1712 tests, zero failures/errors, one skip. Includes both real Windows cross-DPI player presentation tests, service gates and server-to-Home refresh regression.
+- `npm test -- --maxWorkers=1`: 368 tests across 64 files passed, including connection credential clearing, explicit removal and stale-profile error handling. Follow-up native panel tests also cover populated → empty → identical results and unchanged-node stability.
 - `npm run build`: TypeScript and Vite production build passed. Existing chunk-size/dynamic-import warnings remain non-fatal.
 - `npm run contract:check`: passed.
 - `cargo fmt --check`, `cargo test --locked`: passed; nine Rust tests.
@@ -60,7 +63,7 @@
 
 ## CI and promotion
 
-Initial candidate `02aece4f` passed all three database jobs in [run 39110983025](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/39110983025). The first all-platform build [39110974347](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/39110974347) is superseded by the native-panel follow-up; final candidate CI evidence will be recorded before promotion. The local host has Supabase CLI but no Docker command, so fresh/upgrade database tests run in GitHub Actions. Build-only artifacts validate packaging; they do not publish a release.
+Initial candidate `02aece4f` passed all three database jobs in [run 39110983025](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/39110983025). Candidate `2b8a47ae` also passed all database jobs in [run 39111315867](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/39111315867). The first all-platform build [39110974347](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/39110974347) is superseded by the native-panel follow-up; final candidate CI evidence will be recorded before promotion. The local host has Supabase CLI but no Docker command, so fresh/upgrade database tests run in GitHub Actions. Build-only artifacts validate packaging; they do not publish a release.
 
 ## Acceptance limits
 

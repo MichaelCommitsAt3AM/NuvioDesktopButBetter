@@ -2,7 +2,9 @@
 
 This is the operational runbook for future sessions. React/TypeScript + Tauri is
 the permanent desktop frontend. Kotlin remains the authoritative backend and
-native player. Read `AGENTS.md` first. The first trial is recorded in
+native player. The rewrite remains incomplete: fix discovered implementation gaps
+in the affected flows rather than treating compilation or inventories as parity.
+Read `AGENTS.md` first. The first trial is recorded in
 [UPSTREAM_SYNC_2026-10-18.md](UPSTREAM_SYNC_2026-10-18.md).
 
 ## 1. Establish the starting state
@@ -32,6 +34,10 @@ For the first sync, before this file existed, `git merge-base HEAD upstream/Dev`
 identified `d4bdf2588d46a4db7131e105efe6bd7576944a1b`; inspect merge history if there
 is ambiguity. Do not use the old UI inventory's historical baseline as proof of
 which upstream commit was integrated.
+
+On Windows, if Git reports filename-too-long errors for internal checkpoint refs,
+use repository-local `git config core.longpaths true`; do not delete checkpoint
+refs or change unrelated global settings to make commits work.
 
 ## 2. Pin and review the upstream batch
 
@@ -177,6 +183,12 @@ macOS/Linux playback, installed upgrade or visual acceptance; state what was and
 was not exercised.
 
 ## 6. Validate CI on the exact candidate
+
+Finish the affected-flow parity review and local checks before dispatching the
+expensive all-platform matrix. Cancel superseded build-only runs when code fixes
+require a new candidate; do not mistake earlier artifacts for final-candidate
+evidence. Documentation-only evidence updates after successful validation need
+not repeat builds when the tested application/workflow tree is unchanged.
 
 Commit adaptation changes and push the integration branch to **origin**, never
 upstream. Use `--repo MichaelCommitsAt3AM/NuvioDesktopButBetter` with `gh` commands

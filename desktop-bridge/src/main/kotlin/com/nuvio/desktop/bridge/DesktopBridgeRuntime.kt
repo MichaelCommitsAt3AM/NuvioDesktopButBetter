@@ -724,7 +724,11 @@ class DesktopBridgeRuntime {
         "posters.resolve" -> {
             val screen = com.nuvio.app.core.poster.CustomPosterScreen.entries.firstOrNull { it.key == params.str("screen") } ?: error("Unknown poster screen")
             val repository = com.nuvio.app.core.poster.CustomPosterUrlRepository
-            val url = com.nuvio.app.core.poster.CustomPosterUrlResolver.resolve(repository.patternForScreen(screen), com.nuvio.app.core.poster.CustomPosterUrlResolver.ContentIds(id = params.str("id")), params.str("type"), params.optionalStr("shape") ?: "poster")
+            val id = params.str("id")
+            val type = params.str("type")
+            val imdbId = LibraryRepository.uiState.value.items.firstOrNull { it.id == id && it.type == type }?.imdbId
+                ?: lastDetails?.takeIf { it.id == id && it.type == type }?.imdbId
+            val url = AppearanceBridge.resolvePosterPattern(repository.patternForScreen(screen), id, type, params.optionalStr("shape") ?: "poster", imdbId)
             buildJsonObject { putNullable("url", url) }
         }
         "downloads.enqueue" -> enqueueDownload(params)
@@ -1037,7 +1041,7 @@ class DesktopBridgeRuntime {
     }
 
     private fun mediaJson(item: MetaPreview) = buildJsonObject {
-        put("id", item.id); put("type", item.type); put("name", item.name); putNullable("poster", item.poster)
+        put("id", item.id); put("type", item.type); put("name", item.name); putNullable("poster", item.poster); putNullable("rawPoster", item.rawPosterUrl)
         putNullable("background", item.banner ?: item.landscapePoster); putNullable("logo", item.logo)
         putNullable("description", item.description); putNullable("releaseInfo", item.releaseInfo)
         putNullable("rating", item.imdbRating); put("genres", JsonArray(item.genres.map(::JsonPrimitive)))
@@ -1047,7 +1051,7 @@ class DesktopBridgeRuntime {
         val state = LibraryRepository.uiState.value
         put("loading", state.isLoading); putNullable("error", state.errorMessage)
         put("items", JsonArray(state.items.map { item -> buildJsonObject {
-            put("id", item.id); put("type", item.type); put("name", item.name); putNullable("poster", item.poster)
+            put("id", item.id); put("type", item.type); put("name", item.name); putNullable("poster", item.poster); putNullable("rawPoster", item.rawPosterUrl)
             putNullable("background", item.banner ?: item.landscapePoster); putNullable("logo", item.logo)
             putNullable("description", item.description); putNullable("releaseInfo", item.releaseInfo)
             putNullable("rating", item.imdbRating); put("genres", JsonArray(item.genres.map(::JsonPrimitive)))

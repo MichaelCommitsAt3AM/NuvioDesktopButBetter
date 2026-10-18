@@ -61,7 +61,8 @@ export const Poster = memo(function Poster({ item, compact = false, onClick, sho
   const landscape = cardStyle?.catalogLandscapeModeEnabled ?? false;
   const shouldResolve = !!pattern && !!activeScreens?.includes(screen);
   const posterResolveKey = `${screen}:${item.type}:${item.id}:${landscape ? 'landscape' : 'poster'}:${pattern ?? ''}`;
-  const initialPoster = (shouldResolve ? resolvedPosterUrls.get(posterResolveKey) : undefined) ?? item.poster;
+  const fallbackPoster = item.rawPoster ?? item.poster;
+  const initialPoster = (shouldResolve ? resolvedPosterUrls.get(posterResolveKey) : undefined) ?? (shouldResolve ? item.poster : fallbackPoster);
   const [poster, setPoster] = useState(initialPoster);
   const [posterLoadedUrl, setPosterLoadedUrl] = useState<string | null>(() => initialPoster && loadedPosterUrls.has(normalizePosterUrl(initialPoster)) ? normalizePosterUrl(initialPoster) : null);
   const [hover, setHover] = useState(false);
@@ -78,12 +79,13 @@ export const Poster = memo(function Poster({ item, compact = false, onClick, sho
   const posterLoaded = normalizedPoster !== null && posterLoadedUrl === normalizedPoster;
   useEffect(() => {
     let active = true;
-    const initialPoster = (shouldResolve ? resolvedPosterUrls.get(posterResolveKey) : undefined) ?? item.poster;
+    const fallbackPoster = item.rawPoster ?? item.poster;
+  const initialPoster = (shouldResolve ? resolvedPosterUrls.get(posterResolveKey) : undefined) ?? (shouldResolve ? item.poster : fallbackPoster);
     setPoster(initialPoster);
     setPosterLoadedUrl(initialPoster && loadedPosterUrls.has(normalizePosterUrl(initialPoster)) ? normalizePosterUrl(initialPoster) : null);
     if (shouldResolve) void call<{url:string|null}>('posters.resolve', {id:item.id,type:item.type,screen,shape:landscape?'landscape':'poster'}).then(result => { if(active && result.url){rememberResolvedPoster(posterResolveKey,result.url);const resolved=normalizePosterUrl(result.url);setPoster(result.url);setPosterLoadedUrl(loadedPosterUrls.has(resolved)?resolved:null);} }).catch(() => {});
     return () => { active = false; };
-  }, [item.id,item.type,item.poster,shouldResolve,posterResolveKey,screen,landscape]);
+  }, [item.id,item.type,item.poster,item.rawPoster,shouldResolve,posterResolveKey,screen,landscape]);
   useEffect(() => () => clearTimeout(timer.current), []);
   useEffect(() => { if (!hover) return; const close = () => setHover(false); window.addEventListener('scroll',close,true); return () => window.removeEventListener('scroll',close,true); }, [hover]);
   const open = onClick ?? (() => navigate(`/details/${encodeURIComponent(item.type)}/${encodeURIComponent(item.id)}`));
@@ -120,7 +122,7 @@ export const Poster = memo(function Poster({ item, compact = false, onClick, sho
   const style = { '--poster-width': `${metrics.width}px`, '--poster-radius': `${metrics.radius}px`, '--poster-ratio': metrics.ratio, ...(depthOn ? depthVars(appearance?.cardDepth) : null) } as CSSProperties;
   return <div className={`poster-item ${landscape?'landscape':''} ${menu&&homeStyleActions?'action-anchor-hidden':''} ${depthOn?'has-card-depth':''}`} style={style} data-source-key={homeStyleActions ? sourceKey : undefined}>
     <button {...hold} ref={button} className={`media-card ${compact?'compact':''}`} onClick={open} onContextMenu={event=>{event.preventDefault();openActions();}} onMouseEnter={showPreview} onMouseLeave={hidePreview} aria-label={`Open ${item.name}`}>
-      <span className={`poster-frame ${depthOn?'depth-frame':''}`}>{(watched || isWatchedOnCard) && <span className="home-watched-badge" aria-label="Watched"><Check size={14}/></span>}{poster && <><PosterLoadingCard variant="poster" className="poster-art-loading"/><img className={posterLoaded ? 'poster-image-loaded' : 'poster-image-loading'} src={poster} alt="" loading="lazy" onLoad={event=>{const loaded=normalizePosterUrl(event.currentTarget.currentSrc||event.currentTarget.src);if(loaded===normalizedPoster){rememberPoster(loaded);setPosterLoadedUrl(loaded);}}} onError={event=>{const failed=normalizePosterUrl(event.currentTarget.currentSrc||event.currentTarget.src);if(failed===normalizedPoster){forgetPoster(failed);setPosterLoadedUrl(null);}}}/></>}{!poster && <PosterLoadingCard variant="poster" className="poster-art-loading"/>}{showRating && item.rating&&<span className="rating-chip">{item.rating}</span>}{landscape && cardStyle?.alwaysShowLandscapeClearlogo && item.logo && <img className="poster-clearlogo" src={item.logo} alt=""/>}</span>
+      <span className={`poster-frame ${depthOn?'depth-frame':''}`}>{(watched || isWatchedOnCard) && <span className="home-watched-badge" aria-label="Watched"><Check size={14}/></span>}{poster && <><PosterLoadingCard variant="poster" className="poster-art-loading"/><img className={posterLoaded ? 'poster-image-loaded' : 'poster-image-loading'} src={poster} alt="" loading="lazy" onLoad={event=>{const loaded=normalizePosterUrl(event.currentTarget.currentSrc||event.currentTarget.src);if(loaded===normalizedPoster){rememberPoster(loaded);setPosterLoadedUrl(loaded);}}} onError={event=>{const failed=normalizePosterUrl(event.currentTarget.currentSrc||event.currentTarget.src);if(failed===normalizedPoster){forgetPoster(failed);setPosterLoadedUrl(null);if(fallbackPoster&&normalizePosterUrl(fallbackPoster)!==failed){resolvedPosterUrls.delete(posterResolveKey);setPoster(fallbackPoster);}}}}/></>}{!poster && <PosterLoadingCard variant="poster" className="poster-art-loading"/>}{showRating && item.rating&&<span className="rating-chip">{item.rating}</span>}{landscape && cardStyle?.alwaysShowLandscapeClearlogo && item.logo && <img className="poster-clearlogo" src={item.logo} alt=""/>}</span>
       {!cardStyle?.hideLabelsEnabled && <><span className="card-title">{item.name}</span><span className="card-meta">{item.releaseInfo??item.type}</span></>}
     </button>
     {screen !== 'search' && <button className="poster-menu-button" aria-label={`Actions for ${item.name}`} onClick={openActions}><MoreHorizontal size={18}/></button>}

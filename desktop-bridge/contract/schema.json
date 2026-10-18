@@ -85,6 +85,12 @@
           "items": {
             "type": "string"
           }
+        },
+        "rawPoster": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },

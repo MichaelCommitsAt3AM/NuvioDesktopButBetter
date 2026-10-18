@@ -12,6 +12,7 @@ import { Shelf } from '../../components/Shelf';
 
 import { Link, useNavigationType } from 'react-router-dom';
 import './library.css';
+import { projectLibraryItems } from './libraryProjection';
 import { scrollKey, useActiveProfileId, useListScrollRestore } from '../../navigation/scrollStore';
 import { useDisintegratingRemoval } from '../../components/disintegration';
 import { usePlacementFlip } from '../../components/placementFlip';
@@ -27,6 +28,7 @@ export function LibraryPage() {
   const extras = useFeatureSnapshot<Extras>('libraryExtras');
   const cloud = useFeatureSnapshot<Cloud>('cloud');
   const [mode, setMode] = useState('saved');
+  const [selectedList, setSelectedList] = useState('');
   const [cloudQuery, setCloudQuery] = useState('');
   const [cloudProvider, setCloudProvider] = useState('');
   const [cloudType, setCloudType] = useState('');
@@ -36,16 +38,16 @@ export function LibraryPage() {
   const navigationType = useNavigationType();
   const profileId = useActiveProfileId();
   const gridRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { setSelectedList(''); }, [profileId, extras?.source]);
+  const selectedSection = extras?.sections.find(section => section.type === selectedList);
   usePlacementFlip(gridRef);
   useEffect(() => { void refreshFeature('libraryExtras', 'library.extras').catch(cause => setError(String(cause))); }, []);
   useEffect(() => { if (mode === 'cloud') { setSelectedCloudItem(null); void refreshFeature('cloud').catch(cause => setError(String(cause))); } }, [mode]);
   const run = async (method: string, params: Record<string, unknown>, topic = 'libraryExtras') => { setError(''); try { await call(method, params); await refreshFeature(topic, topic === 'libraryExtras' ? 'library.extras' : 'cloud.snapshot'); } catch(cause) { setError(cause instanceof Error ? cause.message : String(cause)); } };
   const items = useMemo(() => {
     const result = [...library.items];
-    if (extras?.orderedKeys) {
-      const ranks = new Map(extras.orderedKeys.map((key, index) => [key, index]));
-      return result.sort((a, b) => (ranks.get(`${a.type}|${a.id}`) ?? Number.MAX_SAFE_INTEGER) - (ranks.get(`${b.type}|${b.id}`) ?? Number.MAX_SAFE_INTEGER));
-    }
+    if (selectedSection) return projectLibraryItems(result, selectedSection.items);
+    if (extras?.orderedKeys) return projectLibraryItems(result, extras.orderedKeys);
     const sort = extras?.sort ?? 'added_desc';
     if (sort.startsWith('title')) result.sort((a,b) => a.name.localeCompare(b.name) * (sort === 'title_desc' ? -1 : 1));
     else if (sort.startsWith('added')) {
@@ -53,11 +55,11 @@ export function LibraryPage() {
       result.sort((a,b) => ((savedAt.get(`${a.type}|${a.id}`) ?? 0) - (savedAt.get(`${b.type}|${b.id}`) ?? 0)) * (sort === 'added_desc' ? -1 : 1));
     }
     return result;
-  }, [library.items, extras]);
-  useListScrollRestore(scrollKey(profileId, '/library', `${extras?.layout ?? 'grid'}|${mode}|${extras?.sort ?? ''}`), navigationType, !library.loading);
+  }, [library.items, extras, selectedSection]);
+  useListScrollRestore(scrollKey(profileId, '/library', `${extras?.layout ?? 'grid'}|${mode}|${extras?.sort ?? ''}|${selectedSection?.type ?? ''}`), navigationType, !library.loading);
   const removal = useDisintegratingRemoval(items, (entry) => mediaKey(entry.type, entry.id), profileId);
   const playCloud = async (itemKey: string, fileKey: string) => { setBusy(fileKey); try { await call('cloud.play', { itemKey, fileKey }); setError(''); } catch(cause) { setError(cause instanceof Error ? cause.message : String(cause)); } finally { setBusy(''); } };
-  const visibleCount = useProgressiveCount(items.length, `library:${extras?.layout ?? 'grid'}:${extras?.sort ?? 'added_desc'}:${mode}`);
+  const visibleCount = useProgressiveCount(items.length, `library:${extras?.layout ?? 'grid'}:${extras?.sort ?? 'added_desc'}:${mode}:${selectedSection?.type ?? ''}`);
   const removalPaged = removal.visible.slice(0, visibleCount);
   for (const entry of removal.visible) {
     if (removal.bursting.has(mediaKey(entry.type, entry.id)) && !removalPaged.includes(entry)) removalPaged.push(entry);
@@ -74,6 +76,7 @@ export function LibraryPage() {
       <button role="tab" aria-selected={mode === 'cloud'} className={mode === 'cloud' ? 'selected' : ''} onClick={() => setMode('cloud')}>Cloud</button>
     </div>
     {mode === 'saved' && <div className="library-saved-spacer">
+      {!!extras?.sections.length && <label>List <select aria-label="Library list" value={selectedSection?.type ?? ''} onChange={event => setSelectedList(event.target.value)}><option value="">All lists</option>{extras.sections.map(section => <option key={section.type} value={section.type}>{section.title}</option>)}</select></label>}
       {!!extras?.sortOptions?.length && <label>Sort <select aria-label="Library sort" value={extras.sort} onChange={event => void run('library.setSort', { sort: event.target.value })}>{extras.sortOptions.map(option => <option key={option} value={option}>{({ default: 'List order', added_desc: 'Recently added', added_asc: 'Oldest added', released_desc: 'Newest released', released_asc: 'Oldest released', title_asc: 'Title A–Z', title_desc: 'Title Z–A' } as Record<string, string>)[option] ?? option}</option>)}</select></label>}
     </div>}
     {mode === 'cloud' && <>
@@ -89,7 +92,7 @@ export function LibraryPage() {
       {library.error && <InlineError message={library.error} />}
       {library.loading && <div className="loading-block"><LoaderCircle className="spin" />Loading your library…</div>}
       {!library.loading && !items.length && <EmptyState title="No saved titles" message="Save titles from their details page to add them here." icon={<LibraryBig />} />}
-      {extras?.layout === 'horizontal' && (extras.sections.length ? extras.sections : [{ type: 'all', title: 'Saved titles', items: items.map(item => `${item.type}|${item.id}`) }]).map(section => <Shelf className="library-shelf" key={section.type} showPosterRating={false} shelf={{ key: `library:${section.type}`, title: section.title, subtitle: '', items: items.filter(item => section.items.includes(`${item.type}|${item.id}`)), hasMore: false }} />)}
+      {extras?.layout === 'horizontal' && (selectedSection ? [selectedSection] : extras.sections.length ? extras.sections : [{ type: 'all', title: 'Saved titles', items: items.map(item => `${item.type}|${item.id}`) }]).map(section => <Shelf className="library-shelf" key={section.type} showPosterRating={false} shelf={{ key: `library:${section.type}`, title: section.title, subtitle: '', items: projectLibraryItems(library.items, section.items), hasMore: false }} />)}
       {extras?.layout !== 'horizontal' && <div className="library-grid" ref={gridRef}>{removalPaged.map(item => { const key = mediaKey(item.type, item.id); const bursting = removal.bursting.has(key); return <div key={key} data-flip-key={key} className={bursting ? 'is-disintegrating' : undefined}>{bursting && <span className="disintegration-burst" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/></span>}<Poster item={item} onRemoveAction={(entry, operation) => void removal.remove(entry, operation).catch((cause) => setError(String(cause)))} /></div>; })}{Array.from({ length: pendingCount }, (_, index) => <div key={`skeleton-${index}`}><PosterLoadingCard variant="poster" /></div>)}</div>}
     </>}
     {mode === 'cloud' && <>

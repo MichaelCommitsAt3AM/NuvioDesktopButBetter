@@ -198,6 +198,7 @@ object CatalogBridge {
         put("type", item.type)
         put("name", item.name)
         put("poster", item.poster?.let(::JsonPrimitive) ?: JsonNull)
+        put("rawPoster", item.rawPosterUrl?.let(::JsonPrimitive) ?: JsonNull)
         put("background", (item.banner ?: item.landscapePoster)?.let(::JsonPrimitive) ?: JsonNull)
         put("logo", item.logo?.let(::JsonPrimitive) ?: JsonNull)
         put("description", item.description?.let(::JsonPrimitive) ?: JsonNull)

@@ -225,7 +225,7 @@ object CollectionsBridge {
         putNullable("coverImageUrl", value.coverImageUrl); putNullable("sortBy", value.sortBy); putNullable("sortHow", value.sortHow)
     }
     private fun mediaJson(item: MetaPreview) = buildJsonObject {
-        put("id", item.id); put("type", item.type); put("name", item.name); putNullable("poster", item.poster)
+        put("id", item.id); put("type", item.type); put("name", item.name); putNullable("poster", item.poster); putNullable("rawPoster", item.rawPosterUrl)
         putNullable("background", item.banner ?: item.landscapePoster); putNullable("logo", item.logo); putNullable("description", item.description)
         putNullable("releaseInfo", item.releaseInfo); putNullable("rating", item.imdbRating); put("genres", JsonArray(item.genres.map(::JsonPrimitive)))
     }

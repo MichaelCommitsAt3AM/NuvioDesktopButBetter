@@ -72,12 +72,13 @@ it('returns to the category card when cached Home contains the same title', () =
   } finally { hiddenRect.mockRestore(); categoryRect.mockRestore(); }
 });
 
-it.each(['vertical', 'horizontal'])('omits per-card list buttons in the Library %s layout', layout => {
+it.each(['vertical', 'horizontal'])('renders the Library layout toggle without per-card list buttons in the %s layout', layout => {
   bridge.layout = layout;
   render(<MemoryRouter initialEntries={['/library']}><LibraryPage /></MemoryRouter>);
   expect(screen.getByRole('button', { name: 'Open Saved Movie' })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /manage lists/i })).toBeNull();
-  expect(screen.queryByRole('button', { name: /Show grid view|Show horizontal shelves/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Actions for / })).toBeNull();
+  expect(screen.getByRole('button', { name: layout === 'vertical' ? 'Show horizontal shelves' : 'Show vertical grid' })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Downloads' })).toHaveTextContent('Downloads');
   const fullscreen = screen.getByRole('button', { name: 'Toggle fullscreen' });
   expect(fullscreen).toHaveClass('library-fullscreen');

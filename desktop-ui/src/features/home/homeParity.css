@@ -76,10 +76,10 @@
 .home-actions-dialog::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;backdrop-filter:blur(36px);animation:home-actions-scrim-in 260ms cubic-bezier(.2,0,0,1) both;will-change:opacity}
 .home-actions-dialog::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;background:rgba(0,0,0,.45);animation:home-actions-scrim-in 260ms cubic-bezier(.2,0,0,1) both;will-change:opacity}
 .home-actions-dialog .dialog-surface{position:relative;z-index:1;width:324px;max-height:90vh;padding:0;background:none;border:0;box-shadow:none;overflow:auto;text-align:center}
-.home-actions-artwork{display:block;width:260px;height:min(390px,44vh);margin-inline:auto;border-radius:18px;overflow:hidden;transform-origin:top left;will-change:transform,opacity}
+.home-actions-artwork{display:block;width:min(260px,calc(44vh * var(--action-artwork-ratio,.6666667)));height:auto;aspect-ratio:var(--action-artwork-ratio,2/3);margin-inline:auto;border-radius:18px;overflow:hidden;transform-origin:top left;will-change:transform,opacity}
 .home-actions-dialog:is(.is-opening,.is-closing) .dialog-surface{overflow:visible}
 .home-actions-dialog .home-actions-options{will-change:transform,opacity}
-.home-actions-poster{width:260px;height:390px;max-height:45vh;object-fit:cover;border-radius:14px}
+.home-actions-poster{display:block;width:100%;height:100%;object-fit:contain;border-radius:inherit}
 .home-actions-dialog h2{margin:18px 0 8px;font-size:18px;font-weight:600}
 .home-actions-dialog p{margin:0 0 18px;color:#aaa;font-size:16px}
 .home-actions-copy{will-change:transform,opacity}

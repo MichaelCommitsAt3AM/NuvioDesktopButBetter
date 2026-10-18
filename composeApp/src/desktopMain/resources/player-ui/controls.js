@@ -2314,8 +2314,34 @@ const isOpeningOverlayActive = () =>
 
 const isMediaActivelyPlaying = () => Boolean(state.isPlaying && !state.isLoading);
 
+// While a pause is eligible for the metadata overlay, the idle chrome has to be allowed to stay
+// hidden so the overlay can own the screen. Otherwise every native state push (the player poll
+// fires every 200-500ms, and hideChrome/keepChromeVisible round-trip through Kotlin) re-forces
+// the controls back on top of the overlay, which only ever gets to flash. This mirrors the
+// eligibility rule in syncPauseMetadataTimer() so the two never disagree about when it is coming.
+const pauseOverlayOwnsChrome = () => Boolean(
+  state.pauseOverlayEnabled &&
+  !state.isPlaying &&
+  !state.isLoading &&
+  !activeModal &&
+  Math.max(0, Number(state.durationMs) || 0) > 0,
+);
+
 const syncChromeWithPointerPolicy = ({ notify = true, renderNow = true } = {}) => {
   if (state.isLocked || playbackErrorText()) return false;
+  if (pauseOverlayOwnsChrome()) {
+    // Paused with the metadata overlay in play: the chrome has to be free to stay hidden so the
+    // overlay can own the screen. Fullscreen has no meaningful out-of-window pointer position
+    // (see below), so there visibility is left entirely to the inactivity auto-hide timer and to
+    // activity; windowed still follows the pointer, which is what hides the chrome (and so
+    // reveals the overlay) once the pointer leaves the player.
+    if (state.isFullscreen || state.controlsVisible === isPointerWithinPlayer) return false;
+    const shouldShow = isPointerWithinPlayer;
+    state = { ...state, controlsVisible: shouldShow };
+    if (renderNow) renderChrome();
+    if (notify) send(shouldShow ? "keepChromeVisible" : "hideChrome", 0);
+    return true;
+  }
   if (state.isFullscreen) {
     // Fullscreen has no meaningful "outside the window" pointer position, so hover can't
     // drive visibility there. Only force a show for the non-playing case; hiding while

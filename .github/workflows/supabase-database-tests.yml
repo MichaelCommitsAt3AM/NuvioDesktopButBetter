@@ -8,6 +8,7 @@ on:
       - "scripts/check_supabase_rpc_contracts.py"
       - "scripts/test_check_supabase_rpc_contracts.py"
       - "scripts/test-supabase-migration-upgrade.sh"
+      - "scripts/*supabase_upgrade_config.py"
       - "supabase/**"
       - ".github/workflows/supabase-database-tests.yml"
   push:
@@ -21,6 +22,7 @@ on:
       - "scripts/check_supabase_rpc_contracts.py"
       - "scripts/test_check_supabase_rpc_contracts.py"
       - "scripts/test-supabase-migration-upgrade.sh"
+      - "scripts/*supabase_upgrade_config.py"
       - "supabase/**"
       - ".github/workflows/supabase-database-tests.yml"
   workflow_dispatch:
@@ -39,6 +41,7 @@ jobs:
       - name: Check client RPC migration coverage
         run: |
           python scripts/test_check_supabase_rpc_contracts.py
+          python scripts/test_prepare_supabase_upgrade_config.py
           python scripts/check_supabase_rpc_contracts.py
 
   fresh-database:

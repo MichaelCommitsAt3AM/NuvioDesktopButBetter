@@ -217,7 +217,8 @@ function AppContent() {
     );
     if (!editable) event.preventDefault();
   }}>
-    {state.status !== 'ready' && <ConnectionNotice status={state.status} />}
+    {state.status === 'disconnected' && <ConnectionNotice status="disconnected" />}
+    {state.status === 'starting' && import.meta.env.DEV && <ConnectionNotice status="starting" />}
     <UpdateBanner />
     {!state.session.profiles.find(profile => profile.id === state.session.activeProfile)?.kidsEnabled && <DownloadNotifications />}
     {offlineDownloads && state.status === 'ready'

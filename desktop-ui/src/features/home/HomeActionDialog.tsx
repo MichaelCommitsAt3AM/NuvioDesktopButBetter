@@ -22,11 +22,30 @@ export function HomeActionDialog({title,poster,subtitle,onClose,children,artwork
   // CSS must not also scale this node while the destination is measured.
   useLayoutEffect(() => {
     const node = artworkRef.current;
+    const source = sourceKey ? document.querySelector<HTMLElement>(`[data-source-key="${CSS.escape(sourceKey)}"]`) : null;
+    let observer: ResizeObserver | undefined;
+    if (node && !artwork) {
+      const image = node.querySelector('img');
+      // Fit the frame to the image itself: contain inside a wider fixed box
+      // leaves the visible image's corners away from the frame's clipping edge.
+      const ratio = image?.naturalWidth && image.naturalHeight
+        ? image.naturalWidth / image.naturalHeight
+        : sourceRect ? sourceRect.width / sourceRect.height : 2 / 3;
+      node.style.setProperty('--action-artwork-ratio', String(ratio));
+      if (source?.offsetWidth) {
+        const radiusFraction = parseFloat(getComputedStyle(source).borderTopLeftRadius) / source.offsetWidth;
+        if (Number.isFinite(radiusFraction)) {
+          const fitRadius = () => { node.style.borderRadius = `${node.clientWidth * radiusFraction}px`; };
+          fitRadius();
+          if (typeof ResizeObserver !== 'undefined') { observer = new ResizeObserver(fitRadius); observer.observe(node); }
+        }
+      }
+    }
     if (node) openAnimation.current = animatePosterArtwork(node, sourceRect ?? null);
     animations.current = animatePosterMenu(copyRef.current, menuRef.current);
     const timer = window.setTimeout(() => setOpening(false), POSTER_EXPAND.duration);
-    return () => { window.clearTimeout(timer); openAnimation.current?.cancel(); animations.current.forEach(animation => animation.cancel()); };
-  }, [sourceRect]);
+    return () => { observer?.disconnect(); window.clearTimeout(timer); openAnimation.current?.cancel(); animations.current.forEach(animation => animation.cancel()); };
+  }, [sourceRect, sourceKey, !!artwork]);
   const dismiss = () => {
     if (closingRef.current) return;
     closingRef.current = true;
@@ -46,7 +65,7 @@ export function HomeActionDialog({title,poster,subtitle,onClose,children,artwork
 
   return <Dialog label={`Actions for ${title}`} className={`home-actions-dialog ${opening?'is-opening':''} ${artwork?'home-cw-actions-dialog':''} ${closing?'is-closing':''}`} onClose={dismiss}>
     <div className="home-actions-content" inert={closing}>
-    {(artwork || poster) && <div className="home-actions-artwork" ref={artworkRef}>{artwork ? <LiftedCardArtwork sourceKey={sourceKey} fallback={artwork}/> : <img className="home-actions-poster" src={poster ?? undefined} alt=""/>}</div>}
+    {(artwork || poster) && <div className="home-actions-artwork" ref={artworkRef}>{artwork ? <LiftedCardArtwork sourceKey={sourceKey} fallback={artwork}/> : <img className="home-actions-poster" src={poster ?? undefined} alt="" onLoad={event => { const image = event.currentTarget; if (image.naturalWidth && image.naturalHeight) artworkRef.current?.style.setProperty('--action-artwork-ratio', String(image.naturalWidth / image.naturalHeight)); }}/>}</div>}
     <div className="home-actions-copy" ref={copyRef}><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>
     <div className="home-actions-options" ref={menuRef}>{children}</div>
     </div>

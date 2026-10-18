@@ -18,6 +18,15 @@ Nuvio Desktop is a Kotlin Multiplatform + Compose Multiplatform media hub for Wi
 # Run desktop from source
 ./gradlew :composeApp:run                          # or gradlew.bat on Windows
 
+# Run the debug rewrite (React/Tauri) app — this is the primary desktop app.
+# Windows only. The script starts the Vite dev server, then `cargo run` for the
+# Tauri shell, which starts and supervises the Kotlin bridge itself.
+# Prerequisites (it tells you if any are missing): stage the bridge first, and
+# `npm ci` in desktop-ui once:
+#   ./gradlew :composeApp:stageBridgeRuntime   # or gradlew.bat on Windows
+#   cd desktop-ui; npm ci
+./scripts/desktop-ui/run-preview.ps1
+
 # Local packaging — for testing an installer only; releases are built in CI (see Desktop release process)
 ./gradlew :composeApp:packageReleaseDistributionForCurrentOS
 ./gradlew :composeApp:packageReleaseMsi --rerun-tasks   # Windows

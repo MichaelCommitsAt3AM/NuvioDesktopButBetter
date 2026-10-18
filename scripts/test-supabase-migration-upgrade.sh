@@ -25,7 +25,8 @@ if [[ ${#HELD_BACK_MIGRATIONS[@]} -eq 0 ]]; then
 fi
 TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/nuvio-supabase-upgrade.XXXXXX")"
 TEMP_SUPABASE="$TEMP_ROOT/supabase"
-DATABASE_CONTAINER="supabase_db_NuvioDesktop"
+UPGRADE_PROJECT_ID="nuvio-upgrade-${TEMP_ROOT##*.}"
+DATABASE_CONTAINER="supabase_db_$UPGRADE_PROJECT_ID"
 
 cleanup() {
   if [[ -d "$TEMP_SUPABASE" ]]; then
@@ -57,6 +58,7 @@ command -v docker >/dev/null 2>&1 || {
 }
 
 cp -R "$REPO_ROOT/supabase" "$TEMP_SUPABASE"
+python3 "$SCRIPT_DIR/prepare_supabase_upgrade_config.py" "$TEMP_SUPABASE/config.toml" "$UPGRADE_PROJECT_ID"
 for migration in "${HELD_BACK_MIGRATIONS[@]}"; do
   rm -f -- "$TEMP_SUPABASE/migrations/$migration"
 done

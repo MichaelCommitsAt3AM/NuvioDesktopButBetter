@@ -35,8 +35,18 @@ try {
     $releaseConfig = Get-Content -LiteralPath $releaseConfigPath -Raw | ConvertFrom-Json
     $releaseConfig.bundle.createUpdaterArtifacts = $false
     $releaseConfig | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $releaseConfigPath
-    & node node_modules/@tauri-apps/cli/tauri.js build --config src-tauri/tauri.release.conf.json --bundles msi
-    if ($LASTEXITCODE -ne 0) { throw 'Windows installer build failed.' }
+    # The Tauri CLI writes progress to stderr, and Windows PowerShell turns native
+    # stderr into a terminating error under ErrorActionPreference=Stop. Build with
+    # that preference relaxed and judge the result from the exit code instead.
+    $buildErrorPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & node node_modules/@tauri-apps/cli/tauri.js build --config src-tauri/tauri.release.conf.json --bundles msi
+        $buildExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $buildErrorPreference
+    }
+    if ($buildExitCode -ne 0) { throw 'Windows installer build failed.' }
     $installer = Get-ChildItem -LiteralPath 'src-tauri\target\release\bundle\msi' -Filter '*.msi' |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $installer) { throw 'No Windows setup executable was produced.' }

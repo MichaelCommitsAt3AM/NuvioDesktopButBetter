@@ -1,4 +1,4 @@
-.library-page{padding-top:0;max-width:none;margin:0}
+.library-page{--page-gutter:calc(13px / 1.22);padding-top:0;max-width:none;margin:0}
 .main-area:has(.library-page){padding:calc(114px / 1.22) calc(13px / 1.22) calc(64px / 1.22);overflow-x:hidden}
 .library-page .page-heading{align-items:center;gap:16px;margin:0 0 3px}
 .library-page .page-heading h1{font-size:32px;line-height:1.25;letter-spacing:-.04em;font-weight:650}
@@ -13,7 +13,11 @@
 .library-source-switch{display:flex;align-items:center;gap:8px;margin:0 0 0}
 .library-source-switch button{height:27px;padding:0 12px;border:1px solid transparent;border-radius:999px;background:#1b1b1d;color:#a4a6aa;font:inherit;font-size:12px;font-weight:500;line-height:1;cursor:pointer}
 .library-source-switch button.selected{border-color:#a2a2a2;background:#454548;color:#f4f4f5}
-.library-saved-spacer{min-height:52px;display:flex;align-items:center;gap:12px}.library-saved-spacer label{display:flex;align-items:center;gap:8px;font-size:13px}.library-saved-spacer select{max-width:220px}
+.library-saved-controls{display:flex;align-items:center;gap:8px;margin:2px 0 14px;padding:1px 0;overflow-x:auto;scrollbar-width:none}
+.library-saved-controls::-webkit-scrollbar{display:none}
+.library-layout-toggle{flex:none}
+.library-layout-toggle-icon{display:grid;place-items:center;animation:library-layout-fade 140ms ease}
+@keyframes library-layout-fade{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
 .library-page .library-shelf{margin:0 0 3px}
 .library-page .library-shelf .shelf-heading{align-items:center;margin:0 0 12px}
 .library-page .library-shelf .shelf-heading h2{margin:0;font-size:16px;line-height:22px;letter-spacing:-.015em;font-weight:550}
@@ -24,8 +28,15 @@
 .library-page .library-shelf .media-card{gap:5px}
 .library-page .library-shelf .card-title{font-size:calc(12px * var(--ui-scale,1) * var(--desktop-font-scale,1.08));line-height:15px}
 .library-page .library-shelf .card-meta{font-size:calc(10px * var(--ui-scale,1) * var(--desktop-font-scale,1.08));line-height:12px}
-.library-page .library-shelf .poster-menu-button{display:none}
-.library-page .rail-arrow{display:none}
+.library-page .poster-menu-button{display:none}
+/* Same hover-reveal shelf arrows as Home (Kotlin NuvioShelfSection). The library's own
+   --page-gutter above keeps the rail edge-to-edge like Home so the arrows stay on screen. */
+.library-page .horizontal-rail .rail-arrow{width:calc(60px / var(--content-scale,1.22));height:calc(60px / var(--content-scale,1.22));top:50%;border:0;border-radius:50%;background:#202020f5;opacity:0;transition:opacity 180ms,transform 180ms;transform:translateY(-50%) scale(.72);pointer-events:none}
+.library-page .horizontal-rail .rail-arrow svg{width:calc(24px / var(--content-scale,1.22));height:calc(24px / var(--content-scale,1.22))}
+.library-page .horizontal-rail:hover .rail-arrow:not(:disabled),.library-page .horizontal-rail:focus-within .rail-arrow:not(:disabled){opacity:1;transform:translateY(-50%) scale(1);pointer-events:auto}
+.library-page .rail-previous{left:calc(13px / var(--content-scale,1.22))}
+.library-page .rail-next{right:calc(13px / var(--content-scale,1.22))}
+@media(pointer:coarse){.library-page .horizontal-rail .rail-arrow:not(:disabled){opacity:1;transform:translateY(-50%);pointer-events:auto}}
 .library-cloud-toolbar{display:flex;align-items:center;gap:8px;margin:16px 0 18px}
 .library-cloud-filter{height:28px;min-width:64px;padding:0 12px;border:0;border-radius:999px;background:#1b1b1d;color:#e4e4e6;font:inherit;font-size:12px}
 .library-refresh-icon{margin-left:auto}
@@ -46,7 +57,8 @@
 .cloud-item-picker{margin:6px 0 12px;padding:12px;border-radius:14px;background:#1a1a1a}
 .cloud-item-picker>div:first-child{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .cloud-item-picker>div:first-child>div{display:grid;min-width:0;gap:3px}
-.library-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:28px 20px}
+.library-grid{display:grid;column-gap:12px;row-gap:24px}
+.library-grid .poster-item{width:100%}
 .library-grid .media-card{width:100%}
 .library-grid .button{margin-top:10px;width:100%;font-size:13px}
 .membership-row{display:flex;gap:12px;align-items:center;padding:14px 4px}

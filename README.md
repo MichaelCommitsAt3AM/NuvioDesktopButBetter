@@ -57,6 +57,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Closing card popups returns to the artwork bounds, and Continue Watching keeps the original card's text proportions throughout the zoom.
 - Expanded Home categories use the same poster action popup and animations as Home.
 - All title cards, including Search and Discover, use Home's artwork popup and opening/closing animations; the older button-only popup is removed.
+- Poster popups show the complete image without cropping its edges or lettering.
+- Poster popups preserve the image proportions and rounded-corner styling of their source card.
 - Category popups return to the card you opened, even when Home keeps another copy of that title cached in the background.
 - The paused player overlay shows the movie synopsis or episode overview from the details screen instead of technical stream details.
 - Playback opens the player reliably when startup events arrive separately, avoiding a loading screen with audio playing behind it.
@@ -74,8 +76,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Starting a search resets Discover's scroll immediately, and returning from a Discover title keeps Discover instead of reopening an old search.
 - Discover remembers your scroll position when you open a title and go back, with the restored cards kept stable as the grid loads.
 - Offline launches open Downloads directly. Downloads has the details-style back arrow and local title/episode search; offline watch progress and completed viewing sync to Nuvio Sync after reconnection.
-- Library cards use Home's right-click action menu; the extra “Manage lists” buttons below cards have been removed.
-- Library has a labeled Downloads button and a fullscreen control in the top-right corner; the header layout toggle has been removed.
+- Library cards use Home's right-click action menu; the extra “Manage lists” buttons below cards and the per-card ⋯ button have been removed there.
+- Library has a labeled Downloads button, a fullscreen control in the top-right corner, and a header toggle between horizontal shelves and the vertical grid. Saved titles also get sort, list and type filters whose menus match the original app, and each shelf scrolls with the same hover arrows as Home.
 - The Downloads content filter labels its combined movies-and-series option “All”.
 - Featured Home backgrounds and title artwork wait until fully loaded and decoded before fading in, including on first launch.
 - Collection edits wait for successful saves, browsing restores the correct position, and dialogs follow the selected theme. Card-removal and sheet-drag animations have been corrected.

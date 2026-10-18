@@ -4,7 +4,17 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Supabase upgrade-test database isolation — 2026-10-18
+
+GitHub run `39150021770` failed before migrations ran: Docker could not bind the upgrade database to host port 54322 (`address already in use`). RPC-contract and fresh-database checks passed. ECR throttling preceded the failure but the fallback image download succeeded, so it was not the final failure. The log does not identify the port owner; an ephemeral outbound connection is one possible cause.
+
+The disposable upgrade project now uses a unique project/container name and an available port from 15432–15531, below Linux's usual ephemeral connection range. Only its temporary configuration changes; repository/deployed configuration and database migrations are untouched. The helper rejects occupied ports and validates the resulting TOML. Two isolation/occupied-port tests, RPC checker tests and the RPC contract check pass locally, as does Bash syntax validation. Docker is unavailable on this Windows host, so the actual migration run remains a GitHub CI acceptance check.
+
 ### Card action popup spring motion — 2026-10-18
+
+Popup image fitting: the shared poster image fills its actual artwork slot with `object-fit: contain`, preserving the entire image on every screen. The previous fixed 390 px image (capped at 45vh) could exceed the parent's 44vh height and be clipped, including poster lettering. The outer card's spring motion is retained; Continue Watching continues to scale its source layout without adding another image crop.
+
+The popup frame now follows the poster's image aspect ratio (source bounds until image dimensions are available) within its width/viewport-height limits, so letterboxing cannot leave square image corners inside a wider rounded frame. Its corner radius scales from the source poster frame's actual radius/width, retaining the user's card rounding instead of imposing a separate popup shape. Regression coverage checks source rounding and image proportions. These image-fitting/rounding follow-ups remain local at the user's request.
 
 All shared `Poster` cards now use this popup unconditionally, including Search/Discover, search results, related titles, people/entity pages and collection pages. The alternate `View details / Manage lists / Toggle watched / Close` popup and its unused styling/imports are removed. All title cards share the artwork preview, library/watched actions, instance-specific source anchors and spring entrance/return. Artwork customization still follows each screen's existing settings. Route coverage includes Search, query results, details, collections and person pages alongside Home, Library and categories. Validation: all 400 frontend tests and the production frontend build pass; live visual confirmation remains pending.
 
@@ -27,6 +37,28 @@ Validation: all 391 frontend tests, the production frontend build, `cargo build 
 The rewrite's `NativePlayback` launch now passes `pauseDescription` into the existing Kotlin player, matching `MetaDetailsScreen`: `meta.description` for movies and the selected video's `overview` for episodes. Previously the omitted argument made the player show the stream's technical description. Missing descriptions are passed as empty text so stream details do not reappear. Artwork, provider/episode labels, description layout and pause timing continue to use the existing Kotlin/native controls.
 
 Validation: `:composeApp:stageBridgeRuntime` and `git diff --check` pass. Live paused-playback acceptance remains pending.
+
+### Release builds hide the startup placeholders — 2026-10-18
+
+The plain "Starting Nuvio…" text in `desktop-ui/index.html` (shown before the React bundle mounts) and the top-right "Connecting to Nuvio…" pill are development diagnostics. They now appear only in dev: a small `transformIndexHtml` plugin in `desktop-ui/vite.config.ts` clears the body placeholder for `vite build`, and `App.tsx` renders the *starting* connection notice only when `import.meta.env.DEV`. The genuine "Connection unavailable" notice still shows in release builds.
+
+### Library layout toggle and Kotlin filter chips — 2026-10-18
+
+The Saved Library header restores the Kotlin layout toggle (horizontal shelves ↔ vertical grid) that the rewrite had dropped, wired to the existing but previously unused `library.setLayout` RPC. It reports the target layout through the Kotlin icon labels (`library_layout_show_vertical`/`_horizontal`) and fades the icon on switch.
+
+The Saved controls row is now a port of `LibrarySavedControls`: Type and List dropdown chips in grid mode (List only for tracker/remote sources) plus the Sort chip in both layouts, each a compact rounded trigger with an anchored menu whose selected row carries an accent check (`NuvioDropdownChip`). The previous native `<select>`s are gone, and labels come from the generated Kotlin string catalog. Grid rendering uses Kotlin's `PosterGridSizing` breakpoints (3–7 columns plus the ultrawide adjustment) instead of `auto-fill`, and the vertical projection mirrors `buildLibraryVerticalProjection` (section selection, type filter, dedupe, provider order).
+
+Validation: `tsc -b`, the frontend production build, and the full 387-test frontend suite pass (new coverage: layout-toggle persistence, sort/list/type chip behavior, the grid breakpoint port and the vertical projection). Visual confirmation on a running build is still with the user.
+
+The Saved shelves also regain their hover scroll arrows (`Scroll <shelf> left/right`), matching the Kotlin `NuvioShelfSection` control and the existing Home arrows; the library no longer hides them. They are sized against the library content's 1.22 zoom so they match Home's physical size (Home itself cancels that zoom).
+
+### Player: paused metadata overlay reverted to the controls — 2026-10-18
+
+With the pause overlay enabled, pausing hid the chrome on the usual idle timeout, but the metadata overlay only flashed before the normal controls came back. The fork's pointer policy (`syncChromeWithPointerPolicy` in `composeApp/src/desktopMain/resources/player-ui/controls.js`) forced the chrome visible whenever playback was paused, and it runs on every native state push — the player poll every 200–500 ms plus the `hideChrome`↔`keepChromeVisible` round trip through Kotlin — so the idle auto-hide that reveals the overlay was undone almost immediately. The desktop runtime likewise keeps `controlsVisible = true` while paused. Because the overlay only shows while the controls are hidden, the two never coexisted.
+
+The policy now yields while a pause is eligible for the overlay (the same rule as `syncPauseMetadataTimer`): in fullscreen, visibility is left entirely to the idle auto-hide timer and to user activity; in windowed mode it still follows the pointer, which is what hides the chrome (and so reveals the overlay) once the pointer leaves the player. Pointer/keyboard activity continues to bring the controls back and hide the overlay. No Kotlin change is needed: the existing `controlsVisible = true` on the pause transition is a one-shot that shows the controls as the pause begins.
+
+Validation: `node --check` on `controls.js` passes. No automated harness covers the embedded player page (`player-ui/`), so live playback verification of the overlay timing is still pending.
 
 ### Cold manifest scheduling and stuck KidsScreen refresh — 2026-10-18
 
@@ -311,9 +343,9 @@ Playback already persists partial positions, completion and dirty sync keys to t
 
 ### Rewrite Library card actions — 2026-10-15
 
-Saved Library cards reuse Home's poster action dialog for right-click, long-press and the card action button, including the same artwork, library membership and watched actions. Both grid and horizontal shelves share the Poster implementation. The extra per-card “Manage lists” button has been removed from the saved Library grid. Other screens retain their existing menus.
+Saved Library cards reuse Home's poster action dialog for right-click, long-press and the card action button, including the same artwork, library membership and watched actions. Both grid and horizontal shelves share the Poster implementation. The extra per-card “Manage lists” button and the hover ⋯ action button have been removed from the saved Library (actions stay available through right-click, long-press and the keyboard context-menu key). Other screens retain their existing menus.
 
-The Library header no longer offers the grid/shelf layout toggle; the persisted layout still controls rendering. Fullscreen uses a separate circular control at the top-right of the content viewport, matching Home's 35 px top inset, 52 px button and 24 px icon. Downloads is a labeled link with an icon instead of an icon-only action.
+The Library header restores Kotlin's layout toggle (horizontal shelves ↔ vertical grid) and the Saved controls row uses Kotlin's Type/List/Sort dropdown chips. Fullscreen uses a separate circular control at the top-right of the content viewport, matching Home's 35 px top inset, 52 px button and 24 px icon. Downloads is a labeled link with an icon instead of an icon-only action.
 
 ### Download start and completion notifications — 2026-10-15
 
@@ -675,8 +707,9 @@ Commit: `93678608`.
   - Fixed the Linux bridge's JNI `create()` signature. It was missing `preferredAudioLanguages`, which
     silently misaligned every parameter after it.
 - **Controls behaviour (`controls.js`):**
-  - In windowed mode the controls show while the pointer is over the player, and always while paused. In
-    fullscreen they auto-hide after 2.5 s.
+  - In windowed mode the controls show while the pointer is over the player; in fullscreen they auto-hide
+    after 2.5 s. While paused (with the pause overlay enabled) the idle auto-hide stays in charge of
+    visibility so the metadata overlay can appear, instead of the controls immediately covering it again.
   - Clicking a control button no longer stops auto-hide forever. Only keyboard (`:focus-visible`) focus counts
     as interacting.
   - `F` toggles fullscreen. `Esc` exits fullscreen, debounced so one press doesn't toggle twice.

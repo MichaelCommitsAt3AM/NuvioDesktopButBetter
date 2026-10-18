@@ -60,6 +60,7 @@ actual fun PlatformPlayerSurface(
     initialPositionMs: Long?,
     initialPositionRequestKey: String?,
     resizeMode: PlayerResizeMode,
+    playbackEngine: com.nuvio.app.features.player.AndroidPlaybackEngine?,
     useNativeController: Boolean,
     playerControlsState: PlayerControlsState,
     onPlayerControlsAction: (PlayerControlsAction) -> Boolean,
@@ -303,6 +304,7 @@ private fun NativePlayerSurface(
     LaunchedEffect(controller) {
         var firstFrameReported = false // STREAM-LOAD-TIMELINE
         while (true) {
+            if (controller.isReleasing) break
             val snapshot = controller.snapshot()
             onSnapshot(snapshot)
             // STREAM-LOAD-TIMELINE: mpv reports it is no longer idle/buffering -> first frame is up.
@@ -310,7 +312,7 @@ private fun NativePlayerSurface(
                 firstFrameReported = true
                 StreamLoadTimeline.finish("playback started (first frame)")
             }
-            delay(if (firstFrameReported) 500L else 100L)
+            delay(if (firstFrameReported) 250L else 100L)
         }
     }
 

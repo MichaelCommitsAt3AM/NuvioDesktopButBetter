@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
 interface PlayerEngineController {
+    val playbackEngine: AndroidPlaybackEngine? get() = null
     fun play()
     fun pause()
     fun seekTo(positionMs: Long)
@@ -44,6 +45,8 @@ interface PlayerEngineController {
     ) {
         onReleased()
     }
+
+    suspend fun getMediaInfo(): PlayerMediaInfo = PlayerMediaInfo()
 }
 
 enum class PlayerControlsAction {
@@ -88,6 +91,8 @@ data class PlayerControlsState(
     val pauseOverlayDescription: String = "",
     val resizeModeLabel: String = "Fit",
     val playbackSpeedLabel: String = "1x",
+    val holdToSpeedEnabled: Boolean = true,
+    val holdToSpeedValue: Float? = 2f,
     val volumeLevel: Float? = null,
     val subtitlesLabel: String = "Subs",
     val audioLabel: String = "Audio",
@@ -174,9 +179,9 @@ data class PlayerControlsState(
     val themeSelectedSurfaceHoverColor: String = "#2d4565",
     val themeSelectedRingColor: String = "rgba(47, 111, 237, .35)",
     val themeTimelineFillColor: String = "#ffffff",
-    val themeTimelineTrackColor: String = "rgba(255, 255, 255, .28)",
+    val themeTimelineTrackColor: String = "rgba(255, 255, 255, .3)",
     val themeBufferingColor: String = "#ffffff",
-    val themeBufferingTrackColor: String = "rgba(255, 255, 255, .28)",
+    val themeBufferingTrackColor: String = "rgba(255, 255, 255, .35)",
     val themeControlForegroundColor: String = "#ffffff",
     val themeSurfaceElevatedColor: String = "#16171d",
     val themeSurfaceCardColor: String = "rgba(255, 255, 255, .08)",
@@ -185,6 +190,7 @@ data class PlayerControlsState(
     val themeTextSecondaryColor: String = "rgba(255, 255, 255, .72)",
     val themeTextMutedColor: String = "rgba(255, 255, 255, .60)",
     val themeBorderDefaultColor: String = "rgba(255, 255, 255, .12)",
+    val themeDangerColor: String = "#e5484d",
     val isPlaying: Boolean = false,
     val isLoading: Boolean = false,
     val isLocked: Boolean = false,
@@ -218,6 +224,7 @@ data class PlayerControlsState(
     val showExternalPlayer: Boolean = false,
     val durationMs: Long = 0L,
     val positionMs: Long = 0L,
+    val bufferedPositionMs: Long = 0L,
     val sourceIsLoading: Boolean = false,
     val sourceFilters: List<PlayerControlFilterItem> = emptyList(),
     val sourceItems: List<PlayerControlSourceItem> = emptyList(),
@@ -257,6 +264,7 @@ data class PlayerControlsState(
     val submitIntroSuccessToken: Long = 0L,
     val notificationMessage: String = "",
     val notificationToken: Long = 0L,
+    val party: PlayerControlPartyState = PlayerControlPartyState(),
 )
 
 data class PlayerControlFilterItem(
@@ -394,6 +402,7 @@ expect fun PlatformPlayerSurface(
     initialPositionMs: Long? = null,
     initialPositionRequestKey: String? = null,
     resizeMode: PlayerResizeMode = PlayerResizeMode.Fit,
+    playbackEngine: AndroidPlaybackEngine? = null,
     useNativeController: Boolean = false,
     playerControlsState: PlayerControlsState = PlayerControlsState(),
     onPlayerControlsAction: (PlayerControlsAction) -> Boolean = { false },

@@ -1,6 +1,7 @@
 package com.nuvio.app.features.profiles
 
 import co.touchlab.kermit.Logger
+import com.nuvio.app.core.network.ServerConfigurationRepository
 import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.features.membership.CosmeticEntitlement
 import com.nuvio.app.features.membership.MemberAccessRepository
@@ -25,6 +26,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
@@ -79,6 +81,21 @@ object AvatarRepository {
         hydrateFromCacheIfNeeded()
         ensureMemberAccessObserver()
         scope.launch { refreshAvatars() }
+    }
+
+    suspend fun shareableImageUrl(profile: NuvioProfile): String? {
+        val storage = "${ServerConfigurationRepository.active.value.backendUrl}/storage/v1/object/"
+        normalizedAvatarUrl(profile.avatarUrl)?.let { url -> return url.takeIf { it.startsWith(storage) } }
+        val avatar = profile.avatarId?.let { id -> avatars.value.firstOrNull { it.id == id } } ?: return null
+        if (!avatar.memberOnly) return avatar.storagePath.takeIf { it.isNotBlank() }?.let(::avatarStorageUrl)
+        return try {
+            SupabaseProvider.client.storage[MemberAvatarBucket].createSignedUrl(avatar.storagePath, 1.days)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            log.w(error) { "Unable to share supporter avatar ${avatar.id}" }
+            null
+        }
     }
 
     suspend fun fetchAvatars() {

@@ -28,6 +28,7 @@ import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.plugins.PluginRepository
 import com.nuvio.app.features.search.SearchHistoryRepository
 import com.nuvio.app.features.search.SearchRepository
+import com.nuvio.app.features.servers.ServerRepository
 import com.nuvio.app.features.settings.ThemeSettingsRepository
 import com.nuvio.app.features.streams.StreamBadgeSettingsRepository
 import com.nuvio.app.features.tracking.TrackingProviderRegistry
@@ -244,6 +245,7 @@ object ProfileRepository {
         CollectionMobileSettingsRepository.onProfileChanged()
         DownloadsRepository.onProfileChanged()
         com.nuvio.app.features.downloads.DownloadFilterSettingsRepository.onProfileChanged()
+        ServerRepository.onProfileChanged()
         ProfileSettingsSync.onProfileChanged()
     }
 
@@ -378,6 +380,7 @@ object ProfileRepository {
                 if (it.addonSyncProfileId == profileIndex) it.copy(addonSyncProfileId = null) else it
             }
             ProfilePinCacheStorage.removePayload(profileIndex)
+            ServerRepository.removeProfile(profileIndex)
             _state.value = _state.value.copy(
                 profiles = remaining,
                 activeProfile = if (_state.value.activeProfile?.profileIndex == profileIndex) remaining.firstOrNull() else remaining.find { it.profileIndex == activeProfileIndex },
@@ -394,6 +397,7 @@ object ProfileRepository {
                 putSyncOriginClientId()
             }
             SupabaseProvider.client.postgrest.rpc("sync_delete_profile_data", params)
+            ServerRepository.removeProfile(profileIndex)
             pullProfiles()
         } catch (e: Throwable) {
             if (AuthRepository.signOutIfSessionInvalid(e, "Profile delete")) return

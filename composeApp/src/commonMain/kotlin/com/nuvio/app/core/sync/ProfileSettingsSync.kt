@@ -93,6 +93,7 @@ object ProfileSettingsSync {
         if (observeJob?.isActive == true) return
         ensureRepositoriesLoaded()
         ProviderCredentialSync.startObserving()
+        MediaServerSync.startObserving()
         observeLocalChangesAndPush()
     }
 
@@ -101,6 +102,7 @@ object ProfileSettingsSync {
         observeJob = null
         skipNextPushSignature = null
         ProviderCredentialSync.clearAccountState()
+        MediaServerSync.clearAccountState()
     }
 
     fun onProfileChanged() {

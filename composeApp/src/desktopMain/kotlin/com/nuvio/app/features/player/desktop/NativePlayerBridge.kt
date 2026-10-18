@@ -1,5 +1,6 @@
 package com.nuvio.app.features.player.desktop
 
+import co.touchlab.kermit.Logger
 import com.nuvio.app.core.storage.DesktopCache
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -22,8 +23,22 @@ internal object NativePlayerBridge {
     )
     private val preloadStarted = AtomicBoolean(false)
 
-    init {
+    private val log = Logger.withTag("NativePlayerBridge")
+
+    private val loadFailure: Throwable? = try {
         loadNativeLibrary()
+        null
+    } catch (error: Throwable) {
+        log.e(error) { "native player library failed to load" }
+        error
+    }
+
+    fun ensureLoaded() {
+        val failure = loadFailure ?: return
+        throw IllegalStateException(
+            "Native player failed to load: ${failure.javaClass.simpleName}: ${failure.message}",
+            failure,
+        )
     }
 
     /**
@@ -124,7 +139,10 @@ internal object NativePlayerBridge {
     external fun shutdownWebView2Warmup()
     external fun setWindowsDisplaySleepInhibited(inhibited: Boolean): Boolean
 
-    val controlsPageUrl: String by lazy { controlsPageAssets.url }
+    val controlsPageUrl: String by lazy {
+        ensureLoaded()
+        controlsPageAssets.url
+    }
     private val controlsPageAssets: ControlsPageAssets by lazy { exportControlsPageAssets() }
 
     fun preloadAsync() {
@@ -140,14 +158,15 @@ internal object NativePlayerBridge {
             ) {
                 runCatching { warmupWebView2(controlsPage.url) }
             }
+            if (DesktopHostOs.current == DesktopHostOs.WINDOWS) {
+                runCatching { shutdownWebView2Warmup() }
+            }
         }.apply {
             name = "nuvio-native-player-preload"
             isDaemon = true
             start()
         }
-        if (DesktopHostOs.current == DesktopHostOs.WINDOWS ||
-            DesktopHostOs.current == DesktopHostOs.LINUX
-        ) {
+        if (DesktopHostOs.current == DesktopHostOs.LINUX) {
             Runtime.getRuntime().addShutdownHook(
                 Thread {
                     runCatching { shutdownWebView2Warmup() }
@@ -184,14 +203,13 @@ internal object NativePlayerBridge {
             return
         }
 
-        val resource = "/native/$platformDir/$libraryName"
-        val files = buildMap {
-            put(libraryName, readResourceBytes(resource))
-            bundledRuntimeResourceNames(platformDir).forEach { name ->
-                resourceBytesOrNull("/native/$platformDir/$name")?.let { bytes -> put(name, bytes) }
+        val resources = (listOf(libraryName) + bundledRuntimeResourceNames(platformDir))
+            .mapNotNull { name ->
+                NativePlayerBridge::class.java.getResource("/native/$platformDir/$name")?.let { url -> name to url }
             }
-        }
-        val directory = DesktopCache.installVersionedFiles("native-player-bridge/$platformDir", files).toFile()
+            .toMap()
+        require(libraryName in resources) { "Missing native player resource: /native/$platformDir/$libraryName" }
+        val directory = DesktopCache.installVersionedResources("native-player-bridge/$platformDir", resources).toFile()
         loadNativeRuntimeDependencies(platform, directory)
         System.load(directory.resolve(libraryName).absolutePath)
     }
@@ -223,7 +241,8 @@ internal object NativePlayerBridge {
         windowsNativeRuntimeDependencyNames.forEach { name ->
             val dependency = directory.resolve(name)
             if (dependency.exists()) {
-                System.load(dependency.absolutePath)
+                runCatching { System.load(dependency.absolutePath) }
+                    .onFailure { error -> log.w(error) { "skipping runtime dependency $name" } }
             }
         }
     }
@@ -310,6 +329,8 @@ internal object NativePlayerBridge {
                 .toByteArray(Charsets.UTF_8),
             "controls.js" to readResourceBytes("/player-ui/controls.js"),
             "presentation.js" to readResourceBytes("/player-ui/presentation.js"),
+            "party.css" to readResourceBytes("/player-ui/party.css"),
+            "party.js" to readResourceBytes("/player-ui/party.js"),
             "loading-indicator.js" to readResourceBytes("/player-ui/loading-indicator.js"),
             "fonts/jetbrains_sans_regular.ttf" to readResourceBytes(
                 "/composeResources/nuvio.composeapp.generated.resources/font/jetbrains_sans_regular.ttf",

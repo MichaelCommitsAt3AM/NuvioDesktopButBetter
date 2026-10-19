@@ -60,15 +60,18 @@ it('keeps abandoned profile edits and import selections local to the editor', as
 function editor(path = '/profiles/new') {
   return render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/profiles/new" element={<ProfileEditorPage />} /><Route path="/profiles/:id/edit" element={<ProfileEditorPage />} /><Route path="/profiles" element={<p>Saved</p>} /></Routes></MemoryRouter>);
 }
-it('requires a profile selection and saves a persistent link instead of a primary copy', async () => {
+it('requires a source profile and copies all selected add-ons by default', async () => {
   editor();
   fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'Kids' } });
   fireEvent.click(screen.getByRole('checkbox', { name: 'Sync add-ons with another profile' }));
   expect(screen.getByRole('button', { name: 'Create Profile' })).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: /Sync with profile/ }));
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Family' }));
+  expect(await screen.findByRole('checkbox', { name: /One/ })).toBeChecked();
+  expect(screen.getByRole('checkbox', { name: /Two/ })).toBeChecked();
+  expect(screen.queryByRole('checkbox', { name: 'Sync all add-ons' })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
-  await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.create', expect.objectContaining({ addonSyncProfileId: 2, usesPrimaryAddons: false, primaryAddonsAllowlist: null })));
+  await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.create', expect.objectContaining({ addonSyncProfileId: null, addonCopyProfileId: 2, addonCopyUrls: ['https://one/manifest.json', 'https://two/manifest.json'], usesPrimaryAddons: false, primaryAddonsAllowlist: null })));
 });
 it('preserves an existing live link during cosmetic edits without enabling import', async () => {
   editor('/profiles/2/edit');
@@ -84,6 +87,47 @@ it('cannot enable sync when there is no other profile', () => {
   store.snapshot.items = [];
   editor();
   expect(screen.getByRole('checkbox', { name: 'Sync add-ons with another profile' })).toBeDisabled();
+});
+it('copies all settings from a chosen profile without listing add-ons', async () => {
+  editor();
+  fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'Copycat' } });
+  const card = screen.getByRole('heading', { name: 'Settings' }).closest('section')!;
+  const toggle = within(card).getByRole('checkbox', { name: 'Sync settings with another profile' });
+  expect(toggle).not.toBeChecked();
+  fireEvent.click(toggle);
+  expect(screen.getByRole('button', { name: 'Create Profile' })).toBeDisabled();
+  fireEvent.click(within(card).getByRole('button', { name: /Copy settings from/ }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Family' }));
+  expect(within(card).getByText('Family')).toBeInTheDocument();
+  expect(within(card).queryByRole('checkbox', { name: /One/ })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
+  await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.create', expect.objectContaining({ settingsCopyProfileId: 2 })));
+  const params = (store.run.mock.calls as unknown as [string, Record<string, unknown>][])[0][1];
+  expect(params).not.toHaveProperty('addonCopyProfileId');
+});
+it('leaves settings independent when settings syncing is off', async () => {
+  editor();
+  fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'Independent' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
+  await waitFor(() => expect(store.run).toHaveBeenCalled());
+  const params = (store.run.mock.calls as unknown as [string, Record<string, unknown>][])[0][1];
+  expect(params).not.toHaveProperty('settingsCopyProfileId');
+});
+it('does not offer settings syncing while editing a profile', () => {
+  editor('/profiles/2/edit');
+  expect(screen.queryByRole('checkbox', { name: 'Sync settings with another profile' })).not.toBeInTheDocument();
+});
+it('does not create a duplicate after settings were not copied', async () => {
+  store.run.mockRejectedValueOnce(Object.assign(new Error('Profile created; adjust its settings.'), { code: 'PROFILE_CREATED_SETTINGS_COPY_FAILED' }));
+  editor();
+  fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'Copycat' } });
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Sync settings with another profile' }));
+  fireEvent.click(screen.getByRole('button', { name: /Copy settings from/ }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Family' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Create Profile' })).toBeDisabled());
+  fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
+  expect(store.run).toHaveBeenCalledTimes(1);
 });
 it('does not present the old one-time copy flag as a live link', () => {
   store.snapshot.items[1] = { id: 2, name: 'Family', usesPrimaryAddons: true };
@@ -102,23 +146,18 @@ it('copies checked add-ons once without creating a live link', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
   await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.update', expect.objectContaining({ id: 2, addonSyncProfileId: null, addonCopyProfileId: 1, addonCopyUrls: ['https://one/manifest.json'] })));
 });
-it('can return from partial selection to live syncing when creating a profile', async () => {
+it('creates a profile with only the add-ons left selected', async () => {
   editor();
   fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'New profile' } });
   fireEvent.click(screen.getByRole('checkbox', { name: 'Sync add-ons with another profile' }));
   fireEvent.click(screen.getByRole('button', { name: /Sync with profile/ }));
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Main' }));
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Sync all add-ons' }));
   fireEvent.click(await screen.findByRole('checkbox', { name: /One/ }));
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Sync all add-ons' }));
   fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
-  await waitFor(() => expect(store.run).toHaveBeenCalled());
-  const params = (store.run.mock.calls as unknown as [string, Record<string, unknown>][])[0][1];
-  expect(params).toMatchObject({ addonSyncProfileId: 1 });
-  expect(params).not.toHaveProperty('addonCopyProfileId');
+  await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.create', expect.objectContaining({ addonSyncProfileId: null, addonCopyProfileId: 1, addonCopyUrls: ['https://two/manifest.json'] })));
 });
 it('blocks saving on a failed source load and allows retry', async () => {
-  store.call.mockRejectedValueOnce(new Error('Source unavailable'));
+  store.call.mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('Source unavailable'));
   editor('/profiles/2/edit');
   startImport();
   expect(await screen.findByText('Source unavailable')).toBeInTheDocument();
@@ -143,7 +182,6 @@ it('creates an independent empty list when every source add-on is unchecked', as
   fireEvent.click(screen.getByRole('checkbox', { name: 'Sync add-ons with another profile' }));
   fireEvent.click(screen.getByRole('button', { name: /Sync with profile/ }));
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Main' }));
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Sync all add-ons' }));
   fireEvent.click(await screen.findByRole('checkbox', { name: /One/ }));
   fireEvent.click(screen.getByRole('checkbox', { name: /Two/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
@@ -178,13 +216,10 @@ it('forces an independent copy when enabling kids mode during creation', async (
   fireEvent.click(screen.getByRole('checkbox', { name: 'Sync add-ons with another profile' }));
   fireEvent.click(screen.getByRole('button', { name: /Sync with profile/ }));
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Main' }));
-  expect(screen.getByRole('checkbox', { name: 'Sync all add-ons' })).toBeChecked();
   fireEvent.click(screen.getByRole('checkbox', { name: 'Kids account' }));
-  const syncAll = screen.getByRole('checkbox', { name: 'Sync all add-ons' });
-  expect(syncAll).not.toBeChecked();
-  expect(syncAll).toBeDisabled();
+  expect(screen.queryByRole('checkbox', { name: 'Sync all add-ons' })).not.toBeInTheDocument();
   expect(await screen.findByRole('checkbox', { name: /One/ })).toBeChecked();
-  expect(screen.getByText(/Catalogs from Cinemeta, AIOMetadata/)).toBeInTheDocument();
+  expect(screen.getByText('Copy playback providers once. KidsScreen supplies all browsing catalogs and search.')).toBeInTheDocument();
 });
 it('uses import-only editing for existing kids profiles', () => {
   store.snapshot.items[1].kidsEnabled = true;
@@ -233,4 +268,67 @@ it('blocks empty imports and does not unlink when import is cancelled', async ()
   const params = (store.run.mock.calls as unknown as [string, Record<string, unknown>][])[0][1];
   expect(params).not.toHaveProperty('addonCopyProfileId');
   expect(params).not.toHaveProperty('addonSyncProfileId');
+});
+
+it('defaults OpenSubtitles on, labels it Recommended, and saves an opt-out', async () => {
+  editor();
+  const subtitles = screen.getByRole('checkbox', { name: 'OpenSubtitles v3 — Recommended' });
+  expect(subtitles).toBeChecked();
+  fireEvent.click(subtitles);
+  fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'Independent' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
+  await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.create', expect.objectContaining({ recommendedSubtitles: false })));
+});
+it('keeps a saved subtitle opt-out when editing', async () => {
+  store.call.mockResolvedValueOnce([{ url: 'https://opensubtitles-v3.strem.io/manifest.json', name: 'OpenSubtitles v3', enabled: false, recommended: true }]);
+  editor('/profiles/2/edit');
+  await waitFor(() => expect(screen.getByRole('checkbox', { name: 'OpenSubtitles v3 — Recommended' })).not.toBeChecked());
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.update', expect.objectContaining({ recommendedSubtitles: false })));
+});
+it('places add-on syncing after kids settings and excludes conflicting catalogs even if already selected', async () => {
+  store.call.mockResolvedValue([
+    { url: 'https://cinemeta/manifest.json', name: 'Cinemeta', enabled: true, kidsConflicting: true },
+    { url: 'https://aio/manifest.json', name: 'AIOMetadata', enabled: true, kidsConflicting: true },
+    { url: 'https://streams/manifest.json', name: 'Streams', enabled: true, kidsConflicting: false },
+  ]);
+  store.run.mockResolvedValue({ items: [{ id: 3 }] } as never);
+  editor();
+  fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'Kids' } });
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Sync add-ons with another profile' }));
+  fireEvent.click(screen.getByRole('button', { name: /Sync with profile/ }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Main' }));
+  expect(await screen.findByRole('checkbox', { name: /Cinemeta/ })).toBeChecked();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Kids account' }));
+  for (const name of [/Cinemeta/, /AIOMetadata/]) {
+    expect(screen.getByRole('checkbox', { name })).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name })).not.toBeChecked();
+  }
+  expect(screen.getByRole('heading', { name: 'Kids profile' }).closest('section')!.nextElementSibling).toContainElement(screen.getByRole('heading', { name: 'Add-on selection' }));
+  fireEvent.change(screen.getByLabelText('TMDB API key'), { target: { value: 'key' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
+  await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.create', expect.objectContaining({ kidsEnabled: true, addonCopyUrls: ['https://streams/manifest.json'] })));
+});
+
+it.each(['PG', 'PG-13'])('changes the configured kids rating to %s without re-entering its key', async rating => {
+  store.snapshot.items[1] = { ...store.snapshot.items[1], kidsEnabled: true, kidsMaxRating: 'G', kidsServiceUrl: 'https://kids-screen.vercel.app' };
+  editor('/profiles/2/edit');
+  fireEvent.change(screen.getByLabelText('Maximum Age Rating'), { target: { value: rating } });
+  expect(screen.getByLabelText('TMDB API key')).toHaveValue('');
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.kids.configure', { id: 2, enabled: true, maxRating: rating, serviceUrl: 'https://kids-screen.vercel.app', apiKey: '' }));
+  expect(store.setError).not.toHaveBeenCalledWith(expect.stringContaining('Enter your TMDB API key'));
+});
+it('keeps the configured KidsScreen server during cosmetic and rating edits', async () => {
+  store.snapshot.items[1] = { ...store.snapshot.items[1], kidsEnabled: true, kidsMaxRating: 'PG', kidsServiceUrl: 'https://private-kids.example' };
+  editor('/profiles/2/edit');
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  await screen.findByText('Saved');
+  expect(store.run).not.toHaveBeenCalledWith('profiles.kids.configure', expect.anything());
+  cleanup();
+  store.run.mockClear();
+  editor('/profiles/2/edit');
+  fireEvent.change(screen.getByLabelText('Maximum Age Rating'), { target: { value: 'G' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.kids.configure', expect.objectContaining({ maxRating: 'G', serviceUrl: 'https://private-kids.example', apiKey: '' })));
 });

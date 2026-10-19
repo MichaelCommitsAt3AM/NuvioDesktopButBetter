@@ -127,6 +127,19 @@ class ProviderCredentialModelsTest {
         assertEquals("", local.mergeRemote(remote).values.single().value)
     }
 
+    @Test fun desktopMissingCloudRowsPreserveSavedKeysButExplicitDisconnectStillClears() {
+        val local = ProviderCredentialSnapshot(2, listOf(
+            ProviderCredentialValue("debrid:torbox", "api_key", "profile-B-torbox"),
+            ProviderCredentialValue("debrid:premiumize", "api_key", "profile-B-premiumize"),
+        ))
+        assertEquals(local, local.mergeRemote(emptyList(), preserveMissing = true))
+        val disconnected = local.mergeRemote(listOf(
+            SupabaseProviderCredential("debrid:torbox", buildJsonObject { put("api_key", "") }),
+        ), preserveMissing = true)
+        assertEquals(listOf("", "profile-B-premiumize"), disconnected.values.map { it.value })
+        assertEquals(2, disconnected.profileId)
+    }
+
     private fun credentialSnapshot(tmdb: TmdbSettings) = ProviderCredentialSync.buildSnapshot(
         profileId = 1,
         debrid = DebridSettings(),

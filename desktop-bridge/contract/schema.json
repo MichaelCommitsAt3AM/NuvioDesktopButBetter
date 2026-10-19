@@ -1357,6 +1357,34 @@
           }
         }
       }
+    },
+    "ProfileAddonChoice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url",
+        "name",
+        "enabled",
+        "kidsConflicting",
+        "recommended"
+      ],
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "kidsConflicting": {
+          "type": "boolean"
+        },
+        "recommended": {
+          "type": "boolean"
+        }
+      }
     }
   },
   "anyOf": [

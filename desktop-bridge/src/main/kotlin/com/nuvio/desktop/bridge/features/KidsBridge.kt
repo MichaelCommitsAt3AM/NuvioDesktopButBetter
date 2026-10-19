@@ -87,11 +87,14 @@ object KidsBridge {
         if (enabled) {
             if (ProfileRepository.state.value.profiles.any { it.addonSyncProfileId == id }) throw BridgeFeatureException("KIDS_ADDON_DEPENDENTS", "Unlink profiles sharing this profile's add-ons first")
             val apiKey = params["apiKey"]?.jsonPrimitive?.content.orEmpty().trim()
-            if (!profile.kidsEnabled || profile.kidsMaxRating != rating || profile.kidsServiceUrl != base || apiKey.isNotBlank()) {
-                if (apiKey.isBlank()) throw BridgeFeatureException("TMDB_KEY_REQUIRED", "Enter your TMDB API key to enable or change this configuration")
-                created = request(base, "/v1/configurations", buildJsonObject { put("apiKey", apiKey); put("maxRating", rating) })
+            created = prepareConfiguration(profile, rating, base, apiKey,
+                managementToken = { profile.kidsConfigId?.let(management::getString) },
+                provision = { path, data, token -> request(base, path, data, token) },
+            )
+            if (created != null) {
                 configId = created["id"]?.jsonPrimitive?.content
-                if (configId?.matches(Regex("[A-Za-z0-9_-]{43}")) != true) throw BridgeFeatureException("KIDSSCREEN_REQUEST_FAILED", "KidsScreen returned an invalid configuration")
+                if (configId?.matches(Regex("[A-Za-z0-9_-]{43}")) != true ||
+                    created["managementToken"]?.jsonPrimitive?.content?.matches(Regex("[A-Za-z0-9_-]{43}")) != true) throw BridgeFeatureException("KIDSSCREEN_REQUEST_FAILED", "KidsScreen returned an invalid configuration")
             }
         }
         var policySaved = false
@@ -102,6 +105,7 @@ object KidsBridge {
                 // Detach first so the managed catalog cannot alter the source profile.
                 ProfileRepository.setAddonProfileLink(id, null)
                 val rows = AddonRepository.readProfileAddonSnapshot(id).filterNot { row ->
+                    com.nuvio.app.features.addons.isKidsConflictingAddon(row) ||
                     profile.kidsConfigId != null && row.url == "${profile.kidsServiceUrl}/${profile.kidsConfigId}/manifest.json"
                 }
                 AddonRepository.saveIndependentProfileAddons(id, rows + AddonRow("$base/$configId/manifest.json", "KidsScreen · $rating"))
@@ -134,6 +138,29 @@ object KidsBridge {
             }
             throw error
         }
+    }
+
+    /** Reuse the server-held key without downloading it or changing the live policy before commit. */
+    internal suspend fun prepareConfiguration(
+        profile: NuvioProfile,
+        rating: String,
+        base: String,
+        apiKey: String,
+        managementToken: () -> String?,
+        provision: suspend (String, JsonObject, String?) -> JsonObject,
+    ): JsonObject? {
+        val unchanged = profile.kidsEnabled && profile.kidsConfigId != null &&
+            profile.kidsMaxRating == rating && profile.kidsServiceUrl == base && apiKey.isBlank()
+        if (unchanged) return null
+        if (apiKey.isNotBlank()) {
+            return provision("/v1/configurations", buildJsonObject { put("apiKey", apiKey); put("maxRating", rating) }, null)
+        }
+        if (profile.kidsEnabled && profile.kidsConfigId != null && profile.kidsServiceUrl == base) {
+            val token = managementToken()?.takeIf { it.isNotBlank() }
+                ?: throw BridgeFeatureException("KIDS_CONFIGURATION_ACCESS_REQUIRED", "This device is missing access to manage the saved KidsScreen configuration. Reconnect it with your TMDB key once")
+            return provision("/v1/configurations/${profile.kidsConfigId}/clone", buildJsonObject { put("maxRating", rating) }, token)
+        }
+        throw BridgeFeatureException("TMDB_KEY_REQUIRED", "Enter your TMDB API key to set up this kids profile")
     }
 
     private suspend fun revoke(profile: NuvioProfile) {

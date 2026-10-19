@@ -26,6 +26,9 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- Provider accounts and API keys stay separate for each profile, including TorBox and Premiumize. Switching profiles reloads the correct credentials.
+- Every profile includes OpenSubtitles v3, checked by default and marked Recommended, with an option to turn it off. Kids-profile add-on selection disables Cinemeta and AIOMetadata; the add-on sync card follows Kids settings.
+
 - Settings search finds file size limits and other result filters, handles common wording and small typos, and jumps to the matching control.
 - Cast and trailers stay in horizontal rows in the installed rewrite.
 - Movie and show details keep the top-left area clear when you scroll down.
@@ -40,8 +43,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Home keeps shimmering placeholders while a switched profile’s add-ons and catalogs load, showing the empty state only once loading settles.
 - New accounts automatically add Cinemeta and AIOMetadata. Their manifests, movie lists and artwork still need an internet connection on first launch; cached manifests speed up later launches and profile switches. Next Up metadata loads in the background so it cannot hold up Home and navigation.
 - Switching profiles returns to Home. AMOLED Black and List episode cards are the desktop defaults; saved choices are kept.
-- Kids-profile settings are editable like any other profile's. Previously configured TMDB keys show masked dots in the profile editor.
-- Profile creation and editing follow the Kotlin app’s layout, retaining Kids settings, accent colors and backgrounds. Editing offers a one-time add-on import that keeps existing add-ons, settings and order. New profiles can still sync all add-ons or copy a selection; Kids profiles keep independent add-ons and use KidsScreen for browsing.
+- Kids-profile settings are editable like any other profile's. Previously configured TMDB keys show masked dots, and changing the age limit reuses the saved key without entering it again.
+- Profile creation and editing follow the Kotlin app’s layout, retaining Kids settings, accent colors and backgrounds. Creating a profile can also copy the same synced settings from another profile once; this is separate from add-on copying and never keeps the profiles linked. Editing offers a one-time add-on import that keeps existing add-ons, settings and order. New profiles show all source add-ons selected by default so you can uncheck any before copying; Kids profiles keep independent add-ons and use KidsScreen for browsing.
 - Returning from profile editing keeps unsaved drafts local. Reselecting the current profile preserves loaded content, and Kids profiles recover a missing configured KidsScreen catalog when loading their add-ons.
 - Newly added or uncached add-ons start their manifest requests correctly, including KidsScreen after converting a profile; a pending badge no longer leaves them stuck refreshing across restarts.
 
@@ -151,7 +154,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 **Profiles**
 - When you create a profile, you can copy all of the main profile's addons or just the ones you pick. After that, each profile manages its own addons.
-- New profiles start with the same settings and home screen layout as the profile you're using, not a blank default.
+- New profiles start with the same settings and home screen layout as the profile you're using, or another profile you choose on the Create Profile screen, not a blank default.
 - Connect your debrid service once and every profile can use it.
 
 **Finding the right stream**

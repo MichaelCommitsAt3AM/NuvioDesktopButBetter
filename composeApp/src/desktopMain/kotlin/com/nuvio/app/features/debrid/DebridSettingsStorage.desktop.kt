@@ -31,9 +31,8 @@ internal actual object DebridSettingsStorage {
     private const val pendingDeviceAuthorizationPrefix = "debrid_pending_device_authorization_"
     private val store = DesktopStorage.store("nuvio_debrid_settings")
 
-    // Debrid/Torbox connection is shared across all profiles, so it's always
-    // pinned to the primary profile's storage slot regardless of which profile is active.
-    private fun sharedKey(baseKey: String): String = ProfileScopedKey.of(baseKey, 1)
+    // Credentials, preferences and pending sign-ins belong to the selected profile.
+    private fun scopedKey(baseKey: String): String = desktopDebridStorageKey(baseKey)
 
     actual fun loadEnabled(): Boolean? = loadBoolean(enabledKey)
     actual fun saveEnabled(enabled: Boolean) = saveBoolean(enabledKey, enabled)
@@ -74,14 +73,14 @@ internal actual object DebridSettingsStorage {
         saveString(pendingDeviceAuthorizationKey(providerId), payload)
 
     actual fun clearPendingDeviceAuthorization(providerId: String) =
-        store.remove(sharedKey(pendingDeviceAuthorizationKey(providerId)))
+        store.remove(scopedKey(pendingDeviceAuthorizationKey(providerId)))
 
-    private fun loadBoolean(key: String): Boolean? = store.getBoolean(sharedKey(key))
-    private fun saveBoolean(key: String, value: Boolean) = store.putBoolean(sharedKey(key), value)
-    private fun loadInt(key: String): Int? = store.getInt(sharedKey(key))
-    private fun saveInt(key: String, value: Int) = store.putInt(sharedKey(key), value)
-    private fun loadString(key: String): String? = store.getString(sharedKey(key))
-    private fun saveString(key: String, value: String) = store.putString(sharedKey(key), value)
+    private fun loadBoolean(key: String): Boolean? = store.getBoolean(scopedKey(key))
+    private fun saveBoolean(key: String, value: Boolean) = store.putBoolean(scopedKey(key), value)
+    private fun loadInt(key: String): Int? = store.getInt(scopedKey(key))
+    private fun saveInt(key: String, value: Int) = store.putInt(scopedKey(key), value)
+    private fun loadString(key: String): String? = store.getString(scopedKey(key))
+    private fun saveString(key: String, value: String) = store.putString(scopedKey(key), value)
 
     actual fun exportToSyncPayload(): JsonObject = buildJsonObject {
         loadEnabled()?.let { put(enabledKey, encodeSyncBoolean(it)) }
@@ -103,7 +102,7 @@ internal actual object DebridSettingsStorage {
     }
 
     actual fun replaceFromSyncPayload(payload: JsonObject) {
-        store.removeAll(syncKeys().map(::sharedKey))
+        store.removeAll(syncKeys().map(::scopedKey))
         payload.decodeSyncBoolean(enabledKey)?.let(::saveEnabled)
         payload.decodeSyncBoolean(cloudLibraryEnabledKey)?.let(::saveCloudLibraryEnabled)
         payload.decodeSyncString(preferredResolverProviderIdKey)?.let(::savePreferredResolverProviderId)
@@ -155,3 +154,8 @@ internal actual object DebridSettingsStorage {
         return "$pendingDeviceAuthorizationPrefix$normalized"
     }
 }
+
+internal fun desktopDebridStorageKey(
+    baseKey: String,
+    profileId: Int = com.nuvio.app.features.profiles.ProfileRepository.activeProfileId,
+): String = ProfileScopedKey.of(baseKey, profileId)

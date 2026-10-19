@@ -93,7 +93,7 @@ object AddonRepository {
         val localRows = dedupeManifestUrls(AddonStorage.loadInstalledAddonUrls(currentProfileId)).mapIndexed { index, url ->
             AddonRow(url, enabled = storedEnabled[url] ?: true, sortOrder = index)
         }
-        val reconciledRows = reconcileManagedProfileAddons(localRows, ProfileRepository.state.value.activeProfile)
+        val reconciledRows = reconcileProfileAddons(localRows, ProfileRepository.state.value.activeProfile)
         val storedUrls = reconciledRows.map { it.url }
         val enabledByUrl = reconciledRows.associate { it.url to it.enabled }
         log.d { "initialize() — local addon count: ${storedUrls.size}" }
@@ -186,7 +186,7 @@ object AddonRepository {
                 .decodeList<AddonRow>()
 
             val rowsByUrl = linkedMapOf<String, AddonRow>()
-            reconcileManagedProfileAddons(rows, ProfileRepository.state.value.profiles.firstOrNull { it.profileIndex == effectiveProfileId }).forEach { row ->
+            reconcileProfileAddons(rows, ProfileRepository.state.value.profiles.firstOrNull { it.profileIndex == effectiveProfileId }).forEach { row ->
                 val manifestUrl = ensureManifestSuffix(row.url)
                 if (!rowsByUrl.containsKey(manifestUrl)) {
                     rowsByUrl[manifestUrl] = row.copy(url = manifestUrl)
@@ -309,7 +309,7 @@ object AddonRepository {
         if (state.profileLoadPending) return
         if (!AuthRepository.state.value.isAnonymous && state.profileLoadError != null) return
         AddonStorage.markAddonDefaultsSeeded(profileId)
-        if (state.addons.isNotEmpty()) return
+        if (state.addons.any { it.manifestUrl != RECOMMENDED_SUBTITLES_URL }) return
         log.i { "seedDefaultAddonsIfEmpty() — installing ${DEFAULT_ADDON_URLS.size} default add-on(s) for profile $profileId" }
         DEFAULT_ADDON_URLS.forEach { url ->
             when (val outcome = addAddon(url)) {

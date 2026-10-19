@@ -94,7 +94,10 @@ object ProviderCredentialSync {
             val localSnapshot = currentSnapshot(profileId)
             val rows = pullRows(profileId)
             requireCurrentScope(credentialScope)
-            val remoteSnapshot = localSnapshot.mergeRemote(rows)
+            // A key saved while offline (or immediately before closing) may not have a cloud row yet.
+            // Desktop disconnects push explicit empty-value tombstones; absence is not a disconnect.
+            if (currentSnapshot(profileId) != localSnapshot) return@withLock false
+            val remoteSnapshot = localSnapshot.mergeRemote(rows, preserveMissing = com.nuvio.app.isDesktop)
             val applied = remoteSnapshot != localSnapshot
             if (applied) {
                 isApplyingRemote = true
@@ -105,6 +108,12 @@ object ProviderCredentialSync {
                 }
             }
             requireCurrentScope(credentialScope)
+            if (com.nuvio.app.isDesktop) {
+                val remoteProviders = rows.map { it.provider.lowercase() }.toSet()
+                val unsynced = remoteSnapshot.values.filter { it.value.isNotBlank() && it.provider.lowercase() !in remoteProviders }
+                if (unsynced.isNotEmpty()) pushSnapshot(remoteSnapshot.copy(values = unsynced))
+                requireCurrentScope(credentialScope)
+            }
             synchronized(stateLock) {
                 observedSnapshots[profileId] = remoteSnapshot
                 baselineSnapshots[credentialScope] = remoteSnapshot

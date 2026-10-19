@@ -26,6 +26,15 @@ internal object DesktopStorage {
         stores.getOrPut(name) { Store(rootDir.resolve("$name.properties")) }
     }
 
+    /** A deleted profile index can be reused; never leave its saved secrets behind. */
+    fun clearProfileCredentials(profileId: Int) {
+        val suffix = "_$profileId"
+        listOf(
+            "nuvio_debrid_settings", "nuvio_tmdb_settings", "nuvio_mdblist_settings",
+            "nuvio_player_settings", "nuvio_trakt_auth", "nuvio_simkl_sync", "nuvio_mdblist_sync",
+        ).forEach { name -> store(name).removeProfileKeys(suffix) }
+    }
+
     fun wipe() {
         synchronized(stores) {
             stores.values.forEach(Store::clearInMemory)
@@ -153,6 +162,12 @@ internal object DesktopStorage {
                 if (properties.remove(key) != null) changed = true
             }
             if (changed) persist()
+        }
+
+        fun removeProfileKeys(suffix: String) = synchronized(lock) {
+            ensureLoaded()
+            val keys = properties.stringPropertyNames().filter { it.endsWith(suffix) }
+            removeAll(keys)
         }
 
         fun clearInMemory() = synchronized(lock) {

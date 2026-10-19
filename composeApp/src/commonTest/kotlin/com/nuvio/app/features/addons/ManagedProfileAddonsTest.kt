@@ -28,4 +28,22 @@ class ManagedProfileAddonsTest {
             assertEquals(listOf(stream), reconcileManagedProfileAddons(listOf(stream), profile))
         }
     }
+
+    @Test fun recommendedSubtitlesAreAddedToEveryProfileWithoutReenablingAnOptOut() {
+        for (profile in listOf(null, NuvioProfile(), kids)) {
+            val rows = reconcileProfileAddons(listOf(stream), profile)
+            assertEquals(1, rows.count { it.url == RECOMMENDED_SUBTITLES_URL })
+            assertTrue(rows.single { it.url == RECOMMENDED_SUBTITLES_URL }.enabled)
+            val disabled = rows.map { if (it.url == RECOMMENDED_SUBTITLES_URL) it.copy(enabled = false) else it }
+            assertEquals(disabled, reconcileProfileAddons(disabled, profile))
+        }
+    }
+
+    @Test fun kidsConflictsRecognizeConfiguredUrlsAndCustomNames() {
+        assertTrue(isKidsConflictingAddon(AddonRow("https://v3-cinemeta.strem.io/manifest.json", "Renamed")))
+        assertTrue(isKidsConflictingAddon(AddonRow("https://aiometadata.elfhosted.com/stremio/config/manifest.json", "Renamed")))
+        assertTrue(isKidsConflictingAddon(AddonRow("https://custom.example/manifest.json", "AIOMetadata")))
+        assertEquals(false, isKidsConflictingAddon(stream))
+        assertEquals(false, isKidsConflictingAddon(AddonRow(RECOMMENDED_SUBTITLES_URL, "OpenSubtitles v3")))
+    }
 }

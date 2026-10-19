@@ -1031,6 +1031,7 @@ fn safe_error_code(code: &str) -> String {
         "KIDS_SETUP_INVALID",
         "KIDS_ADDON_DEPENDENTS",
         "TMDB_KEY_REQUIRED",
+        "KIDS_CONFIGURATION_ACCESS_REQUIRED",
         "INVALID_KIDS_SERVER",
         "KIDSSCREEN_UNAVAILABLE",
         "KIDSSCREEN_REQUEST_FAILED",
@@ -1106,7 +1107,8 @@ fn safe_error_message(code: &str) -> String {
         "SIGN_IN_REQUIRED" => "Sign in to set up a kids profile.",
         "KIDS_SETUP_INVALID" => "Choose a secondary profile and a supported age rating.",
         "KIDS_ADDON_DEPENDENTS" => "Unlink other profiles sharing this profile's add-ons before enabling kids mode.",
-        "TMDB_KEY_REQUIRED" => "Enter your TMDB API key to set up or change this kids profile.",
+        "TMDB_KEY_REQUIRED" => "Enter your TMDB API key to set up this kids profile.",
+        "KIDS_CONFIGURATION_ACCESS_REQUIRED" => "This device cannot manage the saved KidsScreen configuration. Reconnect it with your TMDB API key once to restore access.",
         "INVALID_KIDS_SERVER" => "Enter a valid HTTPS KidsScreen address, or use localhost for development.",
         "KIDSSCREEN_UNAVAILABLE" => "KidsScreen could not be reached. Check its server address and your connection.",
         "KIDSSCREEN_REQUEST_FAILED" => "KidsScreen could not validate the request. Check your TMDB API key and server configuration.",
@@ -1383,6 +1385,7 @@ mod tests {
         assert_eq!(safe_error_code("AUTH_REQUIRED"), "AUTH_REQUIRED");
         for code in [
             "TMDB_KEY_REQUIRED",
+            "KIDS_CONFIGURATION_ACCESS_REQUIRED",
             "KIDSSCREEN_UNAVAILABLE",
             "KIDSSCREEN_REQUEST_FAILED",
             "KIDS_POLICY_SAVE_FAILED",

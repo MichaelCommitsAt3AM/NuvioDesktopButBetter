@@ -2,6 +2,7 @@ package com.nuvio.desktop.bridge.features
 
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.auth.AuthRepository
+import com.nuvio.app.core.auth.AuthState
 import com.nuvio.app.core.auth.isAnonymous
 import com.nuvio.app.features.membership.ProfileBackgroundRepository
 import com.nuvio.app.features.membership.CosmeticEntitlement
@@ -14,6 +15,12 @@ import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.profiles.normalizedAvatarUrl
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.AddonRow
+import com.nuvio.app.features.addons.withRecommendedSubtitles
+import com.nuvio.app.features.addons.RECOMMENDED_SUBTITLES_URL
+import com.nuvio.app.features.addons.isKidsConflictingAddon
+import com.nuvio.app.features.profiles.addonGroupRoot
+import com.nuvio.app.core.sync.ProfileSettingsSync
+import com.nuvio.app.features.home.HomeCatalogSettingsSyncService
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -43,9 +50,9 @@ object ProfilesBridge {
         "profiles.addons.snapshot" -> {
             val profile = requireProfile(params.int("id"))
             AddonRepository.flushPendingPushes()
-            JsonArray(AddonRepository.readProfileAddonSnapshot(profile.profileIndex).map { row -> buildJsonObject {
+            JsonArray(withRecommendedSubtitles(AddonRepository.readProfileAddonSnapshot(profile.profileIndex)).map { row -> buildJsonObject {
                 put("url", row.url); put("name", row.name?.takeIf { it.isNotBlank() } ?: row.url)
-                put("enabled", row.enabled)
+                put("enabled", row.enabled); put("kidsConflicting", isKidsConflictingAddon(row)); put("recommended", row.url == RECOMMENDED_SUBTITLES_URL)
             } })
         }
         "profiles.delete" -> delete(params)
@@ -102,6 +109,8 @@ object ProfilesBridge {
         val allowlist = params.optionalStringList("primaryAddonsAllowlist")
         val addonSource = params.optionalProfileIndex("addonSyncProfileId")
         val copiedAddons = prepareAddonCopy(params, null, addonSource)
+        val settingsSource = params.optionalProfileIndex("settingsCopyProfileId")
+        settingsSource?.let(::requireProfile)
         ProfileRepository.checkAddonLinkAvailable(null, addonSource)
         ProfileRepository.createProfile(
             name = name,
@@ -144,6 +153,25 @@ object ProfilesBridge {
                 throw error
             } catch (error: Exception) {
                 throw BridgeFeatureException("PROFILE_CREATED_ADDON_COPY_FAILED", "Profile was created, but add-ons could not be copied. Open All profiles and edit ${created.name} to retry")
+            }
+        }
+        try {
+            saveSubtitlesChoice(created.profileIndex, params)
+        } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+        catch (error: Exception) {
+            throw BridgeFeatureException("PROFILE_CREATED_ADDON_COPY_FAILED", "Profile was created, but subtitle settings could not be saved. Open All profiles and edit ${created.name} to retry")
+        }
+        if (settingsSource != null && settingsSource != ProfileRepository.activeProfileId &&
+            settingsSource != created.profileIndex &&
+            AuthRepository.state.value.let { it is AuthState.Authenticated && !it.isAnonymous }
+        ) {
+            val settingsCopied = ProfileSettingsSync.seedProfileFrom(settingsSource, created.profileIndex)
+            val homeLayoutCopied = HomeCatalogSettingsSyncService.seedProfileFrom(settingsSource, created.profileIndex)
+            if (!settingsCopied && !homeLayoutCopied) {
+                throw BridgeFeatureException(
+                    "PROFILE_CREATED_SETTINGS_COPY_FAILED",
+                    "Profile was created, but settings could not be copied. Open All profiles and edit ${created.name} to adjust them",
+                )
             }
         }
         return snapshot()
@@ -192,6 +220,7 @@ object ProfilesBridge {
         }
         if (params.has("addonSyncProfileId")) ProfileRepository.setAddonProfileLink(index, addonSource)
         if (copiedAddons != null) AddonRepository.importProfileAddons(index, copiedAddons)
+        saveSubtitlesChoice(index, params)
         return snapshot()
     }
 
@@ -203,22 +232,35 @@ object ProfilesBridge {
             ?: throw BridgeFeatureException("INVALID_ARGUMENT", "Select the add-ons to copy")
         if (target != null && urls.isEmpty()) throw BridgeFeatureException("INVALID_ARGUMENT", "Select at least one add-on to import")
         AddonRepository.flushPendingPushes()
-        val rows = AddonRepository.readProfileAddonSnapshot(source)
-        return selectCopiedAddons(rows, urls)
+        val rows = withRecommendedSubtitles(AddonRepository.readProfileAddonSnapshot(source))
+        val kids = params.optionalBool("kidsEnabled") == true || target?.let { requireProfile(it).kidsEnabled } == true
+        return selectCopiedAddons(rows, urls, kids)
     }
 
-    internal fun selectCopiedAddons(rows: List<AddonRow>, urls: List<String>): List<AddonRow> {
+    private suspend fun saveSubtitlesChoice(profileId: Int, params: JsonObject) {
+        val enabled = params.optionalBool("recommendedSubtitles") ?: return
+        val root = addonGroupRoot(ProfileRepository.state.value.profiles, profileId)
+        val rows = withRecommendedSubtitles(AddonRepository.readProfileAddonSnapshot(root))
+        AddonRepository.saveIndependentProfileAddons(root, rows.map {
+            if (it.url == RECOMMENDED_SUBTITLES_URL) it.copy(enabled = enabled) else it
+        })
+    }
+
+    internal fun selectCopiedAddons(rows: List<AddonRow>, urls: List<String>, kidsEnabled: Boolean = false): List<AddonRow> {
         if (urls.any { url -> rows.none { it.url == url } }) throw BridgeFeatureException("INVALID_ARGUMENT", "Source add-ons changed. Reload the selection and try again")
-        return rows.sortedBy { it.sortOrder }.filter { it.url in urls }.distinctBy { it.url }
+        return rows.sortedBy { it.sortOrder }.filter { it.url in urls && (!kidsEnabled || !isKidsConflictingAddon(it)) }.distinctBy { it.url }
     }
 
     private suspend fun delete(params: JsonObject): JsonElement {
         val index = params.int("id")
         requireProfile(index)
+        val wasActive = ProfileRepository.activeProfileId == index
         ProfileRepository.deleteProfile(index)
         if (ProfileRepository.state.value.profiles.any { it.profileIndex == index }) {
             throw BridgeFeatureException("PROFILE_DELETE_FAILED", "Profile could not be deleted")
         }
+        com.nuvio.app.core.storage.DesktopStorage.clearProfileCredentials(index)
+        if (wasActive) ProfileRepository.switchToProfile(ProfileRepository.activeProfileId)
         return snapshot()
     }
 

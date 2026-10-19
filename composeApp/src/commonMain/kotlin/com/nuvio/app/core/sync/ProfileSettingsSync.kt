@@ -205,22 +205,50 @@ object ProfileSettingsSync {
      * to be selected, which prevents its default values from being observed and
      * pushed before inheritance has completed.
      */
-    suspend fun seedProfileFromCurrent(profileId: Int): Boolean {
+    suspend fun seedProfileFromCurrent(profileId: Int): Boolean =
+        seedProfileFrom(ProfileRepository.activeProfileId, profileId)
+
+    /**
+     * Copies the complete settings snapshot of [sourceProfileId] onto [profileId]
+     * without selecting either profile. This is a one-time copy, not an ongoing
+     * link: later changes stay independent.
+     *
+     * The active profile is exported from local state (including edits not pushed
+     * yet). Any other source is read from its last cloud blob, falling back to the
+     * primary profile's blob just like [pull] does when a profile has no row.
+     */
+    suspend fun seedProfileFrom(sourceProfileId: Int, profileId: Int): Boolean {
         ensureRepositoriesLoaded()
         return syncMutex.withLock {
             runCatching {
-                val sourceProfileId = ProfileRepository.activeProfileId
                 if (sourceProfileId == profileId) return@runCatching false
-
-                val blob = exportSettingsBlob()
-                if (ProfileRepository.activeProfileId != sourceProfileId) return@runCatching false
-
+                val blob = loadSourceSettingsBlob(sourceProfileId) ?: return@runCatching false
                 pushToRemoteLocked(profileId, blob)
-                log.i { "seedProfileFromCurrent(source=$sourceProfileId, target=$profileId) — success" }
+                log.i { "seedProfileFrom(source=$sourceProfileId, target=$profileId) — success" }
                 true
             }.onFailure { error ->
-                log.e(error) { "seedProfileFromCurrent(profileId=$profileId) — FAILED" }
+                log.e(error) { "seedProfileFrom(source=$sourceProfileId, target=$profileId) — FAILED" }
             }.getOrDefault(false)
+        }
+    }
+
+    private suspend fun loadSourceSettingsBlob(sourceProfileId: Int): MobileProfileSettingsBlob? {
+        if (ProfileRepository.activeProfileId == sourceProfileId) {
+            val blob = exportSettingsBlob()
+            return blob.takeIf { ProfileRepository.activeProfileId == sourceProfileId }
+        }
+        val direct = fetchRemoteSettingsJson(sourceProfileId)
+        val sourceJson = direct
+            ?: if (sourceProfileId != PRIMARY_PROFILE_ID) fetchRemoteSettingsJson(PRIMARY_PROFILE_ID) else null
+        if (sourceJson == null) {
+            log.i { "seedProfileFrom(source=$sourceProfileId) — no settings blob found" }
+            return null
+        }
+        return runCatching {
+            json.decodeFromJsonElement(MobileProfileSettingsBlob.serializer(), sourceJson)
+        }.getOrElse { error ->
+            log.e(error) { "seedProfileFrom(source=$sourceProfileId) — failed to decode source settings" }
+            null
         }
     }
 

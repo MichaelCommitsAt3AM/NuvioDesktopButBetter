@@ -19,7 +19,7 @@ object DebridSettingsRepository {
         explicitNulls = false
     }
 
-    private var hasLoaded = false
+    private var loadedProfileId: Int? = null
     private var enabled = false
     private var cloudLibraryEnabled = true
     private var providerApiKeys = emptyMap<String, String>()
@@ -36,7 +36,7 @@ object DebridSettingsRepository {
     private var streamDescriptionTemplate = DebridStreamFormatterDefaults.DESCRIPTION_TEMPLATE
 
     fun ensureLoaded() {
-        if (hasLoaded) return
+        if (loadedProfileId == com.nuvio.app.features.profiles.ProfileRepository.activeProfileId) return
         loadFromDisk()
     }
 
@@ -273,7 +273,7 @@ object DebridSettingsRepository {
     }
 
     private fun loadFromDisk() {
-        hasLoaded = true
+        loadedProfileId = com.nuvio.app.features.profiles.ProfileRepository.activeProfileId
         providerApiKeys = DebridProviders.all()
             .mapNotNull { provider ->
                 DebridSettingsStorage.loadProviderApiKey(provider.id)

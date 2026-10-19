@@ -29,4 +29,13 @@ class ProfileAddonCopyTest {
             ProfilesBridge.selectCopiedAddons(rows, listOf("https://missing/manifest.json"))
         }
     }
+
+    @Test fun kidsCopiesRejectConflictingCatalogsInKotlinEvenWhenRequested() {
+        val catalogs = listOf(
+            AddonRow("https://v3-cinemeta.strem.io/manifest.json", "Cinemeta"),
+            AddonRow("https://aiometadata.elfhosted.com/stremio/config/manifest.json", "AIOMetadata"),
+        )
+        val all = rows + catalogs
+        assertEquals(rows.sortedBy { it.sortOrder }, ProfilesBridge.selectCopiedAddons(all, all.map { it.url }, kidsEnabled = true))
+    }
 }

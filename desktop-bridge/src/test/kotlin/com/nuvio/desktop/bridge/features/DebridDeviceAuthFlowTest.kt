@@ -6,6 +6,9 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.*
 
 class DebridDeviceAuthFlowTest {
+    private var profile = 1
+    private var switchDuringStart = false
+    private var switchDuringPoll = false
     private var time = 0L
     private val stored = mutableMapOf<String, String>()
     private val keys = mutableMapOf<String, String>()
@@ -17,10 +20,11 @@ class DebridDeviceAuthFlowTest {
     private val api = object : DebridProviderApi {
         override val provider = DebridProviders.byId("torbox")!!
         override suspend fun validateApiKey(apiKey: String) = true
-        override suspend fun startDeviceAuthorization(appName: String): DebridDeviceAuthorization { starts++; return authorization }
+        override suspend fun startDeviceAuthorization(appName: String): DebridDeviceAuthorization { starts++; if (switchDuringStart) profile = 2; return authorization }
         override suspend fun redeemDeviceAuthorization(deviceCode: String): DebridDeviceAuthorizationTokenResult {
             assertEquals("private-device-code", deviceCode)
             polls++
+            if (switchDuringPoll) profile = 2
             if (offline) error("offline")
             return result
         }
@@ -28,7 +32,7 @@ class DebridDeviceAuthFlowTest {
     }
     private fun flow() = DebridDeviceAuthFlow(
         apiFor = { api }, load = { stored[it] }, save = { id, payload -> stored[id] = payload },
-        clear = { stored.remove(it); Unit }, connect = { id, key -> keys[id] = key }, now = { time },
+        clear = { stored.remove(it); Unit }, connect = { id, key -> keys[id] = key }, profileId = { profile }, now = { time },
     )
 
     @Test fun resumesStoredKotlinSessionWithoutIssuingAnotherCode() = runBlocking {
@@ -79,5 +83,26 @@ class DebridDeviceAuthFlowTest {
         assertEquals("failed", flow.poll("torbox"))
         assertTrue(stored.isEmpty())
         assertTrue(keys.isEmpty())
+    }
+
+    @Test fun delayedStartCannotSaveDeviceCodeIntoAnotherProfile() = runBlocking {
+        val flow = flow()
+        switchDuringStart = true
+        assertFailsWith<kotlinx.coroutines.CancellationException> { flow.start("torbox") }
+        assertTrue(stored.isEmpty())
+        assertTrue(keys.isEmpty())
+    }
+
+    @Test fun delayedPollCannotConnectOrClearAnotherProfilesCredentials() = runBlocking {
+        val flow = flow()
+        flow.start("torbox")
+        val original = stored.toMap()
+        time = 2000
+        switchDuringPoll = true
+        result = DebridDeviceAuthorizationTokenResult.Authorized("A-token")
+        assertFailsWith<kotlinx.coroutines.CancellationException> { flow.poll("torbox") }
+        assertTrue(keys.isEmpty())
+        assertEquals(original, stored)
+        assertNull(flow.nextPoll("torbox"))
     }
 }

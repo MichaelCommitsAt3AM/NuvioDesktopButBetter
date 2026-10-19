@@ -38,11 +38,11 @@ internal data class ProviderCredentialSnapshot(
         require(values.map(ProviderCredentialValue::provider).distinct().size == values.size)
     }
 
-    fun mergeRemote(rows: List<SupabaseProviderCredential>): ProviderCredentialSnapshot {
+    fun mergeRemote(rows: List<SupabaseProviderCredential>, preserveMissing: Boolean = false): ProviderCredentialSnapshot {
         val remoteByProvider = rows.associateBy { it.provider.lowercase() }
         return copy(
             values = values.map { local ->
-                val remote = remoteByProvider[local.provider.lowercase()] ?: return@map local.copy(value = "")
+                val remote = remoteByProvider[local.provider.lowercase()] ?: return@map if (preserveMissing) local else local.copy(value = "")
                 val element = remote.credentialJson[local.field] as? JsonPrimitive
                     ?: error("Invalid credential payload for ${local.provider}")
                 val value = element.contentOrNull

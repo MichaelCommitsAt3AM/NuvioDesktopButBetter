@@ -165,20 +165,44 @@ object HomeCatalogSettingsSyncService {
      * currently active, so it doesn't start on stock defaults. The destination profile does
      * not need to be selected. Mirrors ProfileSettingsSync.seedProfileFromCurrent.
      */
-    suspend fun seedProfileFromCurrent(profileId: Int): Boolean = runCatching {
-        val sourceProfileId = ProfileRepository.activeProfileId
+    suspend fun seedProfileFromCurrent(profileId: Int): Boolean =
+        seedProfileFrom(ProfileRepository.activeProfileId, profileId)
+
+    /**
+     * Copies the home catalog layout of [sourceProfileId] onto [profileId] without
+     * selecting either profile. The active profile is read from local state; any other
+     * source is read from its cloud blob, falling back to the primary profile's row
+     * just like [pullFromServer] does for a profile without a row of its own.
+     */
+    suspend fun seedProfileFrom(sourceProfileId: Int, profileId: Int): Boolean = runCatching {
         if (sourceProfileId == profileId || currentPullToken(sourceProfileId) == null) {
             return@runCatching false
         }
 
-        val payload = HomeCatalogSettingsRepository.exportToSyncPayload()
-        if (ProfileRepository.activeProfileId != sourceProfileId) return@runCatching false
+        val payload = if (ProfileRepository.activeProfileId == sourceProfileId) {
+            val localPayload = HomeCatalogSettingsRepository.exportToSyncPayload()
+            if (ProfileRepository.activeProfileId != sourceProfileId) return@runCatching false
+            localPayload
+        } else {
+            loadSourcePayload(sourceProfileId) ?: return@runCatching false
+        }
         pushPayloadToRemote(profileId, payload)
-        log.i { "seedProfileFromCurrent(source=$sourceProfileId, target=$profileId) — success" }
+        log.i { "seedProfileFrom(source=$sourceProfileId, target=$profileId) — success" }
         true
     }.onFailure { error ->
-        log.e(error) { "seedProfileFromCurrent(profileId=$profileId) — FAILED" }
+        log.e(error) { "seedProfileFrom(source=$sourceProfileId, target=$profileId) — FAILED" }
     }.getOrDefault(false)
+
+    private suspend fun loadSourcePayload(profileId: Int): SyncHomeCatalogPayload? {
+        val direct = fetchRemoteBlob(profileId)
+        val blob = direct
+            ?: if (profileId != PRIMARY_PROFILE_ID) fetchRemoteBlob(PRIMARY_PROFILE_ID) else null
+        if (blob == null) {
+            log.i { "seedProfileFrom(source=$profileId) — no home catalog blob found" }
+            return null
+        }
+        return decodePayloadPreservingLocalDefaults(blob.settingsJson, SyncHomeCatalogPayload())
+    }
 
     private suspend fun seedInheritedPayload(token: PullToken, payload: SyncHomeCatalogPayload) {
         // Refresh the cache with what was actually written, so the next triggerPush for this

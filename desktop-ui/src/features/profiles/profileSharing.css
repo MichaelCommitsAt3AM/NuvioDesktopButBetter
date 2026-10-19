@@ -20,3 +20,5 @@
 .profile-kids-fields input,.profile-kids-fields select{width:100%;padding:14px 16px;border:1px solid #ffffff24;border-radius:12px;background:var(--app-surface);color:var(--text);font:inherit;color-scheme:dark;box-sizing:border-box}
 .profile-kids-fields small{color:var(--muted,#aaa);line-height:1.6}
 .profile-kids-fields details>label{margin-top:16px}
+
+.profile-addon-copy-row:has(input:disabled) { opacity: .5; cursor: not-allowed; }

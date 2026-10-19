@@ -12,16 +12,26 @@ internal class DebridDeviceAuthFlow(
     private val save: (String, String) -> Unit = DebridSettingsStorage::savePendingDeviceAuthorization,
     private val clear: (String) -> Unit = DebridSettingsStorage::clearPendingDeviceAuthorization,
     private val connect: (String, String) -> Unit = DebridSettingsRepository::setProviderApiKey,
+    private val profileId: () -> Int = { com.nuvio.app.features.profiles.ProfileRepository.activeProfileId },
     private val now: () -> Long = { kotlin.time.Clock.System.now().toEpochMilliseconds() },
 ) {
     private data class Pending(val authorization: DebridDeviceAuthorization, var nextPoll: Long, val deadline: Long)
     private val sessions = mutableMapOf<String, Pending>()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private var sessionProfileId = profileId()
+    private fun requireProfile(expected: Int) {
+        if (profileId() != expected) throw CancellationException("Sign-in profile changed")
+    }
+    private fun selectScope() {
+        if (sessionProfileId != profileId()) { reset(); sessionProfileId = profileId() }
+    }
     fun reset() { sessions.clear() }
-    fun cancel(providerId: String) { sessions.remove(providerId); clear(providerId) }
-    fun nextPoll(providerId: String): Long? = sessions[providerId]?.nextPoll
+    fun cancel(providerId: String) { selectScope(); sessions.remove(providerId); clear(providerId) }
+    fun nextPoll(providerId: String): Long? { selectScope(); return sessions[providerId]?.nextPoll }
 
     suspend fun start(providerId: String, restart: Boolean = false): DebridDeviceAuthorization {
+        selectScope()
+        val expectedProfile = sessionProfileId
         if (restart) cancel(providerId)
         sessions[providerId]?.let { return it.authorization }
         val cached = load(providerId)?.let { runCatching { json.decodeFromString<DebridDeviceAuthorization>(it) }.getOrNull() }
@@ -35,6 +45,7 @@ internal class DebridDeviceAuthFlow(
         if (authorization.providerId != providerId || authorization.deviceCode.isBlank() || authorization.userCode.isBlank()) {
             throw BridgeFeatureException("DEVICE_AUTH_INVALID_RESPONSE", "Invalid authorization response")
         }
+        requireProfile(expectedProfile)
         save(providerId, json.encodeToString(authorization))
         val time = now()
         sessions[providerId] = Pending(authorization, time + authorization.intervalSeconds.coerceAtLeast(1) * 1000L, time + 15 * 60_000L)
@@ -42,6 +53,8 @@ internal class DebridDeviceAuthFlow(
     }
 
     suspend fun poll(providerId: String): String {
+        selectScope()
+        val expectedProfile = sessionProfileId
         val pending = sessions[providerId] ?: throw BridgeFeatureException("DEVICE_AUTH_NOT_FOUND", "No pending sign-in")
         val time = now()
         if (time < pending.nextPoll) return "pending"
@@ -49,10 +62,12 @@ internal class DebridDeviceAuthFlow(
         val result = try { apiFor(providerId)?.redeemDeviceAuthorization(pending.authorization.deviceCode) ?: DebridDeviceAuthorizationTokenResult.Unsupported }
         catch (error: CancellationException) { throw error }
         catch (_: Exception) {
+            requireProfile(expectedProfile)
             if (time < pending.deadline) return "pending"
             cancel(providerId)
             return "failed"
         }
+        requireProfile(expectedProfile)
         return when (result) {
             is DebridDeviceAuthorizationTokenResult.Authorized -> {
                 if (result.accessToken.isBlank()) { cancel(providerId); return "failed" }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Download, LayoutGrid, LibraryBig, LoaderCircle, Maximize, Play, RefreshCw, Rows2, Search } from 'lucide-react';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { ArrowLeft, Download, LayoutGrid, LibraryBig, LoaderCircle, Play, RefreshCw, Rows2, Search } from 'lucide-react';
+import { FullscreenButton } from '../../components/FullscreenButton';
 import { call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { EmptyState } from '../../components/EmptyState';
 import { PageHeader } from '../../components/ui';
@@ -122,7 +122,7 @@ export function LibraryPage() {
     : null;
   const shelfSections = extras?.sections.length ? extras.sections : [{ type: 'all', title: 'Saved titles', items: flatItems.map(item => `${item.type}|${item.id}`) }];
   return <div className={`page library-page ${mode === 'cloud' ? 'library-cloud-mode' : ''}`}>
-    <button className="library-fullscreen" type="button" aria-label="Toggle fullscreen" title="Toggle fullscreen" onClick={() => { const win = getCurrentWindow(); void win.isFullscreen().then(fullscreen => win.setFullscreen(!fullscreen)).catch(cause => setError(String(cause))); }}><Maximize size={24} /></button>
+    <FullscreenButton onError={setError} />
     <PageHeader title="Library" action={headerActions} />
     <div className="library-source-switch" role="tablist" aria-label="Library source">
       <button role="tab" aria-selected={mode === 'saved'} className={mode === 'saved' ? 'selected' : ''} onClick={() => setMode('saved')}>Saved</button>

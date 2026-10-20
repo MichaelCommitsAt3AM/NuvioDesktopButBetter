@@ -75,12 +75,12 @@ it('keeps the current page when switching fails', async () => {
   expect(screen.queryByText('Home page')).not.toBeInTheDocument();
 });
 
-it('honors the destination profile PIN and hides profile creation in a kids profile', () => {
+it('honors the destination profile PIN and allows profile creation in a kids profile', () => {
   bridge.session.activeProfile = 2;
   bridge.session.profiles[1].kidsEnabled = true;
   bridge.session.profiles[0].locked = true;
   menu();
-  expect(screen.queryByRole('menuitem', { name: 'Add Profile' })).not.toBeInTheDocument();
+  expect(screen.getByRole('menuitem', { name: 'Add Profile' })).toBeInTheDocument();
   fireEvent.click(screen.getByRole('menuitemradio', { name: 'Michael' }));
   expect(screen.getByText(/Michael/)).toBeInTheDocument();
   expect(bridge.select).not.toHaveBeenCalled();

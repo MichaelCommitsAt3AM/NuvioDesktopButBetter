@@ -27,7 +27,6 @@
 .home-page .home-hero-copy .hero-description{font-size:17.3px;line-height:26px;letter-spacing:0;color:#eee;max-width:none;margin:17px 0 26px;-webkit-line-clamp:3}
 .hero-details-button{height:52px;border:0;border-radius:44px;background:#f5f5f5;color:#000;padding:0 26px;font-size:16px;font-weight:700;cursor:pointer}
 .hero-details-button:hover{background:#ddd}
-.home-fullscreen{position:absolute;right:var(--home-hero-inset);top:35px;display:grid;place-items:center;width:52px;height:52px;border:0;border-radius:50%;background:#222d;color:#eee;cursor:pointer}
 .home-page .home-hero-dots{right:var(--home-hero-inset);bottom:43px;gap:8px}
 .home-page .home-hero-dots button{width:8.6px;height:8.6px;background:#eee}
 .home-page .home-hero-dots button[aria-current=true]{width:34.6px}

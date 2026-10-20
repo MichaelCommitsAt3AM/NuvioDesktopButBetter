@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Copy, ClipboardPaste, Folder, Maximize, Menu, Pencil, Trash2 } from 'lucide-react';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { ArrowLeft, Copy, ClipboardPaste, Folder, Menu, Pencil, Trash2 } from 'lucide-react';
+import { FullscreenButton } from '../../components/FullscreenButton';
 import { Link, useNavigate } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot } from '../../bridge';
 import { Dialog } from '../../components/Dialog';
@@ -60,7 +60,7 @@ export function CollectionsPage() {
     <header className="collection-management-header">
       <Link className="collection-icon-button" to="/settings/appearance" aria-label="Back"><ArrowLeft /></Link>
       <h1>Collections</h1>
-      <button className="collection-icon-button" aria-label="Toggle fullscreen" title="Toggle fullscreen" onClick={() => { const win = getCurrentWindow(); void win.isFullscreen().then(value => win.setFullscreen(!value)).catch(cause => setError(message(cause))); }}><Maximize /></button>
+      <FullscreenButton onError={setError} />
       <button className="collection-icon-button" aria-label="Copy JSON" title="Copy JSON" disabled={busy} onClick={() => void copy()}><Copy /></button>
       <button className="collection-icon-button" aria-label="Import" title="Import" disabled={busy} onClick={() => setImporting(true)}><ClipboardPaste /></button>
     </header>

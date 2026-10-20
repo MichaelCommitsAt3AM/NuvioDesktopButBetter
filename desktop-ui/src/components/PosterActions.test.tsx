@@ -80,8 +80,9 @@ it.each(['vertical', 'horizontal'])('renders the Library layout toggle without p
   expect(screen.queryByRole('button', { name: /^Actions for / })).toBeNull();
   expect(screen.getByRole('button', { name: layout === 'vertical' ? 'Show horizontal shelves' : 'Show vertical grid' })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Downloads' })).toHaveTextContent('Downloads');
-  const fullscreen = screen.getByRole('button', { name: 'Toggle fullscreen' });
-  expect(fullscreen).toHaveClass('library-fullscreen');
+  const fullscreen = screen.getByRole('button', { name: 'Enter fullscreen' });
+  expect(fullscreen).toHaveClass('fullscreen-toggle');
+  expect(fullscreen.parentElement).toBe(document.body);
   expect(fullscreen.closest('.page-heading')).toBeNull();
   fireEvent.contextMenu(screen.getByRole('button', { name: 'Open Saved Movie' }));
   expect(screen.getByRole('dialog').parentElement).toHaveClass('home-actions-dialog');

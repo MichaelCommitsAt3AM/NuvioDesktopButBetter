@@ -9,7 +9,6 @@ import com.nuvio.app.features.addons.enabledAddons
 import com.nuvio.app.features.catalog.CatalogTarget
 import com.nuvio.app.features.catalog.CatalogPage
 import com.nuvio.app.features.catalog.fetchCatalogPage
-import com.nuvio.app.features.catalog.mergeCatalogItems
 import com.nuvio.app.core.poster.CustomPosterUrlRepository
 import com.nuvio.app.core.poster.reapplyCustomPosterUrls
 import com.nuvio.app.core.poster.withCustomPosterUrls
@@ -24,6 +23,7 @@ import com.nuvio.app.features.trakt.TraktPublicListSourceResolver
 import com.nuvio.app.features.watchprogress.CurrentDateProvider
 import com.nuvio.app.isDesktop
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -36,6 +36,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 import kotlin.random.Random
+
+private data class HomeCatalogUpdate(
+    val request: HomeCatalogDefinition,
+    val result: Result<HomeCatalogSection>,
+    val complete: Boolean,
+)
 
 object HomeRepository {
     private val log = Logger.withTag("HomeRepository")
@@ -141,29 +147,34 @@ object HomeRepository {
                 putAll(cachedSections)
             }
             var firstErrorMessage: String? = null
-            var completedCount = 0
-            var publishedFirstResult = false
-
-            forEachHomeCatalogResult(prioritizedRequests, HOME_CATALOG_FETCH_BATCH_SIZE, fetch = { request ->
-                request to runCatching { request.toSection(forceRefresh = force) }
-            }) { (request, result) ->
-                if (activeRequestKey != requestKey) return@forEachHomeCatalogResult
+            forEachHomeCatalogUpdate<HomeCatalogDefinition, HomeCatalogUpdate>(prioritizedRequests, HOME_CATALOG_FETCH_BATCH_SIZE, fetch = { request, publish ->
+                try {
+                    val section = request.toSection(forceRefresh = force, onPreview = { preview ->
+                        publish(HomeCatalogUpdate(request, Result.success(preview), complete = false))
+                    })
+                    publish(HomeCatalogUpdate(request, Result.success(section), complete = true))
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    publish(HomeCatalogUpdate(request, Result.failure(error), complete = true))
+                }
+            }) { (request, result, complete) ->
+                if (activeRequestKey != requestKey) return@forEachHomeCatalogUpdate
                 val section = result.getOrNull()
                 if (section != null) {
                     loadedSections[request.cacheKey] = section
-                    cachedSectionTimestamps = cachedSectionTimestamps + (request.cacheKey to kotlin.time.Clock.System.now().toEpochMilliseconds())
+                    // Only a completed preview is fresh. A cancelled/failed
+                    // continuation keeps its first page visible but retryable.
+                    if (complete) {
+                        cachedSectionTimestamps = cachedSectionTimestamps + (request.cacheKey to kotlin.time.Clock.System.now().toEpochMilliseconds())
+                    } else {
+                        cachedSectionTimestamps = cachedSectionTimestamps - request.cacheKey
+                    }
                 }
                 if (firstErrorMessage == null) firstErrorMessage = result.exceptionOrNull()?.message
                 cachedSections = loadedSections.toMap()
                 lastErrorMessage = firstErrorMessage
-                completedCount++
-                if ((!publishedFirstResult && section != null) || completedCount % (HOME_CATALOG_FETCH_BATCH_SIZE * HOME_CATALOG_PUBLISH_INTERVAL) == 0) {
-                    publishCurrentState(
-                        isLoading = true,
-                        requestKey = requestKey,
-                    )
-                    publishedFirstResult = true
-                }
+                publishCurrentState(isLoading = true, requestKey = requestKey)
             }
 
             if (activeRequestKey != requestKey) return@launch
@@ -308,12 +319,16 @@ object HomeRepository {
         if (_uiState.value != nextState) _uiState.value = nextState
     }
 
-    private suspend fun HomeCatalogDefinition.toSection(forceRefresh: Boolean): HomeCatalogSection {
+    private suspend fun HomeCatalogDefinition.toSection(
+        forceRefresh: Boolean,
+        onPreview: suspend (HomeCatalogSection) -> Unit,
+    ): HomeCatalogSection {
         serverConnectionId?.let { connectionId -> return toServerSection(connectionId) }
         CustomPosterUrlRepository.ensureLoaded()
         val pattern = CustomPosterUrlRepository.patternForScreen(com.nuvio.app.core.poster.CustomPosterScreen.HOME)
+        fun section(page: CatalogPage): HomeCatalogSection = toSection(page, pattern)
         val page = if (isDesktop) {
-            fetchDesktopHomePreview(forceRefresh)
+            fetchDesktopHomePreview(forceRefresh) { onPreview(section(it)) }
         } else {
             fetchCatalogPage(
                 manifestUrl = manifestUrl,
@@ -323,6 +338,10 @@ object HomeRepository {
                 forceRefresh = forceRefresh,
             )
         }
+        return section(page)
+    }
+
+    private fun HomeCatalogDefinition.toSection(page: CatalogPage, pattern: String): HomeCatalogSection {
         val items = if (pattern.isNotBlank()) page.items.withCustomPosterUrls(pattern) else page.items
         if (items.isEmpty()) {
             return HomeCatalogSection(
@@ -359,34 +378,25 @@ object HomeRepository {
         )
     }
 
-    private suspend fun HomeCatalogDefinition.fetchDesktopHomePreview(forceRefresh: Boolean): CatalogPage {
-        var items = emptyList<MetaPreview>()
-        var rawItemCount = 0
-        var nextSkip: Int? = null
-        var pagesFetched = 0
-        do {
-            val page = fetchCatalogPage(
+    private suspend fun HomeCatalogDefinition.fetchDesktopHomePreview(
+        forceRefresh: Boolean,
+        onPreview: suspend (CatalogPage) -> Unit,
+    ): CatalogPage = loadHomeCatalogPreview(
+        supportsPagination = supportsPagination,
+        itemLimit = DESKTOP_HOME_CATALOG_PREVIEW_FETCH_LIMIT,
+        maxPages = DESKTOP_HOME_CATALOG_PREVIEW_MAX_PAGES,
+        fetch = { nextSkip, remaining ->
+            fetchCatalogPage(
                 manifestUrl = manifestUrl,
                 type = type,
                 catalogId = catalogId,
                 skip = nextSkip,
-                maxItems = DESKTOP_HOME_CATALOG_PREVIEW_FETCH_LIMIT - items.size,
+                maxItems = remaining,
                 forceRefresh = forceRefresh,
             )
-            items = mergeCatalogItems(items, page.items)
-            rawItemCount += page.rawItemCount
-            nextSkip = page.nextSkip
-            pagesFetched++
-        } while (
-            supportsPagination && nextSkip != null && items.size < DESKTOP_HOME_CATALOG_PREVIEW_FETCH_LIMIT &&
-            pagesFetched < DESKTOP_HOME_CATALOG_PREVIEW_MAX_PAGES
-        )
-        return CatalogPage(
-            items = items.take(DESKTOP_HOME_CATALOG_PREVIEW_FETCH_LIMIT),
-            rawItemCount = rawItemCount,
-            nextSkip = nextSkip,
-        )
-    }
+        },
+        onPreview = onPreview,
+    )
 
     private suspend fun HomeCatalogDefinition.toServerSection(connectionId: String): HomeCatalogSection {
         val target = CatalogTarget.Server(connectionId, catalogId, type)
@@ -572,7 +582,6 @@ internal const val HOME_CATALOG_CACHE_TTL_MS = 20 * 60 * 1000L
 private const val HOME_CATALOG_PREVIEW_FETCH_LIMIT = 18
 private const val DESKTOP_HOME_CATALOG_PREVIEW_FETCH_LIMIT = 64
 private const val DESKTOP_HOME_CATALOG_PREVIEW_MAX_PAGES = 4
-private const val HOME_CATALOG_PUBLISH_INTERVAL = 2
 
 internal fun isHomeCatalogCacheFresh(fetchedAt: Long?, now: Long): Boolean =
     fetchedAt != null && now >= fetchedAt && now - fetchedAt < HOME_CATALOG_CACHE_TTL_MS

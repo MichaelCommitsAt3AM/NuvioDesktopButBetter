@@ -721,13 +721,21 @@ describe('desktop bridge UI workflow', () => {
     expect(await screen.findByRole('menu', { name: 'Profiles' })).toBeVisible();
   });
 
+  it.each([['/profiles', 'Profiles'], ['/profiles/new', 'Add Profile'], ['/profiles/7/edit', 'Edit Profile'], ['/library/downloads', 'Downloads']])('lets kids profiles open %s without a parent-profile gate', async (route, heading) => {
+    bridgeMock.kidsProfile = true;
+    window.history.replaceState({}, '', route);
+    render(<AppRoot />);
+    expect(await screen.findByRole('heading', { name: heading })).toBeVisible();
+    expect(screen.queryByText('Switch to the parent profile to use this feature.')).not.toBeInTheDocument();
+  });
+
   it('lets kids profiles change settings across Layout and Content', async () => {
     bridgeMock.kidsProfile = true;
     window.history.replaceState({}, '', '/settings/appearance');
     render(<AppRoot />);
     const amoled = await screen.findByRole('checkbox', { name: 'AMOLED Black' });
     expect(amoled).toBeEnabled();
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
     fireEvent.click(amoled);
     await waitFor(() => expect(bridgeMock.requests.some(request => request.method === 'appearance.setAmoled')).toBe(true));
     fireEvent.click(screen.getByRole('link', { name: 'General' }));

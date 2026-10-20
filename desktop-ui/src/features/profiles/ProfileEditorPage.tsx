@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { ArrowLeft, ChevronDown, Maximize, Shield, Trash2, UserRound, WandSparkles } from 'lucide-react';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { ArrowLeft, ChevronDown, Shield, Trash2, UserRound, WandSparkles } from 'lucide-react';
+import { FullscreenButton } from '../../components/FullscreenButton';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '../../components/ui';
 import { Dialog } from '../../components/Dialog';
@@ -169,7 +169,7 @@ export function ProfileEditorPage() {
   if (editingId !== null && snapshot && !profile) return <div className="page profiles-page"><PageHeader title="Profile not found" action={<Link className="button secondary" to="/profiles"><ArrowLeft size={15} /> Profiles</Link>} /><p className="muted">This profile may have been removed.</p></div>;
 
   return <div className="page profile-editor-page">
-    <header className="profile-screen-header"><Link to="/profiles" className="profile-screen-back" aria-label="All profiles"><ArrowLeft size={24} /></Link><h1>{isEditing ? 'Edit Profile' : 'Add Profile'}</h1><button type="button" className="profile-screen-fullscreen" aria-label="Toggle fullscreen" onClick={() => { const appWindow = getCurrentWindow(); void appWindow.isFullscreen().then(fullscreen => appWindow.setFullscreen(!fullscreen)).catch(() => {}); }}><Maximize size={24} /></button></header>
+    <header className="profile-screen-header"><Link to="/profiles" className="profile-screen-back" aria-label="All profiles"><ArrowLeft size={24} /></Link><h1>{isEditing ? 'Edit Profile' : 'Add Profile'}</h1><FullscreenButton onError={setError} /></header>
     {error && <InlineError message={error} onRetry={() => { void refresh(); }} />}
     <form className="profile-editor-form" onSubmit={(event) => void save(event)}>
       <section className="profile-editor-identity settings-section">

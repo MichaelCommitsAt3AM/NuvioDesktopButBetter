@@ -27,6 +27,7 @@ function snapshot(items: typeof item[], loading = false) {
 }
 let resolveSnapshot: (value: unknown) => void;
 let rejectSnapshot: (reason: Error) => void;
+const originalImage = globalThis.Image;
 beforeEach(() => {
   bridge.extras = undefined;
   bridge.state.home = { shelves: [], hero: [], loading: false };
@@ -39,9 +40,21 @@ beforeEach(() => {
     return Promise.resolve();
   });
 });
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => { cleanup(); vi.clearAllMocks(); vi.useRealTimers(); globalThis.Image = originalImage; });
 
 describe('Continue Watching snapshot loading', () => {
+  it('keeps the fullscreen control outside scrolling Home content and hides it on other routes', () => {
+    const page = (visible: boolean) => <MemoryRouter><HomeVisibility value={visible}><HomePage /></HomeVisibility></MemoryRouter>;
+    const view = render(page(true));
+    const control = screen.getByRole('button', { name: 'Enter fullscreen' });
+    expect(control.parentElement).toBe(document.body);
+    expect(view.container.querySelector('.fullscreen-toggle')).toBeNull();
+    view.rerender(page(false));
+    expect(screen.queryByRole('button', { name: 'Enter fullscreen' })).not.toBeInTheDocument();
+    view.rerender(page(true));
+    expect(screen.getByRole('button', { name: 'Enter fullscreen' })).toBeVisible();
+  });
+
   it('restores the saved Home scroll without recording another screen or restarting requests', () => {
     bridge.state.session.activeProfile = 7915;
     const page = (visible: boolean) => <MemoryRouter><main className="main-area"><HomeVisibility value={visible}><div style={{ display: visible ? 'contents' : 'none' }}><HomePage /></div></HomeVisibility></main></MemoryRouter>;
@@ -117,6 +130,54 @@ describe('Continue Watching snapshot loading', () => {
     ];
     const pointer = (node: HTMLElement, type: 'pointerdown' | 'pointermove' | 'pointerup', clientX: number) =>
       fireEvent(node, new MouseEvent(type, { bubbles: true, clientX, button: 0 }));
+
+    it('starts each automatic interval after its background loads and decodes', async () => {
+      vi.useFakeTimers();
+      const images: Array<{ onload?: () => void; src: string; resolveDecode: () => void }> = [];
+      vi.stubGlobal('Image', class {
+        onload?: () => void;
+        src = '';
+        resolveDecode!: () => void;
+        decode = () => new Promise<void>(resolve => { this.resolveDecode = resolve; });
+        constructor() { images.push(this); }
+      });
+      bridge.state.session.activeProfile = 9201;
+      bridge.state.home.hero = heroes.map(hero => ({ ...hero, background: `https://example.invalid/${hero.id}.jpg` }));
+      render(<MemoryRouter><HomePage /></MemoryRouter>);
+      const currentTitle = () => screen.getByRole('region', { name: 'Featured titles' });
+      await act(async () => vi.advanceTimersByTime(20_000));
+      expect(currentTitle()).toHaveTextContent('First feature');
+      const firstImage = images.find(image => image.onload && image.src.endsWith('/one.jpg'))!;
+      act(() => firstImage.onload!());
+      await act(async () => vi.advanceTimersByTime(10_000));
+      expect(currentTitle()).toHaveTextContent('First feature');
+      await act(async () => firstImage.resolveDecode());
+      await act(async () => vi.advanceTimersByTime(7_999));
+      expect(currentTitle()).toHaveTextContent('First feature');
+      await act(async () => vi.advanceTimersByTime(1));
+      expect(currentTitle()).toHaveTextContent('Second feature');
+      await act(async () => vi.advanceTimersByTime(20_000));
+      expect(currentTitle()).toHaveTextContent('Second feature');
+      const secondImage = images.find(image => image.onload && image.src.endsWith('/two.jpg'))!;
+      act(() => secondImage.onload!());
+      await act(async () => secondImage.resolveDecode());
+      await act(async () => vi.advanceTimersByTime(8_000));
+      expect(currentTitle()).toHaveTextContent('First feature');
+    });
+
+    it('gives a replacement title a fresh interval even when the hero count stays the same', async () => {
+      vi.useFakeTimers();
+      bridge.state.session.activeProfile = 9202;
+      bridge.state.home.hero = heroes;
+      const view = render(<MemoryRouter><HomePage /></MemoryRouter>);
+      await act(async () => vi.advanceTimersByTime(7_000));
+      bridge.state.home.hero = [{ ...heroes[0], id: 'replacement', name: 'Replacement feature' }, heroes[1]];
+      view.rerender(<MemoryRouter><HomePage /></MemoryRouter>);
+      await act(async () => vi.advanceTimersByTime(1_000));
+      expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('Replacement feature');
+      await act(async () => vi.advanceTimersByTime(7_000));
+      expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('Second feature');
+    });
 
     it('advances on a long drag and snaps back on a short one', () => {
       bridge.state.session.activeProfile = 9101;

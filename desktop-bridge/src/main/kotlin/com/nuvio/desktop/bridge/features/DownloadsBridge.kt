@@ -146,10 +146,11 @@ object DownloadsBridge {
         return DownloadsRepository.uiState.value.items.firstOrNull { it.id == downloadId && it.status == DownloadStatus.Completed }
     }
 
-    private fun mutate(id: String, allowed: Set<DownloadStatus>?, operation: String): JsonObject {
+    private suspend fun mutate(id: String, allowed: Set<DownloadStatus>?, operation: String): JsonObject {
         DownloadsRepository.ensureLoaded()
         val current = DownloadsRepository.uiState.value.items.firstOrNull { it.id == id }
             ?: throw BridgeFeatureException("DOWNLOAD_NOT_FOUND", "Download does not exist")
+        KidsBridge.requireMedia(current.parentMetaType, current.parentMetaId)
         if (allowed != null && current.status !in allowed) {
             throw BridgeFeatureException("INVALID_DOWNLOAD_STATE", "Cannot $operation a download in ${current.status.name.lowercase()} state")
         }

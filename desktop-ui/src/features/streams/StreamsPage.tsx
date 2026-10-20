@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { Activity, ArrowLeft, Check, Copy, Download, LoaderCircle, Maximize, RefreshCw, Settings2, Gauge, X } from 'lucide-react';
+import { FullscreenButton } from '../../components/FullscreenButton';
+import { Activity, ArrowLeft, Check, Copy, Download, LoaderCircle, RefreshCw, Settings2, Gauge, X } from 'lucide-react';
 import { actions, BridgeError, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { EmptyState } from '../../components/EmptyState';
 import { InlineError } from '../../components/Status';
@@ -257,7 +257,7 @@ export function StreamsPage() {
       {isResolvingStage || waitingForAutomaticSelection && !playbackStarting
         ? <button className="streams-opening-back" type="button" aria-label="Back" onClick={cancelPlayerStart}><ArrowLeft size={21} /></button>
         : <nav className="streams-opening-actions" aria-label="Player actions">
-          <button className="streams-opening-back" type="button" aria-label="Toggle fullscreen" onClick={() => { const window = getCurrentWindow(); void window.isFullscreen().then(fullscreen => window.setFullscreen(!fullscreen)).catch(() => {}); }}><Maximize size={19} /></button>
+          <FullscreenButton onError={setError} />
           <button className="streams-opening-back" type="button" aria-label="Close player" onClick={cancelPlayerStart}><X size={21} /></button>
         </nav>}
       <div className={`streams-opening-content${playbackLoadingSettings?.showPlayerLoadingStatus === false ? ' no-status' : ''}`}>

@@ -30,30 +30,6 @@ object KidsBridge {
     private data class Verdict(val allowed: Boolean, val expires: Long)
     private val verdicts = ConcurrentHashMap<String, Verdict>()
     val active: NuvioProfile? get() = ProfileRepository.state.value.activeProfile?.takeIf { it.kidsEnabled }
-    private val readMethods = setOf(
-        "session.snapshot", "profiles.snapshot", "profiles.select", "profiles.pin.verify",
-        "settings.snapshot", "appearance.snapshot", "posters.snapshot", "metadataSettings.snapshot",
-        "homePreferences.snapshot", "continueWatching.snapshot", "addons.snapshot",
-        "home.snapshot", "home.refresh", "home.extras", "home.upcoming.refresh", "home.resumePrompt.consume",
-        "library.snapshot", "library.extras", "library.setLayout", "library.setSort",
-        "search.start", "discover.snapshot", "discover.refresh", "discover.selectType", "discover.selectCatalog", "discover.selectGenre", "discover.loadMore",
-        "catalog.open", "catalog.snapshot", "catalog.loadMore", "catalog.refresh", "posters.resolve",
-        "streams.resolve", "streams.snapshot", "streamSelection.snapshot",
-    )
-    /** Settings screens stay editable in a kids profile; content management does not. */
-    private val settingsMethods = setOf("app.openExternal", "session.signOut")
-    private val settingsMethodPrefixes = listOf(
-        "settings.", "appearance.", "posters.", "homePreferences.", "home.", "continueWatching.",
-        "search.", "metadataSettings.", "playbackSettings.", "p2p.", "about.", "advanced.",
-        "downloads.filter.", "streams.badges.", "streams.filter.", "streams.downloadFilter.", "streams.autoplay.", "streams.cancel",
-        "tmdb.", "mdblist.", "debrid.", "simkl.",
-        "trackingSettings.", "integrations.", "plugins.", "addons.", "profiles.rememberLast.",
-    )
-
-    /** True when a kids profile may run this settings mutation; content-management methods are excluded. */
-    internal fun allowsSettingsMutation(method: String): Boolean =
-        method in settingsMethods || settingsMethodPrefixes.any { method.startsWith(it) }
-
     internal fun normalizeService(raw: String): String {
         val uri = runCatching { URI(raw.trim().trimEnd('/')) }.getOrElse { throw BridgeFeatureException("INVALID_KIDS_SERVER", "Enter a valid KidsScreen server address") }
         val local = uri.host in setOf("localhost", "127.0.0.1", "[::1]", "::1")
@@ -73,7 +49,6 @@ object KidsBridge {
     }
 
     suspend fun configure(params: JsonObject): JsonObject {
-        if (active != null) throw BridgeFeatureException("PARENT_REQUIRED", "Switch to the parent profile to change kids settings")
         if (AuthRepository.state.value.isAnonymous) throw BridgeFeatureException("SIGN_IN_REQUIRED", "Sign in to set up a kids profile")
         val id = params["id"]?.jsonPrimitive?.intOrNull ?: error("Profile is required")
         val profile = ProfileRepository.state.value.profiles.firstOrNull { it.profileIndex == id } ?: error("Profile not found")
@@ -171,16 +146,18 @@ object KidsBridge {
 
     suspend fun authorize(method: String, params: JsonObject) {
         if (active == null) return
-        if (method in readMethods || method.startsWith("playback.")) return
-        if (method == "streams.load") { requireMedia(params["type"]?.jsonPrimitive?.content, params["parentMetaId"]?.jsonPrimitive?.contentOrNull ?: params["videoId"]?.jsonPrimitive?.contentOrNull); return }
+        authorizeContent(method, params, ::requireMedia)
+    }
+
+    /** Feature access is unrestricted; title operations retain their rating check. */
+    internal suspend fun authorizeContent(method: String, params: JsonObject, requireTitle: suspend (String?, String?) -> Unit) {
+        if (method == "streams.load") { requireTitle(params["type"]?.jsonPrimitive?.content, params["parentMetaId"]?.jsonPrimitive?.contentOrNull ?: params["videoId"]?.jsonPrimitive?.contentOrNull); return }
         if (method.startsWith("details.") && method !in setOf("details.person", "details.entity", "details.entity.page", "details.comments.page")) {
-            requireMedia(params["type"]?.jsonPrimitive?.content, params["id"]?.jsonPrimitive?.content); return
+            requireTitle(params["type"]?.jsonPrimitive?.content, params["id"]?.jsonPrimitive?.content); return
         }
         if (method in setOf("library.add", "library.remove", "library.membership", "library.setMembership")) {
-            requireMedia(params["type"]?.jsonPrimitive?.content, params["id"]?.jsonPrimitive?.content); return
+            requireTitle(params["type"]?.jsonPrimitive?.content, params["id"]?.jsonPrimitive?.content); return
         }
-        if (allowsSettingsMutation(method)) return
-        throw BridgeFeatureException("PARENT_REQUIRED", "Switch to the parent profile to use this feature")
     }
 
     suspend fun requireMedia(type: String?, id: String?) {
@@ -231,8 +208,13 @@ object KidsBridge {
     }
     suspend fun sanitizeTopic(topic: String, data: JsonObject): JsonObject {
         if (active == null) return data
-        val source = if (topic in setOf("downloads", "cloud", "searchHistory")) JsonObject(data.mapValues { (_, value) -> if (value is JsonArray) JsonArray(emptyList()) else value }) else data
+        val source = if (topic in setOf("cloud", "searchHistory")) JsonObject(data.mapValues { (_, value) -> if (value is JsonArray) JsonArray(emptyList()) else value }) else data
         return sanitize(source) as? JsonObject ?: JsonObject(emptyMap())
+    }
+    suspend fun sanitizeReply(method: String, value: JsonElement): JsonElement = when {
+        value is JsonObject && method.startsWith("cloud.") -> sanitizeTopic("cloud", value)
+        value is JsonObject && method == "search.historySnapshot" -> sanitizeTopic("searchHistory", value)
+        else -> sanitize(value)
     }
     suspend fun sanitize(value: JsonElement): JsonElement {
         val profile = active ?: return value

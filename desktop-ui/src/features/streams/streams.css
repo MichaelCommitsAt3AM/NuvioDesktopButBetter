@@ -7,7 +7,7 @@
 .streams-opening-overlay{position:absolute;inset:0;z-index:40;display:grid;place-items:center;overflow:hidden;background:transparent;animation:streams-opening-fade-in 180ms ease both}
 .streams-opening-back{position:absolute;top:20px;right:20px;z-index:3;width:44px;height:44px;display:grid;place-items:center;border:0;border-radius:50%;background:rgba(0,0,0,.3);color:#fff;cursor:pointer}
 .streams-opening-back:hover{background:rgba(255,255,255,.14)}
-.streams-opening-actions{position:absolute;top:20px;right:20px;z-index:3;display:flex;align-items:center;gap:10px}
+.streams-opening-actions{position:absolute;top:39px;right:96px;z-index:3;display:flex;align-items:center;gap:10px}
 .streams-opening-actions .streams-opening-back{position:static}
 .streams-opening-content{position:relative;z-index:2;width:min(100%,720px);min-height:260px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;animation:streams-opening-content-in 700ms 400ms both}
 .streams-opening-logo{width:300px;max-width:min(78vw,300px);height:180px;object-fit:contain;transform-origin:center;animation:streams-opening-pulse 2s linear infinite alternate}

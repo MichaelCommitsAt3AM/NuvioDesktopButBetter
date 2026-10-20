@@ -26,9 +26,11 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 it('does not paint the first artwork until load AND decode finish, then starts its fade', async () => {
-  const { container } = render(<HeroBackdrop url="https://example.invalid/first.jpg" />);
+  const onSettled = vi.fn();
+  const { container } = render(<HeroBackdrop url="https://example.invalid/first.jpg" onSettled={onSettled} />);
   const backdrop = container.firstElementChild as HTMLElement;
   expect(backdrop.style.backgroundImage).toBe('');
+  expect(onSettled).not.toHaveBeenCalled();
   expect(backdrop).not.toHaveClass('is-ready');
   act(() => probes[0].onload!());
   expect(probes[0].decode).toHaveBeenCalledTimes(1);
@@ -36,6 +38,7 @@ it('does not paint the first artwork until load AND decode finish, then starts i
   await act(async () => probes[0].resolve());
   expect(backdrop).toHaveClass('is-ready');
   expect(backdrop.style.backgroundImage).toContain('first.jpg');
+  expect(onSettled).toHaveBeenCalledTimes(1);
 });
 
 it('also waits for a cached bitmap to decode', async () => {
@@ -60,10 +63,12 @@ it('ignores obsolete completions when the featured image changes during decoding
 });
 
 it('never exposes failed decoding or an image that completes after unmount', async () => {
-  const view = render(<HeroBackdrop url="https://example.invalid/broken.jpg" />);
+  const onSettled = vi.fn();
+  const view = render(<HeroBackdrop url="https://example.invalid/broken.jpg" onSettled={onSettled} />);
   act(() => probes[0].onload!());
   await act(async () => probes[0].reject());
   expect(view.container.firstElementChild).not.toHaveClass('is-ready');
+  expect(onSettled).toHaveBeenCalledTimes(1);
   view.rerender(<HeroBackdrop url="https://example.invalid/late.jpg" />);
   act(() => probes[1].onload!());
   view.unmount();

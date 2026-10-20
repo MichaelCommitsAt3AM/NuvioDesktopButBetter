@@ -40,7 +40,7 @@ class KidsBridgeTest {
     }
 
     @Test
-    fun kidsProfilesCanChangeSettingsButNotContentManagement() {
+    fun kidsProfilesCanUseFeaturesWithoutAParentProfileGate() = runBlocking {
         val allowed = listOf(
             "settings.setTheme", "appearance.setAmoled", "appearance.setAppIcon", "posters.setPattern",
             "homePreferences.setEnabled", "home.preferences.setStyle", "continueWatching.setStyle",
@@ -50,12 +50,42 @@ class KidsBridgeTest {
             "simkl.connect", "trackingSettings.set", "plugins.addRepository", "addons.install",
             "profiles.rememberLast.set", "session.signOut", "app.openExternal",
         )
-        val blocked = listOf(
+        val management = listOf(
             "profiles.create", "profiles.delete", "profiles.kids.configure", "profiles.pin.set",
-            "downloads.enqueue", "cloud.play", "collections.editor.save", "library.membership",
+            "downloads.snapshot", "downloads.enqueue", "cloud.refresh", "collections.editor.save",
         )
-        for (method in allowed) assertTrue(KidsBridge.allowsSettingsMutation(method), method)
-        for (method in blocked) assertFalse(KidsBridge.allowsSettingsMutation(method), method)
+        for (method in allowed + management) {
+            KidsBridge.authorizeContent(method, JsonObject(emptyMap())) { _, _ -> error("Feature $method should not require a title") }
+        }
+    }
+
+    @Test
+    fun titleOperationsStillRequireTheRatingCheck() = runBlocking {
+        val params = buildJsonObject { put("type", "movie"); put("id", "tt1234567"); put("parentMetaId", "tt1234567") }
+        for (method in listOf("details.load", "details.watched.toggle", "streams.load", "library.add", "library.membership")) {
+            var checked = false
+            val failure = assertFailsWith<BridgeFeatureException> {
+                KidsBridge.authorizeContent(method, params) { type, id ->
+                    checked = true
+                    assertEquals("movie", type)
+                    assertEquals("tt1234567", id)
+                    throw BridgeFeatureException("KIDS_TITLE_BLOCKED", "Blocked")
+                }
+            }
+            assertTrue(checked, method)
+            assertEquals("KIDS_TITLE_BLOCKED", failure.code)
+        }
+    }
+
+    @Test
+    fun downloadSnapshotsOnlyExposeVerifiedTitles() {
+        val source = Json.parseToJsonElement("""{"items":[
+            {"id":"download-1","parentMetaType":"movie","parentMetaId":"tt1","title":"Allowed"},
+            {"id":"download-2","parentMetaType":"movie","parentMetaId":"tt2","title":"Blocked"}
+        ]}""")
+        val filtered = KidsBridge.filter(source, setOf(KidsBridge.Ref("movie", "tt1")))!!.jsonObject
+        assertEquals(1, filtered["items"]!!.jsonArray.size)
+        assertFalse(filtered.toString().contains("Blocked"))
     }
 
     @Test

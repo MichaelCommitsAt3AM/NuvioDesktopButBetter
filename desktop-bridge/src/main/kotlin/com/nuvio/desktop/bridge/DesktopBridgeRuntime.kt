@@ -396,7 +396,7 @@ class DesktopBridgeRuntime {
                                 call.respond(HttpStatusCode.Conflict, errorBody(id, epoch, "stale_epoch", "Request became stale while running"))
                             } else {
                                 val committedEpoch = epoch
-                                val safeResult = KidsBridge.sanitize(it)
+                                val safeResult = KidsBridge.sanitizeReply(method, it)
                                 if (committedEpoch != epoch) call.respond(HttpStatusCode.Conflict, errorBody(id, epoch, "stale_epoch", "Profile changed while checking content"))
                                 else call.respond(buildJsonObject { put("id", id); put("epoch", epoch); put("result", safeResult) })
                             }
@@ -738,6 +738,9 @@ class DesktopBridgeRuntime {
         "downloads.enqueue" -> enqueueDownload(params)
         "cloud.play" -> {
             val (item, file) = LibraryExtrasBridge.target(params.str("itemKey"), params.str("fileKey"))
+            // Cloud files have no verified movie/series identity. Keep the
+            // existing fail-closed content rule when opening feature access.
+            KidsBridge.requireMedia("cloud", item.stableKey)
             val result = com.nuvio.app.features.cloud.CloudLibraryRepository.resolvePlayback(item, file)
             val playable = result as? com.nuvio.app.features.cloud.CloudLibraryPlaybackResult.Success ?: error("Cloud file could not be resolved")
             val videoId = "${item.stableKey}:${file.stableKey}"
@@ -752,6 +755,7 @@ class DesktopBridgeRuntime {
         }
         "downloads.play" -> {
             val item = DownloadsBridge.getPlayableItem(params.str("id")) ?: error("Downloaded file is unavailable")
+            KidsBridge.requireMedia(item.parentMetaType, item.parentMetaId)
             val uri = DownloadsRepository.playableLocalFileUri(item) ?: error("Downloaded file is unavailable")
             val meta = MetaDetailsRepository.peek(item.parentMetaType, item.parentMetaId)
                 ?: MetaDetails(id = item.parentMetaId, type = item.parentMetaType, name = item.title, poster = item.poster, background = item.background,
@@ -789,6 +793,7 @@ class DesktopBridgeRuntime {
     private suspend fun enqueueDownload(params: JsonObject): JsonObject {
         val record = synchronized(streamRegistry) { streamRegistry[params.str("streamId")] } ?: error("Stream is no longer available")
         val meta = record.meta ?: error("Load title details before downloading")
+        KidsBridge.requireMedia(meta.type, meta.id)
         val video = meta.videos.firstOrNull { it.id == record.videoId }
         val stream = if (!DirectDebridPlaybackResolver.shouldResolveToPlayableStream(record.stream)) record.stream else {
             val result = DirectDebridPlaybackResolver.resolveToPlayableStream(record.stream, video?.season, video?.episode)

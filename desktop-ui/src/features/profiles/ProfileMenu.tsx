@@ -92,7 +92,7 @@ export function ProfileMenu({ onClose, holdGesture }: { onClose: () => void; hol
           <span className="profile-popup-avatar"><Avatar profile={profile} size="md" />{(profile.id === session.activeProfile || profile.locked) && <span className={`profile-popup-badge ${profile.id === session.activeProfile ? 'active' : ''}`}>{profile.id === session.activeProfile ? <Check size={11} /> : <LockKeyhole size={11} />}</span>}</span>
           <span className="profile-popup-name">{profile.name || `Profile ${profile.id}`}</span>
         </button>)}
-        {!session.profiles.find(profile => profile.id === session.activeProfile)?.kidsEnabled && session.profiles.length < 6 && <button type="button" role="menuitem" className="profile-popup-tile" onClick={() => close(() => navigate('/profiles/new'))}><span className="profile-popup-add"><Plus size={22} /></span><span className="profile-popup-name">Add Profile</span></button>}
+        {session.profiles.length < 6 && <button type="button" role="menuitem" className="profile-popup-tile" onClick={() => close(() => navigate('/profiles/new'))}><span className="profile-popup-add"><Plus size={22} /></span><span className="profile-popup-name">Add Profile</span></button>}
       </div>}
       {error && <p className="form-error" role="alert">{error}</p>}
     </div>

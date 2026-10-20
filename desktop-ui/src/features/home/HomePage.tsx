@@ -1,12 +1,12 @@
-import { useContext, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Compass, Maximize, MoreHorizontal, RotateCcw, Trash2, Info, Play } from 'lucide-react';
+import { Compass, MoreHorizontal, RotateCcw, Trash2, Info, Play } from 'lucide-react';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { EmptyState } from '../../components/EmptyState';
 import { InlineError } from '../../components/Status';
 import { HorizontalRail } from '../../components/HorizontalRail';
 import { HomeCollections } from '../collections/CollectionsPages';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { FullscreenButton } from '../../components/FullscreenButton';
 import type { AppearanceSnapshot } from '../settings/appearanceStore';
 import { HomeActionDialog } from './HomeActionDialog';
 import { useCardHold } from '../../components/useCardHold';
@@ -93,6 +93,9 @@ export function HomePage() {
     }
   };
   const hero = heroItems.length ? heroItems[heroIndex % heroItems.length] : undefined;
+  const heroKey = JSON.stringify([profileId, hero?.type, hero?.id, hero?.background]);
+  const [settledHero, setSettledHero] = useState<string | null>(null);
+  const onHeroSettled = useCallback(() => setSettledHero(heroKey), [heroKey]);
   const preferences = extras?.preferences;
   const heroElement=useRef<HTMLElement>(null);
   const [heroActive,setHeroActive]=useState(true);
@@ -100,7 +103,7 @@ export function HomePage() {
   const [viewport,setViewport]=useState({width:window.innerWidth,height:window.innerHeight});
   useEffect(()=>{const resize=()=>setViewport({width:window.innerWidth,height:window.innerHeight});window.addEventListener('resize',resize);return ()=>window.removeEventListener('resize',resize);},[]);
   useEffect(()=>{const element=heroElement.current;if(!element||typeof IntersectionObserver==='undefined')return;const observer=new IntersectionObserver(([entry])=>setHeroActive(entry.isIntersecting));observer.observe(element);return ()=>observer.disconnect();},[heroItems.length]);
-  useEffect(()=>{if(!visible||!heroActive||heroDragging||heroItems.length<2)return;if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;const timer=setTimeout(()=>{if(document.visibilityState==='visible')setHeroIndex(index=>(index+1)%heroItems.length);},8000);return ()=>clearTimeout(timer);},[visible,heroIndex,heroItems.length,heroActive,heroDragging]);
+  useEffect(()=>{if(!visible||!heroActive||heroDragging||heroItems.length<2||settledHero!==heroKey)return;if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;const timer=setTimeout(()=>{if(document.visibilityState==='visible')setHeroIndex(index=>(index+1)%heroItems.length);},8000);return ()=>clearTimeout(timer);},[visible,heroIndex,heroItems.length,heroActive,heroDragging,heroKey,settledHero]);
   // Keep the starting item stable when catalogs update underneath the pager.
   useEffect(()=>{setHeroIndex(current=>heroItems.length?current%heroItems.length:0);},[heroItems.length]);
   // Decode the current and adjacent artwork deliberately: the pager never
@@ -207,13 +210,14 @@ export function HomePage() {
   usePlacementFlip(upcomingRailRef);
 
   return <div className="home-page" style={heroStyle}>
+    {visible && <FullscreenButton onError={setActionError} />}
     {hero && appearance?.home.heroEnabled!==false && <section ref={heroElement} className="home-hero" tabIndex={0} aria-label="Featured titles" aria-roledescription="carousel" onKeyDown={event=>{if(event.key==='ArrowRight'){event.preventDefault();moveHero(1);}if(event.key==='ArrowLeft'){event.preventDefault();moveHero(-1);}}}
       onClickCapture={event=>{if(heroSuppressedClick.current){heroSuppressedClick.current=false;event.preventDefault();event.stopPropagation();}}}
       onPointerDown={event=>{if(event.button!==0||(event.target as HTMLElement).closest('button'))return;const now=performance.now();heroDrag.current={startX:event.clientX,dx:0,dragging:false,startT:now,lastX:event.clientX,lastT:now};swipeStart.current=event.clientX;setHeroDragging(true);try{event.currentTarget.setPointerCapture(event.pointerId);}catch{/* noop */}}}
       onPointerMove={event=>{const drag=heroDrag.current;if(!drag)return;const now=performance.now();drag.dx=event.clientX-drag.startX;drag.lastX=event.clientX;drag.lastT=now;if(!drag.dragging&&Math.abs(drag.dx)>8)drag.dragging=true;if(drag.dragging)applyHeroDrag(drag.dx,false);}}
       onPointerUp={event=>{const drag=heroDrag.current;heroDrag.current=null;swipeStart.current=null;setHeroDragging(false);if(!drag||!drag.dragging){applyHeroDrag(0,true);return;}const width=event.currentTarget.clientWidth||1;const dt=Math.max(1,performance.now()-drag.lastT);const velocity=(event.clientX-drag.lastX)/dt;const fling=velocity<-0.5?1:velocity>0.5?-1:0;const advance=drag.dx<-Math.max(60,width*0.15)||fling===1?1:drag.dx>Math.max(60,width*0.15)||fling===-1?-1:0;if(advance!==0){heroSuppressedClick.current=true;applyHeroDrag(0,true);moveHero(advance);}else applyHeroDrag(0,true);}}
       onPointerCancel={()=>{heroDrag.current=null;swipeStart.current=null;setHeroDragging(false);applyHeroDrag(0,true);}}>
-      <HeroBackdrop key={hero.id} elementRef={heroBgRef} url={hero.background} />
+      <HeroBackdrop key={`${hero.type}:${hero.id}`} elementRef={heroBgRef} url={hero.background} onSettled={onHeroSettled} />
       <div className="home-hero-top-fade"/><div className="home-hero-side-fade"/><div className="home-hero-bottom-fade"/>
       <div key={`copy:${hero.id}`} ref={heroCopyRef} className="home-hero-copy">
         <HeroTitle key={`${hero.type}:${hero.id}`} url={hero.logo} name={hero.name} onOpen={() => openTitle(hero.type,hero.id)} />
@@ -221,7 +225,6 @@ export function HomePage() {
         {hero.description&&<p className="hero-description">{hero.description}</p>}
         <button className="hero-details-button" onClick={()=>openTitle(hero.type,hero.id)}>View Details</button>
       </div>
-      <button className="home-fullscreen" aria-label="Toggle fullscreen" onClick={()=>{const window=getCurrentWindow();void window.isFullscreen().then(fullscreen=>window.setFullscreen(!fullscreen)).catch(error=>setActionError(String(error)));}}><Maximize size={24}/></button>
       {heroItems.length>1&&<div className="home-hero-dots">{heroItems.map((item,index)=><button key={`${item.type}:${item.id}`} aria-label={`Show featured title ${index+1}`} aria-current={index===heroIndex} onClick={()=>setHeroIndex(index)}/>)}</div>}
     </section>}
     {actionError && <InlineError message={actionError} onRetry={() => setActionError(null)} />}

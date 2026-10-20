@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useNavigate, useNavigationType, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { Check, CircleCheck, Maximize, MoreHorizontal, Play, Plus } from 'lucide-react';
+import { Check, CircleCheck, MoreHorizontal, Play, Plus } from 'lucide-react';
 import { BackButton } from '../../components/BackButton';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { FullscreenButton } from '../../components/FullscreenButton';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { mainScroller, scrollKey, useActiveProfileId, useListScrollRestore } from '../../navigation/scrollStore';
 import { cachedDominantColor, fetchDominantColor } from './dominantColor';
@@ -179,7 +179,7 @@ export function DetailsPage() {
     <div className="detail-page" ref={pageRef}>
     {(media || details.loading) && <div className="detail-screen-controls">
       <BackButton className="detail-back" onClick={() => navigate(-1)} />
-      {media && <button className="detail-fullscreen" type="button" aria-label="Toggle fullscreen" onClick={() => { const window = getCurrentWindow(); void window.isFullscreen().then((fullscreen) => window.setFullscreen(!fullscreen)).catch(() => {}); }}><Maximize size={20} /></button>}
+      {media && <FullscreenButton />}
     </div>}
     {details.loading && loadTimedOut && <InlineError message="This title is taking longer than expected to load." onRetry={() => { setLoadTimedOut(false); void actions.loadDetails(type, id); }} />}
     {details.error && <InlineError message={details.error} onRetry={() => void actions.loadDetails(type, id)} />}

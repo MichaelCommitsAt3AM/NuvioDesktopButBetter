@@ -60,11 +60,17 @@ export function HomePage() {
   const extras = useFeatureSnapshot<HomeExtras>('homeExtras');
   // Kotlin owns source selection, release filtering and collection fallback.
   // An empty hero is intentional; shelves may belong to unselected catalogs.
-  // Catalog previews reshuffle the hero on every arrival. Publish only a
-  // settled list to the carousel, retaining existing artwork during refreshes.
-  const [featuredSnapshot, setFeaturedSnapshot] = useState({ profileId, items: home.loading ? [] : home.hero ?? [] });
-  if (featuredSnapshot.profileId !== profileId || (!home.loading && home.hero && featuredSnapshot.items !== home.hero)) {
-    setFeaturedSnapshot({ profileId, items: home.loading ? [] : home.hero ?? [] });
+  // Paint the first usable Kotlin selection immediately, then hold it steady
+  // while other catalogs/pages load. Keep its first title when settling so
+  // startup does not replace artwork that has just finished decoding.
+  const [featuredSnapshot, setFeaturedSnapshot] = useState({ profileId, source: home.hero, items: home.hero ?? [] });
+  if (featuredSnapshot.profileId !== profileId) {
+    setFeaturedSnapshot({ profileId, source: home.hero, items: home.hero ?? [] });
+  } else if (featuredSnapshot.source !== home.hero && (!home.loading || !featuredSnapshot.items.length)) {
+    const items = home.hero ?? [];
+    const first = featuredSnapshot.items[0];
+    const retained = first && items.find(item => item.type === first.type && item.id === first.id);
+    setFeaturedSnapshot({ profileId, source: home.hero, items: retained ? [retained, ...items.filter(item => item !== retained)] : items });
   }
   const heroItems = (featuredSnapshot.profileId === profileId ? featuredSnapshot.items : []).slice(0, MAX_HERO_ITEMS);
   const viewKey=String(profileId??'default');

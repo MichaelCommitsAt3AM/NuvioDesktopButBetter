@@ -128,20 +128,22 @@ describe('Continue Watching snapshot loading', () => {
       { id: 'one', type: 'movie', name: 'First feature', background: null, logo: null, genres: [], description: '' },
       { id: 'two', type: 'movie', name: 'Second feature', background: null, logo: null, genres: [], description: '' },
     ];
-    it('keeps reshuffled catalog previews off screen until the initial featured list settles', () => {
+    it('shows the first catalog preview immediately and keeps its title stable as loading settles', () => {
       bridge.state.session.activeProfile = 9201;
       bridge.state.home = { shelves: [], loading: true, hero: [heroes[1]] };
       const view = render(<MemoryRouter><HomePage /></MemoryRouter>);
-      expect(screen.queryByRole('region', { name: 'Featured titles' })).toBeNull();
+      expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('Second feature');
+      expect(document.querySelector('.home-loading-hero')).toBeNull();
       bridge.state.home = { shelves: [], loading: true, hero: [...heroes].reverse() };
       view.rerender(<MemoryRouter><HomePage /></MemoryRouter>);
-      expect(screen.queryByRole('region', { name: 'Featured titles' })).toBeNull();
+      expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('Second feature');
+      expect(document.querySelector('.home-loading-hero')).toBeNull();
       bridge.state.home = { shelves: [], loading: false, hero: heroes };
       view.rerender(<MemoryRouter><HomePage /></MemoryRouter>);
-      expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('First feature');
+      expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('Second feature');
       bridge.state.home = { shelves: [], loading: true, hero: [...heroes].reverse() };
       view.rerender(<MemoryRouter><HomePage /></MemoryRouter>);
-      expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('First feature');
+      expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('Second feature');
     });
 
     const pointer = (node: HTMLElement, type: 'pointerdown' | 'pointermove' | 'pointerup', clientX: number) =>

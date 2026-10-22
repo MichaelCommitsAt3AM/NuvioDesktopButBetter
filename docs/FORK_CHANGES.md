@@ -4,6 +4,12 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### First available featured titles during cold startup — 2026-10-22
+
+The earlier settled-list guard hid usable Kotlin hero previews until HomeRepository completed every catalog and preview page. On an empty cache, the featured skeleton therefore waited for the slowest request, in adult and kids profiles alike. React now displays the first nonempty Kotlin hero preview immediately, holds it during subsequent loading updates, and retains that first title in the completed selection if it is still eligible. Profile changes reset the selection; an empty completed Kotlin selection still removes it. Kotlin source/rating policies and catalog fetching remain authoritative and unchanged.
+
+Validation: all 17 targeted Home regression tests and the frontend production build passed. The user confirmed the fix works in the debug shell with an isolated copy of existing profiles/settings, empty content/artwork/webview caches and cached add-on manifests removed. Exact startup timings and a completely new account/install remain unmeasured; this removes a confirmed UI wait and does not guarantee a particular startup duration.
+
 ### Flatpak CI dependency download recovery — 2026-10-22
 
 Previous successful Flatpak jobs installed Linux dependencies in 62–74 seconds and completed in roughly 13 minutes. Release 0.1.31.3's first attempt spent over 35 minutes fetching Ubuntu packages from the Azure archive, and its retry again remained in dependency installation for over 15 minutes. Flatpak CI now substitutes Ubuntu's main HTTPS archive for the Azure regional mirror and configures 30-second APT connection/inactivity timeouts with three retries. Other platform dependency setup is unchanged. A Flatpak-only build can be attached through `publish-ready` using `flatpak_run`; CI checks that the separate Flatpak job succeeded with identical application/version sources before downloading its artifact. The published packages/updater feed remain unchanged.

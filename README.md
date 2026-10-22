@@ -28,7 +28,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 - Media servers uses the Kotlin app’s server list, Jellyfin/Emby provider rows and separate sign-in and server settings views.
 
-- Home waits for the featured list to settle before showing its first title, preventing rapid poster changes during startup.
+- Home shows the first available featured titles while other catalogs load, keeping the initial poster stable during startup.
 
 - Moving the mouse reveals hidden player controls in fullscreen without needing a click.
 

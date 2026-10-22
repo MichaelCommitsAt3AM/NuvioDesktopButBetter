@@ -1,0 +1,19 @@
+.media-servers-page .media-servers-empty{margin:0;padding:15.12px 17.28px;color:#989da2;font-size:15.12px;line-height:22px}
+.media-servers-page .media-provider-logo{background:none}
+.media-provider-logo img{width:30.24px;height:30.24px;object-fit:contain}
+.media-servers-page .media-library-description{padding:0 21.6px;color:#989da2;font-size:14px;line-height:21px}
+.media-server-actions{margin-top:20px}
+.media-server-actions .settings-nav-row{gap:17px}
+.media-server-actions>.button{width:calc(100% - 43.2px);margin:16px 21.6px 21.6px;color:#ee8282;background:#ee828212}
+body .dialog-surface.media-server-signin{width:min(560px,calc(100vw - 40px));padding:26px;border-radius:30px;background:var(--settings-surface,var(--app-surface));color:var(--text)}
+.media-server-signin h2{margin:0 0 4px;font-size:24px;line-height:31px;font-weight:600}
+.media-server-signin>p{margin:0 0 21.6px;color:#989da2;font-size:16px;line-height:24px}
+.media-server-signin fieldset{display:grid;gap:13px;padding:0;margin:0;border:0;min-width:0}
+.media-server-signin label{display:grid;gap:6px;font-size:14px;color:#989da2}
+.media-server-signin input{width:100%;min-width:0;min-height:60px;padding:16px;border:1px solid #ffffff30;border-radius:14px;background:transparent;color:var(--text);font:inherit;font-size:17px;outline:none}
+.media-server-signin input:focus{border-color:var(--app-accent)}
+.media-server-secret{position:relative;display:flex}
+.media-server-secret input{padding-right:58px}
+.media-server-secret button{position:absolute;right:10px;top:10px;display:grid;place-items:center;width:40px;height:40px;border:0;background:none;color:var(--text)}
+.media-server-signin .button.primary{width:100%;min-height:60px;margin-top:8px;border-radius:30px}
+.media-server-identity{display:grid;gap:4px;padding:17.28px 21.6px!important}.media-server-identity strong{font-size:18px;font-weight:600}.media-server-identity span{font-size:16px;color:#989da2}.media-server-identity small{font-size:14px;color:#92969c}.media-server-details .media-library-description{padding:0;margin:0 0 10.8px}.media-server-details .settings-group-title{margin-bottom:10.8px}

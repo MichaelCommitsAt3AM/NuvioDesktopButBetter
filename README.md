@@ -26,6 +26,12 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- Media servers uses the Kotlin app’s server list, Jellyfin/Emby provider rows and separate sign-in and server settings views.
+
+- Home waits for the featured list to settle before showing its first title, preventing rapid poster changes during startup.
+
+- Moving the mouse reveals hidden player controls in fullscreen without needing a click.
+
 - Provider accounts and API keys stay separate for each profile, including TorBox and Premiumize. Switching profiles reloads the correct credentials.
 - Every profile includes OpenSubtitles v3, checked by default and marked Recommended, with an option to turn it off. Kids-profile add-on selection disables Cinemeta and AIOMetadata; the add-on sync card follows Kids settings.
 

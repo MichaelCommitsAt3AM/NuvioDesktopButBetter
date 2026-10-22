@@ -4,6 +4,20 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Kotlin-style Media servers presentation — 2026-10-22
+
+The rewrite Media servers overview follows `MediaServersSettingsPage.kt`: SERVERS and ADD SERVER groups, the original empty-state copy, connected-server navigation and individual provider rows using the original Jellyfin bitmap and an SVG transcription of the Emby vector. The generic inline provider selector/credential form is replaced with provider-specific sign-in dialogs matching the Kotlin labels, help text, outlined fields, password visibility control and full-width Connect action. Connections open a separate Server view with identity, options, libraries, refresh, sign-in-again and removal actions. Disabled servers disable dependent switches and refresh. Kotlin remains responsible for connecting, library selection and persistence through the existing bridge methods. Credential clearing and profile-generation guards are retained.
+
+Validation: targeted connection, library/removal, profile-switch and provider-dialog regression tests and TypeScript compilation passed. Pixel-for-pixel comparison in a running native window and live Jellyfin/Emby sign-in remain pending; the existing bridge exposes fewer provider capability/failure details than the original Kotlin UI. No backend/schema or installed-app update is included.
+
+### Stable featured artwork during Home startup — 2026-10-22
+
+React Home publishes settled Kotlin hero lists to its carousel, rather than rendering each partially loaded catalog preview (whose shuffled first item changes as catalogs arrive). Initial loading retains the existing shimmer; background refreshes retain the last settled list. Snapshots are scoped to the active profile. Image decoding/preloading and normal carousel navigation remain unchanged. Regression coverage checks intermediate reordered lists, the final first title and background refresh retention. Live startup visual acceptance remains pending.
+
+### Fullscreen player controls respond to mouse movement — 2026-10-22
+
+The native player controls used by the rewrite now reveal idle fullscreen chrome on pointer movement before resetting the inactivity timer. Previously the fullscreen hover policy left controls hidden and the activity handler ignored hidden controls, requiring a click to recover them. Locked controls and playback-error visibility remain governed by their existing policies. Regression coverage executes the production pointer handler for repeated hide/reveal cycles and locked, error and windowed states. Live native playback acceptance remains pending; this source change does not update the installed app.
+
 ### Shared floating fullscreen controls — 2026-10-20
 
 All six existing fullscreen/windowed controls (Home, Library, title details, Collections, profile editing and stream loading) now share `components/FullscreenButton.tsx`. They float at a fixed top-right viewport position and portal outside their scrolling/animated screen trees so scroll offsets, clipping and transforms cannot move them away. Home also exposes its control with an empty, loading or disabled hero, and cached Home removes it while another route is visible. Stream loading's close-player action is offset to avoid overlapping the floating control. Targeted Home and Library tests cover portal placement and Home hide/restore behavior. Visual scrolling/fullscreen acceptance across the screens remains user-led.

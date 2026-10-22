@@ -60,7 +60,13 @@ export function HomePage() {
   const extras = useFeatureSnapshot<HomeExtras>('homeExtras');
   // Kotlin owns source selection, release filtering and collection fallback.
   // An empty hero is intentional; shelves may belong to unselected catalogs.
-  const heroItems = (home.hero ?? []).slice(0, MAX_HERO_ITEMS);
+  // Catalog previews reshuffle the hero on every arrival. Publish only a
+  // settled list to the carousel, retaining existing artwork during refreshes.
+  const [featuredSnapshot, setFeaturedSnapshot] = useState({ profileId, items: home.loading ? [] : home.hero ?? [] });
+  if (featuredSnapshot.profileId !== profileId || (!home.loading && home.hero && featuredSnapshot.items !== home.hero)) {
+    setFeaturedSnapshot({ profileId, items: home.loading ? [] : home.hero ?? [] });
+  }
+  const heroItems = (featuredSnapshot.profileId === profileId ? featuredSnapshot.items : []).slice(0, MAX_HERO_ITEMS);
   const viewKey=String(profileId??'default');
   const [heroIndex, setHeroIndex] = useState(()=>homeViewPositions.get(viewKey)?.heroIndex??0);
   const heroIndexRef=useRef(heroIndex);heroIndexRef.current=heroIndex;

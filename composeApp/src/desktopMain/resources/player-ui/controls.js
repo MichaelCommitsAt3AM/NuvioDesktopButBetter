@@ -2902,6 +2902,14 @@ document.addEventListener("pointermove", event => {
   noteCursorActivity();
   const inside = isChromeInteractionTarget(event.target);
   updateChromePointerInside(inside);
+  // Fullscreen hover policy leaves idle controls hidden. Reveal them before
+  // noting activity, which otherwise ignores hidden chrome entirely.
+  if (state.isFullscreen && !state.controlsVisible && !state.isLocked && !playbackErrorText()) {
+    state = { ...state, controlsVisible: true };
+    renderChrome();
+    noteChromeActivity(true);
+    return;
+  }
   if (inside || state.isFullscreen) {
     noteChromeActivity();
   }

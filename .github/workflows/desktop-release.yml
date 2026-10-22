@@ -12,6 +12,7 @@ on:
           - dry-run
           - draft
           - publish
+          - publish-ready
         default: dry-run
       target:
         description: Platforms to build in build-only mode
@@ -28,17 +29,23 @@ on:
         description: Optional comma-separated commit hashes to omit from the notes
         required: false
         type: string
+      source_run:
+        description: Existing CI run whose successful signed packages publish-ready should use
+        required: false
+        type: string
 
 permissions:
   contents: write
   pull-requests: read
+  actions: read
 
 concurrency:
-  group: desktop-release-${{ github.ref }}-${{ inputs.mode == 'build-only' && inputs.target || 'release' }}
+  group: desktop-release-${{ github.ref }}-${{ inputs.mode == 'publish-ready' && 'ready' || inputs.mode == 'build-only' && inputs.target || 'release' }}
   cancel-in-progress: false
 
 jobs:
   metadata:
+    if: inputs.mode != 'publish-ready'
     name: ${{ inputs.mode }} ${{ inputs.target }} desktop release
     runs-on: ubuntu-latest
     outputs:
@@ -387,3 +394,79 @@ jobs:
           args=("$RELEASE_VERSION" --target "$RELEASE_COMMIT" --title "Nuvio $RELEASE_VERSION" --notes-file release/release-notes.md)
           if [[ "$RELEASE_MODE" == draft ]]; then args+=(--draft); else args+=(--latest); fi
           gh release create --repo "$GITHUB_REPOSITORY" "${args[@]}" "${assets[@]}"
+
+  publish-ready:
+    name: Publish completed CI packages, with Flatpak optional
+    if: inputs.mode == 'publish-ready'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_RUN: ${{ inputs.source_run }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Validate source build and successful updater targets
+        id: source
+        shell: bash
+        run: |
+          [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN" > source-run.json
+          test "$(jq -r .path source-run.json)" = '.github/workflows/desktop-release.yml'
+          source_sha=$(jq -r .head_sha source-run.json)
+          git merge-base --is-ancestor "$source_sha" HEAD
+          # Reuse only identical application sources; later workflow/docs fixes are allowed.
+          unexpected=$(git diff --name-only "$source_sha" HEAD | grep -Ev '^(\.github/workflows/desktop-release\.yml|.*\.md)$' || true)
+          test -z "$unexpected" || { echo "Application changed since source build: $unexpected" >&2; exit 1; }
+          git show "$source_sha:composeApp/Configuration/DesktopVersion.properties" > source-version.properties
+          cmp source-version.properties composeApp/Configuration/DesktopVersion.properties
+          version=$(sed -n 's/^VERSION_NAME=//p' source-version.properties | tr -d '\r')
+          test -n "$version"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN/jobs?filter=all&per_page=100" > source-jobs.json
+          for name in 'Rewrite windows x64 msi' 'Rewrite macos arm64 macos' 'Rewrite macos x86_64 macos' 'Rewrite linux x86_64 appimage' 'Rewrite linux x86_64 deb' 'Rewrite linux x86_64 rpm'; do
+            jq -e --arg name "$name" 'any(.[].jobs[]; .name == $name and .conclusion == "success")' source-jobs.json
+          done
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.source_run }}
+          pattern: nuvio-desktop-${{ steps.source.outputs.version }}-*
+          path: release
+          merge-multiple: true
+      - name: Validate packages and publish or add completed Flatpak
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.source.outputs.version }}
+          RELEASE_COMMIT: ${{ steps.source.outputs.sha }}
+        run: |
+          cat > release/release-notes.md <<'NOTES'
+          - Fixed fullscreen player controls staying hidden when moving the mouse.
+          - Stopped featured artwork from rapidly cycling while Home loads.
+          - Updated Media servers with Jellyfin and Emby sign-in dialogs and dedicated server settings.
+          - Improved profile loading and switching, with optional settings copying when creating profiles.
+          - Kept fullscreen buttons visible while scrolling throughout the desktop app.
+          NOTES
+          # The signed updater requires every non-Flatpak target, even in this mode.
+          node scripts/desktop-ui/release-manifest.mjs release
+          test -s "release/Nuvio-macOS-arm64-$RELEASE_VERSION.dmg"
+          test -s "release/Nuvio-macOS-x86_64-$RELEASE_VERSION.dmg"
+          if gh release view "$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_VERSION" --jq .sha)" = "$RELEASE_COMMIT"
+            # Keep the original published feed and packages byte-for-byte when appending Flatpak.
+            gh release download "$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" --dir release --clobber
+            test -s "release/Nuvio-Linux-x86_64-$RELEASE_VERSION.flatpak"
+            gh release upload "$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" "release/Nuvio-Linux-x86_64-$RELEASE_VERSION.flatpak" --clobber
+            (cd release && find . -maxdepth 1 -type f ! -name release-notes.md ! -name SHA256SUMS.txt -printf '%f\n' | sort | xargs -d '\n' sha256sum) > release/SHA256SUMS.txt
+            gh release upload "$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" release/SHA256SUMS.txt --clobber
+          else
+            (cd release && find . -maxdepth 1 -type f ! -name release-notes.md ! -name SHA256SUMS.txt -printf '%f\n' | sort | xargs -d '\n' sha256sum) > release/SHA256SUMS.txt
+            assets=()
+            while IFS= read -r -d '' asset; do assets+=("$asset"); done < <(find release -maxdepth 1 -type f ! -name release-notes.md -print0)
+            gh release create "$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" --target "$RELEASE_COMMIT" --title "Nuvio $RELEASE_VERSION" --notes-file release/release-notes.md --latest "${assets[@]}"
+          fi

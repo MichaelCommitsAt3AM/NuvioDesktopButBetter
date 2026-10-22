@@ -4,6 +4,10 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Publish completed packages while Flatpak finishes — 2026-10-22
+
+At the user's explicit request for release 0.1.31.3, the desktop CI workflow adds `publish-ready` with an existing source run ID. It requires successful Windows, both macOS and all three signed Linux updater-package jobs, identical application/version sources and nonempty signed updater targets. Only Flatpak may be absent. It publishes the original CI artifacts, checksums and full signed updater feed without rebuilding or local packaging. The same CI mode can append a subsequently completed Flatpak and refresh checksums while preserving the published updater feed/packages. Ordinary draft/publish runs still require all platforms. This is an explicit exception to the usual all-platform release sequence; Flatpak delivery remains pending until its artifact succeeds.
+
 ### Release notes survive GitHub API failures — 2026-10-22
 
 The desktop release workflow falls back to offline repository-history notes when GitHub PR lookup fails, replacing any partial online output. Its empty-note fallback also runs offline. This addresses the repeated invalid-JSON failures in release run 39802032418 before platform builds started. Version/tag checks, platform tests, package validation and publication gates remain unchanged.

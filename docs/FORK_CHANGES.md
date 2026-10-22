@@ -4,6 +4,10 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Flatpak CI dependency download recovery — 2026-10-22
+
+Previous successful Flatpak jobs installed Linux dependencies in 62–74 seconds and completed in roughly 13 minutes. Release 0.1.31.3's first attempt spent over 35 minutes fetching Ubuntu packages from the Azure archive, and its retry again remained in dependency installation for over 15 minutes. Flatpak CI now substitutes Ubuntu's main HTTPS archive for the Azure regional mirror and configures 30-second APT connection/inactivity timeouts with three retries. Other platform dependency setup is unchanged. A Flatpak-only build can be attached through `publish-ready` using `flatpak_run`; CI checks that the separate Flatpak job succeeded with identical application/version sources before downloading its artifact. The published packages/updater feed remain unchanged.
+
 ### Publish completed packages while Flatpak finishes — 2026-10-22
 
 At the user's explicit request for release 0.1.31.3, the desktop CI workflow adds `publish-ready` with an existing source run ID. It requires successful Windows, both macOS and all three signed Linux updater-package jobs, identical application/version sources and nonempty signed updater targets. Only Flatpak may be absent. It publishes the original CI artifacts, checksums and full signed updater feed without rebuilding or local packaging. The same CI mode can append a subsequently completed Flatpak and refresh checksums while preserving the published updater feed/packages. Ordinary draft/publish runs still require all platforms. This is an explicit exception to the usual all-platform release sequence; Flatpak delivery remains pending until its artifact succeeds.

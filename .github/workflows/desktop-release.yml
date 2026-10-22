@@ -33,6 +33,10 @@ on:
         description: Existing CI run whose successful signed packages publish-ready should use
         required: false
         type: string
+      flatpak_run:
+        description: Optional separate successful Flatpak-only run to append in publish-ready mode
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -234,7 +238,18 @@ jobs:
           node scripts/desktop-ui/release-config.mjs "$NUVIO_PACKAGE_FORMAT"
       - name: Install Linux dependencies
         if: matrix.platform == 'linux'
-        run: bash scripts/linux/install-desktop-build-dependencies.sh librsvg2-dev libayatana-appindicator3-dev rpm zsync
+        run: |
+          if [[ "$NUVIO_PACKAGE_FORMAT" == flatpak ]]; then
+            # Azure's regional Ubuntu mirror has repeatedly taken 30+ minutes
+            # to download packages on Flatpak runners; use the main archive.
+            for sources in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+              if [[ -f "$sources" ]]; then
+                sudo sed -i 's|https\?://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$sources"
+              fi
+            done
+            printf '%s\n' 'Acquire::Retries "3";' 'Acquire::http::Timeout "30";' 'Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/80nuvio-build-network
+          fi
+          bash scripts/linux/install-desktop-build-dependencies.sh librsvg2-dev libayatana-appindicator3-dev rpm zsync
       - name: Install Windows WebView2 SDK
         if: matrix.platform == 'windows'
         shell: pwsh
@@ -403,6 +418,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       SOURCE_RUN: ${{ inputs.source_run }}
+      FLATPAK_RUN: ${{ inputs.flatpak_run }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -432,6 +448,17 @@ jobs:
           done
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+          if [[ -n "$FLATPAK_RUN" ]]; then
+            [[ "$FLATPAK_RUN" =~ ^[0-9]+$ ]]
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$FLATPAK_RUN" > flatpak-run.json
+            test "$(jq -r .path flatpak-run.json)" = '.github/workflows/desktop-release.yml'
+            flatpak_sha=$(jq -r .head_sha flatpak-run.json)
+            git merge-base --is-ancestor "$source_sha" "$flatpak_sha"
+            unexpected=$(git diff --name-only "$source_sha" "$flatpak_sha" | grep -Ev '^(\.github/workflows/desktop-release\.yml|.*\.md)$' || true)
+            test -z "$unexpected"
+            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$FLATPAK_RUN/jobs?filter=all&per_page=100" > flatpak-jobs.json
+            jq -e 'any(.[].jobs[]; .name == "Rewrite linux x86_64 flatpak" and .conclusion == "success")' flatpak-jobs.json
+          fi
       - uses: actions/download-artifact@v8
         with:
           github-token: ${{ github.token }}
@@ -439,6 +466,13 @@ jobs:
           pattern: nuvio-desktop-${{ steps.source.outputs.version }}-*
           path: release
           merge-multiple: true
+      - uses: actions/download-artifact@v8
+        if: inputs.flatpak_run != ''
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.flatpak_run }}
+          name: nuvio-desktop-${{ steps.source.outputs.version }}-linux-x86_64-flatpak
+          path: release
       - name: Validate packages and publish or add completed Flatpak
         shell: bash
         env:

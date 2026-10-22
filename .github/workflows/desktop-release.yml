@@ -117,13 +117,25 @@ jobs:
           CURRENT_BUMP: ${{ steps.release.outputs.current_bump }}
           EXCLUDE_COMMITS: ${{ inputs.exclude_commits }}
         run: |
-          ./scripts/generate-release-notes.sh \
+          if ! ./scripts/generate-release-notes.sh \
             --from "${PREVIOUS_BUMP}" \
             --to "${CURRENT_BUMP}" \
             --repository "${GITHUB_REPOSITORY}" \
             --repository-history \
             --exclude "${EXCLUDE_COMMITS}" \
-            > release-notes.md
+            > release-notes.md; then
+            # PR attribution is optional. GitHub API outages must not block
+            # packaging when the full commit history is already checked out.
+            echo "::warning::GitHub PR lookup failed; generating notes from local history."
+            ./scripts/generate-release-notes.sh \
+              --from "${PREVIOUS_BUMP}" \
+              --to "${CURRENT_BUMP}" \
+              --repository "${GITHUB_REPOSITORY}" \
+              --repository-history \
+              --offline \
+              --exclude "${EXCLUDE_COMMITS}" \
+              > release-notes.md
+          fi
 
           if [[ ! -s release-notes.md ]]; then
             # Feature branches can contain every user-facing commit while the
@@ -132,6 +144,7 @@ jobs:
               --from "${PREVIOUS_BUMP}" \
               --to "${CURRENT_BUMP}" \
               --repository "${GITHUB_REPOSITORY}" \
+              --offline \
               --exclude "${EXCLUDE_COMMITS}" \
               > release-notes.md
           fi

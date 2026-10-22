@@ -4,6 +4,10 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Release notes survive GitHub API failures — 2026-10-22
+
+The desktop release workflow falls back to offline repository-history notes when GitHub PR lookup fails, replacing any partial online output. Its empty-note fallback also runs offline. This addresses the repeated invalid-JSON failures in release run 39802032418 before platform builds started. Version/tag checks, platform tests, package validation and publication gates remain unchanged.
+
 ### Kotlin-style Media servers presentation — 2026-10-22
 
 The rewrite Media servers overview follows `MediaServersSettingsPage.kt`: SERVERS and ADD SERVER groups, the original empty-state copy, connected-server navigation and individual provider rows using the original Jellyfin bitmap and an SVG transcription of the Emby vector. The generic inline provider selector/credential form is replaced with provider-specific sign-in dialogs matching the Kotlin labels, help text, outlined fields, password visibility control and full-width Connect action. Connections open a separate Server view with identity, options, libraries, refresh, sign-in-again and removal actions. Disabled servers disable dependent switches and refresh. Kotlin remains responsible for connecting, library selection and persistence through the existing bridge methods. Credential clearing and profile-generation guards are retained.

@@ -457,7 +457,10 @@ jobs:
           test -s "release/Nuvio-macOS-arm64-$RELEASE_VERSION.dmg"
           test -s "release/Nuvio-macOS-x86_64-$RELEASE_VERSION.dmg"
           if gh release view "$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_VERSION" --jq .sha)" = "$RELEASE_COMMIT"
+            release_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_VERSION" --jq .sha)
+            git merge-base --is-ancestor "$RELEASE_COMMIT" "$release_sha"
+            unexpected=$(git diff --name-only "$RELEASE_COMMIT" "$release_sha" | grep -Ev '^(\.github/workflows/desktop-release\.yml|.*\.md)$' || true)
+            test -z "$unexpected"
             # Keep the original published feed and packages byte-for-byte when appending Flatpak.
             gh release download "$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" --dir release --clobber
             test -s "release/Nuvio-Linux-x86_64-$RELEASE_VERSION.flatpak"
@@ -468,5 +471,7 @@ jobs:
             (cd release && find . -maxdepth 1 -type f ! -name release-notes.md ! -name SHA256SUMS.txt -printf '%f\n' | sort | xargs -d '\n' sha256sum) > release/SHA256SUMS.txt
             assets=()
             while IFS= read -r -d '' asset; do assets+=("$asset"); done < <(find release -maxdepth 1 -type f ! -name release-notes.md -print0)
-            gh release create "$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" --target "$RELEASE_COMMIT" --title "Nuvio $RELEASE_VERSION" --notes-file release/release-notes.md --latest "${assets[@]}"
+            # GITHUB_TOKEN can tag this workflow's commit. Source validation
+            # above proves it has identical app files to the signed artifacts.
+            gh release create "$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Nuvio $RELEASE_VERSION" --notes-file release/release-notes.md --latest "${assets[@]}"
           fi

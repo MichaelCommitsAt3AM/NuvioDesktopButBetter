@@ -319,3 +319,7 @@ This fork is built on [Nuvio Desktop](https://github.com/NuvioMedia/NuvioDesktop
 Details enrichment now publishes core metadata before optional trailers, recommendations and collection items finish. Those sections complete independently, disabled cast/artwork/details options skip their dedicated TMDB requests, and a timeout preserves metadata that has already arrived.
 
 Kids profile setup defaults TMDB production companies and networks off, including when starting from copied settings. Explicit later choices sync between platforms and survive profile edits. Add-on age ratings omit repeated certifications before enrichment arrives.
+
+Editing an existing kids profile shows a Key saved status and reveals the TMDB field only when Replace key is selected. Cancelling a replacement keeps the saved key. Mobile cosmetic profile edits preserve KidsScreen configuration without rerunning setup.
+
+Rating edits from another signed-in device can reuse the server-held key through KidsScreen account-ownership verification. Nuvio session credentials are sent only to the trusted KidsScreen service; custom servers retain capability-based management.

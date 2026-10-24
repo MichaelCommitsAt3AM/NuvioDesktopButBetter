@@ -48,4 +48,10 @@
 .profile-editor-page .profile-editor-footer.is-editing .button{width:auto;min-width:calc(150px * var(--profile-scale))}
 .profile-editor-page .profile-editor-footer.is-editing .primary{margin-left:auto}
 .profile-editor-page .profile-editor-footer.is-editing .destructive{order:-1}
+.profile-kids-key-saved{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 20px;border-radius:18px;background:var(--app-surface,#222);flex-wrap:wrap}
+.profile-kids-key-saved>span{display:flex;align-items:center;gap:12px;color:var(--text)}
+.profile-kids-key-saved>span svg{color:#4caf70;flex:none}
+.profile-kids-key-saved .button{border:1px solid var(--muted,#777);border-radius:999px;background:transparent}
+.profile-kids-key-editor{display:grid;gap:10px}
+.profile-kids-key-editor>.button{justify-self:start}
 @media(max-width:600px){.profile-editor-page{--profile-scale:1}.profile-screen-header h1{font-size:32px}.profile-identity-summary{gap:12px}}

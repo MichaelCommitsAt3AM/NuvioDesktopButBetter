@@ -7,8 +7,10 @@ import com.nuvio.app.core.storage.DesktopStorage
 import com.nuvio.app.core.sync.putSyncOriginClientId
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.AddonRow
+import com.nuvio.app.features.profiles.kidsOwnerSessionToken
 import com.nuvio.app.features.profiles.NuvioProfile
 import com.nuvio.app.features.profiles.ProfileRepository
+import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.rpc
 import kotlinx.coroutines.CancellationException
@@ -44,7 +46,9 @@ object KidsBridge {
         when { delete -> builder.DELETE(); data != null -> builder.header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(data.toString())); else -> builder.GET() }
         val response = try { client.send(builder.build(), HttpResponse.BodyHandlers.ofString()) }
         catch (error: Exception) { throw BridgeFeatureException("KIDSSCREEN_UNAVAILABLE", "KidsScreen is unavailable. Start the server and try again") }
-        if (response.statusCode() !in 200..299) throw BridgeFeatureException("KIDSSCREEN_REQUEST_FAILED", "KidsScreen rejected the request. Check the server and TMDB API key")
+        if (response.statusCode() !in 200..299) throw BridgeFeatureException("KIDSSCREEN_REQUEST_FAILED",
+            if (path.endsWith("/clone-owned")) "Could not update the saved kids configuration. Check your Nuvio sign-in and connection."
+            else "KidsScreen rejected the request. Check the server and TMDB API key")
         json.parseToJsonElement(response.body()).jsonObject
     }
 
@@ -64,6 +68,7 @@ object KidsBridge {
             if (ProfileRepository.state.value.profiles.any { it.addonSyncProfileId == id }) throw BridgeFeatureException("KIDS_ADDON_DEPENDENTS", "Unlink profiles sharing this profile's add-ons first")
             created = prepareConfiguration(profile, rating, base, apiKey,
                 managementToken = { profile.kidsConfigId?.let(management::getString) },
+                ownerSessionToken = { kidsOwnerSessionToken(profile, base, SupabaseProvider.client.auth.currentSessionOrNull()?.accessToken) },
                 provision = { path, data, token -> request(base, path, data, token) },
             )
             if (created != null) {
@@ -130,6 +135,7 @@ object KidsBridge {
         base: String,
         apiKey: String,
         managementToken: () -> String?,
+        ownerSessionToken: () -> String? = { null },
         provision: suspend (String, JsonObject, String?) -> JsonObject,
     ): JsonObject? {
         val unchanged = profile.kidsEnabled && profile.kidsConfigId != null &&
@@ -139,9 +145,11 @@ object KidsBridge {
             return provision("/v1/configurations", buildJsonObject { put("apiKey", apiKey); put("maxRating", rating) }, null)
         }
         if (profile.kidsEnabled && profile.kidsConfigId != null && profile.kidsServiceUrl == base) {
-            val token = managementToken()?.takeIf { it.isNotBlank() }
+            val manager = managementToken()?.takeIf { it.isNotBlank() }
+            val token = manager ?: ownerSessionToken()?.takeIf { it.isNotBlank() }
                 ?: throw BridgeFeatureException("KIDS_CONFIGURATION_ACCESS_REQUIRED", "This device is missing access to manage the saved KidsScreen configuration. Reconnect it with your TMDB key once")
-            return provision("/v1/configurations/${profile.kidsConfigId}/clone", buildJsonObject { put("maxRating", rating) }, token)
+            val action = if (manager != null) "clone" else "clone-owned"
+            return provision("/v1/configurations/${profile.kidsConfigId}/$action", buildJsonObject { put("maxRating", rating) }, token)
         }
         throw BridgeFeatureException("TMDB_KEY_REQUIRED", "Enter your TMDB API key to set up this kids profile")
     }

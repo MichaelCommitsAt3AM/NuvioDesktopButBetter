@@ -230,22 +230,24 @@ it('uses import-only editing for existing kids profiles', () => {
   expect(screen.getByRole('checkbox', { name: 'Kids account' })).toBeChecked();
 });
 
-it('shows saved-key dots without submitting them or reconfiguring an unchanged kids profile', async () => {
+it('shows a saved-key row and keeps cosmetic edits independent of kids configuration', async () => {
   store.snapshot.items[1] = { ...store.snapshot.items[1], addonSyncProfileId: null, kidsEnabled: true, kidsMaxRating: 'PG-13', kidsServiceUrl: 'https://kids-screen.vercel.app' };
   editor('/profiles/2/edit');
-  const input = screen.getByLabelText('TMDB API key');
-  expect(input).toHaveAttribute('placeholder', '••••••••••••••••');
-  expect(input).toHaveValue('');
-  expect(screen.getByText(/Key already configured/)).toBeInTheDocument();
+  expect(screen.queryByLabelText('TMDB API key')).not.toBeInTheDocument();
+  expect(screen.getByRole('status')).toHaveTextContent('Key saved');
+  fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'Updated kids name' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
   await screen.findByText('Saved');
-  expect(store.run).toHaveBeenCalledWith('profiles.update', expect.anything());
+  expect(store.run).toHaveBeenCalledWith('profiles.update', expect.objectContaining({ name: 'Updated kids name' }));
   expect(store.run).not.toHaveBeenCalledWith('profiles.kids.configure', expect.anything());
 });
-it('submits only the replacement key typed over the saved-key indicator', async () => {
+it('reveals the replacement field on request and only submits its value when saved', async () => {
   store.snapshot.items[1] = { ...store.snapshot.items[1], addonSyncProfileId: null, kidsEnabled: true, kidsMaxRating: 'G', kidsServiceUrl: 'https://kids-screen.vercel.app' };
   editor('/profiles/2/edit');
-  fireEvent.change(screen.getByLabelText('TMDB API key'), { target: { value: 'replacement-key' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Replace key' }));
+  expect(screen.getByLabelText('TMDB API key')).toHaveValue('');
+  fireEvent.change(screen.getByLabelText('TMDB API key'), { target: { value: ' replacement-key ' } });
+  expect(store.run).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
   await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.kids.configure', expect.objectContaining({ id: 2, apiKey: 'replacement-key' })));
 });
@@ -315,11 +317,26 @@ it.each(['PG', 'PG-13'])('changes the configured kids rating to %s without re-en
   store.snapshot.items[1] = { ...store.snapshot.items[1], kidsEnabled: true, kidsMaxRating: 'G', kidsServiceUrl: 'https://kids-screen.vercel.app' };
   editor('/profiles/2/edit');
   fireEvent.change(screen.getByLabelText('Maximum Age Rating'), { target: { value: rating } });
-  expect(screen.getByLabelText('TMDB API key')).toHaveValue('');
+  expect(screen.queryByLabelText('TMDB API key')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
   await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.kids.configure', { id: 2, enabled: true, maxRating: rating, serviceUrl: 'https://kids-screen.vercel.app', apiKey: '' }));
   expect(store.setError).not.toHaveBeenCalledWith(expect.stringContaining('Enter your TMDB API key'));
 });
+it('reveals an empty replacement field and keeps the original key when replacement is cancelled', async () => {
+  store.snapshot.items[1] = { ...store.snapshot.items[1], kidsEnabled: true, kidsMaxRating: 'PG' };
+  editor('/profiles/2/edit');
+  fireEvent.click(screen.getByRole('button', { name: 'Replace key' }));
+  expect(screen.getByLabelText('TMDB API key')).toHaveValue('');
+  fireEvent.change(screen.getByLabelText('TMDB API key'), { target: { value: 'abandoned-key' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel replacement' }));
+  expect(screen.queryByLabelText('TMDB API key')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Replace key' }));
+  expect(screen.getByLabelText('TMDB API key')).toHaveValue('');
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  await screen.findByText('Saved');
+  expect(store.run).not.toHaveBeenCalledWith('profiles.kids.configure', expect.anything());
+});
+
 it('keeps the configured KidsScreen server during cosmetic and rating edits', async () => {
   store.snapshot.items[1] = { ...store.snapshot.items[1], kidsEnabled: true, kidsMaxRating: 'PG', kidsServiceUrl: 'https://private-kids.example' };
   editor('/profiles/2/edit');

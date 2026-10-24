@@ -1048,3 +1048,9 @@ The desktop player preparation overlay now places fullscreen to the left of clos
 ### Kids production defaults and duplicate certifications (2026-10-24)
 
 Kids setup initializes both production-company and network enrichment off and synchronizes those choices without inheriting the parent's enabled options. Later explicit choices remain intact. Missing production preferences default off in kids profiles; existing saved preferences are preserved. Both apps normalize repeated slash-separated add-on certifications (such as `PG / PG / PG`) to unique labels at metadata parsing, without changing admission checks or discarding distinct ratings. Parser, shared-policy and Android profile-storage regressions cover the behavior.
+
+### Saved kids key editor (2026-10-24)
+
+Both profile editors display a Key saved row with a green check and Replace key action for configured kids profiles. The masked input is only displayed for new setup or explicit replacement; cancelling clears the draft without altering the saved key. Mobile saves only reconfigure KidsScreen when the kids toggle, rating or key changes, and use the current saved profile as the baseline. Tests cover ordinary edits without a local key, replacement/cancellation and changed policies.
+
+Second-device rating edits now use the trusted KidsScreen `clone-owned` route when the original management token is absent. The service verifies the signed-in account references the enabled kids configuration before cloning its encrypted key, never returns that key, and keeps the original configuration for rollback. Custom endpoints never receive Nuvio session tokens. Client routing/allowlist tests and service owner/expired/unrelated/disabled-account tests cover this path.

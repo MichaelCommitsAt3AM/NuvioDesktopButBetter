@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { ArrowLeft, ChevronDown, Shield, Trash2, UserRound, WandSparkles } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronDown, Shield, Trash2, UserRound, WandSparkles } from 'lucide-react';
 import { FullscreenButton } from '../../components/FullscreenButton';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '../../components/ui';
@@ -39,6 +39,7 @@ export function ProfileEditorPage() {
   const [kidsEnabled, setKidsEnabled] = useState(false);
   const [kidsMaxRating, setKidsMaxRating] = useState('G');
   const [kidsApiKey, setKidsApiKey] = useState('');
+  const [replacingKidsKey, setReplacingKidsKey] = useState(false);
   const savedProfileId = useRef<number | null>(null);
   const [addonSyncProfileId, setAddonSyncProfileId] = useState<number | null>(null);
   const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
@@ -83,6 +84,8 @@ export function ProfileEditorPage() {
     setSettingsSyncProfileId(null);
     setKidsEnabled(profile?.kidsEnabled ?? false);
     setKidsMaxRating(profile?.kidsMaxRating ?? 'G');
+    setKidsApiKey('');
+    setReplacingKidsKey(false);
     savedProfileId.current = editingId;
   }, [snapshot, editingId, profile?.id]);
 
@@ -188,8 +191,9 @@ export function ProfileEditorPage() {
         <div className="settings-row-card"><span className="settings-row-copy"><strong>Kids account</strong><span>Use KidsScreen for catalogs and search. Verify ratings throughout Nuvio.</span></span><label className="switch" aria-label="Kids account"><input type="checkbox" checked={kidsEnabled} onChange={event => setKidsEnabled(event.target.checked)} /><span /></label></div>
         {kidsEnabled && <div className="profile-kids-fields">
           <label>Maximum Age Rating<select value={kidsMaxRating} onChange={event => setKidsMaxRating(event.target.value)}><option value="G">G — General audiences</option><option value="PG">PG — Parental guidance</option><option value="PG-13">PG-13 — Teens</option></select></label>
-          <label>TMDB API key<input type="password" autoComplete="off" value={kidsApiKey} onChange={event => setKidsApiKey(event.target.value)} aria-describedby={profile?.kidsEnabled ? 'kids-api-key-status' : undefined} placeholder={profile?.kidsEnabled ? '••••••••••••••••' : 'Your personal TMDB API key'} /></label>
-          {profile?.kidsEnabled && <small id="kids-api-key-status">Key already configured. Leave this field blank to reuse it, including when changing the age limit. Enter a new key only to replace it.</small>}
+          {profile?.kidsEnabled && !replacingKidsKey
+            ? <div className="profile-kids-key-saved"><span role="status"><CheckCircle2 size={21} aria-hidden="true" />Key saved</span><button className="button secondary" type="button" onClick={() => setReplacingKidsKey(true)}>Replace key</button></div>
+            : <div className="profile-kids-key-editor"><label>TMDB API key<input type="password" autoComplete="off" value={kidsApiKey} onChange={event => setKidsApiKey(event.target.value)} aria-describedby={profile?.kidsEnabled ? 'kids-api-key-status' : undefined} placeholder="Your personal TMDB API key" /></label>{profile?.kidsEnabled && <><small id="kids-api-key-status">Enter a replacement key, or leave blank to keep the saved key.</small><button type="button" className="button secondary" onClick={() => { setKidsApiKey(''); setReplacingKidsKey(false); }}>Cancel replacement</button></>}</div>}
           <small>This key is used through KidsScreen for TMDB metadata enrichment. A new kids profile starts with enrichment on and cast enrichment off. Turn it off in Settings → Integrations → TMDB at any time.</small>
           <small>The key is validated and stored encrypted by KidsScreen. Unrated titles and TV-14/TV-MA series are hidden. Featured titles use the same rating checks.</small>
         </div>}

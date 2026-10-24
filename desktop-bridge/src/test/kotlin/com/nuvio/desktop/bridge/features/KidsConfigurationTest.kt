@@ -10,6 +10,18 @@ class KidsConfigurationTest {
     private val profile = NuvioProfile(kidsEnabled = true, kidsConfigId = "a".repeat(43), kidsServiceUrl = base, kidsMaxRating = "G")
     private val result = buildJsonObject { put("id", "b".repeat(43)); put("managementToken", "c".repeat(43)) }
 
+    @Test fun ratingEditOnASecondDeviceUsesAccountOwnershipWithoutTheOldManagementToken() = runBlocking<Unit> {
+        assertEquals(result, KidsBridge.prepareConfiguration(
+            profile, "PG", base, "", managementToken = { null },
+            ownerSessionToken = { "verified-account-session" },
+        ) { path, data, token ->
+            assertEquals("/v1/configurations/${profile.kidsConfigId}/clone-owned", path)
+            assertEquals(buildJsonObject { put("maxRating", "PG") }, data)
+            assertEquals("verified-account-session", token)
+            result
+        })
+    }
+
     @Test fun ratingEditReusesServerKeyWithManagementAuthorization() = runBlocking<Unit> {
         var called = false
         val created = KidsBridge.prepareConfiguration(profile, "PG", base, "", { "private-management-token" }) { path, data, token ->

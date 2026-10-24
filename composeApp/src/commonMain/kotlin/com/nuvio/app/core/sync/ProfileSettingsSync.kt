@@ -84,6 +84,10 @@ object ProfileSettingsSync {
     @Volatile
     private var skipNextPushSignature: String? = null
 
+    /** Last TMDB preference payload written to (or read from) the kids profile's shared bucket. */
+    @Volatile
+    private var lastKidsTmdbSignature: String? = null
+
     private var observeJob: Job? = null
 
     private val profileSettingsPlatform: String
@@ -101,6 +105,7 @@ object ProfileSettingsSync {
         observeJob?.cancel()
         observeJob = null
         skipNextPushSignature = null
+        lastKidsTmdbSignature = null
         ProviderCredentialSync.clearAccountState()
         MediaServerSync.clearAccountState()
     }
@@ -108,6 +113,7 @@ object ProfileSettingsSync {
     fun onProfileChanged() {
         if (observeJob?.isActive != true) return
         skipNextPushSignature = currentObservedStateSignature()
+        lastKidsTmdbSignature = null
         ProviderCredentialSync.onProfileChanged()
     }
 
@@ -137,11 +143,12 @@ object ProfileSettingsSync {
                     log.i { "pull(profileId=$profileId) — no remote settings blob found" }
                     return@withLock false
                 }
+                val effectiveRemoteJson = applyKidsTmdbShare(profileId, remoteJson, inheritedFromPrimary)
 
                 isApplyingRemoteBlob = true
                 try {
                     val remoteBlob = runCatching {
-                        json.decodeFromJsonElement(MobileProfileSettingsBlob.serializer(), remoteJson)
+                        json.decodeFromJsonElement(MobileProfileSettingsBlob.serializer(), effectiveRemoteJson)
                     }.getOrElse { error ->
                         log.e(error) { "pull(profileId=$profileId) — failed to decode remote settings blob" }
                         return@withLock false
@@ -192,6 +199,7 @@ object ProfileSettingsSync {
                 val blob = exportSettingsBlob()
                 if (ProfileRepository.activeProfileId != profileId) return@runCatching false
                 pushToRemoteLocked(profileId, blob)
+                publishKidsTmdbLocked(profileId)
                 true
             }.onFailure { error ->
                 log.e(error) { "pushCurrentProfileToRemote() — FAILED" }
@@ -249,6 +257,39 @@ object ProfileSettingsSync {
         }.getOrElse { error ->
             log.e(error) { "seedProfileFrom(source=$sourceProfileId) — failed to decode source settings" }
             null
+        }
+    }
+
+    /**
+     * Save the kids setup defaults to a platform-neutral TMDB bucket and to both platform blobs,
+     * so desktop and mobile agree without copying either platform's unrelated UI settings.
+     * Keys remain device-local or server-side; this bucket contains preferences only.
+     */
+    suspend fun syncKidsTmdbSettings(profileId: Int) {
+        syncMutex.withLock {
+            if (!isKidsProfile(profileId)) return@withLock
+            val ownPlatform = profileSettingsPlatform
+            val otherPlatform = if (ownPlatform == DESKTOP_SYNC_PLATFORM) MOBILE_SYNC_PLATFORM else DESKTOP_SYNC_PLATFORM
+            val active = ProfileRepository.activeProfileId == profileId
+            val ownBlob = if (active) {
+                json.encodeToJsonElement(MobileProfileSettingsBlob.serializer(), exportSettingsBlob()) as JsonObject
+            } else {
+                fetchPlatformSettingsJson(profileId, ownPlatform)
+            }
+            val original = ownBlob ?: JsonObject(emptyMap())
+            val enabled = kidsTmdbEnabledPreference(TmdbSettingsStorage.loadEnabledForProfile(profileId), original)
+            val useCredits = kidsTmdbCreditsPreference(TmdbSettingsStorage.loadUseCreditsForProfile(profileId), original)
+            val useProductions = kidsTmdbProductionPreference(TmdbSettingsStorage.loadUseProductionsForProfile(profileId), original, "tmdb_use_productions")
+            val useNetworks = kidsTmdbProductionPreference(TmdbSettingsStorage.loadUseNetworksForProfile(profileId), original, "tmdb_use_networks")
+            val shared = tmdbSettingsWithPreferences(tmdbSettingsFromProfileBlob(original), enabled, useCredits, useProductions, useNetworks)
+            writeSharedKidsTmdb(profileId, shared)
+            if (ownBlob != null) pushSettingsBlob(profileId, withSharedTmdbSettings(ownBlob, shared), ownPlatform)
+            fetchPlatformSettingsJson(profileId, otherPlatform)?.let { otherBlob ->
+                pushSettingsBlob(profileId, withSharedTmdbSettings(otherBlob, shared), otherPlatform)
+            }
+            TmdbSettingsStorage.saveKidsProfileSettings(profileId, null, enabled, useCredits, useProductions, useNetworks)
+            rememberKidsTmdb(shared)
+            if (active) TmdbSettingsRepository.onProfileChanged()
         }
     }
 
@@ -310,13 +351,91 @@ object ProfileSettingsSync {
         log.d { "pushToRemoteLocked(profileId=$profileId) — success" }
     }
 
-    private suspend fun fetchRemoteSettingsJson(profileId: Int): JsonObject? {
+    private suspend fun fetchRemoteSettingsJson(profileId: Int): JsonObject? =
+        fetchPlatformSettingsJson(profileId, profileSettingsPlatform)
+
+    private suspend fun fetchPlatformSettingsJson(profileId: Int, platform: String): JsonObject? {
         val params = buildJsonObject {
             put("p_profile_id", profileId)
-            put("p_platform", profileSettingsPlatform)
+            put("p_platform", platform)
         }
         val result = SupabaseProvider.client.postgrest.rpc("sync_pull_profile_settings_blob", params)
         return result.decodeList<SettingsBlobResponse>().firstOrNull()?.settingsJson
+    }
+
+    private fun isKidsProfile(profileId: Int): Boolean =
+        ProfileRepository.state.value.profiles.firstOrNull { it.profileIndex == profileId }?.kidsEnabled == true
+
+    private fun rememberKidsTmdb(settings: JsonObject) {
+        lastKidsTmdbSignature = settings.toString()
+    }
+
+    private suspend fun pushSettingsBlob(profileId: Int, blob: JsonObject, platform: String) {
+        SupabaseProvider.client.postgrest.rpc("sync_push_profile_settings_blob", buildJsonObject {
+            put("p_profile_id", profileId)
+            put("p_platform", platform)
+            put("p_settings_json", blob)
+            putSyncOriginClientId()
+        })
+    }
+
+    private suspend fun writeSharedKidsTmdb(profileId: Int, settings: JsonObject) {
+        pushSettingsBlob(profileId, sharedTmdbRecord(settings), KIDS_TMDB_SHARED_SYNC_PLATFORM)
+    }
+
+    /** Publish explicit kids opt-ins/opt-outs so the other platform agrees on its next pull. */
+    private suspend fun publishKidsTmdbLocked(profileId: Int) {
+        if (!isKidsProfile(profileId)) return
+        val snapshot = TmdbSettingsRepository.snapshot()
+        val settings = tmdbSettingsWithPreferences(
+            TmdbSettingsStorage.exportToSyncPayload(),
+            snapshot.enabled,
+            snapshot.useCredits,
+        )
+        if (settings.toString() == lastKidsTmdbSignature) return
+        writeSharedKidsTmdb(profileId, settings)
+        rememberKidsTmdb(settings)
+    }
+
+    /**
+     * Overlay the shared kids TMDB preferences onto this platform's blob. When the shared bucket
+     * does not exist yet, migrate legacy platform blobs first: any explicit "on"/"casts off"
+     * wins over a copied default from the other platform, and missing preferences use the kids
+     * setup defaults (enrichment on, cast/credits off).
+     */
+    private suspend fun applyKidsTmdbShare(
+        profileId: Int,
+        remoteJson: JsonObject,
+        remoteIsInherited: Boolean,
+    ): JsonObject {
+        if (!isKidsProfile(profileId)) return remoteJson
+        return runCatching {
+            val shared = sharedTmdbSettings(fetchPlatformSettingsJson(profileId, KIDS_TMDB_SHARED_SYNC_PLATFORM))
+            if (shared != null) {
+                rememberKidsTmdb(shared)
+                return@runCatching withSharedTmdbSettings(remoteJson, shared)
+            }
+            val platformBlobs = listOf(DESKTOP_SYNC_PLATFORM, MOBILE_SYNC_PLATFORM).mapNotNull { platform ->
+                if (platform == profileSettingsPlatform) {
+                    remoteJson.takeUnless { remoteIsInherited }
+                } else {
+                    fetchPlatformSettingsJson(profileId, platform)
+                }
+            }
+            val (enabled, useCredits) = legacyKidsTmdbPreferences(platformBlobs)
+            val migrated = tmdbSettingsWithPreferences(
+                tmdbSettingsFromProfileBlob(remoteJson),
+                enabled,
+                useCredits,
+            )
+            writeSharedKidsTmdb(profileId, migrated)
+            rememberKidsTmdb(migrated)
+            log.i { "pull(profileId=$profileId) — migrated kids TMDB preferences to the shared bucket" }
+            withSharedTmdbSettings(remoteJson, migrated)
+        }.getOrElse { error ->
+            log.w(error) { "pull(profileId=$profileId) — kids TMDB shared settings could not be applied" }
+            remoteJson
+        }
     }
 
     private fun exportSettingsBlob(): MobileProfileSettingsBlob {

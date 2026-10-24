@@ -248,6 +248,29 @@ class MetaDetailsParserTest {
     }
 
     @Test
+    fun `parse removes repeated release certifications without losing distinct ratings`() {
+        for ((raw, expected) in listOf(
+            "PG / PG / PG / PG / PG" to "PG",
+            "PG / pg / PG-13 / PG / PG-13" to "PG / PG-13",
+            "TV-Y7-FV / TV-Y7-FV" to "TV-Y7-FV",
+            "N/A" to "N/A",
+        )) {
+            val result = MetaDetailsParser.parse(
+                """{"meta":{"id":"movie","type":"movie","name":"Movie","ageRating":"$raw"}}""",
+            )
+            assertEquals(expected, result.ageRating, raw)
+        }
+    }
+
+    @Test
+    fun `parse deduplicates fallback certifications too`() {
+        val result = MetaDetailsParser.parse(
+            """{"meta":{"id":"movie","type":"movie","name":"Movie","app_extras":{"certificationLocal":" PG / PG "}}}""",
+        )
+        assertEquals("PG", result.ageRating)
+    }
+
+    @Test
     fun `parse reads localized AIOMetadata certification`() {
         val result = MetaDetailsParser.parse(
             """

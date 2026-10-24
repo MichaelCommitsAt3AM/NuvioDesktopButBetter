@@ -194,6 +194,7 @@ it('requires a TMDB key but no parent PIN before creating a kids profile', async
   fireEvent.click(screen.getByRole('checkbox', { name: 'Kids account' }));
   expect(screen.getByLabelText('Maximum Age Rating')).toHaveValue('G');
   expect(screen.getByLabelText('TMDB API key')).toHaveAttribute('type', 'password');
+  expect(screen.getByText(/This key is used through KidsScreen for TMDB metadata enrichment/)).toHaveTextContent('enrichment on');
   expect(screen.queryByText('KidsScreen connection')).not.toBeInTheDocument();
   expect(screen.queryByLabelText('Server address')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));

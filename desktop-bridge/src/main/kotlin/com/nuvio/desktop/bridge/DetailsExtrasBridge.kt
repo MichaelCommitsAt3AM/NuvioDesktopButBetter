@@ -252,6 +252,13 @@ object DetailsExtrasBridge {
     }
 
     private fun metaDetailsJson(meta: MetaDetails) = buildJsonObject {
+        val detailsState = MetaDetailsRepository.uiState.value
+        put("loadingSections", JsonArray(
+            detailsState.loadingSections
+                .takeIf { detailsState.meta?.id == meta.id && detailsState.meta.type == meta.type }
+                .orEmpty()
+                .map { section -> JsonPrimitive(section.name) },
+        ))
         put("primaryAction", primaryActionJson(meta))
         put("id", meta.id)
         put("type", meta.type)

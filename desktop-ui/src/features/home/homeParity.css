@@ -64,12 +64,12 @@
 .home-page .style-wide .home-cw-art-copy{left:37%;top:16px;bottom:auto}
 .home-page .home-cw-rail.style-poster{grid-auto-columns:var(--home-poster-width)}
 .home-page .style-poster .home-cw-art{aspect-ratio:2/3}
-:is(.home-page,.series-episodes) .horizontal-rail .rail-arrow{width:60px;height:60px;top:50%;border:0;border-radius:50%;background:#202020f5;opacity:0;transition:opacity 180ms,transform 180ms;transform:translateY(-50%) scale(.72);pointer-events:none}
-:is(.home-page,.series-episodes) .horizontal-rail:hover .rail-arrow:not(:disabled),:is(.home-page,.series-episodes) .horizontal-rail:focus-within .rail-arrow:not(:disabled){opacity:1;transform:translateY(-50%) scale(1);pointer-events:auto}
-:is(.home-page,.series-episodes) .rail-previous{left:13px}:is(.home-page,.series-episodes) .rail-next{right:13px}
+:is(.home-page,.series-episodes,.detail-page) .horizontal-rail .rail-arrow{width:60px;height:60px;top:50%;border:0;border-radius:50%;background:#202020f5;opacity:0;transition:opacity 180ms,transform 180ms;transform:translateY(-50%) scale(.72);pointer-events:none}
+:is(.home-page,.series-episodes,.detail-page) .horizontal-rail:hover .rail-arrow:not(:disabled),:is(.home-page,.series-episodes,.detail-page) .horizontal-rail:focus-within .rail-arrow:not(:disabled){opacity:1;transform:translateY(-50%) scale(1);pointer-events:auto}
+:is(.home-page,.series-episodes,.detail-page) .rail-previous{left:13px}:is(.home-page,.series-episodes,.detail-page) .rail-next{right:13px}
 @keyframes home-hero-enter{from{opacity:0;transform:scale(1.01)}to{opacity:1;transform:scale(1)}}
 @keyframes home-copy-enter{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
-@media(pointer:coarse){:is(.home-page,.series-episodes) .horizontal-rail .rail-arrow:not(:disabled){opacity:1;transform:translateY(-50%);pointer-events:auto}}
+@media(pointer:coarse){:is(.home-page,.series-episodes,.detail-page) .horizontal-rail .rail-arrow:not(:disabled){opacity:1;transform:translateY(-50%);pointer-events:auto}}
 @media(prefers-reduced-motion:reduce){.home-hero-background,.home-page .home-hero-copy{animation:none}}
 .home-actions-dialog{background:transparent;backdrop-filter:none}
 .home-actions-dialog::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;backdrop-filter:blur(36px);animation:home-actions-scrim-in 260ms cubic-bezier(.2,0,0,1) both;will-change:opacity}

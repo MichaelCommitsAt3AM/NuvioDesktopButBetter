@@ -106,4 +106,15 @@ data class MetaDetailsUiState(
     val isLoading: Boolean = false,
     val meta: MetaDetails? = null,
     val errorMessage: String? = null,
+    /** Sections whose TMDB enrichment is still running; cleared on success, empty, failure or cancellation. */
+    val loadingSections: Set<MetaDetailsSection> = emptySet(),
 )
+
+enum class MetaDetailsSection {
+    DETAILS,
+    PRODUCTION,
+    CAST,
+    TRAILERS,
+    COLLECTION,
+    MORE_LIKE_THIS,
+}

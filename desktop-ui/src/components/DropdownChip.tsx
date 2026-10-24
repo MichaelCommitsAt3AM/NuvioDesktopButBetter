@@ -11,12 +11,14 @@ export type DropdownChipOption = { key: string; label: string };
  * row carries an accent check mark. Rendered through a portal because the library filter
  * row scrolls horizontally, which would otherwise clip an absolutely positioned menu.
  */
-export function DropdownChip({ label, selectedKey, options, enabled = true, ariaLabel, onSelect }: {
+export function DropdownChip({ label, selectedKey, options, enabled = true, ariaLabel, className = '', menuClassName = '', onSelect }: {
   label: string;
   selectedKey?: string | null;
   options: DropdownChipOption[];
   enabled?: boolean;
   ariaLabel?: string;
+  className?: string;
+  menuClassName?: string;
   onSelect: (option: DropdownChipOption) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -54,13 +56,13 @@ export function DropdownChip({ label, selectedKey, options, enabled = true, aria
     };
   }, [open]);
 
-  return <div className="dropdown-chip">
+  return <div className={`dropdown-chip ${className}`}>
     <button ref={triggerRef} type="button" className="dropdown-chip-trigger" disabled={!enabled} aria-haspopup="listbox" aria-expanded={open} aria-label={accessibleLabel} onClick={() => setOpen(value => !value)}>
       <span className="dropdown-chip-label">{label}</span>
       <ChevronDown size={16} aria-hidden="true" />
     </button>
     {open && enabled && position && createPortal(
-      <div ref={menuRef} className="dropdown-chip-menu" role="listbox" aria-label={accessibleLabel} style={{ top: position.top, left: position.left, width: position.width }}>
+      <div ref={menuRef} className={`dropdown-chip-menu ${menuClassName}`} role="listbox" aria-label={accessibleLabel} style={{ top: position.top, left: position.left, width: position.width }}>
         {options.map(option => <button type="button" role="option" aria-selected={option.key === selectedKey} key={option.key} className={`dropdown-chip-option ${option.key === selectedKey ? 'selected' : ''}`} onClick={() => { onSelect(option); setOpen(false); }}>
           <span>{option.label}</span>
           {option.key === selectedKey && <Check size={16} aria-hidden="true" />}

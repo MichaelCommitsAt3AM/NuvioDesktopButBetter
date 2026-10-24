@@ -49,6 +49,36 @@ actual object TmdbSettingsStorage {
         preferences = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
     }
 
+    actual fun loadEnabledForProfile(profileId: Int): Boolean? {
+        val scopedKey = ProfileScopedKey.of(enabledKey, profileId)
+        return if (preferences?.contains(scopedKey) == true) preferences?.getBoolean(scopedKey, false) else null
+    }
+
+    actual fun loadUseCreditsForProfile(profileId: Int): Boolean? {
+        val scopedKey = ProfileScopedKey.of(useCreditsKey, profileId)
+        return if (preferences?.contains(scopedKey) == true) preferences?.getBoolean(scopedKey, false) else null
+    }
+
+    actual fun loadUseProductionsForProfile(profileId: Int): Boolean? {
+        val scopedKey = ProfileScopedKey.of(useProductionsKey, profileId)
+        return if (preferences?.contains(scopedKey) == true) preferences?.getBoolean(scopedKey, false) else null
+    }
+
+    actual fun loadUseNetworksForProfile(profileId: Int): Boolean? {
+        val scopedKey = ProfileScopedKey.of(useNetworksKey, profileId)
+        return if (preferences?.contains(scopedKey) == true) preferences?.getBoolean(scopedKey, false) else null
+    }
+
+    actual fun saveKidsProfileSettings(profileId: Int, apiKey: String?, enabled: Boolean?, useCredits: Boolean?, useProductions: Boolean?, useNetworks: Boolean?) {
+        preferences?.edit()?.apply {
+            apiKey?.let { putString(ProfileScopedKey.of(apiKeyKey, profileId), it) }
+            enabled?.let { putBoolean(ProfileScopedKey.of(enabledKey, profileId), it) }
+            useCredits?.let { putBoolean(ProfileScopedKey.of(useCreditsKey, profileId), it) }
+            useProductions?.let { putBoolean(ProfileScopedKey.of(useProductionsKey, profileId), it) }
+            useNetworks?.let { putBoolean(ProfileScopedKey.of(useNetworksKey, profileId), it) }
+        }?.apply()
+    }
+
     actual fun loadEnabled(): Boolean? = loadBoolean(enabledKey)
 
     actual fun saveEnabled(enabled: Boolean) {

@@ -104,10 +104,9 @@ object TmdbService {
         apiKey: String,
         query: Map<String, String> = emptyMap(),
     ): T? {
-        val url = buildTmdbUrl(endpoint = endpoint, apiKey = apiKey, query = query)
         return runCatching {
             TmdbRequestLimiter.run {
-                json.decodeFromString<T>(httpGetText(url))
+                json.decodeFromString<T>(TmdbTransport.get(endpoint, query, apiKey))
             }
         }.onFailure { error ->
             log.w { "TMDB request failed for $endpoint: ${error.message}" }

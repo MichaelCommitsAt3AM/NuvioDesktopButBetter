@@ -257,7 +257,7 @@ export function StreamsPage() {
       {isResolvingStage || waitingForAutomaticSelection && !playbackStarting
         ? <button className="streams-opening-back" type="button" aria-label="Back" onClick={cancelPlayerStart}><ArrowLeft size={21} /></button>
         : <nav className="streams-opening-actions" aria-label="Player actions">
-          <FullscreenButton onError={setError} />
+          <FullscreenButton inline onError={setError} />
           <button className="streams-opening-back" type="button" aria-label="Close player" onClick={cancelPlayerStart}><X size={21} /></button>
         </nav>}
       <div className={`streams-opening-content${playbackLoadingSettings?.showPlayerLoadingStatus === false ? ' no-status' : ''}`}>

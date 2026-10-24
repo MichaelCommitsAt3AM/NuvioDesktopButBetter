@@ -34,7 +34,7 @@ const emptyState: State = {
   library: { loading: true, error: null, items: [] }, addons: [], addonsReady: false,
   settings: { theme: 'white', themes: [] },
   search: { requestId: '', query: '', loading: false, error: null, shelves: [] },
-  details: { requestId: '', loading: false, error: null, media: null, episodes: [], cast: [], related: [] },
+  details: { requestId: '', loading: false, error: null, media: null, episodes: [], cast: [], related: [], loadingSections: [] },
   streams: { requestId: '', loading: false, error: null, groups: [] },
   playback: { state: 'idle', active: false, error: null },
   catalog: null, discover: null, searchHistory: null, featureSnapshots: {},
@@ -426,7 +426,7 @@ export const actions = {
   async loadDetails(type: string, id: string) {
     const rid = requestId();
     reportDiagnostic(`Details screen requested a title (request=${rid})`);
-    update((current) => ({ ...current, details: { requestId: rid, loading: true, error: null, media: null, episodes: [], cast: [], related: [] } }));
+    update((current) => ({ ...current, details: { requestId: rid, loading: true, error: null, media: null, episodes: [], cast: [], related: [], loadingSections: [] } }));
     try {
       // Cached details can be returned synchronously by Kotlin before the
       // request-scoped event collector has activated this request ID. Apply

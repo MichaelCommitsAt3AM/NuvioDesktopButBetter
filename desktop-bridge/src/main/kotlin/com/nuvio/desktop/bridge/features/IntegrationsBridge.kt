@@ -122,7 +122,8 @@ object IntegrationsBridge {
         return buildJsonObject {
             put("enabled", settings.enabled)
             put("hasApiKey", settings.hasApiKey)
-            put("hasEffectiveApiKey", settings.hasApiKey || TmdbConfig.API_KEY.isNotBlank())
+            put("hasEffectiveApiKey", TmdbSettingsRepository.hasEffectiveAccess())
+            put("proxyAccess", TmdbSettingsRepository.hasProxyAccess())
             put("language", settings.language)
             put("useTrailers", settings.useTrailers); put("useArtwork", settings.useArtwork)
             put("useBasicInfo", settings.useBasicInfo); put("useDetails", settings.useDetails)

@@ -190,6 +190,7 @@ export function ProfileEditorPage() {
           <label>Maximum Age Rating<select value={kidsMaxRating} onChange={event => setKidsMaxRating(event.target.value)}><option value="G">G — General audiences</option><option value="PG">PG — Parental guidance</option><option value="PG-13">PG-13 — Teens</option></select></label>
           <label>TMDB API key<input type="password" autoComplete="off" value={kidsApiKey} onChange={event => setKidsApiKey(event.target.value)} aria-describedby={profile?.kidsEnabled ? 'kids-api-key-status' : undefined} placeholder={profile?.kidsEnabled ? '••••••••••••••••' : 'Your personal TMDB API key'} /></label>
           {profile?.kidsEnabled && <small id="kids-api-key-status">Key already configured. Leave this field blank to reuse it, including when changing the age limit. Enter a new key only to replace it.</small>}
+          <small>This key is used through KidsScreen for TMDB metadata enrichment. A new kids profile starts with enrichment on and cast enrichment off. Turn it off in Settings → Integrations → TMDB at any time.</small>
           <small>The key is validated and stored encrypted by KidsScreen. Unrated titles and TV-14/TV-MA series are hidden. Featured titles use the same rating checks.</small>
         </div>}
       </section>}

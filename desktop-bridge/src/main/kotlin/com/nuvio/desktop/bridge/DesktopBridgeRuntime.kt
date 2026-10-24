@@ -1116,6 +1116,7 @@ class DesktopBridgeRuntime {
         val state = MetaDetailsRepository.uiState.value
         lastDetails = state.meta
         put("loading", state.isLoading); putNullable("error", state.errorMessage)
+        put("loadingSections", JsonArray(state.loadingSections.map { section -> JsonPrimitive(section.name) }))
         val meta = state.meta
         put("media", meta?.let(::mediaJson) ?: JsonNull)
         put("episodes", JsonArray(meta?.videos.orEmpty().map { video -> buildJsonObject {

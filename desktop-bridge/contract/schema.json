@@ -545,7 +545,8 @@
         "media",
         "episodes",
         "cast",
-        "related"
+        "related",
+        "loadingSections"
       ],
       "properties": {
         "requestId": {
@@ -553,6 +554,20 @@
         },
         "loading": {
           "type": "boolean"
+        },
+        "loadingSections": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "DETAILS",
+              "PRODUCTION",
+              "CAST",
+              "TRAILERS",
+              "COLLECTION",
+              "MORE_LIKE_THIS"
+            ]
+          }
         },
         "error": {
           "type": [

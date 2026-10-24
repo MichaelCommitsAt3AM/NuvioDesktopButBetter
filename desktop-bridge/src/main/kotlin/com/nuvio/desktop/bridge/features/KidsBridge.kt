@@ -57,11 +57,11 @@ object KidsBridge {
         val rating = params["maxRating"]?.jsonPrimitive?.content ?: "G"
         if (rating !in setOf("G", "PG", "PG-13")) throw BridgeFeatureException("KIDS_SETUP_INVALID", "Choose G, PG or PG-13")
         val base = normalizeService(params["serviceUrl"]?.jsonPrimitive?.content ?: "https://kids-screen.vercel.app")
+        val apiKey = params["apiKey"]?.jsonPrimitive?.content.orEmpty().trim()
         var configId = profile.kidsConfigId
         var created: JsonObject? = null
         if (enabled) {
             if (ProfileRepository.state.value.profiles.any { it.addonSyncProfileId == id }) throw BridgeFeatureException("KIDS_ADDON_DEPENDENTS", "Unlink profiles sharing this profile's add-ons first")
-            val apiKey = params["apiKey"]?.jsonPrimitive?.content.orEmpty().trim()
             created = prepareConfiguration(profile, rating, base, apiKey,
                 managementToken = { profile.kidsConfigId?.let(management::getString) },
                 provision = { path, data, token -> request(base, path, data, token) },
@@ -101,6 +101,14 @@ object KidsBridge {
             created?.get("managementToken")?.jsonPrimitive?.content?.let { management.putString(configId!!, it) }
             ProfileRepository.pullProfiles()
             if (ProfileRepository.state.value.profiles.first { it.profileIndex == id }.kidsEnabled != enabled) throw BridgeFeatureException("KIDS_POLICY_SAVE_FAILED", "Kids profile settings were not saved")
+            if (enabled && apiKey.isNotBlank()) {
+                com.nuvio.app.features.tmdb.TmdbSettingsRepository.configureKidsProfile(id, apiKey, enableByDefault = !profile.kidsEnabled)
+                try {
+                    com.nuvio.app.core.sync.ProfileSettingsSync.syncKidsTmdbSettings(id)
+                } catch (error: CancellationException) { throw error } catch (_: Exception) {
+                    error("Kids profile saved, but TMDB enrichment setup could not be synced. Re-enter the key and save again to finish setup.")
+                }
+            }
             if (profile.kidsConfigId != null && profile.kidsConfigId != configId) revoke(profile)
             if (!enabled) revoke(profile)
             verdicts.clear()

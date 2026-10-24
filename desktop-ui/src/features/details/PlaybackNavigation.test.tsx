@@ -107,3 +107,19 @@ describe('loading artwork identity', () => {
     expect(screen.getByRole('heading', { name: 'Ted 2' })).toBeInTheDocument();
   });
 });
+
+
+it('keeps the details page and backdrop mounted when enrichment updates the same title', async () => {
+  const view = renderDetails();
+  await act(async () => {});
+  const hero = view.container.querySelector('.detail-content-arrive');
+  const backdrop = document.querySelector('.detail-viewport-backdrop');
+  expect(hero).not.toBeNull();
+  expect(backdrop).not.toBeNull();
+  bridge.state.details = { ...bridge.state.details, media: { ...media('ted'), background: 'enriched.jpg', logo: 'enriched-logo.png', description: 'Enriched details' } };
+  view.rerender(<MemoryRouter initialEntries={['/details/movie/ted']}><Routes><Route path="/details/:type/:id" element={<DetailsPage />} /></Routes></MemoryRouter>);
+  await act(async () => {});
+  expect(view.container.querySelector('.detail-content-arrive')).toBe(hero);
+  expect(document.querySelector('.detail-viewport-backdrop')).toBe(backdrop);
+  expect(screen.queryByRole('status', { name: 'Loading title details' })).toBeNull();
+});

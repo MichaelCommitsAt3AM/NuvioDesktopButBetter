@@ -36,8 +36,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Every profile includes OpenSubtitles v3, checked by default and marked Recommended, with an option to turn it off. Kids-profile add-on selection disables Cinemeta and AIOMetadata; the add-on sync card follows Kids settings.
 
 - Settings search finds file size limits and other result filters, handles common wording and small typos, and jumps to the matching control.
-- Cast and trailers stay in horizontal rows in the installed rewrite.
-- Movie and show details keep the top-left area clear when you scroll down.
+- Cast and trailers stay in horizontal rows in the installed rewrite. Details poster rows use Home’s scroll arrows and rounded hover cards without three-dot buttons; trailer categories use the Kotlin-style menu with video counts.
+- Movie and show details keep the top-left area clear when you scroll down. TMDB enrichment updates the open page as it finishes and keeps existing artwork visible until its replacement is decoded; details rows keep their scroll arrows fully visible without scrolling the whole page sideways.
 
 - Home checks again if loading updates are missed and offers Retry when content takes too long, instead of leaving an endless loading screen.
 
@@ -119,7 +119,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - An opt-in React/Tauri desktop UI is being developed while keeping the existing Kotlin backend and native player. See [the migration notes](docs/DESKTOP_UI_REWRITE.md) for build instructions and remaining feature work.
 - The preview now includes profiles/PINs, catalog discovery, rich details, cloud library, collections, downloads and expanded settings. Full animation, language and release-delivery parity is still in progress; [the coverage checklist](docs/DESKTOP_UI_PARITY.md) tracks what remains.
 - Profile PINs use a four-dot keypad with automatic submission, visible errors and lockout feedback. Cloud PIN setup, verification, removal and account-password recovery have been repaired.
-- The edit profile screen includes a Delete profile button with confirmation for secondary profiles.
+- Kids profile setup enables TMDB metadata enrichment, including trailers, using the same TMDB key, with cast enrichment off by default. Both switches remain editable and sync with the profile.
+- Manage profiles directly from the profile chooser. The edit screen includes confirmed deletion for secondary profiles; the redundant standalone Profiles list has been removed.
 - The streams selection screen uses the same background dimming as title details.
 - Holding Settings opens Kotlin-style profile avatar tiles with opening/closing transitions. Unfinished episodes show saved progress on their thumbnails; stream loading keeps the title background throughout.
 - Stream selection and autoplay fetch fresh sources on every entry, without reusing local stream results. Expanded Home catalogs use the same circular back arrow as title details.
@@ -314,3 +315,7 @@ This fork is built on [Nuvio Desktop](https://github.com/NuvioMedia/NuvioDesktop
 [issues-url]: https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/issues
 [license-shield]: https://img.shields.io/github/license/MichaelCommitsAt3AM/NuvioDesktopButBetter.svg?style=for-the-badge
 [license-url]: https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/blob/Dev/LICENSE
+
+Details enrichment now publishes core metadata before optional trailers, recommendations and collection items finish. Those sections complete independently, disabled cast/artwork/details options skip their dedicated TMDB requests, and a timeout preserves metadata that has already arrived.
+
+Kids profile setup defaults TMDB production companies and networks off, including when starting from copied settings. Explicit later choices sync between platforms and survive profile edits. Add-on age ratings omit repeated certifications before enrichment arrives.

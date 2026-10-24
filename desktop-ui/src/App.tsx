@@ -14,7 +14,6 @@ import { PersonPage } from './features/details/PersonPage';
 import { EntityPage } from './features/details/EntityPage';
 import { StreamsPage } from './features/streams/StreamsPage';
 import { PlaybackSurfacePage } from './features/player/PlaybackSurfacePage';
-import { ProfilesPage } from './features/profiles/ProfilesPage';
 import { UpdateBanner } from './features/updater/UpdateBanner';
 import { ProfileEditorPage } from './features/profiles/ProfileEditorPage';
 import { ProfileChooser } from './features/profiles/ProfileChooser';
@@ -126,7 +125,7 @@ function Shell({ offlineDownloads = false, welcomePending = false }: { offlineDo
         <Route path="/collections/:collectionId/edit" element={<CollectionEditorPage />} />
         <Route path="/collections/:collectionId/folders/:folderId" element={<CollectionFolderPage />} />
         <Route path="/settings/*" element={<SettingsPage />} />
-        <Route path="/profiles" element={<ProfilesPage />} />
+        <Route path="/profiles" element={<Navigate to="/profiles/choose" replace />} />
         <Route path="/profiles/new" element={<ProfileEditorPage />} />
         <Route path="/profiles/:id/edit" element={<ProfileEditorPage />} />
         <Route path="/catalog" element={<CatalogPage />} />

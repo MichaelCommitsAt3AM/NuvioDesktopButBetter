@@ -685,6 +685,7 @@ object TmdbMetadataService {
         fallbackItemId: String,
         settings: TmdbSettings,
         includeEpisodes: Boolean = true,
+        onProgress: (suspend (MetaDetails, Set<TmdbEnrichmentStage>) -> Unit)? = null,
     ): MetaDetails {
         if (!settings.enabled) return meta
 
@@ -693,17 +694,28 @@ object TmdbMetadataService {
             ?: TmdbService.ensureTmdbId(fallbackItemId, tmdbType, fallbackImdbId = meta.imdbId)
             ?: return meta
 
-        val needsEpisodes = (
+        val needsEpisodes = includeEpisodes && (
             settings.useEpisodes || settings.useSeasonPosters
         ) && tmdbType == "tv"
         val (enrichment, episodeMap) = coroutineScope {
             val enrichmentDeferred = async {
-                fetchEnrichment(
-                    tmdbId = tmdbId,
-                    mediaType = tmdbType,
-                    language = settings.language,
-                    settings = settings,
-                )
+                if (onProgress == null) {
+                    fetchEnrichment(tmdbId, tmdbType, settings.language, settings)
+                } else {
+                    fetchProgressiveEnrichment(tmdbId, tmdbType, settings) { partial, pending ->
+                        onProgress(
+                            applyEnrichment(
+                                meta, partial, emptyMap(),
+                                settings.copy(
+                                    useTrailers = settings.useTrailers && TmdbEnrichmentStage.TRAILERS !in pending,
+                                    useMoreLikeThis = settings.useMoreLikeThis && TmdbEnrichmentStage.MORE_LIKE_THIS !in pending,
+                                    useCollections = settings.useCollections && TmdbEnrichmentStage.COLLECTION !in pending,
+                                ),
+                            ),
+                            pending,
+                        )
+                    }
+                }
             }
             val episodeDeferred = if (needsEpisodes) {
                 async {
@@ -733,7 +745,7 @@ object TmdbMetadataService {
         fallbackItemId: String,
         settings: TmdbSettings,
     ): MetaDetails {
-        if (!settings.enabled || !settings.hasApiKey) return meta
+        if (!settings.enabled || !TmdbTransport.hasAccess()) return meta
         if (!settings.useEpisodes && !settings.useSeasonPosters) return meta
 
         val tmdbType = normalizeMetaType(meta.type)
@@ -942,6 +954,45 @@ object TmdbMetadataService {
         return updated
     }
 
+    private suspend fun fetchProgressiveEnrichment(
+        tmdbId: String,
+        mediaType: String,
+        settings: TmdbSettings,
+        onProgress: suspend (TmdbEnrichment, Set<TmdbEnrichmentStage>) -> Unit,
+    ): TmdbEnrichment? {
+        val numericId = tmdbId.toIntOrNull() ?: return null
+        val language = normalizeTmdbLanguage(settings.language)
+        val coreResult = kotlinx.coroutines.CompletableDeferred<TmdbEnrichment?>()
+        val extras = buildMap<TmdbEnrichmentStage, suspend () -> (TmdbEnrichment) -> TmdbEnrichment> {
+            if (settings.useTrailers) put(TmdbEnrichmentStage.TRAILERS, {
+                val trailers = fetchTrailers(numericId, mediaType, language)
+                val merge: (TmdbEnrichment) -> TmdbEnrichment = { it.copy(trailers = trailers) }
+                merge
+            })
+            if (settings.useMoreLikeThis) put(TmdbEnrichmentStage.MORE_LIKE_THIS, {
+                val related = fetchMoreLikeThis(numericId, mediaType, language)
+                val merge: (TmdbEnrichment) -> TmdbEnrichment = { it.copy(moreLikeThis = related) }
+                merge
+            })
+            if (settings.useCollections) put(TmdbEnrichmentStage.COLLECTION, {
+                val collectionId = coreResult.await()?.collectionId
+                val items = collectionId?.let { fetchCollection(it, language).second }.orEmpty()
+                val merge: (TmdbEnrichment) -> TmdbEnrichment = { it.copy(collectionItems = items) }
+                merge
+            })
+        }
+        return progressiveTmdbEnrichment(
+            core = {
+                fetchEnrichment(
+                    tmdbId, mediaType, language,
+                    settings.copy(useTrailers = false, useMoreLikeThis = false, useCollections = false),
+                ).also { coreResult.complete(it) }
+            },
+            extras = extras,
+            onProgress = onProgress,
+        )
+    }
+
     private suspend fun fetchEnrichment(
         tmdbId: String,
         mediaType: String,
@@ -954,6 +1005,7 @@ object TmdbMetadataService {
             append(":related=${settings.useMoreLikeThis}")
             append(":trailers=${settings.useTrailers}")
             append(":collections=${settings.useCollections}")
+            append(":credits=${settings.useCredits}:artwork=${settings.useArtwork}:details=${settings.useDetails}")
         }
         enrichmentCache[cacheKey]?.let { return@withContext it }
 
@@ -968,7 +1020,7 @@ object TmdbMetadataService {
                 )
             }
             val credits = async {
-                if (mediaType == "tv") {
+                if (!settings.useCredits) null else if (mediaType == "tv") {
                     fetch<TmdbAggregateCreditsResponse>(
                         endpoint = "tv/$numericId/aggregate_credits",
                         query = mapOf("language" to normalizedLanguage),
@@ -981,13 +1033,13 @@ object TmdbMetadataService {
                 }
             }
             val images = async {
-                fetch<TmdbImagesResponse>(
+                if (!settings.useArtwork) null else fetch<TmdbImagesResponse>(
                     endpoint = "$mediaType/$numericId/images",
                     query = mapOf("include_image_language" to includeImageLanguage),
                 )
             }
             val ageRating = async {
-                when (mediaType) {
+                if (!settings.useDetails) null else when (mediaType) {
                     "tv" -> fetch<TmdbTvContentRatingsResponse>(
                         endpoint = "tv/$numericId/content_ratings",
                     )?.results.orEmpty().selectTvAgeRating(normalizedLanguage)
@@ -1033,7 +1085,7 @@ object TmdbMetadataService {
         val details = response.first ?: return@withContext null
         val credits = response.second
         val images = response.third
-        val englishFallbackNames = fetchEnglishFallbackNames(
+        val englishFallbackNames = if (!settings.useCredits) emptyMap() else fetchEnglishFallbackNames(
             numericId = numericId,
             mediaType = mediaType,
             language = normalizedLanguage,
@@ -1090,6 +1142,7 @@ object TmdbMetadataService {
             language = details.originalLanguage?.trim()?.takeIf(String::isNotBlank),
             productionCompanies = details.productionCompanies.mapNotNull { it.toMetaCompany() },
             networks = details.networks.mapNotNull { it.toMetaCompany() },
+            collectionId = details.belongsToCollection?.id,
             collectionName = details.belongsToCollection?.name?.trim()?.takeIf(String::isNotBlank),
             collectionItems = if (settings.useCollections && details.belongsToCollection?.id != null) {
                 fetchCollection(
@@ -1217,11 +1270,10 @@ object TmdbMetadataService {
         endpoint: String,
         query: Map<String, String> = emptyMap(),
     ): T? {
-        val apiKey = TmdbSettingsRepository.effectiveApiKey().takeIf(String::isNotBlank) ?: return null
-        val url = buildTmdbUrl(endpoint = endpoint, apiKey = apiKey, query = query)
+        if (!TmdbTransport.hasAccess()) return null
         return runCatching {
             TmdbRequestLimiter.run {
-                json.decodeFromString<T>(httpGetText(url))
+                json.decodeFromString<T>(TmdbTransport.get(endpoint, query))
             }
         }.onFailure { error ->
             log.w { "TMDB request failed for $endpoint: ${error.message}" }
@@ -1434,7 +1486,7 @@ object TmdbMetadataService {
         )
 
         val result = sortedCategories.flatMap { byCategory[it].orEmpty() }
-        trailerCache[cacheKey] = result
+        if (result.isNotEmpty()) trailerCache[cacheKey] = result
         return result
     }
 
@@ -1446,7 +1498,13 @@ object TmdbMetadataService {
             endpoint = endpoint,
             query = mapOf("language" to language),
         )
-        return response?.results.orEmpty()
+        val localized = response?.results.orEmpty()
+        if (language.substringBefore('-').equals("en", ignoreCase = true) || localized.any {
+            it.site.equals("YouTube", ignoreCase = true) &&
+                (it.type.equals("Trailer", ignoreCase = true) || it.type.equals("Teaser", ignoreCase = true))
+        }) return localized
+        val english = fetch<TmdbVideosResponse>(endpoint = endpoint, query = mapOf("language" to "en-US"))
+        return localized + english?.results.orEmpty()
     }
 }
 
@@ -1470,6 +1528,7 @@ internal data class TmdbEnrichment(
     val language: String?,
     val productionCompanies: List<MetaCompany>,
     val networks: List<MetaCompany>,
+    val collectionId: Int? = null,
     val collectionName: String? = null,
     val collectionItems: List<MetaPreview> = emptyList(),
     val moreLikeThis: List<MetaPreview> = emptyList(),

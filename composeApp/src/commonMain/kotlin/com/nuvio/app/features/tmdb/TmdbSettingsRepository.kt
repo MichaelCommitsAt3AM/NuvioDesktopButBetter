@@ -42,6 +42,23 @@ object TmdbSettingsRepository {
         return _uiState.value
     }
 
+    /** Called only after KidsScreen has validated the key and saved the kids policy. */
+    fun configureKidsProfile(profileId: Int, validatedApiKey: String, enableByDefault: Boolean) {
+        if (validatedApiKey.trim().isEmpty()) return
+        TmdbSettingsStorage.saveKidsProfileSettings(
+            profileId, null,
+            enabled = if (enableByDefault) true else null,
+            useCredits = if (enableByDefault) false else null,
+            useProductions = if (enableByDefault) false else null,
+            useNetworks = if (enableByDefault) false else null,
+        )
+        if (ProfileRepository.activeProfileId == profileId) onProfileChanged()
+    }
+
+    fun hasEffectiveAccess(): Boolean = TmdbTransport.hasAccess()
+
+    fun hasProxyAccess(): Boolean = TmdbTransport.hasProxyAccess()
+
     fun effectiveApiKey(): String = snapshot().apiKey.ifBlank { TmdbConfig.API_KEY }
 
     fun setEnabled(value: Boolean) {
@@ -50,6 +67,7 @@ object TmdbSettingsRepository {
         enabled = value
         publish()
         TmdbSettingsStorage.saveEnabled(value)
+        invalidateMetadata()
     }
 
     fun setApiKey(value: String) {
@@ -164,6 +182,8 @@ object TmdbSettingsRepository {
     private fun loadFromDisk() {
         val wasLoaded = hasLoaded
         val previousApiKey = apiKey
+        val previousEnabled = enabled
+        val previousUseCredits = useCredits
         hasLoaded = true
         enabled = TmdbSettingsStorage.loadEnabled() ?: false
         apiKey = TmdbSettingsStorage.loadApiKey()?.trim().orEmpty()
@@ -174,14 +194,14 @@ object TmdbSettingsRepository {
         useBasicInfo = TmdbSettingsStorage.loadUseBasicInfo() ?: true
         useDetails = TmdbSettingsStorage.loadUseDetails() ?: true
         useCredits = TmdbSettingsStorage.loadUseCredits() ?: true
-        useProductions = TmdbSettingsStorage.loadUseProductions() ?: true
-        useNetworks = TmdbSettingsStorage.loadUseNetworks() ?: true
+        useProductions = TmdbSettingsStorage.loadUseProductions() ?: (ProfileRepository.state.value.activeProfile?.kidsEnabled != true)
+        useNetworks = TmdbSettingsStorage.loadUseNetworks() ?: (ProfileRepository.state.value.activeProfile?.kidsEnabled != true)
         useEpisodes = TmdbSettingsStorage.loadUseEpisodes() ?: true
         useSeasonPosters = TmdbSettingsStorage.loadUseSeasonPosters() ?: true
         useMoreLikeThis = TmdbSettingsStorage.loadUseMoreLikeThis() ?: true
         useCollections = TmdbSettingsStorage.loadUseCollections() ?: true
         publish()
-        if (wasLoaded && previousApiKey != apiKey) {
+        if (wasLoaded && (previousApiKey != apiKey || previousEnabled != enabled || previousUseCredits != useCredits)) {
             invalidateMetadata()
         }
     }

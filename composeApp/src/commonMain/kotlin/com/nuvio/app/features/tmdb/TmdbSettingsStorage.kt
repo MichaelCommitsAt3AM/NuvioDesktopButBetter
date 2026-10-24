@@ -5,6 +5,11 @@ import kotlinx.serialization.json.JsonObject
 internal expect object TmdbSettingsStorage {
     fun loadEnabled(): Boolean?
     fun saveEnabled(enabled: Boolean)
+    fun loadEnabledForProfile(profileId: Int): Boolean?
+    fun loadUseCreditsForProfile(profileId: Int): Boolean?
+    fun loadUseProductionsForProfile(profileId: Int): Boolean?
+    fun loadUseNetworksForProfile(profileId: Int): Boolean?
+    fun saveKidsProfileSettings(profileId: Int, apiKey: String?, enabled: Boolean?, useCredits: Boolean? = null, useProductions: Boolean? = null, useNetworks: Boolean? = null)
     fun loadApiKey(): String?
     fun saveApiKey(apiKey: String)
     fun loadLanguage(): String?

@@ -5,7 +5,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import { Maximize, Minimize } from 'lucide-react';
 import './fullscreenButton.css';
 
-export function FullscreenButton({ onError }: { onError?: (message: string) => void }) {
+export function FullscreenButton({ onError, inline = false }: { onError?: (message: string) => void; inline?: boolean }) {
   const [fullscreen, setFullscreen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -41,7 +41,8 @@ export function FullscreenButton({ onError }: { onError?: (message: string) => v
   };
 
   const label = fullscreen ? 'Exit fullscreen' : 'Enter fullscreen';
-  return createPortal(<button className="fullscreen-toggle" type="button" aria-label={label} title={label} disabled={busy} onClick={() => void toggle()}>
+  const button = <button className={`fullscreen-toggle${inline ? ' fullscreen-toggle-inline' : ''}`} type="button" aria-label={label} title={label} disabled={busy} onClick={() => void toggle()}>
     {fullscreen ? <Minimize size={24} /> : <Maximize size={24} />}
-  </button>, document.body);
+  </button>;
+  return inline ? button : createPortal(button, document.body);
 }

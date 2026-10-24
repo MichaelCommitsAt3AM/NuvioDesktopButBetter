@@ -4,6 +4,14 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Kids setup enables TMDB metadata with the same key — 2026-10-24
+
+Kids profile setup now explains that its validated TMDB key is also saved in that profile’s device-local TMDB credentials. A newly enabled kids profile starts with TMDB enrichment on, including its existing trailer module; users can disable enrichment normally. Key replacements and ordinary kids/rating edits preserve an opt-out. Setup targets the child’s storage while the parent remains selected and updates only the child’s TMDB enable preference in the cloud settings blob, retaining other preferences and excluding the key. Failed KidsScreen validation does not save the key locally. Existing kids configurations require re-entering the key once on each device because KidsScreen cannot return its server-held key. The separate trailer fallback was removed, so turning enrichment off also stops TMDB trailer fetching. Localized video lookup still tries English when needed.
+
+### Use the profile chooser for profile management — 2026-10-24
+
+Removed the redundant standalone Profiles list. Existing `/profiles` links redirect to `/profiles/choose`, where Manage Profiles opens the existing editors for creating, editing and deleting profiles. Profile switching and PIN prompts remain in the chooser and avatar menu; Remember the last profile remains in Settings → Advanced. The account settings description explains the management entry point.
+
 ### First available featured titles during cold startup — 2026-10-22
 
 The earlier settled-list guard hid usable Kotlin hero previews until HomeRepository completed every catalog and preview page. On an empty cache, the featured skeleton therefore waited for the slowest request, in adult and kids profiles alike. React now displays the first nonempty Kotlin hero preview immediately, holds it during subsequent loading updates, and retains that first title in the completed selection if it is still eligible. Profile changes reset the selection; an empty completed Kotlin selection still removes it. Kotlin source/rating policies and catalog fetching remain authoritative and unchanged.
@@ -999,3 +1007,44 @@ The registered fork client was verified against Premiumize’s live device autho
 ### Release notes after merging feature branches
 
 Desktop CI falls back to the full commit range when first-parent release notes contain no eligible entries. This lets a release proceed after feature work arrives entirely through merges; the generated draft is still rewritten into user-facing notes before publishing.
+
+
+## Desktop details cards and trailer categories (2026-10-24)
+
+The React details collection and related-title rows reuse Home’s `HorizontalRail` and circular hover/focus arrows, hide horizontal scrollbars and omit poster three-dot buttons. Right-click and hold actions remain available. Poster frames explicitly clip to their configured rounded shape during hover transforms. The trailer category selector reuses `DropdownChip` with the `DetailTrailersSection.kt` trigger and `Menu.kt` popup styling, selected accent/checkmark and category video counts. This change targets the React/Tauri desktop app only.
+
+Kids setup also disables TMDB cast enrichment (`tmdb_use_credits`) by default after copying another profile’s settings, writing the same preference to local profile storage and its synced settings. Later profile edits and key replacements preserve explicit cast choices. Android storage and common sync policy regression checks cover copied cast-on settings, parent isolation and preserving a later opt-in.
+
+Validation: 72 focused desktop UI tests, 51 desktop Kotlin kids/TMDB/credential tests and 53 Android host tests passed. The React production assets, embedded Windows debug shell, staged Kotlin bridge and Android full debug APK built successfully.
+
+
+## First-visit metadata enrichment and details overflow (2026-10-24)
+
+Cold TMDB enrichment had a five-second budget, which could discard the result before all requests completed. The mobile details repository now follows the desktop progressive-load lifecycle: publish add-on metadata immediately, enrich in a cancellable per-title job, publish core TMDB data before MDBList/related-title processing, and fetch series episode enrichment afterward. Both clients allow 30 seconds for enrichment, leave expired attempts retryable, cancel obsolete work on title/profile changes, retain original add-on metadata for re-enrichment, and include module switches in the details cache fingerprint. The previously unused `includeEpisodes` switch now actually prevents season requests from blocking core details. Mobile's TMDB payload cache also distinguishes trailer, collection and recommendation switches.
+
+React DetailsExtras previously fetched a one-time snapshot even though the Kotlin repository emits later enrichment updates. It now refreshes on details events without clearing the visible title or resetting the user's trailer category, and ignores late responses belonging to a previous title. Regression tests exercise all three behaviors.
+
+Details rails now inherit their actual 27px content gutter (24px/20px at narrower widths), rather than Home's wider viewport gutter. This keeps both circular arrows inside the visible row and removes the cause of page-wide horizontal overflow. The vertical page scroller additionally clips horizontal overflow. Heading/subtitle and bottom padding are reduced; horizontal scrolling remains available inside each rail. A browser fixture using the built production CSS at 1280px confirmed equal page client/scroll widths, a fully visible 60px round arrow, working track scrolling and a 3.66px heading/subtitle gap.
+
+Credential handling is unchanged. KidsScreen receives the personal TMDB key during provisioning; synced profiles carry its configuration ID, while direct TMDB enrichment reads device-local credentials. A server-side, account-authorized enrichment proxy on KidsScreen is the recommended follow-up for seamless new-device enrichment. No key was added to synced preference blobs, manifest URLs or shipped binaries.
+
+Validation: 73 focused frontend tests (including three first-visit refresh/category/stale-response regressions), 69 desktop Kotlin tests and 75 Android host tests passed. Frontend assets, the staged Kotlin bridge, embedded Windows debug executable and Android full debug APK built successfully. The layout fixture is a geometry check; live TMDB/KidsScreen availability and credential provisioning on a second device remain external dependencies.
+
+
+## Stable details during progressive enrichment (2026-10-24)
+
+Desktop details retain the current title's decoded backdrop and logo while replacement TMDB artwork loads and decodes, including when a replacement fails. Title/profile changes cannot reuse another title's artwork. The details page and its backdrop remain mounted across metadata updates; skeletons and existing enrichment section ordering are retained. Frontend regressions cover pending decoding, failures, obsolete image completions, identity changes and keeping the page mounted.
+
+The mobile kids visibility projection previously emitted an empty/loading state before every filtering pass, tearing down and recreating the details layout during each enrichment update. Details now opt into retaining only the last sanitized version of the same title while its update is verified. New titles, profiles, policies and denied/error states still clear before publishing verified data; other kids-visible consumers retain their existing behavior. The settings-refresh effect no longer keys itself to metadata arrival/loading, which had repeatedly re-requested the title and reset the layout. Phone/tablet artwork keeps its last loaded painter while enriched replacements load. Mobile flow regressions cover verified-content retention, policy/profile/title boundaries, cancelled responses and unchanged default consumer behavior.
+
+The desktop Trailers section shows one loading card while its videos are pending. Other section skeleton counts are unchanged.
+
+### Independent enrichment sections (2026-10-24)
+
+Both apps publish core metadata while trailers, related titles and collection items load independently. Updates accumulate rather than replacing earlier successful sections, failed optional requests complete their loading state, and navigation cancellation prevents late updates. Disabled cast, artwork and details skip their dedicated requests; cache keys distinguish those options. Existing kids admission and related-title filtering remain in place. Regression tests cover delayed optional responses, empty selections, optional failures and cancellation.
+
+The desktop player preparation overlay now places fullscreen to the left of close in one shared row, matching the player.
+
+### Kids production defaults and duplicate certifications (2026-10-24)
+
+Kids setup initializes both production-company and network enrichment off and synchronizes those choices without inheriting the parent's enabled options. Later explicit choices remain intact. Missing production preferences default off in kids profiles; existing saved preferences are preserved. Both apps normalize repeated slash-separated add-on certifications (such as `PG / PG / PG`) to unique labels at metadata parsing, without changing admission checks or discarding distinct ratings. Parser, shared-policy and Android profile-storage regressions cover the behavior.

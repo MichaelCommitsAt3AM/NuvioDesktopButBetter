@@ -22,7 +22,7 @@ vi.mock('@tauri-apps/api/core', () => ({
     if (command === 'bridge_report_diagnostic') return undefined;
     const request = args!.request!;
     bridgeMock.requests.push(request);
-    if (request.method === 'details.load') return { id: request.id, epoch: bridgeMock.epoch, result: { requestId: request.id, loading: true, error: null, media: null, episodes: [], cast: [], related: [] } };
+    if (request.method === 'details.load') return { id: request.id, epoch: bridgeMock.epoch, result: { requestId: request.id, loading: true, error: null, media: null, episodes: [], cast: [], related: [], loadingSections: [] } };
     if (request.method === 'streams.load') {
       if (request.params.videoId === 'event-first') emit({ topic: 'streams', epoch: bridgeMock.epoch, revision: 500, data: { requestId: request.id, loading: false, error: null, groups: [] } });
       return { id: request.id, epoch: bridgeMock.epoch, result: { requestId: request.id, loading: bridgeMock.streamAutoPlayMode !== 'MANUAL', error: null, groups: [] } };
@@ -612,7 +612,7 @@ describe('desktop bridge UI workflow', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Open Action title' }));
     await screen.findByRole('status', { name: 'Loading title details' });
     const detailRequest = bridgeMock.requests.find((request) => request.method === 'details.load')!;
-    emit({ topic: 'details', epoch: 5, revision: 80, data: { requestId: detailRequest.id, loading: false, error: null, media: media('overflow-actions', 'Action title'), episodes: [], cast: [], related: [] } });
+    emit({ topic: 'details', epoch: 5, revision: 80, data: { requestId: detailRequest.id, loading: false, error: null, media: media('overflow-actions', 'Action title'), episodes: [], cast: [], related: [], loadingSections: [] } });
 
     const expander = await screen.findByRole('button', { name: 'More title actions' });
     expect(expander).toHaveAttribute('aria-expanded', 'false');
@@ -634,7 +634,7 @@ describe('desktop bridge UI workflow', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Open Manual play title' }));
     await screen.findByRole('status', { name: 'Loading title details' });
     const detailRequest = bridgeMock.requests.find((request) => request.method === 'details.load')!;
-    emit({ topic: 'details', epoch: 5, revision: 91, data: { requestId: detailRequest.id, loading: false, error: null, media: media('manual-play', 'Manual play title'), episodes: [], cast: [], related: [] } });
+    emit({ topic: 'details', epoch: 5, revision: 91, data: { requestId: detailRequest.id, loading: false, error: null, media: media('manual-play', 'Manual play title'), episodes: [], cast: [], related: [], loadingSections: [] } });
     const playButton = await screen.findByRole('button', { name: /Play/ });
     fireEvent.pointerDown(playButton, { button: 0, pointerId: 1, pointerType: 'mouse' });
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 560)); });
@@ -669,7 +669,7 @@ describe('desktop bridge UI workflow', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Open Auto play title' }));
     await screen.findByRole('status', { name: 'Loading title details' });
     const detailRequest = bridgeMock.requests.find((request) => request.method === 'details.load')!;
-    emit({ topic: 'details', epoch: 5, revision: 91, data: { requestId: detailRequest.id, loading: false, error: null, media: media('auto-play', 'Auto play title'), episodes: [], cast: [], related: [] } });
+    emit({ topic: 'details', epoch: 5, revision: 91, data: { requestId: detailRequest.id, loading: false, error: null, media: media('auto-play', 'Auto play title'), episodes: [], cast: [], related: [], loadingSections: [] } });
     fireEvent.click(await screen.findByRole('button', { name: /Play/ }));
     await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'streams.load' && request.params.manualSelection === false)).toBe(true));
     expect(await screen.findByText('Finding streams…')).toBeInTheDocument();
@@ -721,7 +721,7 @@ describe('desktop bridge UI workflow', () => {
     expect(await screen.findByRole('menu', { name: 'Profiles' })).toBeVisible();
   });
 
-  it.each([['/profiles', 'Profiles'], ['/profiles/new', 'Add Profile'], ['/profiles/7/edit', 'Edit Profile'], ['/library/downloads', 'Downloads']])('lets kids profiles open %s without a parent-profile gate', async (route, heading) => {
+  it.each([['/profiles', "Who's watching?"], ['/profiles/new', 'Add Profile'], ['/profiles/7/edit', 'Edit Profile'], ['/library/downloads', 'Downloads']])('lets kids profiles open %s without a parent-profile gate', async (route, heading) => {
     bridgeMock.kidsProfile = true;
     window.history.replaceState({}, '', route);
     render(<AppRoot />);
@@ -799,14 +799,14 @@ describe('desktop bridge UI workflow', () => {
     await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'details.load')).toBe(true));
     const loadRequest = bridgeMock.requests.find((request) => request.method === 'details.load')!;
     const art = { id: 'tt9174288', type: 'movie', name: "Let's Have Kids!", poster: null, background: 'https://example.invalid/bg.jpg', logo: 'https://example.invalid/logo.png', description: null, releaseInfo: '2026', rating: null, genres: [] };
-    await act(async () => { emit({ topic: 'details', epoch: bridgeMock.epoch, revision: 950, data: { requestId: loadRequest.id, loading: false, error: null, media: art, episodes: [], cast: [], related: [] } }); });
+    await act(async () => { emit({ topic: 'details', epoch: bridgeMock.epoch, revision: 950, data: { requestId: loadRequest.id, loading: false, error: null, media: art, episodes: [], cast: [], related: [], loadingSections: [] } }); });
   }
 
   it('falls back to title text and drops the backdrop when details art fails', async () => {
     stubProbe(true);
     await openDetailsWithArt();
-    fireEvent.error(await screen.findByAltText("Let's Have Kids!"));
     expect(await screen.findByRole('heading', { name: "Let's Have Kids!" })).toBeInTheDocument();
+    expect(screen.queryByAltText("Let's Have Kids!")).toBeNull();
     await waitFor(() => expect(document.querySelector('.detail-viewport-backdrop')).toBeNull());
   });
 

@@ -12,6 +12,12 @@ import kotlin.test.assertTrue
 
 class TmdbMetadataServiceTest {
     @Test
+    fun `disabling enrichment leaves addon metadata unchanged including missing trailers`() = kotlinx.coroutines.test.runTest {
+        val meta = MetaDetails(id = "tmdb:862", type = "movie", name = "Addon title", description = "Addon details")
+        assertEquals(meta, TmdbMetadataService.enrichMeta(meta, meta.id, TmdbSettings(enabled = false, useTrailers = true)))
+    }
+
+    @Test
     fun `buildStandaloneMeta maps tmdb enrichment without addon meta`() {
         val enrichment = TmdbEnrichment(
             localizedTitle = "TMDB Movie",

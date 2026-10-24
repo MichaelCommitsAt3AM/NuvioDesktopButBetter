@@ -44,7 +44,7 @@ export function IntegrationsLanding() {
   </div></div>;
 }
 function IntegrationLink({ to, icon, logoSrc, title, detail }: { to: string; icon?: ReactNode; logoSrc?: string; title: string; detail: string }) { return <Link className="settings-nav-row" to={`/settings/integrations/${to}`}>{(logoSrc || icon) && <span className="settings-nav-icon">{logoSrc ? <img src={logoSrc} alt="" className="integration-brand-logo" /> : icon}</span>}<span className="settings-nav-copy"><strong>{title}</strong><span>{detail}</span></span></Link>; }
-type Tmdb = { enabled: boolean; hasApiKey: boolean; hasEffectiveApiKey: boolean; language: string; useTrailers: boolean; useArtwork: boolean; useBasicInfo: boolean; useDetails: boolean; useCredits: boolean; useProductions: boolean; useNetworks: boolean; useEpisodes: boolean; useSeasonPosters: boolean; useMoreLikeThis: boolean; useCollections: boolean };
+type Tmdb = { enabled: boolean; hasApiKey: boolean; hasEffectiveApiKey: boolean; proxyAccess: boolean; language: string; useTrailers: boolean; useArtwork: boolean; useBasicInfo: boolean; useDetails: boolean; useCredits: boolean; useProductions: boolean; useNetworks: boolean; useEpisodes: boolean; useSeasonPosters: boolean; useMoreLikeThis: boolean; useCollections: boolean };
 export function TmdbSettingsPage() {
   const { snapshot: s, loading, error, refresh, run } = useDomain<Tmdb>('tmdb');
   const set = (key: string, value: unknown) => void run('tmdb.set', { key, value }).catch(() => {});
@@ -53,7 +53,7 @@ export function TmdbSettingsPage() {
   return <SubPage title="TMDB Enrichment">{error && <SettingsError error={error} refresh={refresh} />}
     <h2 className="settings-group-title">TMDB ENRICHMENT</h2><section className="settings-section">
       <Toggle title="Enable TMDB Enrichment" description="Use TMDB as a metadata source to enhance addon data" checked={s.enabled} onChange={(value) => set('enabled', value)} />
-      <IntegrationApiKeyField title="Personal API key" description="Use your own TMDB API key, or leave blank to use the default." inputLabel="API key" configured={s.hasApiKey} onSave={(value) => run('tmdb.set', { key: 'apiKey', value })} />
+      <IntegrationApiKeyField title="Personal API key" description={s.proxyAccess ? "This kids profile uses the key stored by KidsScreen. Nothing is saved on this device." : "Use your own TMDB API key, or leave blank to use the default."} inputLabel="API key" configured={s.hasApiKey} onSave={(value) => run('tmdb.set', { key: 'apiKey', value })} />
     </section>
     <h2 className="settings-group-title">LOCALIZATION</h2><section className="settings-section">
       <LanguageField value={s.language} onSave={(value) => set('language', value)} />

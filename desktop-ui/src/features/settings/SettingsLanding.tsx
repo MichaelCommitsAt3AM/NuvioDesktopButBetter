@@ -11,7 +11,7 @@ import { searchSettings, settingsResultDescription, settingsResultRoute } from '
 import './settingsSearch.css';
 
 const entries = [
-  {category:'account',path:'/profiles/choose',title:'Switch Profile',description:'Change to a different profile.',icon:Users},
+  {category:'account',path:'/profiles/choose',title:'Switch Profile',description:'Switch profiles, or use Manage Profiles to add, edit or delete one.',icon:Users},
   {category:'account',path:'/settings/account',title:'Account',description:'Account and sync status',icon:UserCircle},
   {category:'account',path:'/settings/integrations/tracking',title:'Tracking',description:'Connect tracking providers and choose which one powers your Library and Continue Watching.',icon:RefreshCw},
   {category:'general',path:'/settings/appearance',title:'Layout',description:'Home, streams, collections, and detail pages',icon:Palette,filled:true},

@@ -42,6 +42,18 @@ internal actual object TmdbSettingsStorage {
     )
     private val store = DesktopStorage.store("nuvio_tmdb_settings")
 
+    actual fun loadEnabledForProfile(profileId: Int): Boolean? = store.getBoolean(ProfileScopedKey.of(enabledKey, profileId))
+    actual fun loadUseCreditsForProfile(profileId: Int): Boolean? = store.getBoolean(ProfileScopedKey.of(useCreditsKey, profileId))
+    actual fun loadUseProductionsForProfile(profileId: Int): Boolean? = store.getBoolean(ProfileScopedKey.of(useProductionsKey, profileId))
+    actual fun loadUseNetworksForProfile(profileId: Int): Boolean? = store.getBoolean(ProfileScopedKey.of(useNetworksKey, profileId))
+    actual fun saveKidsProfileSettings(profileId: Int, apiKey: String?, enabled: Boolean?, useCredits: Boolean?, useProductions: Boolean?, useNetworks: Boolean?) {
+        apiKey?.let { store.putString(ProfileScopedKey.of(apiKeyKey, profileId), it) }
+        enabled?.let { store.putBoolean(ProfileScopedKey.of(enabledKey, profileId), it) }
+        useCredits?.let { store.putBoolean(ProfileScopedKey.of(useCreditsKey, profileId), it) }
+        useProductions?.let { store.putBoolean(ProfileScopedKey.of(useProductionsKey, profileId), it) }
+        useNetworks?.let { store.putBoolean(ProfileScopedKey.of(useNetworksKey, profileId), it) }
+    }
+
     actual fun loadEnabled(): Boolean? = loadBoolean(enabledKey)
     actual fun saveEnabled(enabled: Boolean) = saveBoolean(enabledKey, enabled)
     actual fun loadApiKey(): String? = loadString(apiKeyKey)

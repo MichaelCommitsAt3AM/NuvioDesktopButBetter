@@ -127,7 +127,11 @@ internal object MetaDetailsParser {
             appExtras?.string("certification"),
         ).firstNotNullOfOrNull { value ->
             value?.trim()?.takeIf(String::isNotBlank)
-        }
+        }?.split(Regex("\\s+/\\s+"))
+            ?.map(String::trim)
+            ?.filter(String::isNotBlank)
+            ?.distinctBy { it.uppercase() }
+            ?.joinToString(" / ")
     }
 
     private fun JsonObject.directors(links: List<MetaLink>): List<String> {

@@ -41,6 +41,34 @@ actual object TmdbSettingsStorage {
         useCollectionsKey,
     )
 
+    actual fun loadEnabledForProfile(profileId: Int): Boolean? {
+        val key = ProfileScopedKey.of(enabledKey, profileId)
+        return if (NSUserDefaults.standardUserDefaults.objectForKey(key) != null) NSUserDefaults.standardUserDefaults.boolForKey(key) else null
+    }
+
+    actual fun loadUseCreditsForProfile(profileId: Int): Boolean? {
+        val key = ProfileScopedKey.of(useCreditsKey, profileId)
+        return if (NSUserDefaults.standardUserDefaults.objectForKey(key) != null) NSUserDefaults.standardUserDefaults.boolForKey(key) else null
+    }
+
+    actual fun loadUseProductionsForProfile(profileId: Int): Boolean? {
+        val key = ProfileScopedKey.of(useProductionsKey, profileId)
+        return if (NSUserDefaults.standardUserDefaults.objectForKey(key) != null) NSUserDefaults.standardUserDefaults.boolForKey(key) else null
+    }
+
+    actual fun loadUseNetworksForProfile(profileId: Int): Boolean? {
+        val key = ProfileScopedKey.of(useNetworksKey, profileId)
+        return if (NSUserDefaults.standardUserDefaults.objectForKey(key) != null) NSUserDefaults.standardUserDefaults.boolForKey(key) else null
+    }
+
+    actual fun saveKidsProfileSettings(profileId: Int, apiKey: String?, enabled: Boolean?, useCredits: Boolean?, useProductions: Boolean?, useNetworks: Boolean?) {
+        apiKey?.let { NSUserDefaults.standardUserDefaults.setObject(it, forKey = ProfileScopedKey.of(apiKeyKey, profileId)) }
+        enabled?.let { NSUserDefaults.standardUserDefaults.setBool(it, forKey = ProfileScopedKey.of(enabledKey, profileId)) }
+        useCredits?.let { NSUserDefaults.standardUserDefaults.setBool(it, forKey = ProfileScopedKey.of(useCreditsKey, profileId)) }
+        useProductions?.let { NSUserDefaults.standardUserDefaults.setBool(it, forKey = ProfileScopedKey.of(useProductionsKey, profileId)) }
+        useNetworks?.let { NSUserDefaults.standardUserDefaults.setBool(it, forKey = ProfileScopedKey.of(useNetworksKey, profileId)) }
+    }
+
     actual fun loadEnabled(): Boolean? = loadBoolean(enabledKey)
 
     actual fun saveEnabled(enabled: Boolean) {

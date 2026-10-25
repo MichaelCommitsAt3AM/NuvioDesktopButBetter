@@ -8,23 +8,22 @@ import androidx.compose.ui.graphics.DefaultAlpha
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
+import coil3.ImageLoader
 import coil3.compose.AsyncImagePainter
 
-@Composable
-internal expect fun NuvioAsyncImage(
-    model: Any?,
-    contentDescription: String?,
-    modifier: Modifier = Modifier,
-    placeholder: Painter? = null,
-    error: Painter? = null,
-    fallback: Painter? = error,
-    onLoading: ((AsyncImagePainter.State.Loading) -> Unit)? = null,
-    onSuccess: ((AsyncImagePainter.State.Success) -> Unit)? = null,
-    onError: ((AsyncImagePainter.State.Error) -> Unit)? = null,
-    alignment: Alignment = Alignment.Center,
-    contentScale: ContentScale = ContentScale.Fit,
-    alpha: Float = DefaultAlpha,
-    colorFilter: ColorFilter? = null,
-    filterQuality: FilterQuality? = null,
-    clipToBounds: Boolean = true,
-)
+internal enum class NuvioDesktopImageScaling {
+    Auto,
+    Disabled,
+}
+
+/** Desktop only: how animated GIF / WebP artwork plays. Other platforms already animate. */
+enum class NuvioDesktopAnimation {
+    /** Show the first frame. */
+    Off,
+
+    /** Show the first frame until the pointer is over the image, then play. */
+    OnHover,
+
+    /** Play whenever the image is on screen. */
+    Always,
+}

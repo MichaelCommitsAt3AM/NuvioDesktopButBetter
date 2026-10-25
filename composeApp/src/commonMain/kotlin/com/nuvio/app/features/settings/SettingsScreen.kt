@@ -384,6 +384,7 @@ fun SettingsScreen(
                 tunnelingEnabled = playerSettingsUiState.tunnelingEnabled,
                 useLibass = playerSettingsUiState.useLibass,
                 libassRenderType = playerSettingsUiState.libassRenderType,
+                libassRenderScale = playerSettingsUiState.libassRenderScale,
                 rememberLastProfileEnabled = profileSettingsState.rememberLastProfileEnabled,
                 selectedTheme = selectedTheme,
                 onThemeSelected = ThemeSettingsRepository::setTheme,
@@ -453,6 +454,7 @@ fun SettingsScreen(
                 tunnelingEnabled = playerSettingsUiState.tunnelingEnabled,
                 useLibass = playerSettingsUiState.useLibass,
                 libassRenderType = playerSettingsUiState.libassRenderType,
+                libassRenderScale = playerSettingsUiState.libassRenderScale,
                 rememberLastProfileEnabled = profileSettingsState.rememberLastProfileEnabled,
                 selectedTheme = selectedTheme,
                 onThemeSelected = ThemeSettingsRepository::setTheme,
@@ -534,6 +536,7 @@ private fun MobileSettingsScreen(
     tunnelingEnabled: Boolean,
     useLibass: Boolean,
     libassRenderType: String,
+    libassRenderScale: String,
     rememberLastProfileEnabled: Boolean,
     selectedTheme: AppTheme,
     onThemeSelected: (AppTheme) -> Unit,
@@ -746,6 +749,7 @@ private fun MobileSettingsScreen(
                     tunnelingEnabled = tunnelingEnabled,
                     useLibass = useLibass,
                     libassRenderType = libassRenderType,
+                    libassRenderScale = libassRenderScale,
                 )
                 SettingsPage.Streams -> streamsSettingsContent(
                     isTablet = false,
@@ -934,6 +938,7 @@ private fun TabletSettingsScreen(
     tunnelingEnabled: Boolean,
     useLibass: Boolean,
     libassRenderType: String,
+    libassRenderScale: String,
     rememberLastProfileEnabled: Boolean,
     selectedTheme: AppTheme,
     onThemeSelected: (AppTheme) -> Unit,
@@ -1221,6 +1226,7 @@ private fun TabletSettingsScreen(
                                 tunnelingEnabled = tunnelingEnabled,
                                 useLibass = useLibass,
                                 libassRenderType = libassRenderType,
+                                libassRenderScale = libassRenderScale,
                             )
                             SettingsPage.Streams -> streamsSettingsContent(
                                 isTablet = true,

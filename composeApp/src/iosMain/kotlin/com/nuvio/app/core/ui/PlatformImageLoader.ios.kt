@@ -7,4 +7,6 @@ internal actual fun ImageLoader.Builder.configurePlatformImageLoader(): ImageLoa
 
 internal actual fun ComponentRegistry.Builder.addPlatformImageComponents(): ComponentRegistry.Builder = this
 
+internal actual fun ComponentRegistry.Builder.addPlatformDecoders() = Unit
+
 internal actual val platformProvidesImageLoader: Boolean = false

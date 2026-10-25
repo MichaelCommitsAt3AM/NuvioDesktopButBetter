@@ -102,6 +102,8 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
 import com.nuvio.app.core.ui.shimmer
+import com.nuvio.app.core.ui.LocalVerticalBarPadding
+import com.nuvio.app.core.ui.centeredVerticalBarPadding
 import com.nuvio.app.features.debrid.DebridSettingsRepository
 import com.nuvio.app.features.debrid.DirectDebridPlayableResult
 import com.nuvio.app.features.debrid.DirectDebridPlaybackResolver
@@ -331,6 +333,7 @@ fun StreamsScreen(
         Row(
             modifier = Modifier
                 .align(Alignment.TopStart)
+                .padding(LocalVerticalBarPadding.current)
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
                 .padding(
                     start = if (isDesktop) desktopPageHorizontalPaddingForWidth(maxWidth.value) else 12.dp,
@@ -656,6 +659,7 @@ private fun MovieHeroBlock(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .padding(centeredVerticalBarPadding())
             .height(140.dp)
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)),
         contentAlignment = Alignment.Center,
@@ -751,6 +755,7 @@ private fun EpisodeHeroBlock(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
+                .padding(LocalVerticalBarPadding.current)
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 12.dp),
             verticalArrangement = Arrangement.Bottom,
@@ -982,7 +987,7 @@ internal fun StreamList(
                             showAddonLogo = streamBadgeSettings.showAddonLogo,
                             badgePlacement = streamBadgeSettings.badgePlacement,
                             onClick = { onStreamSelected(shared.stream, resumePositionMs, resumeProgressFraction) },
-                            isCurrent = true,
+                            outlined = true,
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                     }

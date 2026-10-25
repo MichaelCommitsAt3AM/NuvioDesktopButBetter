@@ -15,4 +15,6 @@ internal actual fun ComponentRegistry.Builder.addPlatformImageComponents(): Comp
         add(GifDecoder.Factory())
     }
 
+internal actual fun ComponentRegistry.Builder.addPlatformDecoders() = Unit
+
 internal actual val platformProvidesImageLoader: Boolean = true

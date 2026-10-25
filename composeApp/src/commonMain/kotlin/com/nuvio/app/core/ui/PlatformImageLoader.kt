@@ -5,6 +5,8 @@ import coil3.ImageLoader
 
 internal expect fun ImageLoader.Builder.configurePlatformImageLoader(): ImageLoader.Builder
 
+internal expect fun ComponentRegistry.Builder.addPlatformDecoders()
+
 /**
  * Platform-specific fetchers/decoders.
  *

@@ -92,6 +92,7 @@ internal actual object PlayerSettingsStorage {
     private const val nextEpisodeThresholdMinutesBeforeEndKey = "next_episode_threshold_minutes_before_end_v2"
     private const val useLibassKey = "use_libass"
     private const val libassRenderTypeKey = "libass_render_type"
+    private const val libassRenderScaleKey = "libass_render_scale"
     private const val iosVideoOutputPresetKey = "ios_video_output_preset"
     private const val iosToneMappingModeKey = "ios_tone_mapping_mode"
     private const val iosTargetPrimariesKey = "ios_target_primaries"
@@ -180,6 +181,7 @@ internal actual object PlayerSettingsStorage {
         nextEpisodeThresholdMinutesBeforeEndKey,
         useLibassKey,
         libassRenderTypeKey,
+        libassRenderScaleKey,
         iosVideoOutputPresetKey,
         iosToneMappingModeKey,
         iosTargetPrimariesKey,
@@ -352,6 +354,8 @@ internal actual object PlayerSettingsStorage {
     actual fun saveUseLibass(enabled: Boolean) = saveBoolean(useLibassKey, enabled)
     actual fun loadLibassRenderType(): String? = loadString(libassRenderTypeKey)
     actual fun saveLibassRenderType(renderType: String) = saveString(libassRenderTypeKey, renderType)
+    actual fun loadLibassRenderScale(): String? = loadString(libassRenderScaleKey)
+    actual fun saveLibassRenderScale(scale: String) = saveString(libassRenderScaleKey, scale)
     actual fun loadIosVideoOutputPreset(): String? = loadString(iosVideoOutputPresetKey)
     actual fun saveIosVideoOutputPreset(preset: String) = saveString(iosVideoOutputPresetKey, preset)
     actual fun loadIosToneMappingMode(): String? = loadString(iosToneMappingModeKey)
@@ -463,6 +467,7 @@ internal actual object PlayerSettingsStorage {
         loadNextEpisodeThresholdMinutesBeforeEnd()?.let { put(nextEpisodeThresholdMinutesBeforeEndKey, encodeSyncFloat(it)) }
         loadUseLibass()?.let { put(useLibassKey, encodeSyncBoolean(it)) }
         loadLibassRenderType()?.let { put(libassRenderTypeKey, encodeSyncString(it)) }
+        loadLibassRenderScale()?.let { put(libassRenderScaleKey, encodeSyncString(it)) }
         loadIosVideoOutputPreset()?.let { put(iosVideoOutputPresetKey, encodeSyncString(it)) }
         loadIosToneMappingMode()?.let { put(iosToneMappingModeKey, encodeSyncString(it)) }
         loadIosTargetPrimaries()?.let { put(iosTargetPrimariesKey, encodeSyncString(it)) }
@@ -546,6 +551,7 @@ internal actual object PlayerSettingsStorage {
         payload.decodeSyncFloat(nextEpisodeThresholdMinutesBeforeEndKey)?.let(::saveNextEpisodeThresholdMinutesBeforeEnd)
         payload.decodeSyncBoolean(useLibassKey)?.let(::saveUseLibass)
         payload.decodeSyncString(libassRenderTypeKey)?.let(::saveLibassRenderType)
+        payload.decodeSyncString(libassRenderScaleKey)?.let(::saveLibassRenderScale)
         payload.decodeSyncString(iosVideoOutputPresetKey)?.let(::saveIosVideoOutputPreset)
         payload.decodeSyncString(iosToneMappingModeKey)?.let(::saveIosToneMappingMode)
         payload.decodeSyncString(iosTargetPrimariesKey)?.let(::saveIosTargetPrimaries)

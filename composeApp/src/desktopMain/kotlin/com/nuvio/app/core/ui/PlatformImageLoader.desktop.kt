@@ -67,3 +67,7 @@ internal actual fun ComponentRegistry.Builder.addPlatformImageComponents(): Comp
     // layout-sized decoder as before.
     add(SkiaGifDecoder.Factory())
         .add(NuvioSkiaImageDecoder.Factory())
+
+internal actual fun ComponentRegistry.Builder.addPlatformDecoders() {
+    add(SvgEmbeddedImageDecoder.Factory())
+}

@@ -1,3 +1,4 @@
+import { ArtworkImage } from './ArtworkImage';
 import { useEffect, useState, type CSSProperties } from 'react';
 
 type Props = {
@@ -16,5 +17,5 @@ export function FallbackImage({ sources, alt = '', loading = 'lazy', style }: Pr
   useEffect(() => { setFailed(EMPTY); }, [identity]);
   const src = sources.find((source): source is string => !!source && !failed.has(source)) ?? null;
   if (!src) return null;
-  return <img key={src} src={src} alt={alt} loading={loading} style={style} onError={() => setFailed((previous) => new Set(previous).add(src))} />;
+  return <ArtworkImage key={src} src={src} alt={alt} loading={loading} style={style} onError={() => setFailed((previous) => new Set(previous).add(src))} />;
 }

@@ -31,6 +31,14 @@ object StreamSelectionBridge {
     ): JsonElement? = when (method) {
         "streams.snapshot" -> snapshot()
         "streams.badges.setFileSizeEnabled" -> { StreamBadgeSettingsRepository.setShowFileSizeBadges(params.bool("enabled")); snapshot() }
+        "streams.badges.setInPlayer" -> { StreamBadgeSettingsRepository.setShowInPlayer(params.bool("enabled")); snapshot() }
+        "streams.badges.setPlayerSource" -> {
+            val source = params.str("url")
+            if (source.isNotEmpty() && StreamBadgeSettingsRepository.uiState.value.rules.imports.none { it.sourceUrl == source }) {
+                throw BridgeFeatureException("INVALID_ARGUMENT", "Select an imported badge set.")
+            }
+            StreamBadgeSettingsRepository.setPlayerBadgeSource(source); snapshot()
+        }
         "streams.badges.setAddonLogoEnabled" -> { StreamBadgeSettingsRepository.setShowAddonLogo(params.bool("enabled")); snapshot() }
         "streams.badges.setPlacement" -> { StreamBadgeSettingsRepository.setBadgePlacement(bridgeEnum(params.str("placement"))); snapshot() }
         "streams.badges.setBackgroundMode" -> { StreamBadgeSettingsRepository.setBackgroundMode(bridgeEnum(params.str("mode"))); snapshot() }
@@ -105,6 +113,8 @@ object StreamSelectionBridge {
             put("badges", buildJsonObject {
                 put("showFileSize", badgeSettings.showFileSizeBadges)
                 put("showAddonLogo", badgeSettings.showAddonLogo)
+                put("showInPlayer", badgeSettings.showInPlayer)
+                put("playerBadgeSource", badgeSettings.playerBadgeSource)
                 put("placement", badgeSettings.badgePlacement.name.lowercase())
                 put("backgroundMode", badgeSettings.backgroundMode.name.lowercase())
                 put("rules", badgeJson.encodeToJsonElement(badgeSettings.rules.normalized()))

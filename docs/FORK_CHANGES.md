@@ -4,6 +4,10 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Upstream 0.1.32 and current desktop follow-ups — 2026-10-25
+
+Syncs the React/Tauri rewrite with pinned upstream `5e18596aa919a6a4e7b6cdee7f90dfaabbf71b00`, preserving upstream merge ancestry and fork version `0.1.31.4`/44. Adds native audio/video badge settings, mpv language/title matching, release-aware next-episode selection, richer featured metadata and optional MDBList Home ratings, animated-artwork playback preferences, embedded-image SVG support and localized library status titles. Retains bounded image work, kids policies, source identity/episode-scroll fixes and signed Tauri update packaging. Watch-party chat/companion stays disabled pending its absent backend. Full decisions and candidate validation: `UPSTREAM_SYNC_2026-10-25.md`.
+
 ### Preserve episode browsing during playback updates — 2026-10-24
 
 Native Episodes rows no longer recenter the playing episode whenever progress or watched-state updates change their contents. Row rebuilds retain scrollTop; alignment happens once when opening the panel or choosing a season, including when the initial episodes arrive asynchronously. Routine updates no longer scroll the season strip. Choosing a season no longer passes the panel-open flag that reset it to the playing season. Six native panel DOM tests passed, including progress updates, reopening, delayed loading and explicit season selection.

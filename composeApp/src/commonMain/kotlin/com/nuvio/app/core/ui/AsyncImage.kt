@@ -27,3 +27,26 @@ enum class NuvioDesktopAnimation {
     /** Play whenever the image is on screen. */
     Always,
 }
+
+@Composable
+internal expect fun NuvioAsyncImage(
+    model: Any?,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    placeholder: Painter? = null,
+    error: Painter? = null,
+    fallback: Painter? = error,
+    onLoading: ((AsyncImagePainter.State.Loading) -> Unit)? = null,
+    onSuccess: ((AsyncImagePainter.State.Success) -> Unit)? = null,
+    onError: ((AsyncImagePainter.State.Error) -> Unit)? = null,
+    alignment: Alignment = Alignment.Center,
+    contentScale: ContentScale = ContentScale.Fit,
+    alpha: Float = DefaultAlpha,
+    colorFilter: ColorFilter? = null,
+    filterQuality: FilterQuality? = null,
+    clipToBounds: Boolean = true,
+    desktopImageScaling: NuvioDesktopImageScaling = NuvioDesktopImageScaling.Auto,
+    imageLoader: ImageLoader? = null,
+    /** Desktop only: playback mode for animated GIF / WebP. */
+    desktopAnimation: NuvioDesktopAnimation = NuvioDesktopAnimation.Off,
+)

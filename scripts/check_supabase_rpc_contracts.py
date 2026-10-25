@@ -13,7 +13,7 @@ KOTLIN_ROOT = REPO_ROOT / "composeApp" / "src"
 MIGRATIONS_ROOT = REPO_ROOT / "supabase" / "migrations"
 
 RPC_CALL = re.compile(r'\brpc\s*\(\s*(?:function\s*=\s*)?"([^"]+)"')
-PARTY_CALL = re.compile(r'\bcall\s*\(\s*"(watch_party_[^"]+)"')
+PARTY_CALL = re.compile(r'\bcall(?:WithProfile)?\s*\(\s*"(watch_party_[^"]+)"')
 
 # RPCs that belong to an upstream feature this fork's Supabase backend does not host.
 # The client code is kept (to minimise merge friction on upstream syncs) but the feature is
@@ -30,6 +30,7 @@ UPSTREAM_ONLY_RPCS = {
     "watch_party_heartbeat", "watch_party_update", "watch_party_leave",
     "watch_party_end", "watch_party_set_host_only", "watch_party_remove_member",
     "watch_party_clock", "watch_party_enabled",
+    "watch_party_link_profile", "watch_party_send_message", "watch_party_list_messages",
 }
 SQL_FUNCTION = re.compile(
     r"""\bcreate\s+(?:or\s+replace\s+)?function\s+public\.([a-zA-Z_][a-zA-Z0-9_]*)""",

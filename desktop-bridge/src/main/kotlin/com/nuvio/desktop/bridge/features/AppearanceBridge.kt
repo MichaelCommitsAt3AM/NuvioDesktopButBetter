@@ -204,6 +204,7 @@ object AppearanceBridge {
         PosterCardStyleRepository.ensureLoaded()
         val state = PosterCardStyleRepository.uiState.value
         return buildJsonObject {
+            put("animatedArtworkMode", state.animatedArtworkMode.name)
             put("widthDp", state.widthDp); put("heightDp", state.heightDp); put("cornerRadiusDp", state.cornerRadiusDp)
             put("catalogLandscapeModeEnabled", state.catalogLandscapeModeEnabled); put("hideLabelsEnabled", state.hideLabelsEnabled)
             put("hoverPreviewEnabled", state.hoverPreviewEnabled); put("hoverPreviewOpenDelayMillis", state.hoverPreviewOpenDelayMillis)
@@ -224,6 +225,11 @@ object AppearanceBridge {
 
     private fun posterStyle(params: JsonObject): JsonElement {
         PosterCardStyleRepository.ensureLoaded()
+        params["animatedArtworkMode"]?.let { value ->
+            val mode = com.nuvio.app.core.ui.AnimatedArtworkMode.entries.firstOrNull { it.name == value.jsonPrimitive.content }
+                ?: throw BridgeFeatureException("INVALID_ARGUMENT", "Unsupported artwork mode.")
+            PosterCardStyleRepository.setAnimatedArtworkMode(mode)
+        }
         params.optionalInt("widthDp")?.let(PosterCardStyleRepository::setWidthDp)
         params.optionalInt("cornerRadiusDp")?.let(PosterCardStyleRepository::setCornerRadiusDp)
         params.optionalBool("catalogLandscapeModeEnabled")?.let(PosterCardStyleRepository::setCatalogLandscapeModeEnabled)

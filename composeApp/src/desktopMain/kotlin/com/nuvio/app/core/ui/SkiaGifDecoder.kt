@@ -44,26 +44,26 @@ class SkiaGifDecoder(
         var transferred = false
         try {
             Codec.makeFromData(data).use { codec ->
-            val count = codec.frameCount
-            if (count <= 0) return null
-            // Read before any pixels are decoded: Skia reports a different count for some GIFs afterwards.
-            val repetitionCount = codec.repetitionCount
+                val count = codec.frameCount
+                if (count <= 0) return null
+                // Read before any pixels are decoded: Skia reports a different count for some GIFs afterwards.
+                val repetitionCount = codec.repetitionCount
 
-            val w = codec.width
-            val h = codec.height
-            if (w <= 0 || h <= 0) return null
-            check(w <= 4096 && h <= 4096) { "Animated image source dimensions exceed 4096 pixels" }
+                val w = codec.width
+                val h = codec.height
+                if (w <= 0 || h <= 0) return null
+                check(w <= 4096 && h <= 4096) { "Animated image source dimensions exceed 4096 pixels" }
 
-            val canAnimate = animate && count > 1 && w.toLong() * h <= MaxAnimatedImagePixels
-            // Only GIFs are handled when not animating; other formats belong to Coil's default decoder.
-            if (!isGif && !canAnimate) return null
+                val canAnimate = animate && count > 1 && w.toLong() * h <= MaxAnimatedImagePixels
+                // Only GIFs are handled when not animating; other formats belong to Coil's default decoder.
+                if (!isGif && !canAnimate) return null
 
-            if (canAnimate) {
-                val result = decodeAnimated(codec, data, bytes, count, w, h, repetitionCount)
-                transferred = true
-                return result
-            }
-            return decodeStill(codec, w, h)
+                if (canAnimate) {
+                    val result = decodeAnimated(codec, data, bytes, count, w, h, repetitionCount)
+                    transferred = true
+                    return result
+                }
+                return decodeStill(codec, w, h)
             }
         } finally {
             if (!transferred) data.close()

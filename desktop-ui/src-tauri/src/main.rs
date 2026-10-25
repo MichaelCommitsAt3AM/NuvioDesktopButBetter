@@ -341,6 +341,8 @@ const ALLOWED_METHODS: &[&str] = &[
     "servers.setWatchState",
     "servers.setLibrary",
     "mdblist.setListVisible",
+    "streams.badges.setInPlayer",
+    "streams.badges.setPlayerSource",
 ];
 
 fn request_is_allowed(request: &BridgeRequest) -> bool {

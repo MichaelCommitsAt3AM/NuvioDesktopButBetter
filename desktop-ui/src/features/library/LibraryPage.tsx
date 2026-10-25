@@ -88,6 +88,10 @@ export function LibraryPage() {
   }
   const pendingCount = Math.max(0, displayItems.length - visibleCount);
   const targetLayout = layout === 'horizontal' ? 'vertical' : 'horizontal';
+  const sectionTitle = (section: { type: string; title: string }) => {
+    const resource = ({ 'simkl:status:watching': 'library_status_watching', 'simkl:status:plantowatch': 'library_status_plan_to_watch', 'simkl:status:hold': 'library_status_on_hold', 'simkl:status:completed': 'library_status_completed', 'simkl:status:dropped': 'library_status_dropped' } as Record<string, string>)[section.type];
+    return resource ? t(resource) : section.title;
+  };
   const targetLayoutLabel = targetLayout === 'vertical' ? t('library_layout_show_vertical') : t('library_layout_show_horizontal');
   const headerActions = <div className="library-header-actions">
     {mode === 'saved' && <button className="library-icon-button library-layout-toggle" type="button" aria-label={targetLayoutLabel} title={targetLayoutLabel} onClick={() => void run('library.setLayout', { layout: targetLayout })}>
@@ -99,9 +103,9 @@ export function LibraryPage() {
     ? <div className="library-saved-controls">
       {layout === 'vertical' && vertical.availableSections.length > 0 && <DropdownChip
         ariaLabel={t('library_filter_list')}
-        label={vertical.selectedSection?.title ?? ''}
+        label={vertical.selectedSection ? sectionTitle(vertical.selectedSection) : ''}
         selectedKey={vertical.selectedSection?.type ?? ''}
-        options={vertical.availableSections.map(section => ({ key: section.type, label: section.title }))}
+        options={vertical.availableSections.map(section => ({ key: section.type, label: sectionTitle(section) }))}
         enabled={vertical.availableSections.length > 1}
         onSelect={option => { setSelectedList(option.key); setSelectedType(''); }} />}
       {layout === 'vertical' && <DropdownChip
@@ -143,7 +147,7 @@ export function LibraryPage() {
       {!library.loading && !hasContent && <EmptyState title="No saved titles" message="Save titles from their details page to add them here." icon={<LibraryBig />} />}
       {!library.loading && hasContent && <>
         {savedControls}
-        {layout === 'horizontal' && shelfSections.map(section => <Shelf className="library-shelf" key={section.type} showPosterRating={false} shelf={{ key: `library:${section.type}`, title: section.title, subtitle: '', items: projectLibraryItems(library.items, section.items), hasMore: false }} />)}
+        {layout === 'horizontal' && shelfSections.map(section => <Shelf className="library-shelf" key={section.type} showPosterRating={false} shelf={{ key: `library:${section.type}`, title: sectionTitle(section), subtitle: '', items: projectLibraryItems(library.items, section.items), hasMore: false }} />)}
         {layout === 'vertical' && <div className="library-grid" ref={gridRef} style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>{removalPaged.map(item => { const key = mediaKey(item.type, item.id); const bursting = removal.bursting.has(key); return <div key={key} data-flip-key={key} className={bursting ? 'is-disintegrating' : undefined}>{bursting && <span className="disintegration-burst" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/></span>}<Poster item={item} onRemoveAction={(entry, operation) => void removal.remove(entry, operation).catch((cause) => setError(String(cause)))} /></div>; })}{Array.from({ length: pendingCount }, (_, index) => <div key={`skeleton-${index}`}><PosterLoadingCard variant="poster" /></div>)}</div>}
       </>}
     </>}

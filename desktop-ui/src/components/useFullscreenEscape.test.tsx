@@ -9,6 +9,10 @@ function App() {
   useFullscreenEscape();
   return <input aria-label="Search" onKeyDown={event => event.stopPropagation()} />;
 }
+function Navigation({ onBack }: { onBack: () => void }) {
+  useFullscreenEscape(onBack);
+  return null;
+}
 beforeEach(() => {
   host.isFullscreen.mockReset().mockResolvedValue(true);
   host.setFullscreen.mockReset().mockResolvedValue(undefined);
@@ -35,4 +39,34 @@ it('ignores other keys and removes its listener on unmount', () => {
   view.unmount();
   fireEvent.keyDown(window, { key: 'Escape' });
   expect(host.isFullscreen).not.toHaveBeenCalled();
+});
+
+it('navigates back in a windowed app and gives dialogs priority', async () => {
+  host.isFullscreen.mockResolvedValue(false);
+  const back = vi.fn();
+  render(<Navigation onBack={back} />);
+  fireEvent.keyDown(window, { key: 'Escape' });
+  await waitFor(() => expect(back).toHaveBeenCalledTimes(1));
+  const dialog = document.body.appendChild(document.createElement('div'));
+  dialog.setAttribute('role', 'dialog');
+  fireEvent.keyDown(window, { key: 'Escape' });
+  await Promise.resolve();
+  expect(back).toHaveBeenCalledTimes(1);
+  dialog.remove();
+});
+
+it('routes mouse Back to an open dialog before navigating', () => {
+  const back = vi.fn();
+  render(<Navigation onBack={back} />);
+  const dialog = document.body.appendChild(document.createElement('div'));
+  dialog.setAttribute('role', 'dialog');
+  const dismissed = vi.fn();
+  document.addEventListener('keydown', dismissed);
+  fireEvent.mouseUp(window, { button: 3 });
+  expect(dismissed).toHaveBeenCalledTimes(1);
+  expect(back).not.toHaveBeenCalled();
+  dialog.remove();
+  document.removeEventListener('keydown', dismissed);
+  fireEvent.mouseUp(window, { button: 3 });
+  expect(back).toHaveBeenCalledTimes(1);
 });

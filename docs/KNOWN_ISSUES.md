@@ -13,8 +13,8 @@ Media-server connections work locally, but `ServerCapabilities.mediaServerSync`
 defaults false so ordinary profile sync does not call absent
 `sync_pull_media_servers` / `sync_push_media_servers` RPCs. Do not enable either
 service by simply removing the static RPC exemptions: supply forward migrations,
-authorization/contract tests and the required React/event flows first. No production
-migration was deployed by the sync. See `UPSTREAM_SYNC_2026-10-18.md`.
+authorization/contract tests and the required React/event flows first. The 2026-10-25 sync also retains chat/profile-link/companion RPCs (`watch_party_send_message`, `watch_party_list_messages`, `watch_party_link_profile`) behind the same disabled capability. No production
+migration was deployed by either sync. See `UPSTREAM_SYNC_2026-10-18.md`.
 
 ## "Resolve playable links" sometimes turns itself off
 

@@ -181,6 +181,7 @@ object IntegrationsBridge {
             put("useImdb", settings.useImdb); put("useTmdb", settings.useTmdb); put("useTomatoes", settings.useTomatoes)
             put("useMetacritic", settings.useMetacritic); put("useTrakt", settings.useTrakt); put("useLetterboxd", settings.useLetterboxd)
             put("useAudience", settings.useAudience); put("useMal", settings.useMal)
+            put("showOnHero", settings.showOnHero)
             put("account", buildJsonObject {
                 put("connected", auth.isAuthenticated)
                 putNullable("username", auth.user?.username)
@@ -207,6 +208,7 @@ object IntegrationsBridge {
         val value = params.value()
         when (key) {
             "enabled" -> MdbListSettingsRepository.setEnabled(value.asBool(key))
+            "showOnHero" -> MdbListSettingsRepository.setShowOnHero(value.asBool(key))
             "apiKey" -> {
                 val apiKey = value.asString(key)
                 if (apiKey.length > 2_048) invalid(key)

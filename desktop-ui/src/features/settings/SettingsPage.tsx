@@ -232,6 +232,7 @@ function HoverPreviewSettings() {
   if (loading && !snapshot) return <SettingsSubPage title="Hover preview" back="/settings/appearance"><div className="loading-block"><span className="spin" /> Loading…</div></SettingsSubPage>;
   return <SettingsSubPage title="Hover preview" back="/settings/appearance">{error && <InlineError message={error} onRetry={() => { void refresh(); }} />}
     <section className="settings-section"><div className="settings-section-heading"><span className="settings-icon"><Play size={18} /></span><div><h2>Preview behavior</h2><p>Choose when the preview opens and whether trailer playback is enabled.</p></div></div>
+      <label className="profile-url-field">Animated artwork<select value={card?.animatedArtworkMode ?? 'Always'} onChange={event => void run({ animatedArtworkMode: event.target.value })}><option value="Always">Always</option><option value="OnHover">On hover</option><option value="Off">Off</option></select></label>
       <ControlRow title="Enable hover preview" description="Show an expanded preview when a poster is hovered." checked={card?.hoverPreviewEnabled ?? true} onChange={(enabled) => run({ hoverPreviewEnabled: enabled })} />
       <NumberSetting title="Preview delay" description="Wait before opening the preview. Changes apply in 500 ms steps." value={card?.hoverPreviewOpenDelayMillis ?? 2000} min={500} max={5000} step={500} onSave={(value) => run({ hoverPreviewOpenDelayMillis: value })} suffix="ms" />
     </section>
@@ -247,7 +248,7 @@ function StreamsAppearanceSettings() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const settings = useFeatureSnapshot<{ streamPreferences: { preferMatchingReleaseTitles: boolean } }>('debrid');
-  const streams = useFeatureSnapshot<{ badges: { showFileSize: boolean; showAddonLogo: boolean; placement: 'top' | 'bottom'; backgroundMode: 'normal' | 'cinematic'; rules: { imports: Array<{ sourceUrl: string; isActive: boolean; filters: Array<{ id: string; groupId: string; name: string; imageURL: string; tagColor: string; isEnabled: boolean }>; groups: Array<{ id: string; name: string }> }> } } }>('streams');
+  const streams = useFeatureSnapshot<{ badges: { showFileSize: boolean; showAddonLogo: boolean; showInPlayer?: boolean; playerBadgeSource?: string; placement: 'top' | 'bottom'; backgroundMode: 'normal' | 'cinematic'; rules: { imports: Array<{ sourceUrl: string; isActive: boolean; filters: Array<{ id: string; groupId: string; name: string; imageURL: string; tagColor: string; isEnabled: boolean }>; groups: Array<{ id: string; name: string }> }> } } }>('streams');
   const [badgeUrl, setBadgeUrl] = useState('');
   const [savingBadge, setSavingBadge] = useState(false);
   const [choice, setChoice] = useState<'placement' | 'background' | null>(null);
@@ -282,6 +283,8 @@ function StreamsAppearanceSettings() {
       <ControlRow title="File size badges" description="Show each stream’s file size when available." checked={streams?.badges.showFileSize ?? true} disabled={!streams || savingBadge} onChange={(enabled) => void updateStream('streams.badges.setFileSizeEnabled', { enabled })} />
       <SettingsChoice title="Badge position" value={(streams?.badges.placement ?? 'bottom') === 'top' ? 'Top' : 'Bottom'} onClick={() => setChoice('placement')} />
       <ControlRow title="Add-on logo" description="Show the source add-on’s logo with its stream." checked={streams?.badges.showAddonLogo ?? false} disabled={!streams || savingBadge} onChange={(enabled) => void updateStream('streams.badges.setAddonLogoEnabled', { enabled })} />
+      <ControlRow title="Show badges in player" description="Show matching video and audio badges below the player title." checked={streams?.badges.showInPlayer ?? false} disabled={!streams || savingBadge} onChange={(enabled) => void updateStream('streams.badges.setInPlayer', { enabled })} />
+      {streams?.badges.showInPlayer && <label className="profile-url-field">Player badge set<select value={streams.badges.playerBadgeSource ?? ''} disabled={savingBadge} onChange={event => void updateStream('streams.badges.setPlayerSource', { url: event.target.value })}><option value="">Same as stream badges</option>{streams.badges.rules.imports.map(item => <option key={item.sourceUrl} value={item.sourceUrl}>{item.sourceUrl}</option>)}</select></label>}
       <SettingsChoice title="Stream background" value={(streams?.badges.backgroundMode ?? 'normal') === 'cinematic' ? 'Cinematic' : 'Normal'} onClick={() => setChoice('background')} />
     </section>
     <section className="settings-section"><div className="settings-section-heading"><span className="settings-icon"><Clapperboard size={18} /></span><div><h2>Custom badge rules</h2><p>Import remote badge sets and choose which set is active. Maximum 3 imports.</p></div></div>

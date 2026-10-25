@@ -45,7 +45,10 @@ import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.home.HomeCatalogSection
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
+import com.nuvio.app.features.home.HomeHeroMetaRepository
+import com.nuvio.app.features.home.withHeroMeta
 import com.nuvio.app.features.home.HomeRepository
+import com.nuvio.app.features.home.stableKey
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.library.LibraryRepository
 import com.nuvio.app.features.library.toLibraryItem
@@ -82,6 +85,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -235,6 +240,25 @@ class DesktopBridgeRuntime {
 
         scope.launch { observeAuthentication() }
         scope.launch { HomeRepository.uiState.collect { emit("home", homeJson()) } }
+        scope.launch {
+            combine(
+                HomeRepository.uiState,
+                com.nuvio.app.features.mdblist.MdbListSettingsRepository.uiState,
+                com.nuvio.app.features.tmdb.TmdbSettingsRepository.uiState,
+                ProfileRepository.state,
+            ) { home, ratings, tmdb, profiles ->
+                HeroLoadInput(home.heroItems, ratings, tmdb, profiles.activeProfile?.profileIndex)
+            }.distinctUntilChanged().collectLatest { input ->
+                HomeHeroMetaRepository.clear()
+                if (input.profileId != null && input.items.isNotEmpty()) {
+                    delay(400)
+                    HomeHeroMetaRepository.load(input.items, input.ratings.takeIf { it.isActive && it.showOnHero })
+                }
+            }
+        }
+        scope.launch { HomeHeroMetaRepository.metas.collect { emit("home", homeJson()) } }
+        scope.launch { com.nuvio.app.features.details.MetaScreenSettingsRepository.uiState.collect { emit("home", homeJson()) } }
+
         scope.launch { WatchProgressRepository.uiState.collect { emit("home", homeJson()) } }
         scope.launch { WatchProgressRepository.uiState.collect { emit("homeExtras", HomeBridge.snapshot()) } }
         scope.launch { HomeBridge.updates.collect { emit("homeExtras", HomeBridge.snapshot()) } }
@@ -1030,11 +1054,26 @@ class DesktopBridgeRuntime {
         put("locked", profile.pinEnabled)
     }
 
+    private data class HeroLoadInput(
+        val items: List<MetaPreview>,
+        val ratings: com.nuvio.app.features.mdblist.MdbListSettings,
+        val tmdb: com.nuvio.app.features.tmdb.TmdbSettings,
+        val profileId: Int?,
+    )
+
     private fun homeJson() = buildJsonObject {
         val state = HomeRepository.uiState.value
         val addons = AddonRepository.uiState.value
         put("loading", isHomeContentLoading(state.isLoading, addons)); putNullable("error", homeContentError(state.errorMessage, addons, state.sections.isNotEmpty() || state.heroItems.isNotEmpty()))
-        put("hero", JsonArray(state.heroItems.map(::mediaJson)))
+        val ratings = com.nuvio.app.features.mdblist.MdbListSettingsRepository.uiState.value
+        val showRating = com.nuvio.app.features.details.MetaScreenSettingsRepository.uiState.value.showOverallRatings
+        put("hero", JsonArray(state.heroItems.map { item ->
+            val enriched = HomeHeroMetaRepository.metas.value[item.stableKey()]?.let(item::withHeroMeta) ?: item
+            mediaJson(enriched.copy(
+                imdbRating = enriched.imdbRating.takeIf { showRating },
+                externalRatings = enriched.externalRatings.takeIf { ratings.isActive && ratings.showOnHero }.orEmpty(),
+            ))
+        }))
         put("shelves", JsonArray(state.sections.map(::shelfJson)))
         put("continueWatching", JsonArray(WatchProgressRepository.continueWatching().map { entry -> buildJsonObject {
             put("id", entry.parentMetaId); put("type", entry.parentMetaType); put("name", entry.episodeTitle ?: entry.title)
@@ -1054,6 +1093,11 @@ class DesktopBridgeRuntime {
         putNullable("background", item.banner ?: item.landscapePoster); putNullable("logo", item.logo)
         putNullable("description", item.description); putNullable("releaseInfo", item.releaseInfo)
         putNullable("rating", item.imdbRating); put("genres", JsonArray(item.genres.map(::JsonPrimitive)))
+        putNullable("runtime", item.runtime); putNullable("status", item.status)
+        putNullable("ageRating", item.ageRating); putNullable("language", item.language)
+        put("externalRatings", JsonArray(item.externalRatings.map { rating -> buildJsonObject {
+            put("source", rating.source); put("value", rating.value)
+        } }))
     }
 
     private fun libraryJson() = buildJsonObject {

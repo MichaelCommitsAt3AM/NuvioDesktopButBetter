@@ -14,7 +14,7 @@ export type AppearanceSnapshot = {
   posters: { pattern: string; enabledScreens: string[]; activeScreens: string[] };
   home: { heroEnabled: boolean; showCatalogType: boolean; hideUnreleasedContent: boolean; heroSourceSelectionLimit?: number; isCatalogLoading?: boolean; catalogErrorMessage?: string | null; items: HomeSetting[] };
   continueWatching: { visible: boolean; style: 'card' | 'wide' | 'poster'; upNextFromFurthestEpisode: boolean; useEpisodeThumbnails: boolean; showUnairedNextUp: boolean; blurNextUp: boolean; showResumePromptOnLaunch: boolean; sortMode: 'default' | 'streaming_style' | 'split_upcoming'; dismissedNextUpKeys: string[] };
-  cardStyle: { widthDp: number; heightDp: number; cornerRadiusDp: number; catalogLandscapeModeEnabled: boolean; hideLabelsEnabled: boolean; hoverPreviewEnabled: boolean; hoverPreviewOpenDelayMillis: number; hoverPreviewTrailerEnabled: boolean; hoverPreviewTrailerSoundEnabled: boolean; hoverPreviewTrailerStartSeconds: number; alwaysShowLandscapeClearlogo: boolean };
+  cardStyle: { animatedArtworkMode?: 'Off' | 'OnHover' | 'Always'; widthDp: number; heightDp: number; cornerRadiusDp: number; catalogLandscapeModeEnabled: boolean; hideLabelsEnabled: boolean; hoverPreviewEnabled: boolean; hoverPreviewOpenDelayMillis: number; hoverPreviewTrailerEnabled: boolean; hoverPreviewTrailerSoundEnabled: boolean; hoverPreviewTrailerStartSeconds: number; alwaysShowLandscapeClearlogo: boolean };
   cardDepth: { enabled: boolean; edgeStrength: number; sheenStrength: number; edgeCoverage: number; postersEnabled: boolean; continueWatchingEnabled: boolean; episodeCardsEnabled: boolean; castEnabled: boolean; trailersEnabled: boolean };
   appIcon?: { selected: string; changeFailed: boolean; options: string[] };
 };

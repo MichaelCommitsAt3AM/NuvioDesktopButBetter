@@ -34,3 +34,23 @@ internal actual fun NuvioAsyncImage(
     desktopImageScaling: NuvioDesktopImageScaling,
     imageLoader: ImageLoader?,
     desktopAnimation: NuvioDesktopAnimation,
+) {
+    AsyncImage(
+        model = model,
+        imageLoader = imageLoader ?: SingletonImageLoader.get(LocalPlatformContext.current),
+        contentDescription = contentDescription,
+        modifier = modifier,
+        placeholder = placeholder,
+        error = error,
+        fallback = fallback,
+        onLoading = onLoading,
+        onSuccess = onSuccess,
+        onError = onError,
+        alignment = alignment,
+        contentScale = contentScale,
+        alpha = alpha,
+        colorFilter = colorFilter,
+        filterQuality = filterQuality ?: DefaultFilterQuality,
+        clipToBounds = clipToBounds,
+    )
+}

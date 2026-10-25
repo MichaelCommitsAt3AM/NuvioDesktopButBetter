@@ -513,6 +513,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         notificationMessage = playerNotificationMessage,
         notificationToken = playerNotificationToken,
         party = partyControls,
+        badges = playerBadges,
         showOpeningOverlay = openingOverlayWanted,
         openingArtwork = background ?: poster,
         openingLogo = logo,

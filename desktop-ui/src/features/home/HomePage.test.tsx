@@ -146,6 +146,23 @@ describe('Continue Watching snapshot loading', () => {
       expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('Second feature');
     });
 
+    it('enriches the pinned hero while catalogs load and clears it on profile changes', () => {
+      bridge.state.session.activeProfile = 9240;
+      bridge.state.home = { shelves: [], loading: true, hero: [heroes[0]] };
+      const view = render(<MemoryRouter><HomePage /></MemoryRouter>);
+      bridge.state.home = { shelves: [], loading: true, hero: [{ ...heroes[0], runtime: '120 min', rating: '8.2', externalRatings: [{ source: 'tmdb', value: 85 }] }] };
+      view.rerender(<MemoryRouter><HomePage /></MemoryRouter>);
+      const featured = screen.getByRole('region', { name: 'Featured titles' });
+      expect(featured).toHaveTextContent('First feature');
+      expect(featured).toHaveTextContent('120 min');
+      expect(featured).toHaveTextContent('IMDb 8.2');
+      expect(featured).toHaveTextContent('tmdb 85');
+      bridge.state.session.activeProfile = 9241;
+      bridge.state.home = { shelves: [], loading: true, hero: [] };
+      view.rerender(<MemoryRouter><HomePage /></MemoryRouter>);
+      expect(screen.queryByText('120 min')).toBeNull();
+    });
+
     const pointer = (node: HTMLElement, type: 'pointerdown' | 'pointermove' | 'pointerup', clientX: number) =>
       fireEvent(node, new MouseEvent(type, { bubbles: true, clientX, button: 0 }));
 

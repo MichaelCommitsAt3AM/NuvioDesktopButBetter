@@ -83,6 +83,9 @@ class WindowsPlayerPresentationTest {
                 },
             )
             assertTrue(handle != 0L)
+            assertTrue(NativePlayerBridge.stringProperty(handle, "mpv-version").isNotBlank(), "Native string-property JNI is unavailable")
+            NativePlayerBridge.setAudioLanguages(handle, "eng,en")
+            assertTrue(NativePlayerBridge.stringProperty(handle, "alang").contains("eng"), "Preferred audio languages did not reach mpv")
             NativePlayerBridge.updateControls(handle, """{"title":"DPI regression test","isLoading":true}""")
             val succeeded = try { presented.get(20, TimeUnit.SECONDS) } catch (error: Exception) {
                 throw AssertionError("Native presentation timed out: $events", error)

@@ -44,6 +44,8 @@ internal object HomeHeroMetaRepository {
     private val _metas = MutableStateFlow<Map<String, HomeHeroMeta>>(emptyMap())
     val metas: StateFlow<Map<String, HomeHeroMeta>> = _metas.asStateFlow()
 
+    fun clear() { _metas.value = emptyMap() }
+
     suspend fun load(items: List<MetaPreview>, ratingSettings: MdbListSettings?) {
         val keys = items.mapTo(mutableSetOf(), MetaPreview::stableKey)
         _metas.update { metas -> metas.filterKeys(keys::contains) }

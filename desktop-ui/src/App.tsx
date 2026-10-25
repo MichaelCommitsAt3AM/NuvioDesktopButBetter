@@ -146,6 +146,7 @@ function AppContent() {
   const state = useAppState();
   const location = useLocation();
   const navigate = useNavigate();
+  useFullscreenEscape(() => { if ((window.history.state?.idx ?? 0) > 0) navigate(-1); });
   const [launchPicker,setLaunchPicker]=useState<boolean|null>(null);
   const [offlineStartup, setOfflineStartup] = useState<boolean | null>(null);
   const browserOfflineAtLaunch = useRef(navigator.onLine === false);
@@ -233,7 +234,6 @@ function AppContent() {
 }
 
 export default function AppRoot() {
-  useFullscreenEscape();
   // Screens already render cached data or loading placeholders. Commit the
   // route at input priority so it cannot trail the pointer-driven nav bubble
   // behind background poster mounting and bridge snapshot updates.

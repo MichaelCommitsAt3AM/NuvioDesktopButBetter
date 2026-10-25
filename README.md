@@ -26,6 +26,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- Synced with upstream 0.1.32 and newer desktop improvements, with richer featured metadata, optional Home ratings, player badge controls and animated-artwork preferences in the React/Tauri app.
+
 - The player's Sources sidebar highlights the playing stream and shows a Playing badge, including when its playback URL was resolved by a debrid service.
 - The Episodes sidebar keeps your scroll position during playback updates and lets you browse another season without jumping back to the playing episode.
 

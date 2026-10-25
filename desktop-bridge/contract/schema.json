@@ -91,6 +91,49 @@
             "string",
             "null"
           ]
+        },
+        "runtime": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ageRating": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "language": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "externalRatings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source",
+              "value"
+            ],
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "value": {
+                "type": "number"
+              }
+            }
+          }
         }
       }
     },
@@ -1071,7 +1114,9 @@
             "servers.setMetadata",
             "servers.setWatchState",
             "servers.setLibrary",
-            "mdblist.setListVisible"
+            "mdblist.setListVisible",
+            "streams.badges.setInPlayer",
+            "streams.badges.setPlayerSource"
           ]
         },
         "params": {

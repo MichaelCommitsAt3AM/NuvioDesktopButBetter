@@ -141,6 +141,11 @@ example under `$env:TEMP`) and inspect exit codes, not merely the existence of a
 PowerShell can continue to the next command after a native executable fails;
 use `if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }` where sequencing matters.
 
+On Windows, give Python text reads and writes an explicit `encoding="utf-8"`;
+the default code page can corrupt translated labels and punctuation. Verify full
+resolved files against both original revisions, including code after each conflict
+block, before treating a merge checkpoint as a build candidate.
+
 ```powershell
 python scripts/test_check_supabase_rpc_contracts.py
 python scripts/check_supabase_rpc_contracts.py

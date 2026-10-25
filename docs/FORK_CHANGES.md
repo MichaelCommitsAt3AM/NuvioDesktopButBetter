@@ -4,6 +4,16 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Details title artwork loading — 2026-10-25
+
+Details shows a logo-sized shimmer while title artwork loads and decodes, then fades in the ready image instead of briefly displaying a large text title. It also waits while metadata is still loading before choosing a no-logo fallback. Missing artwork, download/decode failures and a failed image paint retain a readable text title. The retained-image hook exposes pending/failure state without changing existing URL-only consumers; an already decoded logo remains visible during enrichment and failed replacements. The placeholder reserves the normal responsive logo dimensions, announces loading accessibly and disables animation for reduced-motion users. Twenty targeted title-artwork, retained-image and Details navigation tests passed.
+
+### Restore Kotlin-style top-bar drag selection — 2026-10-25
+
+The React top bar prevents native browser link/image dragging from cancelling its pointer gesture. It uses the existing port of `JellyMotion.kt` for spring movement, press/stretch feedback, rubber banding, clamping and nearest-tab release selection, and now feeds the final pointer-up coordinates into that motion just like `detectJellyTabGestures`. Screens change only on release; the following synthetic click is consumed. Claimed drags clear the Settings profile-hold timer, while opening the profile menu cancels a pending gesture. Cancellation restores the active tab. Reduced-motion users see the bubble track the pointer directly without spring animation. Regression coverage exercises real route links, avatar drag suppression, scaled coordinates, release rounding, both drag directions, cancellation, ordinary clicks and profile-menu interruption.
+
+Validation: all 18 targeted navigation/physics tests and the frontend production build passed. The embedded Windows debug build passed and was relaunched with a fresh backend ready handshake. Live mouse/touch acceptance remains for review in the running app.
+
 ### Fullscreen icon stays stable during navigation — 2026-10-25
 
 The shared fullscreen button initializes from the last confirmed native window mode instead of resetting to windowed on each screen mount. The initial application query waits to display a mode icon until the state is known; subsequent screens keep the confirmed icon while refreshing it. Native resize events and successful toggles update the retained state. Regression tests cover delayed initial queries, navigation in both modes, navigation after toggling, external changes and failed toggles. All 12 fullscreen tests, the frontend production build and the embedded Windows debug build passed; the debug app was relaunched for visual review.

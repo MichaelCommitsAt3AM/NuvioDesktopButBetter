@@ -26,6 +26,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- Details title artwork shows a loading shimmer until the logo is ready, with a text fallback for missing or failed images.
 - Details watched/library actions show confirmation toasts and keep their circular buttons intact on hover. Library card tops have hover clearance, and Downloads uses the available screen width. The fullscreen control is available across Search, Library, Downloads and Settings, and keeps the correct icon when switching screens.
 
 - Details artwork has lighter dimming on the right, with stronger contrast behind the text and controls.
@@ -123,7 +124,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - The rewrite has a signed desktop updater with download progress, installation and restart. Release CI builds Windows MSI, macOS DMG, and Linux AppImage/DEB/RPM/Flatpak packages with bundled Java; Flatpak updates stay with the system installation.
 - Rewrite releases use the existing desktop build-number sequence and Windows MSI upgrade identity. Testing the actual Kotlin-to-rewrite upgrade remains a release gate.
 - The rewrite's window, installer and Start Menu branding use Nuvio, matching the original desktop app.
-- Top Bar is the default desktop layout. The rewrite now includes Kotlin-style glass tint, hover blur, adaptive labels and a moving, stretchy selection highlight.
+- Top Bar is the default desktop layout. The rewrite includes Kotlin-style glass tint, hover blur, adaptive labels and a stretchy selection bubble you can drag across tabs, then release to switch screens.
 - The rewrite's top bar highlight follows Home, Search, Library and Settings after navigation, including when development effects restart.
 - Rewrite screen changes now take input priority so the destination can appear promptly alongside the top bar selection.
 - The rewrite’s Collections settings follow the Kotlin screen, with drag reordering, JSON clipboard export, and validated import.

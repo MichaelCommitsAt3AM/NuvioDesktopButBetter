@@ -11,6 +11,7 @@ import { InlineError } from '../../components/Status';
 import { Toast } from '../../components/Toast';
 import { useRetainedDecodedImage } from '../../components/useRetainedDecodedImage';
 import { DetailsExtras, type ExtrasMeta, type DetailsPrimaryAction } from './DetailsExtras';
+import { DetailsTitle } from './DetailsTitle';
 import './details.css';
 
 export function DetailsPage() {
@@ -63,7 +64,6 @@ export function DetailsPage() {
   const media = details.media?.id === id && details.media.type === type ? details.media : null;
   const artworkOwner = `${profileId}:${type}:${id}`;
   const backdrop = useRetainedDecodedImage(media?.background, artworkOwner);
-  const logo = useRetainedDecodedImage(media?.logo, artworkOwner);
   // Returning from streams/person/entity restores the details offset once
   // content is present; a new title starts at the top via the shell reset.
   useListScrollRestore(scrollKey(profileId, `/details/${type}/${id}`, ''), navigationType, !!media);
@@ -201,7 +201,7 @@ export function DetailsPage() {
     {media && <div className="detail-content-arrive" key={`${type}:${id}`}>
       <section className="detail-hero">
         <div className="detail-main">
-          {logo ? <img className="detail-logo" src={logo} alt={media.name} /> : <h1>{media.name}</h1>}
+          <DetailsTitle url={media.logo} name={media.name} owner={artworkOwner} loading={details.loading} />
           <div className="detail-meta-line">
             {(extraMeta?.releaseInfo ?? media.releaseInfo) && <strong>{(extraMeta?.releaseInfo ?? media.releaseInfo)!.slice(0, 4)}</strong>}
             {extraMeta?.runtime && <strong>{formatRuntime(extraMeta.runtime)}</strong>}

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { render, cleanup } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { render, cleanup, fireEvent } from '@testing-library/react';
+import { Link, MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { StrictMode } from 'react';
 import { LiquidNavigation } from './LiquidNavigation';
 
@@ -111,5 +111,130 @@ describe('LiquidNavigation selection', () => {
     );
     expect(selected.style.clipPath).not.toBe(before);
     expect(selected.style.visibility).toBe('visible');
+  });
+});
+
+const routes = ['/', '/search', '/library', '/settings'];
+const tabLabels = ['Home', 'Search', 'Library', 'Settings'];
+function DragNavigation({ onSelect, onStart, profileOpen = false }: { onSelect: (index: number) => void; onStart: () => void; profileOpen?: boolean }) {
+  const location = useLocation(), navigate = useNavigate();
+  return <><output data-testid="route">{location.pathname}</output><LiquidNavigation
+    labels={tabLabels} visuals={visuals(4)} selectedIndex={routes.indexOf(location.pathname)}
+    style="expanded" heroEnabled profileOpen={profileOpen} glowEnabled routeKey={location.pathname}
+    onDragStart={onStart} onDragSelect={index => { onSelect(index); navigate(routes[index]); }}>
+    {routes.map((route, index) => <Link key={route} to={route}>{index === 3 && <img src="avatar.png" alt="Profile" />}{tabLabels[index]}</Link>)}
+  </LiquidNavigation></>;
+}
+
+describe('Kotlin-style navigation dragging', () => {
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+  function setup({ reduced = false, density = 1, profileOpen = false } = {}) {
+    vi.stubGlobal('ResizeObserver', StubObserver);
+    vi.stubGlobal('PointerEvent', MouseEvent);
+    vi.stubGlobal('matchMedia', () => ({ matches: reduced, addEventListener() {}, removeEventListener() {} }));
+    const frames = new Map<number, FrameRequestCallback>();
+    let frameId = 0, time = 0;
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames.set(++frameId, callback); return frameId; });
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
+    const onSelect = vi.fn(), onStart = vi.fn();
+    const view = render(<MemoryRouter><DragNavigation onSelect={onSelect} onStart={onStart} profileOpen={profileOpen} /></MemoryRouter>);
+    const nav = view.getByRole('navigation');
+    Object.defineProperties(nav, { clientWidth: { value: 456 * density }, clientHeight: { value: 48 * density } });
+    nav.style.setProperty('--ui-scale', String(density));
+    Object.assign(nav, { setPointerCapture: vi.fn() });
+    fireEvent.resize(window);
+    const advance = () => {
+      for (let tick = 0; tick < 30; tick++) {
+        time += 16; const pending = [...frames.values()]; frames.clear(); pending.forEach(callback => callback(time));
+      }
+    };
+    const pointer = (x: number) => ({ button: 0, clientX: x * density, clientY: 24 * density });
+    return { ...view, nav, onSelect, onStart, advance, pointer };
+  }
+
+  it.each([false, true])('drags across real links, navigating only on release (reduced motion: %s)', reduced => {
+    const view = setup({ reduced });
+    const home = view.getByRole('link', { name: 'Home' });
+    const pill = view.container.querySelector('.liquid-nav-paint.selected') as HTMLElement;
+    view.advance(); const initial = pill.style.clipPath;
+    fireEvent.pointerDown(home, view.pointer(60));
+    // Chromium's default link drag would cancel the pointer stream here.
+    expect(fireEvent.dragStart(home)).toBe(false);
+    fireEvent.pointerMove(view.nav, view.pointer(284));
+    view.advance();
+    expect(pill.style.clipPath).not.toBe(initial);
+    expect(view.getByTestId('route')).toHaveTextContent(/^\/$/);
+    expect(view.onSelect).not.toHaveBeenCalled();
+    fireEvent.pointerUp(view.nav, view.pointer(396));
+    expect(view.onSelect).toHaveBeenCalledExactlyOnceWith(3);
+    expect(view.onStart).toHaveBeenCalledOnce();
+    expect(view.getByTestId('route')).toHaveTextContent('/settings');
+    fireEvent.click(home);
+    expect(view.getByTestId('route')).toHaveTextContent('/settings');
+  });
+
+  it('matches Kotlin release rounding with desktop display scaling', () => {
+    const view = setup({ density: 1.5 });
+    fireEvent.pointerDown(view.getByRole('link', { name: 'Home' }), view.pointer(60));
+    fireEvent.pointerMove(view.nav, view.pointer(180));
+    fireEvent.pointerUp(view.nav, view.pointer(230));
+    expect(view.onSelect).toHaveBeenCalledExactlyOnceWith(2);
+    expect(view.getByTestId('route')).toHaveTextContent('/library');
+  });
+
+  it('prevents avatar image dragging too', () => {
+    const view = setup();
+    expect(fireEvent.dragStart(view.getByRole('img', { name: 'Profile' }))).toBe(false);
+  });
+
+  it('can drag left from Settings and clamps a release beyond the first tab', () => {
+    const view = setup();
+    const settings = view.getByRole('link', { name: 'Profile Settings' });
+    fireEvent.click(settings);
+    fireEvent.pointerDown(settings, view.pointer(396));
+    fireEvent.pointerMove(view.nav, view.pointer(172));
+    expect(view.getByTestId('route')).toHaveTextContent('/settings');
+    fireEvent.pointerUp(view.nav, view.pointer(-80));
+    expect(view.onSelect).toHaveBeenCalledExactlyOnceWith(0);
+    expect(view.getByTestId('route')).toHaveTextContent(/^\/$/);
+  });
+
+  it('cancels the pending gesture if holding Settings opens the profile menu', () => {
+    const view = setup();
+    fireEvent.pointerDown(view.getByRole('link', { name: 'Profile Settings' }), view.pointer(396));
+    view.rerender(<MemoryRouter><DragNavigation onSelect={view.onSelect} onStart={view.onStart} profileOpen /></MemoryRouter>);
+    fireEvent.pointerUp(view.nav, view.pointer(396));
+    expect(view.onSelect).not.toHaveBeenCalled();
+  });
+
+  it.each(['pointerCancel', 'lostPointerCapture'] as const)('returns to the current tab on %s without navigating', event => {
+    const view = setup(); view.advance();
+    const pill = view.container.querySelector('.liquid-nav-paint.selected') as HTMLElement;
+    const initial = pill.style.clipPath;
+    fireEvent.pointerDown(view.getByRole('link', { name: 'Home' }), view.pointer(60));
+    fireEvent.pointerMove(view.nav, view.pointer(396)); view.advance();
+    fireEvent[event](view.nav); for (let i = 0; i < 8; i++) view.advance();
+    expect(view.onSelect).not.toHaveBeenCalled();
+    expect(pill.style.clipPath).toBe(initial);
+  });
+
+  it('preserves normal clicks without claiming a drag', () => {
+    const view = setup();
+    const search = view.getByRole('link', { name: 'Search' });
+    fireEvent.pointerDown(search, view.pointer(172));
+    fireEvent.pointerUp(search, view.pointer(174));
+    fireEvent.click(search);
+    expect(view.onStart).not.toHaveBeenCalled();
+    expect(view.onSelect).not.toHaveBeenCalled();
+    expect(view.getByTestId('route')).toHaveTextContent('/search');
+  });
+
+  it('does not claim navigation gestures while the profile menu is open', () => {
+    const view = setup({ profileOpen: true });
+    fireEvent.pointerDown(view.nav, view.pointer(60));
+    fireEvent.pointerMove(view.nav, view.pointer(396));
+    fireEvent.pointerUp(view.nav, view.pointer(396));
+    expect(view.onStart).not.toHaveBeenCalled();
+    expect(view.onSelect).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
 import { JellyMotion, desktopNavigationLabels, jellyPillBounds, jellyPillPath } from './jellyMotion';
 import './liquidNavigation.css';
 
@@ -109,10 +109,23 @@ export function LiquidNavigation({ children, visuals, labels, selectedIndex, sty
   }, [profileOpen, selectedIndex, paint, start, reducedMotion]);
   useEffect(() => () => { if (suppressTimer.current) clearTimeout(suppressTimer.current); }, []);
   function cancel() { down.current = null; motion.current.cancel(selectedIndex); if (reducedMotion) motion.current.settle(selectedIndex); paint(); if (!reducedMotion) start(); }
+  function dragTo(event: PointerEvent<HTMLElement>) {
+    const gesture = down.current;
+    if (!gesture || gesture.pointerId !== event.pointerId || profileOpen) return;
+    const density = geometry.current.density;
+    const dx = (event.clientX - gesture.x) / density, dy = (event.clientY - gesture.y) / density;
+    if (!gesture.claimed && Math.max(Math.abs(dx), Math.abs(dy)) > 8) { gesture.claimed = true; onDragStart(); event.currentTarget.setPointerCapture(event.pointerId); }
+    motion.current.drag(dx, dy, reducedMotion);
+    if (gesture.claimed) event.preventDefault();
+    paint(); if (!reducedMotion) start();
+  }
   function renderVisuals() { return labels.map((label, index) => <div className="liquid-nav-item" key={label}><div className="liquid-nav-content"><span className="liquid-nav-icon">{visuals[index]}</span><span className="liquid-nav-label"><span>{label}</span></span></div></div>); }
   return <nav ref={nav} aria-label="Main navigation" className={'floating-nav liquid-nav' + (frosted ? ' frosted' : '') + (glowEnabled ? ' glow-enabled' : '')} style={{ '--nav-label-fraction': expanded ? 1 : 0, '--nav-count': labels.length, '--nav-glow-strength': glowEnabled ? 1 : 0 } as CSSProperties} data-expanded={expanded} data-reduced-motion={reducedMotion}
     onPointerEnter={event => { if (event.pointerType !== 'touch') setHovered(true); }} onPointerLeave={() => { setHovered(false); if (down.current && !down.current.claimed) cancel(); }}
     onFocusCapture={() => setFocused(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false); }}
+    // Links and avatar images otherwise start a browser drag, cancelling the
+    // pointer stream before the Kotlin-style tab gesture can claim it.
+    onDragStartCapture={event => event.preventDefault()}
     onPointerDown={event => {
       if (event.button !== 0 || profileOpen || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       if (down.current) { cancel(); return; }
@@ -123,17 +136,12 @@ export function LiquidNavigation({ children, visuals, labels, selectedIndex, sty
       motion.current.begin((event.clientX - box.left) / density, (event.clientY - box.top) / density);
       if (!reducedMotion) start();
     }}
-    onPointerMove={event => {
-      const gesture = down.current;
-      if (!gesture || gesture.pointerId !== event.pointerId || profileOpen) return;
-      const density = Number(getComputedStyle(event.currentTarget).getPropertyValue('--ui-scale')) || 1;
-      const dx = (event.clientX - gesture.x) / density, dy = (event.clientY - gesture.y) / density;
-      if (!gesture.claimed && Math.max(Math.abs(dx), Math.abs(dy)) > 8) { gesture.claimed = true; onDragStart(); event.currentTarget.setPointerCapture(event.pointerId); }
-      motion.current.drag(dx, dy); if (gesture.claimed) event.preventDefault(); if (!reducedMotion) { paint(); start(); }
-    }}
+    onPointerMove={dragTo}
     onPointerUp={event => {
       const gesture = down.current;
       if (!gesture || gesture.pointerId !== event.pointerId) return;
+      // Include the release coordinates, as detectJellyTabGestures does.
+      dragTo(event);
       down.current = null;
       const index = motion.current.finish();
       if (gesture.claimed) {

@@ -68,9 +68,10 @@ export class JellyMotion {
     if (this.tabWidth > 0) this.target = clamp(Math.floor((x - 4) / this.tabWidth), 0, this.maxIndex);
     this.dragStartTarget = this.target; this.dragStartPanel = this.panel.value; this.dragging = true; this.releasePending = false; this.pressTarget = 1; this.shapeTarget = 1.3; this.panel.velocity = 0; this.running = true;
   }
-  drag(dx: number, dy: number) {
+  drag(dx: number, dy: number, immediate = false) {
     if (!this.dragging || this.tabWidth <= 0) return;
     this.target = clamp(this.dragStartTarget + dx / this.tabWidth, 0, this.maxIndex);
+    if (immediate) this.position.snapTo(this.target);
     this.panel.snapTo(this.dragStartPanel + dx); this.trackY.snapTo(this.dragStartY + jellyRubberBand(dy, this.height) * .25); this.trackX.snapTo(1 - Math.min(Math.abs(dy) / 700, 1) * .08); this.originX = clamp(this.downX + dx, 0, this.width); this.movedDistance = Math.max(this.movedDistance, Math.abs(dx), Math.abs(dy));
   }
   finish() {

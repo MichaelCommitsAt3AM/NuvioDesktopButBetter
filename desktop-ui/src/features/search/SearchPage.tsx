@@ -9,6 +9,7 @@ import { PosterLoadingCard } from '../../components/PosterLoadingCard';
 import { Shelf } from '../../components/Shelf';
 import { EmptyState } from '../../components/EmptyState';
 import { InlineError } from '../../components/Status';
+import { FullscreenButton } from '../../components/FullscreenButton';
 import './search.css';
 import { useDiscoverScroll } from './useDiscoverScroll';
 
@@ -129,6 +130,7 @@ export function SearchPage({ focusRequested = false, onFocusHandled }: { focusRe
   const searchEmpty = useMemo(() => emptyMessage(null, Boolean(search.error)), [search.error]);
 
   return <div className="page search-page">
+    <FullscreenButton />
     <header className="search-sticky-header">
       <h1>{!query.trim() && scrolled ? 'Discover' : 'Search'}</h1>
       <div className="search-input-wrap">

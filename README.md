@@ -26,6 +26,12 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- Details watched/library actions show confirmation toasts and keep their circular buttons intact on hover. Library card tops have hover clearance, and Downloads uses the available screen width. The fullscreen control is available across Search, Library, Downloads and Settings, and keeps the correct icon when switching screens.
+
+- Details artwork has lighter dimming on the right, with stronger contrast behind the text and controls.
+
+- Settings search scrolls directly to the highlighted control. Connected Services and Details settings back buttons are centered in their hover background, and Hover Preview is hidden from settings navigation and search.
+
 - Synced with upstream 0.1.32 and newer desktop improvements, with richer featured metadata, optional Home ratings, player badge controls and animated-artwork preferences in the React/Tauri app.
 
 - The player's Sources sidebar highlights the playing stream and shows a Playing badge, including when its playback URL was resolved by a debrid service.

@@ -51,7 +51,7 @@ function AppearancePage() {
       <ControlRow title="AMOLED Black" description="Use pure black backgrounds for OLED screens." checked={snapshot?.amoledEnabled ?? true} onChange={(enabled) => run('appearance.setAmoled', { enabled })} />
       <SettingsChoice title="Desktop navigation" value={(snapshot?.navigationLayout ?? 'topbar') === 'sidebar' ? 'Sidebar' : 'Top Bar'} onClick={() => setOpenChoice('layout')} />
       <SettingsChoice title={(snapshot?.navigationLayout ?? 'topbar') === 'sidebar' ? 'Sidebar Style' : 'Top Bar Style'} value={({ adaptive: 'Adaptive', expanded: 'Always Expanded', compact: 'Always Compact', classic: 'Classic' } as Record<string, string>)[snapshot?.navBarStyle ?? 'expanded']} onClick={() => setOpenChoice('style')} />
-      <AppearanceNavRow to="/settings/appearance/hover-preview" icon={Play} title="Hover Preview" description="Configure poster hover cards and their opening delay." />
+      {/* <AppearanceNavRow to="/settings/appearance/hover-preview" icon={Play} title="Hover Preview" description="Configure poster hover cards and their opening delay." /> */}
       {!!snapshot?.appIcon?.options.length && <SettingsChoice title="App Icon" value={snapshot.appIcon.options.find((value) => value === snapshot.appIcon?.selected)?.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) ?? 'Original'} trailing={<img className="app-icon-thumb" src={appIconAsset(snapshot.appIcon.selected)} alt="" />} onClick={() => setShowAppIcons(true)} />}
       {snapshot?.appIcon?.changeFailed && <InlineError message="The app icon could not be changed." />}
       <LanguageChoiceControl />

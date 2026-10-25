@@ -14,6 +14,7 @@ export function SettingsSearchTarget() {
     if (!entry || !pane) return;
     let highlighted: HTMLElement | undefined;
     let previousTabIndex: string | null = null;
+    let scrollFrame = 0;
     const find = () => {
       const label = [...pane.querySelectorAll<HTMLElement>('strong,h1,h2,h3,label')]
         .find(element => normalizeSettingsText(element.textContent ?? '') === normalizeSettingsText(entry.target ?? entry.title));
@@ -22,8 +23,13 @@ export function SettingsSearchTarget() {
       highlighted.classList.add('settings-search-target');
       previousTabIndex = highlighted.getAttribute('tabindex');
       highlighted.setAttribute('tabindex', '-1');
-      highlighted.scrollIntoView?.({ block: 'center', behavior: 'instant' });
       highlighted.focus({ preventScroll: true });
+      // Let route scroll restoration and the destination's layout settle first.
+      // Otherwise the settings pane can reset to the top after this jump.
+      const target = highlighted;
+      scrollFrame = window.requestAnimationFrame(() => {
+        if (target.isConnected) target.scrollIntoView?.({ block: 'center', inline: 'nearest', behavior: 'instant' });
+      });
       observer.disconnect();
     };
     const observer = new MutationObserver(find);
@@ -32,6 +38,7 @@ export function SettingsSearchTarget() {
     const expiry = window.setTimeout(() => observer.disconnect(), 15_000);
     return () => {
       observer.disconnect();
+      window.cancelAnimationFrame(scrollFrame);
       clearTimeout(expiry);
       if (highlighted) {
         highlighted.classList.remove('settings-search-target');
@@ -39,6 +46,6 @@ export function SettingsSearchTarget() {
         else highlighted.setAttribute('tabindex', previousTabIndex);
       }
     };
-  }, [location.pathname, location.search]);
+  }, [location.pathname, location.search, location.key]);
   return null;
 }

@@ -19,7 +19,7 @@ function useDomain<T>(topic: Domain) {
   return { snapshot, loading, error, refresh, run };
 }
 
-function SubPage({ title, children }: { title: string; children: ReactNode }) { return <div className="page settings-page"><Link to="/settings/integrations" className="back-button settings-page-back"><ArrowLeft size={15} /> Integrations</Link><PageHeader title={title} />{children}</div>; }
+function SubPage({ title, children }: { title: string; children: ReactNode }) { return <div className="page settings-page"><Link to="/settings/integrations" className="back-button settings-page-back" aria-label="Integrations"><ArrowLeft size={15} /></Link><PageHeader title={title} />{children}</div>; }
 function Toggle({ title, description, checked, onChange, disabled = false }: { title: string; description?: string; checked: boolean; onChange: (value: boolean) => void; disabled?: boolean }) { return <div className="settings-control-row"><span className="settings-control-copy"><strong>{title}</strong>{description && <span>{description}</span>}</span><label className="switch"><input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} /><span /></label></div>; }
 function Select({ title, value, values, labels, description, onChange, disabled = false, disabledValues = [] }: { title: string; value: string; values: string[]; labels?: string[]; description?: string; onChange: (value: string) => void; disabled?: boolean; disabledValues?: string[] }) {
   const [open, setOpen] = useState(false);

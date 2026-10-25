@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { DetailsPage } from './DetailsPage';
 import { StreamsPage } from '../streams/StreamsPage';
@@ -9,6 +9,8 @@ const bridge = vi.hoisted(() => ({
   primaryAction: null as any,
   call: vi.fn(),
   loadStreams: vi.fn(),
+  addToLibrary: vi.fn(),
+  removeFromLibrary: vi.fn(),
 }));
 vi.mock('../../bridge', () => ({
   useSelector: (select: (state: any) => unknown) => select(bridge.state),
@@ -17,7 +19,7 @@ vi.mock('../../bridge', () => ({
     : topic === 'streamSelection' ? { autoPlayStreamId: null, autoPlay: { enabled: true, overlayVisible: true } } : undefined,
   refreshFeature: vi.fn(async () => ({ streamAutoPlayMode: 'FIRST_STREAM' })),
   call: (...args: unknown[]) => bridge.call(...args),
-  actions: { loadDetails: vi.fn(async () => {}), loadStreams: (...args: unknown[]) => bridge.loadStreams(...args) },
+  actions: { loadDetails: vi.fn(async () => {}), loadStreams: (...args: unknown[]) => bridge.loadStreams(...args), addToLibrary: (...args: unknown[]) => bridge.addToLibrary(...args), removeFromLibrary: (...args: unknown[]) => bridge.removeFromLibrary(...args) },
   BridgeError: class extends Error {},
 }));
 vi.mock('./DetailsExtras', () => ({ DetailsExtras: () => null }));
@@ -44,8 +46,53 @@ beforeEach(() => {
   bridge.call.mockImplementation(async () => ({ loaded: true, primaryAction: bridge.primaryAction }));
   bridge.loadStreams.mockReset();
   bridge.loadStreams.mockResolvedValue(undefined);
+  bridge.addToLibrary.mockReset().mockResolvedValue(undefined);
+  bridge.removeFromLibrary.mockReset().mockResolvedValue(undefined);
 });
 afterEach(() => cleanup());
+
+it('confirms watched and library actions only after they succeed, then dismisses the toast', async () => {
+  let watched = false;
+  bridge.call.mockImplementation(async (method: string) => {
+    if (method === 'details.watched.toggle') watched = !watched;
+    return { loaded: true, watched, primaryAction: bridge.primaryAction };
+  });
+  renderDetails();
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Mark watched' })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: 'More title actions' }));
+  vi.useFakeTimers();
+  try {
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Mark watched' })));
+    expect(screen.getByRole('status')).toHaveTextContent('Marked as watched');
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Mark unwatched' })));
+    expect(screen.getByRole('status')).toHaveTextContent('Marked as unwatched');
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Add to library' })));
+    expect(bridge.addToLibrary).toHaveBeenCalledWith('movie', 'ted');
+    expect(screen.getByRole('status')).toHaveTextContent('Added to library');
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Remove from library' })));
+    expect(bridge.removeFromLibrary).toHaveBeenCalledWith('movie', 'ted');
+    expect(screen.getByRole('status')).toHaveTextContent('Removed from library');
+    act(() => vi.advanceTimersByTime(2500));
+    expect(screen.queryByRole('status')).toBeNull();
+  } finally { vi.useRealTimers(); }
+});
+
+it('keeps failures as errors without announcing a successful action', async () => {
+  bridge.addToLibrary.mockRejectedValue(new Error('Library save failed'));
+  bridge.call.mockImplementation(async (method: string) => {
+    if (method === 'details.watched.toggle') throw new Error('Watched update failed');
+    return { loaded: true, watched: false };
+  });
+  renderDetails();
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Mark watched' })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: 'More title actions' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Mark watched' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Watched update failed');
+  expect(screen.queryByRole('status')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Add to library' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Library save failed');
+  expect(screen.queryByRole('status')).toBeNull();
+});
 
 describe('details playback action', () => {
   it('shows Resume and routes the saved movie position to playback', async () => {

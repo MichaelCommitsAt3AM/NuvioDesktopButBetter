@@ -1,0 +1,5 @@
+.app-toast-host{position:fixed;top:24px;left:16px;right:16px;z-index:2000;display:flex;justify-content:center;pointer-events:none}
+.app-toast{max-width:min(560px,100%);padding:12px 16px;border:1px solid #ffffff14;border-radius:24px;background:var(--app-surface,#252529);color:var(--text,#f5f5f5);box-shadow:0 8px 28px #0006;font-size:14px;line-height:20px;overflow-wrap:anywhere;animation:app-toast-enter .18s ease-out,app-toast-exit .18s ease-in 2.32s forwards}
+@keyframes app-toast-enter{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes app-toast-exit{to{opacity:0;transform:translateY(-12px)}}
+@media(prefers-reduced-motion:reduce){.app-toast{animation:none}}

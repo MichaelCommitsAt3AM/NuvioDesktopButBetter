@@ -46,7 +46,7 @@ function useSettingsDomain<T>(topic: 'playbackSettings' | 'metadataSettings' | '
 }
 
 function SubPage({ title, back, children }: { title: string; back: string; children: ReactNode }) {
-  return <div className="page settings-page"><Link to={back} className="back-button settings-page-back"><ArrowLeft size={15} /> Settings</Link><div className="page-header"><div><h1>{title}</h1></div></div>{children}</div>;
+  return <div className="page settings-page"><Link to={back} className="back-button settings-page-back" aria-label="Settings"><ArrowLeft size={15} /></Link><div className="page-header"><div><h1>{title}</h1></div></div>{children}</div>;
 }
 
 function FeatureNotice({ error, retry }: { error: string; retry: () => void }) { return error ? <InlineError message={error} onRetry={retry} /> : null; }

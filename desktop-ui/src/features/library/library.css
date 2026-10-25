@@ -22,7 +22,8 @@
 .library-page .library-shelf .shelf-heading{align-items:center;margin:0 0 12px}
 .library-page .library-shelf .shelf-heading h2{margin:0;font-size:16px;line-height:22px;letter-spacing:-.015em;font-weight:550}
 .library-page .library-shelf .shelf-title-button{cursor:default}
-.library-page .library-shelf .shelf-track{gap:9px;padding-top:0;padding-bottom:10px;scrollbar-width:none;scroll-snap-type:x proximity}
+/* Keep the resting row aligned while reserving space above the hover scale. */
+.library-page .library-shelf .shelf-track{gap:9px;padding-top:calc(16px / var(--poster-page-zoom,1));margin-top:calc(-16px / var(--poster-page-zoom,1));padding-bottom:10px;scrollbar-width:none;scroll-snap-type:x proximity}
 .library-page .library-shelf .poster-item{width:var(--poster-width)}
 .library-page .library-shelf .poster-frame{border-radius:var(--poster-radius)}
 .library-page .library-shelf .media-card{gap:5px}

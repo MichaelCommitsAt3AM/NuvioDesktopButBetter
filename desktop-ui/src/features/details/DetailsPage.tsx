@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useNavigate, useNavigationType, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { Check, CircleCheck, MoreHorizontal, Play, Plus } from 'lucide-react';
@@ -8,6 +8,7 @@ import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '
 import { mainScroller, scrollKey, useActiveProfileId, useListScrollRestore } from '../../navigation/scrollStore';
 import { cachedDominantColor, fetchDominantColor } from './dominantColor';
 import { InlineError } from '../../components/Status';
+import { Toast } from '../../components/Toast';
 import { useRetainedDecodedImage } from '../../components/useRetainedDecodedImage';
 import { DetailsExtras, type ExtrasMeta, type DetailsPrimaryAction } from './DetailsExtras';
 import './details.css';
@@ -28,6 +29,13 @@ export function DetailsPage() {
   useEffect(() => { if (!metadataSettings) void refreshFeature('metadataSettings').catch(() => {}); }, [metadataSettings]);
   const navigationType = useNavigationType();
   const profileId = useActiveProfileId();
+  const actionOwner = `${profileId}:${type}:${id}`;
+  const actionOwnerRef = useRef(actionOwner);
+  actionOwnerRef.current = actionOwner;
+  const noticeId = useRef(0);
+  const [notice, setNotice] = useState<{ id: number; message: string; owner: string } | null>(null);
+  const dismissNotice = useCallback(() => setNotice(null), []);
+  const notify = (message: string) => setNotice({ id: ++noticeId.current, message, owner: actionOwner });
   const [watchBusy, setWatchBusy] = useState(false);
   const [extraMeta, setExtraMeta] = useState<ExtrasMeta | null>(null);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
@@ -50,7 +58,7 @@ export function DetailsPage() {
     const timeout = window.setTimeout(() => setLoadTimedOut(true), 30_000);
     return () => window.clearTimeout(timeout);
   }, [type, id, details.loading, details.requestId]);
-  useEffect(() => { setActionsOpen(false); setSavedOverride(null); setActionError(''); }, [type, id]);
+  useEffect(() => { setActionsOpen(false); setSavedOverride(null); setActionError(''); setNotice(null); setWatchBusy(false); setSavedBusy(false); }, [type, id, profileId]);
   useEffect(() => () => { if (playHoldTimer.current !== null) window.clearTimeout(playHoldTimer.current); }, []);
   const media = details.media?.id === id && details.media.type === type ? details.media : null;
   const artworkOwner = `${profileId}:${type}:${id}`;
@@ -93,24 +101,33 @@ export function DetailsPage() {
     return () => { active = false; };
   }, [type, id, media?.id, homeExtras]);
   const toggleWatched = async () => {
-    if (!media) return;
+    if (!media || watchBusy) return;
     setWatchBusy(true);
     setActionError('');
-    try { setWatched({ ...await call<{ loaded: boolean; watched?: boolean; fullyWatched?: boolean; primaryAction?: DetailsPrimaryAction | null }>('details.watched.toggle', { id: media.id, type: media.type, name: media.name, poster: media.poster, background: media.background, releaseInfo: media.releaseInfo, genres: media.genres, description: media.description }), contentKey: `${type}:${id}` }); }
-    catch (cause) { setActionError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setWatchBusy(false); }
+    setNotice(null);
+    try {
+      const result = await call<{ loaded: boolean; watched?: boolean; fullyWatched?: boolean; primaryAction?: DetailsPrimaryAction | null }>('details.watched.toggle', { id: media.id, type: media.type, name: media.name, poster: media.poster, background: media.background, releaseInfo: media.releaseInfo, genres: media.genres, description: media.description });
+      if (actionOwnerRef.current !== actionOwner) return;
+      setWatched({ ...result, contentKey: `${type}:${id}` });
+      notify(result.watched || result.fullyWatched ? 'Marked as watched' : 'Marked as unwatched');
+    }
+    catch (cause) { if (actionOwnerRef.current === actionOwner) setActionError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { if (actionOwnerRef.current === actionOwner) setWatchBusy(false); }
   };
   const toggleSaved = async () => {
     if (!media || savedBusy) return;
     setSavedBusy(true);
     setActionError('');
+    setNotice(null);
     try {
       if (saved) await actions.removeFromLibrary(media.type, media.id);
       else await actions.addToLibrary(media.type, media.id);
+      if (actionOwnerRef.current !== actionOwner) return;
       setSavedOverride(!saved);
+      notify(saved ? 'Removed from library' : 'Added to library');
       void refreshFeature('library').catch(() => {});
-    } catch (cause) { setActionError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setSavedBusy(false); }
+    } catch (cause) { if (actionOwnerRef.current === actionOwner) setActionError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { if (actionOwnerRef.current === actionOwner) setSavedBusy(false); }
   };
   const openStreams = (manual = false) => {
     if (!media) return;
@@ -163,6 +180,7 @@ export function DetailsPage() {
     : undefined;
 
   return <>
+    <Toast notice={notice?.owner === actionOwner ? notice : null} onDismiss={dismissNotice} />
     {showBackdrop && media && backdrop && createPortal(<div className={`detail-viewport-backdrop${backgroundMode === 'dominant_color' ? ' detail-dominant-fallback' : ''}`} aria-hidden="true" style={{ backgroundImage: backdropImage }} />, document.body)}
     <div className="detail-page" ref={pageRef}>
     {(media || details.loading) && <div className="detail-screen-controls">

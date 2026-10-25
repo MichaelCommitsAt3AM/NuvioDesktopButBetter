@@ -5,8 +5,11 @@ import { isTauri } from '@tauri-apps/api/core';
 import { Maximize, Minimize } from 'lucide-react';
 import './fullscreenButton.css';
 
+// Route changes replace the button, but do not change the native window mode.
+let lastKnownFullscreen: boolean | null = null;
+
 export function FullscreenButton({ onError, inline = false }: { onError?: (message: string) => void; inline?: boolean }) {
-  const [fullscreen, setFullscreen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(() => isTauri() ? lastKnownFullscreen : false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -19,7 +22,10 @@ export function FullscreenButton({ onError, inline = false }: { onError?: (messa
       const request = ++revision;
       try {
         const value = await appWindow.isFullscreen();
-        if (active && request === revision) setFullscreen(value);
+        if (active && request === revision) {
+          lastKnownFullscreen = value;
+          setFullscreen(value);
+        }
       } catch { /* Window state may be unavailable during shutdown. */ }
     };
     void appWindow.onResized(refresh).then(dispose => {
@@ -35,14 +41,16 @@ export function FullscreenButton({ onError, inline = false }: { onError?: (messa
     try {
       const appWindow = getCurrentWindow();
       await appWindow.setFullscreen(!await appWindow.isFullscreen());
-      setFullscreen(await appWindow.isFullscreen());
+      const value = await appWindow.isFullscreen();
+      lastKnownFullscreen = value;
+      setFullscreen(value);
     } catch (error) { onError?.(String(error)); }
     finally { setBusy(false); }
   };
 
-  const label = fullscreen ? 'Exit fullscreen' : 'Enter fullscreen';
-  const button = <button className={`fullscreen-toggle${inline ? ' fullscreen-toggle-inline' : ''}`} type="button" aria-label={label} title={label} disabled={busy} onClick={() => void toggle()}>
-    {fullscreen ? <Minimize size={24} /> : <Maximize size={24} />}
+  const label = fullscreen === null ? 'Checking fullscreen state' : fullscreen ? 'Exit fullscreen' : 'Enter fullscreen';
+  const button = <button className={`fullscreen-toggle${inline ? ' fullscreen-toggle-inline' : ''}`} type="button" aria-label={label} title={label} disabled={busy || fullscreen === null} onClick={() => void toggle()}>
+    {fullscreen !== null && (fullscreen ? <Minimize size={24} /> : <Maximize size={24} />)}
   </button>;
   return inline ? button : createPortal(button, document.body);
 }

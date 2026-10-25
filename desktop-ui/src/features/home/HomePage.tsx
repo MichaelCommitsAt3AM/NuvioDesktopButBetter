@@ -14,6 +14,7 @@ import { PosterLoadingCard } from '../../components/PosterLoadingCard';
 import { HomeVisibility } from './homeVisibility';
 import { HeroBackdrop } from './HeroBackdrop';
 import { HeroTitle } from './HeroTitle';
+import { ImdbRating } from '../../components/ImdbRating';
 import '../../theme/cardDepth.css';
 import { depthActive, depthVars } from '../../theme/cardDepth';
 import { rectOf, type SourceRect } from '../../components/sourceLift';
@@ -237,7 +238,7 @@ export function HomePage() {
       <div key={`copy:${hero.id}`} ref={heroCopyRef} className="home-hero-copy">
         <HeroTitle key={`${hero.type}:${hero.id}`} url={hero.logo} name={hero.name} onOpen={() => openTitle(hero.type,hero.id)} />
         <div className="hero-genres">{hero.genres.slice(0,3).join(' \u2022 ')||hero.type.replace(/^./,letter=>letter.toUpperCase())}</div>
-        <div className="hero-metadata">{[hero.releaseInfo, hero.runtime, hero.status, hero.ageRating, hero.language].filter(Boolean).map((value, index) => <span key={index}>{value}</span>)}{hero.rating && <span>IMDb {hero.rating}</span>}{hero.externalRatings?.map(rating => <span key={rating.source}>{rating.source} {rating.value}</span>)}</div>
+        <div className="hero-metadata">{[hero.releaseInfo, hero.runtime, hero.status, hero.ageRating, hero.language].filter(Boolean).map((value, index) => <span key={index}>{value}</span>)}{hero.rating && <ImdbRating rating={hero.rating} />}{hero.externalRatings?.map(rating => <span key={rating.source}>{rating.source} {rating.value}</span>)}</div>
         {hero.description&&<p className="hero-description">{hero.description}</p>}
         <button className="hero-details-button" onClick={()=>openTitle(hero.type,hero.id)}>View Details</button>
       </div>

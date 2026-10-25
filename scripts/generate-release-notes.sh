@@ -7,10 +7,11 @@ to_ref="HEAD"
 repository="${GITHUB_REPOSITORY:-}"
 offline=false
 repository_history=false
+plain=false
 exclude_commits="${RELEASE_NOTES_EXCLUDE_COMMITS:-}"
 
 usage() {
-    echo "Usage: $0 --from <commit> [--to <commit>] [--repository <owner/repo>] [--repository-history] [--exclude <hashes>] [--offline]" >&2
+    echo "Usage: $0 --from <commit> [--to <commit>] [--repository <owner/repo>] [--repository-history] [--exclude <hashes>] [--offline] [--plain]" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -37,6 +38,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --offline)
             offline=true
+            shift
+            ;;
+        --plain)
+            plain=true
             shift
             ;;
         -h|--help)
@@ -184,7 +189,11 @@ emit_release_note() {
     seen_subjects+="${normalized_subject}"$'\n'
 
     display_subject="$(printf '%s' "$subject" | sed -E 's/[[:space:]]+$//; s/\.$//')"
-    printf '%s %s%s @%s  \n' "$short_hash" "$display_subject" "$suffix" "$username"
+    if [[ "$plain" == true ]]; then
+        printf -- '- %s\n' "$display_subject"
+    else
+        printf '%s %s%s @%s  \n' "$short_hash" "$display_subject" "$suffix" "$username"
+    fi
 }
 
 if [[ "$repository_history" == true ]]; then

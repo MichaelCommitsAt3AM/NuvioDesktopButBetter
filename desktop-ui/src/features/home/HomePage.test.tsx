@@ -155,7 +155,8 @@ describe('Continue Watching snapshot loading', () => {
       const featured = screen.getByRole('region', { name: 'Featured titles' });
       expect(featured).toHaveTextContent('First feature');
       expect(featured).toHaveTextContent('120 min');
-      expect(featured).toHaveTextContent('IMDb 8.2');
+      expect(featured).toHaveTextContent('8.2');
+      expect(featured.querySelector('img[alt="IMDb"]')).toHaveAttribute('src', '/images/ratings/imdb.png');
       expect(featured).toHaveTextContent('tmdb 85');
       bridge.state.session.activeProfile = 9241;
       bridge.state.home = { shelves: [], loading: true, hero: [] };

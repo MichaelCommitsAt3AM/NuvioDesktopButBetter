@@ -75,6 +75,8 @@ Windows player presentation regression: run `./gradlew :composeApp:desktopTest -
 
 ## Rewrite release and update delivery
 
+Before a release bump, write concise hyphenated statements to `docs/releases/<VERSION_NAME>.md`. Desktop CI uses that file for both the GitHub release body and the updater feed; if absent, it generates subject-only bullets without commit hashes or authors. Keep statements short and rephrase long commit subjects for users. Editing the GitHub release body after publication does not update notes already embedded in `latest.json`.
+
 `Build Desktop Release` keeps the existing build-only/dry-run/draft/publish modes. It now builds Windows x64 MSI, macOS arm64 and Intel DMGs plus signed app archives, and Linux x86_64 AppImage, DEB, RPM and Flatpak. Every package includes the staged Kotlin backend and a private Java runtime. The Linux AppImage bundles the native player dependencies; DEB/RPM declare system dependencies. Flatpak uses the existing sandbox identity and external update ownership.
 
 Build-only supports `all`, `windows`, `macos`, `linux` and `flatpak` targets. Draft/publish require `all`. The Flatpak manifest includes a checksum-preserving Debian mirror for uchardet when its primary download host fails.

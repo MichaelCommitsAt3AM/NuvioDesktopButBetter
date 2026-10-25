@@ -129,6 +129,7 @@ jobs:
           EXCLUDE_COMMITS: ${{ inputs.exclude_commits }}
         run: |
           if ! ./scripts/generate-release-notes.sh \
+            --plain \
             --from "${PREVIOUS_BUMP}" \
             --to "${CURRENT_BUMP}" \
             --repository "${GITHUB_REPOSITORY}" \
@@ -139,6 +140,7 @@ jobs:
             # packaging when the full commit history is already checked out.
             echo "::warning::GitHub PR lookup failed; generating notes from local history."
             ./scripts/generate-release-notes.sh \
+              --plain \
               --from "${PREVIOUS_BUMP}" \
               --to "${CURRENT_BUMP}" \
               --repository "${GITHUB_REPOSITORY}" \
@@ -152,6 +154,7 @@ jobs:
             # Feature branches can contain every user-facing commit while the
             # first-parent range contains only merge commits and version bumps.
             ./scripts/generate-release-notes.sh \
+              --plain \
               --from "${PREVIOUS_BUMP}" \
               --to "${CURRENT_BUMP}" \
               --repository "${GITHUB_REPOSITORY}" \
@@ -160,6 +163,10 @@ jobs:
               > release-notes.md
           fi
 
+          # Curated statements are shared by the release page and updater feed.
+          if [[ -s "docs/releases/${{ steps.release.outputs.version }}.md" ]]; then
+            cp "docs/releases/${{ steps.release.outputs.version }}.md" release-notes.md
+          fi
           if [[ ! -s release-notes.md ]]; then
             echo "No desktop repository release-note commits were found." >&2
             exit 1

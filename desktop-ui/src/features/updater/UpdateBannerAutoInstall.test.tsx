@@ -20,6 +20,14 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+it('shows release statements as separate list items without hashes or authors', () => {
+  native.update.notes = 'a1c093deb Restore top bar drag navigation @MichaelCommitsAt3AM\n09d7769f2 Improve settings navigation @Example';
+  render(<UpdateBanner />);
+  fireEvent.click(screen.getByRole('button', { name: 'Release notes' }));
+  expect(screen.getAllByRole('listitem').map(item => item.textContent)).toEqual(['Restore top bar drag navigation', 'Improve settings navigation']);
+  expect(screen.getByRole('dialog')).not.toHaveTextContent(/a1c093deb|09d7769f2|@Michael|@Example/);
+});
+
 it('explains automatic installation before the user starts the update', () => {
   render(<UpdateBanner />);
   expect(screen.getByText('Update available • Installs and restarts after download')).toBeInTheDocument();

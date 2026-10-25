@@ -10,7 +10,7 @@
 .update-banner-action{position:relative;flex:none;display:inline-flex;align-items:center;justify-content:center;min-height:48px;margin:0;padding:12px 28px;border:0;border-radius:999px;background:#e8e6e3;color:#1c1a1f;font:inherit;font-size:17px;font-weight:600;cursor:pointer}
 .update-banner-action:hover{background:#ffffff}
 .update-banner-notes-title{margin:0;color:var(--muted,#a2a4aa);font-size:13px}
-.update-banner-notes{margin:0;white-space:pre-line;line-height:1.55}
+.update-banner-notes{display:grid;gap:10px;margin:12px 0 0;padding:0;list-style:none;line-height:1.55;overflow-wrap:anywhere}.update-banner-notes>li{position:relative;padding-left:16px}.update-banner-notes>li::before{position:absolute;left:0;content:"-"}
 .update-banner-wrap{display:grid;grid-template-rows:1fr;animation:update-banner-deploy 300ms cubic-bezier(.2,.75,.25,1) both}
 .update-banner-wrap.is-closing{animation:update-banner-retract 240ms ease-in both}
 .update-banner-clip{overflow:hidden;min-height:0}

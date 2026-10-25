@@ -4,6 +4,7 @@ import { Dialog } from '../../components/Dialog';
 import { TEST_UPDATE, dismissTestBanner, startTestDownload, useTestBanner } from './updateBannerTest';
 import './updater.css';
 import { initializeUpdater, useUpdater, dismissUpdate, downloadUpdate, installUpdate } from './updater';
+import { releaseNoteItems } from './releaseNotes';
 
 /** Signed release updater, retaining About's isolated banner preview. */
 export function UpdateBanner() {
@@ -65,7 +66,7 @@ export function UpdateBanner() {
     {notesOpen && <Dialog label="Release notes" onClose={() => setNotesOpen(false)}>
       <h2>Release notes</h2>
       <p className="update-banner-notes-title">{release.title}</p>
-      <p className="update-banner-notes">{release.notes}</p>
+      <ul className="update-banner-notes">{releaseNoteItems(release.notes).map((note, index) => <li key={index}>{note}</li>)}</ul>
       <div className="dialog-actions"><button className="button secondary" onClick={() => setNotesOpen(false)}>Close</button></div>
     </Dialog>}
   </>;

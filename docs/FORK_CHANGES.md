@@ -4,6 +4,20 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Enable desktop custom subtitle styling by default — 2026-10-25
+
+Desktop's unset `useLibass` preference now defaults to false, enabling the player's inverse “Use custom styling” option. The initial UI state, repository initial/reset state and missing-storage fallback agree. Explicit stored true/false values remain authoritative, including synced preferences. Other platform defaults retain their upstream value. Kotlin desktop compilation and bridge runtime staging passed.
+
+### Consistent IMDb rating logos — 2026-10-25
+
+Home featured metadata and shared movie/series hover previews replace the plain IMDb label with the existing `/images/ratings/imdb.png` asset used by Details. A shared inline rating component keeps the logo and score aligned and sizes the logo relative to each metadata row's font. Existing Home and hover-preview tests verify the reused asset and score.
+
+### Readable updater release notes — 2026-10-25
+
+The update banner renders release notes as separate list items with hyphen markers, spacing and wrapped continuation lines. Older feeds have leading commit hashes and trailing author attribution removed at presentation. Desktop CI requests plain subject-only bullets from the shared release-note generator and uses `docs/releases/<version>.md` when present, so curated concise notes reach both GitHub and the updater feed. Other generator callers retain their existing format. The current release has a concise curated note file covering the shipped user-facing changes.
+
+Validation: all 16 updater tests and the frontend production build passed; the plain generator was checked against the actual 0.1.32.1 commit range. The published 0.1.32.1 feed and GitHub notes were updated from the curated file, with only the feed's checksum entry recalculated. Installer URLs, signatures and package checksum entries were preserved.
+
 ### Details title artwork loading — 2026-10-25
 
 Details shows a logo-sized shimmer while title artwork loads and decodes, then fades in the ready image instead of briefly displaying a large text title. It also waits while metadata is still loading before choosing a no-logo fallback. Missing artwork, download/decode failures and a failed image paint retain a readable text title. The retained-image hook exposes pending/failure state without changing existing URL-only consumers; an already decoded logo remains visible during enrichment and failed replacements. The placeholder reserves the normal responsive logo dimensions, announces loading accessibly and disables animation for reduced-motion users. Twenty targeted title-artwork, retained-image and Details navigation tests passed.

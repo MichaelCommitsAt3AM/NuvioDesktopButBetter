@@ -1,6 +1,7 @@
 package com.nuvio.app.features.player
 
 import com.nuvio.app.core.build.AppFeaturePolicy
+import com.nuvio.app.isDesktop
 import com.nuvio.app.features.player.skip.AutoSkipSegmentType
 import com.nuvio.app.features.player.skip.NextEpisodeThresholdMode
 import com.nuvio.app.features.streams.StreamAutoPlayMode
@@ -91,7 +92,7 @@ data class PlayerSettingsUiState(
     val nextEpisodeThresholdPercent: Float = 99f,
     val nextEpisodeThresholdMinutesBeforeEnd: Float = 2f,
     val preloadNextEpisodeSources: Boolean = false,
-    val useLibass: Boolean = true,
+    val useLibass: Boolean = !isDesktop,
     val libassRenderType: String = "CUES",
     val libassRenderScale: String = "FULL",
     val iosVideoOutputPreset: IosVideoOutputPreset = IosVideoOutputPreset.NativeEdr,
@@ -175,7 +176,7 @@ object PlayerSettingsRepository {
     private var nextEpisodeThresholdPercent = 99f
     private var nextEpisodeThresholdMinutesBeforeEnd = 2f
     private var preloadNextEpisodeSources = false
-    private var useLibass = true
+    private var useLibass = !isDesktop
     private var libassRenderType = "OVERLAY_OPEN_GL"
     private var libassRenderScale = "FULL"
     private var iosVideoOutputPreset = IosVideoOutputPreset.NativeEdr
@@ -265,7 +266,7 @@ object PlayerSettingsRepository {
         nextEpisodeThresholdPercent = 99f
         nextEpisodeThresholdMinutesBeforeEnd = 2f
         preloadNextEpisodeSources = false
-        useLibass = true
+        useLibass = !isDesktop
         libassRenderType = "OVERLAY_OPEN_GL"
         libassRenderScale = "FULL"
         iosVideoOutputPreset = IosVideoOutputPreset.NativeEdr
@@ -429,7 +430,7 @@ object PlayerSettingsRepository {
         nextEpisodeThresholdPercent = PlayerSettingsStorage.loadNextEpisodeThresholdPercent() ?: 99f
         nextEpisodeThresholdMinutesBeforeEnd = PlayerSettingsStorage.loadNextEpisodeThresholdMinutesBeforeEnd() ?: 2f
         preloadNextEpisodeSources = PlayerSettingsStorage.loadPreloadNextEpisodeSources() ?: false
-        useLibass = PlayerSettingsStorage.loadUseLibass() ?: true
+        useLibass = PlayerSettingsStorage.loadUseLibass() ?: !isDesktop
         libassRenderType = PlayerSettingsStorage.loadLibassRenderType() ?: "CUES"
         libassRenderScale = PlayerSettingsStorage.loadLibassRenderScale() ?: "FULL"
         iosVideoOutputPreset = PlayerSettingsStorage.loadIosVideoOutputPreset()

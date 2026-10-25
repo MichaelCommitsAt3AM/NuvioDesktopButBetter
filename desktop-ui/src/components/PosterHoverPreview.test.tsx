@@ -43,6 +43,8 @@ describe('PosterHoverPreview', () => {
 
     expect(screen.getByRole('button', { name: /view details/i })).toBeInTheDocument();
     expect(screen.getByText('Comedy · Romance')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'IMDb' })).toHaveAttribute('src', '/images/ratings/imdb.png');
+    expect(screen.getByText('7.1')).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: /view details/i }));
     expect(onOpen).toHaveBeenCalledOnce();
     expect(onCardClick).not.toHaveBeenCalled();

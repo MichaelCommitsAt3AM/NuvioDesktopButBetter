@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, Check, CircleCheck, Plus } from 'lucide-react';
 import type { Media } from '../generated/contract';
 import { HoverTrailer } from './HoverTrailer';
+import { ImdbRating } from './ImdbRating';
 
 type Props = {
   visible?: boolean;
@@ -99,7 +100,7 @@ export function PosterHoverPreview({ visible = true, item, rect, saved, watched,
     {item.logo && logoReady && <img className="home-preview-logo" src={item.logo} alt={item.name} draggable={false} decoding="async" />}
     <div className="poster-preview-copy">
       {(!item.logo) && <h3 className="home-preview-title">{item.name}</h3>}
-      <p>{[item.type.replace(/^./, letter => letter.toUpperCase()), item.releaseInfo, item.rating ? `IMDb ${item.rating}` : null].filter(Boolean).join(' · ')}</p>
+      <p>{[item.type.replace(/^./, letter => letter.toUpperCase()), item.releaseInfo].filter(Boolean).join(' · ')}{item.rating && <> · <ImdbRating rating={item.rating} /></>}</p>
       {!!item.genres.length && <p>{item.genres.slice(0, 3).join(' · ')}</p>}
       {item.description && <p className="home-preview-description">{item.description.slice(0, 360)}</p>}
       <div className="home-preview-actions">

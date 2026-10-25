@@ -31,6 +31,9 @@ docs/*
 !docs/FORK_CHANGES.md
 !docs/KNOWN_ISSUES.md
 !docs/UPSTREAM_SYNC*.md
+!docs/releases/
+docs/releases/*
+!docs/releases/*.md
 SUPPORTER_COSMETICS.md
 # NOTE: upstream ignores supabase/migrations/ (they keep their schema private).
 # This fork version-controls the backend -- see CLAUDE.md "Supabase backend is

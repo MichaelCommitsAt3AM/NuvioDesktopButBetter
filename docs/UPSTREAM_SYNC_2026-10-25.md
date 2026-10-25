@@ -44,7 +44,7 @@ The initial merge checkpoint had incomplete image/shelf/language conflict blocks
 
 ## Validation evidence
 
-Validation is in progress. Required results and exact CI run links are recorded below before promotion. Logs are under the host temporary directory with prefix `nuvio-sync-20261025-`; they are not checked in.
+All required automated checks passed on the exact application candidate below. The remaining visual/manual acceptance limits are explicit; startup diagnostics do not substitute for visual or provider playback acceptance. Logs are under the host temporary directory with prefix `nuvio-sync-20261025-`; they are not checked in.
 
 - RPC scanner unit tests: 4 passed; RPC contract: 42 client functions covered by 50 migration functions. Newly unavailable party/chat RPCs are capability-gated.
 - Full updated frontend suite: 75 files / 447 tests passed. Following final artwork crop/hover and navigation refinements, affected Home/artwork/native-panel suites passed 38 tests across 6 files; final Back/artwork tests passed 7 tests.
@@ -52,8 +52,18 @@ Validation is in progress. Required results and exact CI run links are recorded 
 - Final frontend production build, contract/locales/inventory checks and whitespace checks: passed. Existing chunk-size and static/dynamic locale import warnings remain.
 - Release/Windows launcher checks: 10 passed, 1 explicit Tauri CLI schema skip. Supabase upgrade-config helper tests: 2 passed.
 - Windows native DLL rebuilt successfully. Kotlin desktop compilation and bridge runtime staging: passed after correcting the merge checkpoint and snapshot mapping.
-- Desktop suite, embedded shell build/smoke and exact-candidate CI: pending.
+- Full `:composeApp:desktopTest`: 1,812 tests, zero failures/errors, one macOS-only window-insets test skipped on Windows, across 277 XML suites. This includes 2 real Windows JNI/WebView2 presentation/DPI/resize/PiP tests (extended to check `stringProperty` and mpv `alang`), 8 animated-image tests, 5 SVG tests, 5 playback matching tests, 7 Trakt paging tests and 3 source-identity tests. Full Gradle staging/test command passed in 10m 2s.
+- `cargo build --locked --features custom-protocol`: passed in 52s, embedding the tested frontend and staged Kotlin runtime.
+- Application candidate: `2ce3087a41a4145aaa60442353561e447507d170`, pushed to origin's sync branch.
+- Database CI: [40190490899](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/40190490899), **passed** on `2ce3087a41a4145aaa60442353561e447507d170`: RPC contract, fresh database (including PostgREST smoke) and upgrade database.
+- All-platform build-only CI: [40190531407](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/40190531407), **passed** on `2ce3087a41a4145aaa60442353561e447507d170`: Windows x64 MSI, macOS arm64/Intel, Linux AppImage/DEB/RPM/Flatpak, plus packaging preflight. Release publication jobs were skipped by build-only mode.
+- Embedded Windows startup smoke: passed through process/transport diagnostics. After Windows CI passed, the user-authorized debug executable was launched at 15:17 EAT (PID 23856). A new ready handshake was accepted at startup; React accepted the signed-in session and received a settled Home event at epoch 2 with `loading=false`, `shelves=10`, `hero=8`. The debug process remained running and was left open.
+- Visual/UI automation acceptance: not completed. Computer Use was stopped by physical Escape; after the user explicitly authorized resuming, the session still reported its stopped state. No further Computer Use input was issued. The authorized executable was launched with the runbook's `Start-Process` command instead; no claim of visual inspection or manual playback follows from the diagnostics.
 
 ## Acceptance limits
 
-Automated Windows JNI/WebView2 presentation tests and an embedded rewrite smoke test are required for this batch. Real debrid/provider sign-in, a populated remote stream with audio badges, multiclient watch parties, installed upgrade and macOS/Linux playback are not inferred from builds. Watch parties/media-server cloud sync remain unavailable as documented in `KNOWN_ISSUES.md`.
+Automated Windows JNI/WebView2 presentation tests and embedded rewrite startup/React Home delivery checks passed. Visual confirmation and interactive settings/playback acceptance remain pending because Computer Use stayed stopped. Real debrid/provider sign-in, a populated remote stream with audio badges, multiclient watch parties, installed upgrade and macOS/Linux playback are not inferred from builds. Watch parties/media-server cloud sync remain unavailable as documented in `KNOWN_ISSUES.md`.
+
+## Integration
+
+Origin was fetched again before promotion; the rewrite branch had no incoming remote commits. The original two local commits remain ancestors of the sync. The normal upstream merge and adaptation commit remain intact. The final evidence commit changes only this Markdown report; the tested application/workflow tree is unchanged, so the build matrix does not need repeating for that documentation-only update. Integrate by normal fast-forward into `feature/react-tauri-desktop-rewrite` and push to origin, retaining `5e18596aa919a6a4e7b6cdee7f90dfaabbf71b00` in ancestry. No default-branch change, version bump, tag, release publication or production migration is part of this batch.

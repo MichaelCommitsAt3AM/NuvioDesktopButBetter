@@ -4,6 +4,18 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Preserve episode browsing during playback updates — 2026-10-24
+
+Native Episodes rows no longer recenter the playing episode whenever progress or watched-state updates change their contents. Row rebuilds retain scrollTop; alignment happens once when opening the panel or choosing a season, including when the initial episodes arrive asynchronously. Routine updates no longer scroll the season strip. Choosing a season no longer passes the panel-open flag that reset it to the playing season. Six native panel DOM tests passed, including progress updates, reopening, delayed loading and explicit season selection.
+
+Follow-up: the native playerControls transport was still passing true to render for every Sources/Episodes state push, which the Episodes renderer interpreted as a fresh opening. State pushes now use the normal update path; only explicit opening requests signal panel-open alignment. Sources filter alignment now follows the same opening semantics. All seven panel tests passed, including a regression executing the production native state-push handler repeatedly while scrolling both directions and browsing a different season. Live playback scroll acceptance remains pending.
+
+### Identify the playing stream in native Sources — 2026-10-24
+
+The React/Tauri playback bridge passes the original selected StreamItem into the native player. Startup derives its active identity using the same source identity function as the Sources list instead of relying on the resolved playback URL. This preserves the existing native Playing chip and accent border/background for debrid, hashed direct and prepared server streams. Credential-refresh retries update the active identity too. Source rows expose aria-current for the playing item. Same-name sources remain distinguished by source identity.
+
+Validation: all three targeted Kotlin identity tests and four native panel DOM tests passed, covering resolved URLs, same-name alternatives and legacy URL/torrent fallbacks. Bridge staging and the Windows debug shell build succeeded; the updated app was relaunched and responds. Live playback acceptance remains pending.
+
 ### Kids setup enables TMDB metadata with the same key — 2026-10-24
 
 Kids profile setup now explains that its validated TMDB key is also saved in that profile’s device-local TMDB credentials. A newly enabled kids profile starts with TMDB enrichment on, including its existing trailer module; users can disable enrichment normally. Key replacements and ordinary kids/rating edits preserve an opt-out. Setup targets the child’s storage while the parent remains selected and updates only the child’s TMDB enable preference in the cloud settings blob, retaining other preferences and excluding the key. Failed KidsScreen validation does not save the key locally. Existing kids configurations require re-entering the key once on each device because KidsScreen cannot return its server-held key. The separate trailer fallback was removed, so turning enrichment off also stops TMDB trailer fetching. Localized video lookup still tries English when needed.

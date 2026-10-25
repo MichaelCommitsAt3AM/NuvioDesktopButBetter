@@ -927,6 +927,7 @@ internal fun PlayerScreenRuntime.tryRefreshCredentialedSourceAfterError(message:
             flushWatchProgress()
             stopActiveP2pStream()
             activeSourceUrl = refreshedUrl
+            activeSourceIdentityKey = stream.playerSourceIdentityKey()
             activeSourceAudioUrl = null
             activeSourceHeaders = sanitizePlaybackHeaders(stream.behaviorHints.proxyHeaders?.request)
             activeSourceResponseHeaders = sanitizePlaybackResponseHeaders(stream.behaviorHints.proxyHeaders?.response)

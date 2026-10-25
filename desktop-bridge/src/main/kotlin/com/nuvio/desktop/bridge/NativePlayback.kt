@@ -243,6 +243,8 @@ class NativePlayback(
                                     profileId = ProfileRepository.activeProfileId,
                                     title = meta.name,
                                     sourceUrl = url,
+                                    // Retain the selected catalog source when playback uses a resolved URL.
+                                    stream = stream,
                                     torrentInfoHash = torrentHash,
                                     torrentFileIdx = playable.p2pFileIdx.takeIf { torrentHash != null },
                                     torrentFilename = playable.behaviorHints.filename.takeIf { torrentHash != null },

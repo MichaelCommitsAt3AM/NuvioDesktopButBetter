@@ -100,6 +100,17 @@ internal fun PlayerScreenRuntime.openExternalSourceUrl(stream: StreamItem): Bool
     return true
 }
 
+internal fun initialPlayerSourceIdentityKey(
+    stream: StreamItem?,
+    sourceUrl: String,
+    torrentInfoHash: String?,
+    torrentFileIdx: Int?,
+): String? = stream?.playerSourceIdentityKey()
+    ?: torrentInfoHash?.trim()?.lowercase()?.takeIf { it.isNotBlank() }?.let { hash ->
+        "torrent:$hash:${torrentFileIdx ?: -1}"
+    }
+    ?: sourceUrl.trim().takeIf { it.isNotBlank() }?.let { "url:$it" }
+
 internal fun StreamItem.playerSourceIdentityKey(): String? {
     serverTarget?.let { target -> return "server:${target.item.encode()}:${target.mediaSourceId.orEmpty()}" }
     p2pInfoHash?.trim()?.lowercase()?.takeIf { it.isNotBlank() }?.let { hash ->

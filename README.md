@@ -26,6 +26,9 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- The player's Sources sidebar highlights the playing stream and shows a Playing badge, including when its playback URL was resolved by a debrid service.
+- The Episodes sidebar keeps your scroll position during playback updates and lets you browse another season without jumping back to the playing episode.
+
 - Media servers uses the Kotlin app’s server list, Jellyfin/Emby provider rows and separate sign-in and server settings views.
 
 - Home shows the first available featured titles while other catalogs load, keeping the initial poster stable during startup.

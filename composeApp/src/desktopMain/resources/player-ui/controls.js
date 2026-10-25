@@ -377,6 +377,7 @@ let currentEpisodeStreamItems = [];
 let currentEpisodeItems = [];
 let selectedEpisodeSeason = null;
 let lastRenderedEpisodeListKey = "";
+let episodeSelectionScrollPending = false;
 let episodeStreamFilterId = "";
 let activeSubtitleLanguageKey = "";
 let pendingSubtitleOptionId = "";
@@ -1615,6 +1616,7 @@ const buildSourceRow = (item, onSelect) => {
   const row = document.createElement("button");
   row.type = "button";
   row.className = `track-row stream-row source-row${item.isCurrent ? " selected" : ""}${item.isEnabled === false ? " disabled" : ""}`;
+  if (item.isCurrent) row.setAttribute("aria-current", "true");
   row.disabled = item.isEnabled === false;
   row.addEventListener("click", event => {
     event.stopPropagation();
@@ -1813,7 +1815,7 @@ const renderSourceModal = (modalOpened = false) => {
     renderSourceModal(true);
   });
 
-  if (!modalOpened || !sourceVirtualSpacer) {
+  if (modalOpened || !sourceVirtualSpacer) {
     window.requestAnimationFrame(() => {
       sourceFilterList.querySelector(".filter-chip.selected")
         ?.scrollIntoView({ behavior: "instant", container: "nearest", inline: "start" });
@@ -1951,7 +1953,9 @@ const renderEpisodeList = (modalOpened = false) => {
   episodesPanelTitle.textContent = state.episodesPanelTitle || "Episodes";
   episodesCloseButton.textContent = state.panelCloseLabel || "Close";
 
+  const previousSeason = selectedEpisodeSeason;
   const selectedSeason = ensureEpisodeSeason(modalOpened);
+  if (modalOpened || previousSeason !== selectedSeason) episodeSelectionScrollPending = true;
   const seasons = normalizeItems(state.episodeSeasons);
   renderFilterRow(
     seasonFilterList,
@@ -1959,17 +1963,10 @@ const renderEpisodeList = (modalOpened = false) => {
     selectedSeason == null ? "" : String(selectedSeason),
     id => {
       selectedEpisodeSeason = Number(id);
-      currentEpisodeItems = [];
-      renderEpisodeList(true);
+      episodeSelectionScrollPending = true;
+      renderEpisodeList();
     },
   );
-
-  if (!modalOpened) {
-    window.requestAnimationFrame(() => {
-      seasonFilterList.querySelector(".filter-chip.selected")
-        ?.scrollIntoView({ behavior: "instant", container: "nearest", inline: "start" });
-    });
-  }
 
   let items = normalizeItems(state.episodeItems);
   if (selectedSeason != null) {
@@ -1985,17 +1982,20 @@ const renderEpisodeList = (modalOpened = false) => {
   // thumbnails twitching while hovering between episodes.
   const renderKey = JSON.stringify({ selectedSeason, items });
   if (renderKey === lastRenderedEpisodeListKey) {
-    if (modalOpened) scrollEpisodeSelectionIntoView();
+    if (episodeSelectionScrollPending && items.length > 0) {
+      episodeSelectionScrollPending = false;
+      scrollEpisodeSelectionIntoView();
+    }
     return;
   }
   lastRenderedEpisodeListKey = renderKey;
 
+  const previousScrollTop = episodeList.scrollTop;
   episodeList.textContent = "";
   if (items.length === 0) {
     currentEpisodeItems = [];
     episodeList.textContent = "";
     appendEmptyTrackState(episodeList, state.noEpisodesLabel || "No episodes available");
-    scrollEpisodeSelectionIntoView();
     return;
   }
 
@@ -2004,9 +2004,15 @@ const renderEpisodeList = (modalOpened = false) => {
     items.forEach(item => appendEpisodeRow(episodeList, item));
     currentEpisodeItems = items;
 
-    window.requestAnimationFrame(() => {
+    // Playback progress and watched-state updates must not pull a browsing user
+    // back to the playing episode. Align only on opening/season selection, and
+    // defer that alignment if the episodes have not arrived yet.
+    if (episodeSelectionScrollPending) {
+      episodeSelectionScrollPending = false;
       scrollEpisodeSelectionIntoView();
-    });
+    } else {
+      episodeList.scrollTop = previousScrollTop;
+    }
   }
 };
 
@@ -3413,8 +3419,9 @@ window.playerControls = nextState => {
   ) {
     resetSubtitleSelectionState();
   }
-  const preventModalAutoScrolling = activeModal === "sources" || activeModal === "episodes";
-  render(preventModalAutoScrolling);
+  // A state push updates an existing panel; only openPlayerModal may signal
+  // that it just opened. Treating each push as an open recenters Episodes.
+  render();
   if (!presentationScheduled) {
     presentationScheduled = true;
     window.preparePlayerPresentation([openingArtwork, openingLogoBase], () => send("controlsPresented", 0));

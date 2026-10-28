@@ -1,5 +1,6 @@
-import { useEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useTabActive } from '../navigation/tabActivity';
 
 export type DialogProps = {
   label: string;
@@ -27,6 +28,15 @@ export function Dialog({ label, onClose, children, className = '', exiting = fal
   const exitingRef = useRef(exiting);
   exitingRef.current = exiting;
   useEffect(() => { closeRef.current = onClose; }, [onClose]);
+  const active = useTabActive();
+  const wasActive = useRef(active);
+  useLayoutEffect(() => {
+    if (active) { wasActive.current = true; return; }
+    if (!wasActive.current) return;
+    // Retained tabs must not bring a dialog back on their next visit.
+    wasActive.current = false;
+    closeRef.current();
+  }, [active]);
   const drag = useRef<{ startY: number; lastY: number; lastT: number; prevY: number; prevT: number; active: boolean; hijacked: boolean } | null>(null);
   const isSheet = dragToDismiss && (className.includes('bottom-sheet-motion') ||
     (className.includes('bottom-sheet-narrow') && !!window.matchMedia?.('(max-width: 650px)').matches));
@@ -86,6 +96,7 @@ export function Dialog({ label, onClose, children, className = '', exiting = fal
   };
 
   useEffect(() => {
+    if (!active) return;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     dialogRef.current?.querySelector<HTMLElement>('input,select,textarea,button,[href],[tabindex]:not([tabindex="-1"])')?.focus({ preventScroll: true });
     const onKeyDown = (event: KeyboardEvent) => {
@@ -101,6 +112,7 @@ export function Dialog({ label, onClose, children, className = '', exiting = fal
     };
     document.addEventListener('keydown', onKeyDown);
     return () => { document.removeEventListener('keydown', onKeyDown); previousFocus?.focus({ preventScroll: true }); };
-  }, []);
+  }, [active]);
+  if (!active) return null;
   return createPortal(<div className={`dialog-backdrop ${className}`} onMouseDown={(event) => { if (!exiting && event.target === event.currentTarget) onClose(); }}><div className="dialog-surface" ref={dialogRef} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} inert={exiting} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={() => { drag.current = null; const surface = dialogRef.current; if (surface) { surface.style.transition = ''; surface.style.transform = ''; } }}>{children}</div></div>, document.body);
 }

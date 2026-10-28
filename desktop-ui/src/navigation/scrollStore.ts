@@ -113,18 +113,22 @@ export function useActiveProfileId(): number | null {
  * changes, and explicit resets use a fresh key, so they start at the top by
  * construction. Unmount never saves: the next route may already have clamped
  * the shared scroller.
+ *
+ * `active` is false for a retained-but-hidden screen: it must neither save the
+ * visible tab's offset nor restore itself before it is displayed again.
  */
-export function useListScrollRestore(key: string, navigationType: string, ready = true): void {
+export function useListScrollRestore(key: string, navigationType: string, ready = true, active = true): void {
   useLayoutEffect(() => {
-    if (!ready || navigationType !== 'POP') return;
+    if (!active || !ready || navigationType !== 'POP') return;
     const saved = readListPosition(key);
     if (saved !== undefined) return restoreMainScroll(saved);
-  }, [key, navigationType, ready]);
+  }, [key, navigationType, ready, active]);
   useEffect(() => {
+    if (!active) return;
     const scroller = mainScroller();
     if (!scroller) return;
     const save = () => saveListPosition(key, scroller.scrollTop);
     scroller.addEventListener('scroll', save, { passive: true });
     return () => scroller.removeEventListener('scroll', save);
-  }, [key]);
+  }, [key, active]);
 }

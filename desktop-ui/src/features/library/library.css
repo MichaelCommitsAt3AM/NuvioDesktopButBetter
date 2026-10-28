@@ -1,5 +1,5 @@
 .library-page{--page-gutter:calc(13px / 1.22);padding-top:0;max-width:none;margin:0}
-.main-area:has(.library-page){padding:calc(114px / 1.22) calc(13px / 1.22) calc(64px / 1.22);overflow-x:hidden}
+.main-area:has(.library-page:where([data-tab-active="true"])){padding:calc(114px / 1.22) calc(13px / 1.22) calc(64px / 1.22);overflow-x:hidden}
 .library-page .page-heading{align-items:center;gap:16px;margin:0 0 3px}
 .library-page .page-heading h1{font-size:32px;line-height:1.25;letter-spacing:-.04em;font-weight:650}
 .library-header-actions{display:flex;align-items:center;gap:8px}
@@ -7,7 +7,7 @@
 .library-fullscreen>svg{width:calc(24px / var(--content-scale,1.22));height:calc(24px / var(--content-scale,1.22))}
 .library-fullscreen:hover{background:#333;color:#fff}
 .library-downloads-button{gap:8px;text-decoration:none;white-space:nowrap}
-.main-area:has(>.library-page){position:relative}
+.main-area:has(.library-page:where([data-tab-active="true"])){position:relative}
 .library-icon-button{width:36px;height:36px;display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:transparent;color:#aeb2b8;text-decoration:none;cursor:pointer;transition:background .15s,color .15s}
 .library-icon-button:hover{background:#ffffff12;color:#f5f5f5}
 .library-source-switch{display:flex;align-items:center;gap:8px;margin:0 0 0}

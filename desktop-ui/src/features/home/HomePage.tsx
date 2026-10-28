@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Compass, MoreHorizontal, RotateCcw, Trash2, Info, Play } from 'lucide-react';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
@@ -50,7 +50,6 @@ const consumedHomeScrollResets=new Set<string>();
 // Mirrors HOME_HERO_ITEM_LIMIT in HomeRepository.
 const MAX_HERO_ITEMS = 8;
 export function HomePage() {
-  const visible = useContext(HomeVisibility);
   const home = useSelector((current) => current.home);
   const addons = useSelector((current) => current.addons) ?? [];
   const addonsReady = useSelector((current) => current.addonsReady);
@@ -81,17 +80,6 @@ export function HomePage() {
   const [heroIndex, setHeroIndex] = useState(()=>homeViewPositions.get(viewKey)?.heroIndex??0);
   const heroIndexRef=useRef(heroIndex);heroIndexRef.current=heroIndex;
   const resetHomeScroll=(location.state as {resetHomeScroll?:boolean}|null)?.resetHomeScroll===true&&!consumedHomeScrollResets.has(location.key);
-  useLayoutEffect(() => {
-    if (!visible) return;
-    const main = document.querySelector<HTMLElement>('.main-area');
-    if (!main) return;
-    if (resetHomeScroll) consumedHomeScrollResets.add(location.key);
-    main.scrollTop = resetHomeScroll ? 0 : homeViewPositions.get(viewKey)?.scrollTop ?? 0;
-    // Save on scroll, before a route can hide Home and clamp the shared viewport.
-    const save = () => homeViewPositions.set(viewKey, { scrollTop: main.scrollTop, heroIndex: heroIndexRef.current });
-    main.addEventListener('scroll', save, { passive: true });
-    return () => { main.removeEventListener('scroll', save); };
-  }, [visible, viewKey, resetHomeScroll, location.key]);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [extrasSnapshotState, setExtrasSnapshotState] = useState<{ profileId: number | null; settled: boolean }>({ profileId: null, settled: false });
@@ -119,7 +107,6 @@ export function HomePage() {
   const [viewport,setViewport]=useState({width:window.innerWidth,height:window.innerHeight});
   useEffect(()=>{const resize=()=>setViewport({width:window.innerWidth,height:window.innerHeight});window.addEventListener('resize',resize);return ()=>window.removeEventListener('resize',resize);},[]);
   useEffect(()=>{const element=heroElement.current;if(!element||typeof IntersectionObserver==='undefined')return;const observer=new IntersectionObserver(([entry])=>setHeroActive(entry.isIntersecting));observer.observe(element);return ()=>observer.disconnect();},[heroItems.length]);
-  useEffect(()=>{if(!visible||!heroActive||heroDragging||heroItems.length<2||settledHero!==heroKey)return;if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;const timer=setTimeout(()=>{if(document.visibilityState==='visible')setHeroIndex(index=>(index+1)%heroItems.length);},8000);return ()=>clearTimeout(timer);},[visible,heroIndex,heroItems.length,heroActive,heroDragging,heroKey,settledHero]);
   // Keep the starting item stable when catalogs update underneath the pager.
   useEffect(()=>{setHeroIndex(current=>heroItems.length?current%heroItems.length:0);},[heroItems.length]);
   // Decode the current and adjacent artwork deliberately: the pager never
@@ -226,7 +213,7 @@ export function HomePage() {
   usePlacementFlip(upcomingRailRef);
 
   return <div className="home-page" style={heroStyle}>
-    {visible && <FullscreenButton onError={setActionError} />}
+    <HomeActivity viewKey={viewKey} locationKey={location.key} resetScroll={resetHomeScroll} heroIndexRef={heroIndexRef} heroIndex={heroIndex} heroKey={heroKey} settledHero={settledHero} heroActive={heroActive} heroDragging={heroDragging} heroCount={heroItems.length} setHeroIndex={setHeroIndex} onError={setActionError} />
     {hero && appearance?.home.heroEnabled!==false && <section ref={heroElement} className="home-hero" tabIndex={0} aria-label="Featured titles" aria-roledescription="carousel" onKeyDown={event=>{if(event.key==='ArrowRight'){event.preventDefault();moveHero(1);}if(event.key==='ArrowLeft'){event.preventDefault();moveHero(-1);}}}
       onClickCapture={event=>{if(heroSuppressedClick.current){heroSuppressedClick.current=false;event.preventDefault();event.stopPropagation();}}}
       onPointerDown={event=>{if(event.button!==0||(event.target as HTMLElement).closest('button'))return;const now=performance.now();heroDrag.current={startX:event.clientX,dx:0,dragging:false,startT:now,lastX:event.clientX,lastT:now};swipeStart.current=event.clientX;setHeroDragging(true);try{event.currentTarget.setPointerCapture(event.pointerId);}catch{/* noop */}}}
@@ -261,6 +248,32 @@ export function HomePage() {
     <HomeCollections shelves={home.shelves} />
     {showHomeEmpty && <EmptyState title="Your home is ready for content" message="Install an addon from Settings to add catalogs and discover titles here." icon={<Compass size={22} />} />}
   </div>;
+}
+
+/** Visibility changes only update lifecycle work, not the retained Home content. */
+function HomeActivity({ viewKey, locationKey, resetScroll, heroIndexRef, heroIndex, heroKey, settledHero, heroActive, heroDragging, heroCount, setHeroIndex, onError }: {
+  viewKey: string; locationKey: string; resetScroll: boolean; heroIndexRef: RefObject<number>;
+  heroIndex: number; heroKey: string; settledHero: string | null; heroActive: boolean; heroDragging: boolean; heroCount: number;
+  setHeroIndex: Dispatch<SetStateAction<number>>; onError: Dispatch<SetStateAction<string | null>>;
+}) {
+  const visible = useContext(HomeVisibility);
+  useLayoutEffect(() => {
+    if (!visible) return;
+    const main = document.querySelector<HTMLElement>('.main-area');
+    if (!main) return;
+    if (resetScroll) consumedHomeScrollResets.add(locationKey);
+    main.scrollTop = resetScroll ? 0 : homeViewPositions.get(viewKey)?.scrollTop ?? 0;
+    const save = () => homeViewPositions.set(viewKey, { scrollTop: main.scrollTop, heroIndex: heroIndexRef.current });
+    main.addEventListener('scroll', save, { passive: true });
+    return () => { main.removeEventListener('scroll', save); };
+  }, [visible, viewKey, resetScroll, locationKey, heroIndexRef]);
+  useEffect(() => {
+    if (!visible || !heroActive || heroDragging || heroCount < 2 || settledHero !== heroKey) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const timer = setTimeout(() => { if (document.visibilityState === 'visible') setHeroIndex(index => (index + 1) % heroCount); }, 8000);
+    return () => clearTimeout(timer);
+  }, [visible, heroIndex, heroCount, heroActive, heroDragging, heroKey, settledHero, setHeroIndex]);
+  return visible ? <FullscreenButton onError={onError} /> : null;
 }
 
 function HomeLoadingSkeleton({ showHero }: { showHero: boolean }) {

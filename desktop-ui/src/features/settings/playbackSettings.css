@@ -30,7 +30,7 @@
 button.skip-setting-row{cursor:pointer}
 .skip-setting-row:disabled{opacity:.5;cursor:default}
 .skip-setting-row>svg{flex:none;color:var(--text-muted,#989da2)}
-body:has(.settings-desktop) .skip-selection-dialog .dialog-surface{width:min(496.8px,90vw);max-height:604.8px;padding:21.6px;border:1px solid #ffffff08;border-radius:30.24px}
+body:has(.settings-desktop:where([data-tab-active="true"])) .skip-selection-dialog .dialog-surface{width:min(496.8px,90vw);max-height:604.8px;padding:21.6px;border:1px solid #ffffff08;border-radius:30.24px}
 .skip-selection-options{display:grid;gap:8.64px}
 .skip-selection-options>button{display:flex;align-items:center;gap:12.96px;padding:12.96px 15.12px;width:100%;text-align:left;border:1px solid transparent;border-radius:12.96px;background:none;color:var(--text);cursor:pointer}
 .skip-selection-options>button[aria-checked=true]{background:color-mix(in srgb,var(--app-accent) 8%,transparent);border-color:color-mix(in srgb,var(--app-accent) 15%,transparent)}

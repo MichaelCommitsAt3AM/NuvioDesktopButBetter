@@ -1,9 +1,10 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Check, CircleCheck, Plus } from 'lucide-react';
 import type { Media } from '../generated/contract';
 import { HoverTrailer } from './HoverTrailer';
 import { ImdbRating } from './ImdbRating';
+import { useTabActive } from '../navigation/tabActivity';
 
 type Props = {
   visible?: boolean;
@@ -76,9 +77,18 @@ function usePreloadedImage(src: string | null): boolean {
 export function PosterHoverPreview({ visible = true, item, rect, saved, watched, onOpen, onToggleWatched, onToggleSaved, onMouseEnter, onMouseLeave, trailer }: Props) {
   const [present, setPresent] = useState(visible);
   const [trailerDone, setTrailerDone] = useState(false);
+  const active = useTabActive();
+  const hideRef = useRef(onMouseLeave);
+  hideRef.current = onMouseLeave;
   const backdropReady = usePreloadedImage(item.background);
   const logoReady = usePreloadedImage(item.logo);
   useEffect(() => { setTrailerDone(false); }, [item.type, item.id]);
+  useEffect(() => {
+    if (active) return;
+    // A retained tab cannot keep a hover card over the next screen.
+    setPresent(false);
+    hideRef.current();
+  }, [active]);
   useEffect(() => {
     if (visible) { setPresent(true); return; }
     const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : HOVER_PREVIEW_EXIT_MS;
@@ -92,7 +102,7 @@ export function PosterHoverPreview({ visible = true, item, rect, saved, watched,
   const left = Math.max(HOVER_PREVIEW_EDGE_MARGIN, Math.min(centeredX, window.innerWidth - width - HOVER_PREVIEW_EDGE_MARGIN));
   const top = Math.max(HOVER_PREVIEW_EDGE_MARGIN, Math.min(rect.top - HOVER_PREVIEW_TOP_OVERLAP * scale, window.innerHeight - height - HOVER_PREVIEW_EDGE_MARGIN));
 
-  if (!present) return null;
+  if (!active || !present) return null;
   // Like Kotlin's scroll listener on the preview, wheel input dismisses
   // instead of scrolling the page behind the card.
   return createPortal(<div className={`poster-preview home-preview ${visible ? '' : 'is-closing'}`} inert={!visible} aria-hidden={!visible} style={{ left, top, width }} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} onWheel={onMouseLeave} onAnimationEnd={event => { if (!visible && event.target === event.currentTarget && event.animationName === 'poster-preview-close') setPresent(false); }} onClick={event => event.stopPropagation()}>

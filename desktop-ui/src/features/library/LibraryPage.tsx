@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Download, LayoutGrid, LibraryBig, LoaderCircle, Play, RefreshCw, Rows2, Search } from 'lucide-react';
 import { FullscreenButton } from '../../components/FullscreenButton';
 import { call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
@@ -12,7 +12,7 @@ import { useProgressiveCount } from '../../components/ProgressiveMount';
 import { Shelf } from '../../components/Shelf';
 import { useLocale } from '../../i18n/strings';
 
-import { Link, useNavigationType } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import './library.css';
 import type { AppearanceSnapshot } from '../settings/appearanceStore';
 import { projectLibraryItems } from './libraryProjection';
@@ -24,6 +24,7 @@ import { useDisintegratingRemoval } from '../../components/disintegration';
 import { usePlacementFlip } from '../../components/placementFlip';
 import { mediaKey } from '../../components/keys';
 import '../../components/disintegration.css';
+import { useTabActive, useTabActivated, useTabNavigationType } from '../../navigation/tabActivity';
 
 type Extras = { sortOptions?: string[]; orderedKeys?: string[]; source: string; layout: string; sort: string; tabs: { key: string; title: string }[]; items: { id: string; type: string; savedAt: number; listKeys: string[]; category: string }[]; sections: { type: string; title: string; items: string[] }[] };
 type CloudType = 'torrent' | 'usenet' | 'webdownload' | 'file';
@@ -44,14 +45,26 @@ export function LibraryPage() {
   const [selectedCloudItem, setSelectedCloudItem] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
-  const navigationType = useNavigationType();
+  const navigationType = useTabNavigationType();
   const profileId = useActiveProfileId();
+  const active = useTabActive();
   const gridRef = useRef<HTMLDivElement>(null);
   useEffect(() => { setSelectedList(''); setSelectedType(''); }, [profileId, extras?.source]);
   const layout = extras?.layout === 'vertical' ? 'vertical' : 'horizontal';
   const selectedSection = extras?.sections.find(section => section.type === selectedList);
   usePlacementFlip(gridRef);
   useEffect(() => { void refreshFeature('libraryExtras', 'library.extras').catch(cause => setError(String(cause))); }, []);
+  // Retained Library keeps local filters/mode/scroll, but local repository
+  // data can change from Details or Settings while it is hidden.
+  useTabActivated(() => {
+    void refreshFeature('libraryExtras', 'library.extras').catch(cause => setError(String(cause)));
+    if (mode === 'cloud') void refreshFeature('cloud').catch(cause => setError(String(cause)));
+  });
+  useLayoutEffect(() => {
+    if (active) return;
+    // The cloud file picker is a transient view, not a tab-level filter.
+    setSelectedCloudItem(null);
+  }, [active]);
   useEffect(() => { if (mode === 'cloud') { setSelectedCloudItem(null); void refreshFeature('cloud').catch(cause => setError(String(cause))); } }, [mode]);
   const run = async (method: string, params: Record<string, unknown>, topic = 'libraryExtras') => { setError(''); try { await call(method, params); await refreshFeature(topic, topic === 'libraryExtras' ? 'library.extras' : 'cloud.snapshot'); } catch(cause) { setError(cause instanceof Error ? cause.message : String(cause)); } };
   const flatItems = useMemo(() => {
@@ -76,9 +89,9 @@ export function LibraryPage() {
   }), [library.items, extras, selectedList, selectedType]);
   const displayItems = layout === 'vertical' ? vertical.items : flatItems;
   const sortOptions = extras?.sortOptions ?? [];
-  const columns = useLibraryGridColumns(gridRef, appearance?.cardStyle?.widthDp ?? 126, layout === 'vertical');
+  const columns = useLibraryGridColumns(gridRef, appearance?.cardStyle?.widthDp ?? 126, active && layout === 'vertical');
   const hasContent = displayItems.length > 0 || (extras?.sections.length ?? 0) > 0;
-  useListScrollRestore(scrollKey(profileId, '/library', `${layout}|${mode}|${extras?.sort ?? ''}|${selectedSection?.type ?? ''}|${vertical.selectedType ?? ''}`), navigationType, !library.loading);
+  useListScrollRestore(scrollKey(profileId, '/library', `${layout}|${mode}|${extras?.sort ?? ''}|${selectedSection?.type ?? ''}|${vertical.selectedType ?? ''}`), navigationType, !library.loading, active);
   const removal = useDisintegratingRemoval(displayItems, (entry) => mediaKey(entry.type, entry.id), profileId);
   const playCloud = async (itemKey: string, fileKey: string) => { setBusy(fileKey); try { await call('cloud.play', { itemKey, fileKey }); setError(''); } catch(cause) { setError(cause instanceof Error ? cause.message : String(cause)); } finally { setBusy(''); } };
   const visibleCount = useProgressiveCount(displayItems.length, `library:${layout}:${extras?.sort ?? 'added_desc'}:${mode}:${selectedSection?.type ?? ''}:${vertical.selectedType ?? ''}`);
@@ -125,7 +138,7 @@ export function LibraryPage() {
     </div>
     : null;
   const shelfSections = extras?.sections.length ? extras.sections : [{ type: 'all', title: 'Saved titles', items: flatItems.map(item => `${item.type}|${item.id}`) }];
-  return <div className={`page library-page ${mode === 'cloud' ? 'library-cloud-mode' : ''}`}>
+  return <div className={`page library-page ${mode === 'cloud' ? 'library-cloud-mode' : ''}`} data-tab-active={active ? 'true' : undefined}>
     <FullscreenButton onError={setError} />
     <PageHeader title="Library" action={headerActions} />
     <div className="library-source-switch" role="tablist" aria-label="Library source">

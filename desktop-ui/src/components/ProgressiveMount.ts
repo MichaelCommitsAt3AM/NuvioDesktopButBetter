@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { startTransition, useEffect, useState } from 'react';
 
 export const PROGRESSIVE_MOUNT_STEP = 24;
 
@@ -22,9 +22,13 @@ export function useProgressiveCount(total: number, resetKey: string, step = PROG
   useEffect(() => {
     if (count >= total) return;
     const frame = requestAnimationFrame(() => {
-      setState((current) => current.key === resetKey
-        ? { ...current, count: Math.min(total, current.count + step) }
-        : current);
+      // Poster filling is background work; input and navigation can interrupt
+      // React between cards instead of competing with an urgent full batch.
+      startTransition(() => {
+        setState((current) => current.key === resetKey
+          ? { ...current, count: Math.min(total, current.count + step) }
+          : current);
+      });
     });
     return () => cancelAnimationFrame(frame);
   }, [count, total, resetKey, step]);

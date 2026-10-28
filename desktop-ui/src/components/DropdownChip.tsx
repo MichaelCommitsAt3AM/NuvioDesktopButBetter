@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown } from 'lucide-react';
+import { useTabActive } from '../navigation/tabActivity';
 import './dropdownChip.css';
 
 export type DropdownChipOption = { key: string; label: string };
@@ -26,6 +27,10 @@ export function DropdownChip({ label, selectedKey, options, enabled = true, aria
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const accessibleLabel = ariaLabel ?? label;
+  const active = useTabActive();
+
+  // A portal menu must not survive into another root tab's screen.
+  useLayoutEffect(() => { if (!active) setOpen(false); }, [active]);
 
   const updatePosition = () => {
     const rect = triggerRef.current?.getBoundingClientRect();
@@ -61,7 +66,7 @@ export function DropdownChip({ label, selectedKey, options, enabled = true, aria
       <span className="dropdown-chip-label">{label}</span>
       <ChevronDown size={16} aria-hidden="true" />
     </button>
-    {open && enabled && position && createPortal(
+    {active && open && enabled && position && createPortal(
       <div ref={menuRef} className={`dropdown-chip-menu ${menuClassName}`} role="listbox" aria-label={accessibleLabel} style={{ top: position.top, left: position.left, width: position.width }}>
         {options.map(option => <button type="button" role="option" aria-selected={option.key === selectedKey} key={option.key} className={`dropdown-chip-option ${option.key === selectedKey ? 'selected' : ''}`} onClick={() => { onSelect(option); setOpen(false); }}>
           <span>{option.label}</span>

@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { memo, type CSSProperties } from 'react';
 import type { Media } from '../generated/contract';
 import { useFeatureSnapshot } from '../bridge';
 import type { AppearanceSnapshot } from '../features/settings/appearanceStore';
@@ -8,7 +8,7 @@ import { PROGRESSIVE_MOUNT_STEP, useProgressiveCount } from './ProgressiveMount'
 import { mediaKey, stableKeys } from './keys';
 import { posterMetrics } from './posterMetrics';
 
-export function PosterGrid({ items, resetKey, initialVisibleCount = 0 }: { items: Media[]; resetKey: string; initialVisibleCount?: number }) {
+export const PosterGrid = memo(function PosterGrid({ items, resetKey, initialVisibleCount = 0 }: { items: Media[]; resetKey: string; initialVisibleCount?: number }) {
   const appearance = useFeatureSnapshot<AppearanceSnapshot>('appearance');
   const metrics = posterMetrics(appearance?.cardStyle);
   const visibleCount = useProgressiveCount(items.length, resetKey, PROGRESSIVE_MOUNT_STEP, initialVisibleCount);
@@ -19,4 +19,4 @@ export function PosterGrid({ items, resetKey, initialVisibleCount = 0 }: { items
     {visibleItems.map((item,index) => <Poster key={itemKeys[index]} item={item} />)}
     {Array.from({ length: pendingCount }, (_, index) => <PosterLoadingCard variant="poster" key={`skeleton-${index}`} />)}
   </div>;
-}
+});

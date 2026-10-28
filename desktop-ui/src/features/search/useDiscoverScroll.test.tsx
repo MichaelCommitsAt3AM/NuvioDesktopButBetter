@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useNavigate, useNavigationType } from 'react-router-dom';
 import { useDiscoverScroll } from './useDiscoverScroll';
+import { TabNavigationType } from '../../navigation/tabActivity';
 
 let notifyResize: () => void;
 let sequence = 0;
@@ -33,8 +34,12 @@ function Detail() {
   const navigate = useNavigate();
   return <><button onClick={() => navigate(-1)}>Back</button><button onClick={() => navigate('/search')}>Fresh Search entry</button></>;
 }
+function DiscoverRoute() {
+  const navigationType = useNavigationType();
+  return <TabNavigationType.Provider value={navigationType}><Discover /></TabNavigationType.Provider>;
+}
 const page = () => <MemoryRouter initialEntries={[{ pathname: '/search', key: `discover-scroll-${sequence++}` }]}>
-  <main className="main-area"><Routes><Route path="/search" element={<Discover />} /><Route path="/details/movie" element={<Detail />} /></Routes></main>
+  <main className="main-area"><Routes><Route path="/search" element={<DiscoverRoute />} /><Route path="/details/movie" element={<Detail />} /></Routes></main>
 </MemoryRouter>;
 function scrollTo(top: number) {
   const main = document.querySelector<HTMLElement>('.main-area')!;

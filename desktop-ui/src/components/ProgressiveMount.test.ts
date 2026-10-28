@@ -1,10 +1,22 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useProgressiveCount } from './ProgressiveMount';
+import { flushSync } from 'react-dom';
 
-afterEach(() => { vi.useRealTimers(); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('useProgressiveCount', () => {
+  it('does not include poster filling in an urgent input commit', () => {
+    let frame: FrameRequestCallback | undefined;
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frame = callback; return 1; });
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    const { result } = renderHook(() => useProgressiveCount(30, 'catalog', 10));
+    act(() => {
+      flushSync(() => frame!(16));
+      expect(result.current).toBe(0);
+    });
+    expect(result.current).toBe(10);
+  });
   async function advanceFrames(frames: number) {
     for (let frame = 0; frame < frames; frame += 1) {
       await act(async () => { await vi.advanceTimersByTimeAsync(16); });

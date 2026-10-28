@@ -7,6 +7,7 @@ import { checkForUpdates } from '../updater/updater';
 import { PageHeader } from '../../components/ui';
 import { Dialog } from '../../components/Dialog';
 import { settingsCategory } from './SettingsLayout';
+import { useTabActive } from '../../navigation/tabActivity';
 import { searchSettings, settingsResultDescription, settingsResultRoute } from './SettingsSearchEntries';
 import './settingsSearch.css';
 
@@ -29,6 +30,7 @@ const entries = [
 export function SettingsLanding() {
   const location=useLocation();
   const category=settingsCategory(location.pathname,location.search);
+  const active=useTabActive();
   const [query,setQuery]=useState('');
   const [searchVisible,setSearchVisible]=useState(false);
   const searchInput=useRef<HTMLInputElement>(null);
@@ -38,9 +40,10 @@ export function SettingsLanding() {
   const title=searching?'Settings':category[0].toUpperCase()+category.slice(1);
   useEffect(()=>{setQuery('');setSearchVisible(false);},[category]);
   useEffect(()=>{
+    if(!active)return;
     const key=(event:KeyboardEvent)=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='f'){event.preventDefault();setSearchVisible(true);searchInput.current?.focus();}};
     document.addEventListener('keydown',key);return()=>document.removeEventListener('keydown',key);
-  },[]);
+  },[active]);
   async function checkUpdates(){
     setChecking(true);setUpdateMessage('Checking for updates…');
     try{setUpdateMessage(await checkForUpdates());}

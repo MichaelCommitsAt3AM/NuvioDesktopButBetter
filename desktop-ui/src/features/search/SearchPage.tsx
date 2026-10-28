@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
@@ -12,16 +12,20 @@ import { InlineError } from '../../components/Status';
 import { FullscreenButton } from '../../components/FullscreenButton';
 import './search.css';
 import { useDiscoverScroll } from './useDiscoverScroll';
+import { useTabActive, useTabActivated } from '../../navigation/tabActivity';
 
 const MAX_RECENT_SEARCHES = 5;
 
 export function SearchPage({ focusRequested = false, onFocusHandled }: { focusRequested?: boolean; onFocusHandled?: () => void } = {}) {
-  const search = useSelector((current) => current.search) as SearchState;
-  const discover = useSelector((current) => current.discover) as Discover | null;
+  // Receive bridge snapshots urgently, but let rendering result grids yield to
+  // the navigation pill and text input. Headers and routing remain immediate.
+  const search = useDeferredValue(useSelector((current) => current.search) as SearchState);
+  const discover = useDeferredValue(useSelector((current) => current.discover) as Discover | null);
   const addons = useSelector((current) => current.addons) as Addon[];
   const appearance = useFeatureSnapshot<AppearanceSnapshot>('appearance');
   const history = useSelector((current) => current.searchHistory) as SearchHistory | null;
   const profileId = useSelector(current => current.session.activeProfile);
+  const active = useTabActive();
   const [query, setQuery] = useState(search.query);
   const [queryPending, setQueryPending] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -30,12 +34,20 @@ export function SearchPage({ focusRequested = false, onFocusHandled }: { focusRe
   const inputRef = useRef<HTMLInputElement>(null);
   useLayoutEffect(() => {
     if (!focusRequested) return;
+    if (!active) return;
     inputRef.current?.focus({ preventScroll: true });
     onFocusHandled?.();
-  }, [focusRequested, onFocusHandled]);
+  }, [active, focusRequested, onFocusHandled]);
+  // Hidden tabs cannot be typed into, so drop transient overlays and the
+  // remembered focus state instead of carrying them back on the next visit.
+  useLayoutEffect(() => {
+    if (active) return;
+    setFocused(false);
+    setOpenFilter(null);
+  }, [active]);
   const paging = useRef(false);
   const discoverCatalogKey = discover ? JSON.stringify([discover.selectedType, discover.selectedCatalogKey, discover.selectedGenre]) : null;
-  const discoverScroll = useDiscoverScroll(profileId, discoverCatalogKey, Boolean(query.trim()), top => setScrolled(top > 48));
+  const discoverScroll = useDiscoverScroll(profileId, discoverCatalogKey, Boolean(query.trim()), top => setScrolled(top > 48), active);
   const updateQuery = (value: string) => {
     setQuery(value);
     setQueryPending(Boolean(value.trim()));
@@ -60,16 +72,22 @@ export function SearchPage({ focusRequested = false, onFocusHandled }: { focusRe
   useEffect(() => {
     void refreshFeature<SearchHistory>('searchHistory', 'search.historySnapshot').catch(() => {});
   }, []);
+  // Recent searches can change from Settings while this tab is hidden.
+  useTabActivated(() => {
+    void refreshFeature<SearchHistory>('searchHistory', 'search.historySnapshot').catch(() => {});
+  });
 
   useEffect(() => {
-    let active = true;
+    if (!active) return;
+    let requestActive = true;
     void call('discover.refresh')
-      .then(() => active ? refreshFeature<Discover>('discover') : undefined)
+      .then(() => requestActive ? refreshFeature<Discover>('discover') : undefined)
       .catch(() => {});
-    return () => { active = false; };
-  }, [addonRefreshKey, hideUnreleasedContent]);
+    return () => { requestActive = false; };
+  }, [active, addonRefreshKey, hideUnreleasedContent]);
 
   useEffect(() => {
+    if (!active) return;
     const normalized = query.trim();
     const timer = window.setTimeout(() => {
       if (!normalized) {
@@ -88,9 +106,10 @@ export function SearchPage({ focusRequested = false, onFocusHandled }: { focusRe
       void actions.searchStart(normalized);
     }, normalized ? 350 : 0);
     return () => window.clearTimeout(timer);
-  }, [query]);
+  }, [query, active]);
 
   useEffect(() => {
+    if (!active) return;
     const main = document.querySelector<HTMLElement>('.main-area');
     if (!main) return;
     const onScroll = () => {
@@ -103,7 +122,7 @@ export function SearchPage({ focusRequested = false, onFocusHandled }: { focusRe
     };
     main.addEventListener('scroll', onScroll, { passive: true });
     return () => main.removeEventListener('scroll', onScroll);
-  }, [query, discover?.hasMore, discover?.loading]);
+  }, [active, query, discover?.hasMore, discover?.loading]);
 
   useEffect(() => {
     if (search.error || !search.query || search.loading || search.shelves.length === 0) return;
@@ -129,7 +148,7 @@ export function SearchPage({ focusRequested = false, onFocusHandled }: { focusRe
   };
   const searchEmpty = useMemo(() => emptyMessage(null, Boolean(search.error)), [search.error]);
 
-  return <div className="page search-page">
+  return <div className="page search-page" data-tab-active={active ? 'true' : undefined}>
     <FullscreenButton />
     <header className="search-sticky-header">
       <h1>{!query.trim() && scrolled ? 'Discover' : 'Search'}</h1>

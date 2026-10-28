@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useTabActive } from '../../navigation/tabActivity';
 import { settingsSearchEntries } from './SettingsSearchEntries';
 import { normalizeSettingsText } from './settingsSearchMatching';
 import './settingsSearch.css';
@@ -7,7 +8,9 @@ import './settingsSearch.css';
 /** Wait for asynchronously loaded controls without activating or changing them. */
 export function SettingsSearchTarget() {
   const location = useLocation();
+  const active = useTabActive();
   useEffect(() => {
+    if (!active) return;
     const key = new URLSearchParams(location.search).get('setting');
     const entry = settingsSearchEntries.find(item => item.key === key && item.route === location.pathname);
     const pane = document.querySelector<HTMLElement>('.settings-pane');
@@ -46,6 +49,6 @@ export function SettingsSearchTarget() {
         else highlighted.setAttribute('tabindex', previousTabIndex);
       }
     };
-  }, [location.pathname, location.search, location.key]);
+  }, [active, location.pathname, location.search, location.key]);
   return null;
 }

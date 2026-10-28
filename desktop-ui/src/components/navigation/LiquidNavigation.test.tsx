@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
 import { Link, MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
-import { StrictMode } from 'react';
+import { Profiler, StrictMode } from 'react';
 import { LiquidNavigation } from './LiquidNavigation';
 
 class StubObserver {
@@ -128,8 +128,8 @@ function DragNavigation({ onSelect, onStart, profileOpen = false }: { onSelect: 
 
 describe('Kotlin-style navigation dragging', () => {
   afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
-  function setup({ reduced = false, density = 1, profileOpen = false } = {}) {
-    vi.stubGlobal('ResizeObserver', StubObserver);
+  function setup({ reduced = false, density = 1, profileOpen = false, Observer = StubObserver } = {}) {
+    vi.stubGlobal('ResizeObserver', Observer);
     vi.stubGlobal('PointerEvent', MouseEvent);
     vi.stubGlobal('matchMedia', () => ({ matches: reduced, addEventListener() {}, removeEventListener() {} }));
     const frames = new Map<number, FrameRequestCallback>();
@@ -137,9 +137,10 @@ describe('Kotlin-style navigation dragging', () => {
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames.set(++frameId, callback); return frameId; });
     vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
     const onSelect = vi.fn(), onStart = vi.fn();
-    const view = render(<MemoryRouter><DragNavigation onSelect={onSelect} onStart={onStart} profileOpen={profileOpen} /></MemoryRouter>);
+    const commits = vi.fn();
+    const view = render(<Profiler id="navigation" onRender={commits}><div className="shell"><main className="main-area" /><MemoryRouter><DragNavigation onSelect={onSelect} onStart={onStart} profileOpen={profileOpen} /></MemoryRouter></div></Profiler>);
     const nav = view.getByRole('navigation');
-    Object.defineProperties(nav, { clientWidth: { value: 456 * density }, clientHeight: { value: 48 * density } });
+    Object.defineProperties(nav, { clientWidth: { value: 456 * density, configurable: true }, clientHeight: { value: 48 * density, configurable: true } });
     nav.style.setProperty('--ui-scale', String(density));
     Object.assign(nav, { setPointerCapture: vi.fn() });
     fireEvent.resize(window);
@@ -148,8 +149,11 @@ describe('Kotlin-style navigation dragging', () => {
         time += 16; const pending = [...frames.values()]; frames.clear(); pending.forEach(callback => callback(time));
       }
     };
+    const frame = () => {
+      time += 16; const pending = [...frames.values()]; frames.clear(); pending.forEach(callback => callback(time));
+    };
     const pointer = (x: number) => ({ button: 0, clientX: x * density, clientY: 24 * density });
-    return { ...view, nav, onSelect, onStart, advance, pointer };
+    return { ...view, nav, onSelect, onStart, advance, frame, commits, pointer };
   }
 
   it.each([false, true])('drags across real links, navigating only on release (reduced motion: %s)', reduced => {
@@ -236,5 +240,52 @@ describe('Kotlin-style navigation dragging', () => {
     fireEvent.pointerUp(view.nav, view.pointer(396));
     expect(view.onStart).not.toHaveBeenCalled();
     expect(view.onSelect).not.toHaveBeenCalled();
+  });
+
+  it('coalesces pointer bursts into animation frames and skips visually unchanged scroll updates', () => {
+    const view = setup(); view.advance();
+    const pill = view.container.querySelector('.liquid-nav-paint.selected') as HTMLElement;
+    const writes = vi.spyOn(pill.style, 'clipPath', 'set');
+    fireEvent.pointerDown(view.nav, view.pointer(60));
+    for (let x = 70; x <= 300; x += 10) fireEvent.pointerMove(view.nav, view.pointer(x));
+    const beforeFrame = writes.mock.calls.length;
+    view.frame(); view.frame();
+    const afterFrame = writes.mock.calls.length;
+    const scroller = view.container.querySelector('.main-area') as HTMLElement;
+    view.commits.mockClear();
+    for (const top of [1, 5, 10, 15, 20, 25, 30]) { scroller.scrollTop = top; fireEvent.scroll(scroller); }
+    expect({ beforeFrame, afterFrame, scrollCommits: view.commits.mock.calls.length }).toEqual({ beforeFrame: 0, afterFrame: 1, scrollCommits: 0 });
+  });
+
+  it('uses observer geometry during label expansion without forcing layout or rereading styles', () => {
+    let notify: ResizeObserverCallback;
+    class Observer extends StubObserver {
+      constructor(callback: ResizeObserverCallback) { super(callback); notify = callback; }
+    }
+    const view = setup({ Observer }); view.advance();
+    const pill = view.container.querySelector('.liquid-nav-paint.selected') as HTMLElement;
+    const initial = pill.style.clipPath;
+    const widthRead = vi.fn(() => 456), heightRead = vi.fn(() => 48);
+    Object.defineProperties(view.nav, { clientWidth: { get: widthRead }, clientHeight: { get: heightRead } });
+    const computed = vi.spyOn(window, 'getComputedStyle');
+    for (const width of [320, 384.6, 456]) {
+      notify!([{ target: view.nav, contentRect: new DOMRectReadOnly(0, 0, width, 48), borderBoxSize: [], contentBoxSize: [], devicePixelContentBoxSize: [] }], {} as ResizeObserver);
+    }
+    expect(pill.style.clipPath).toBe(initial);
+    expect(widthRead).not.toHaveBeenCalled(); expect(heightRead).not.toHaveBeenCalled(); expect(computed).not.toHaveBeenCalled();
+  });
+
+  it('preserves frosted-scroll thresholds when switching from Home to Settings', () => {
+    const view = setup(); view.advance();
+    const scroller = view.container.querySelector('.main-area') as HTMLElement;
+    const scroll = (top: number) => { scroller.scrollTop = top; fireEvent.scroll(scroller); };
+    scroll(35); expect(view.nav).not.toHaveClass('frosted');
+    scroll(36); expect(view.nav).toHaveClass('frosted');
+    scroll(60);
+    fireEvent.click(view.getByRole('link', { name: 'Profile Settings' }));
+    expect(view.nav).not.toHaveClass('frosted');
+    scroll(70); expect(view.nav).not.toHaveClass('frosted');
+    scroll(71); expect(view.nav).toHaveClass('frosted');
+    scroll(0); expect(view.nav).not.toHaveClass('frosted');
   });
 });

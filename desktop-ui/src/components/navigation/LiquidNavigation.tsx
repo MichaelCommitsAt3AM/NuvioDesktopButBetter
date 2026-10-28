@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
-import { JellyMotion, desktopNavigationLabels, jellyPillBounds, jellyPillPath } from './jellyMotion';
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
+import { JellyMotion, desktopNavigationLabels, jellyPillBounds, jellyPillPath, type JellyFrame } from './jellyMotion';
 import './liquidNavigation.css';
 
 type Props = { children: ReactNode; visuals: ReactNode[]; labels: string[]; selectedIndex: number; style: string; heroEnabled: boolean; profileOpen: boolean; glowEnabled: boolean; routeKey: string; onDragSelect: (index: number) => void; onDragStart: () => void };
-export function LiquidNavigation({ children, visuals, labels, selectedIndex, style, heroEnabled, profileOpen, glowEnabled, routeKey, onDragSelect, onDragStart }: Props) {
+export const LiquidNavigation = memo(function LiquidNavigation({ children, visuals, labels, selectedIndex, style, heroEnabled, profileOpen, glowEnabled, routeKey, onDragSelect, onDragStart }: Props) {
   const nav = useRef<HTMLElement>(null);
   const track = useRef<HTMLDivElement>(null), distortion = useRef<HTMLDivElement>(null), panel = useRef<HTMLDivElement>(null);
   const inactive = useRef<HTMLDivElement>(null), active = useRef<HTMLDivElement>(null);
@@ -11,11 +11,12 @@ export function LiquidNavigation({ children, visuals, labels, selectedIndex, sty
   const raf = useRef<number | null>(null), lastFrame = useRef<number | null>(null);
   const selected = useRef(selectedIndex);
   const geometry = useRef({ width: 0, height: 0, density: 1 });
-  const [hovered, setHovered] = useState(false), [focused, setFocused] = useState(false), [scrollOffset, setScrollOffset] = useState(0);
+  const painted = useRef<{ frame: JellyFrame; geometry: typeof geometry.current; selected: number; count: number } | null>(null);
+  const [hovered, setHovered] = useState(false), [focused, setFocused] = useState(false), [scrolled, setScrolled] = useState(false);
+  const scrollState = useRef(false);
   const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
   const down = useRef<{ pointerId: number; x: number; y: number; claimed: boolean } | null>(null);
   const suppressClick = useRef(false), suppressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scrolled = scrollOffset > (selectedIndex === labels.length - 1 ? 70 : 35);
   const expanded = desktopNavigationLabels(style, selectedIndex === 0, heroEnabled, hovered || focused, profileOpen, scrolled);
   const frosted = hovered || focused || profileOpen || ((selectedIndex === 0 || selectedIndex === labels.length - 1) && scrolled);
   const paint = useCallback(() => {
@@ -23,28 +24,35 @@ export function LiquidNavigation({ children, visuals, labels, selectedIndex, sty
     if (!element) return;
     const { width, height, density } = geometry.current;
     const frame = motion.current.frame;
-    if (track.current) track.current.style.transform = 'scale(' + frame.trackScale + ')';
+    const previous = painted.current, before = previous?.frame;
+    const resized = previous?.geometry !== geometry.current;
+    const originChanged = resized || before?.originX !== frame.originX;
+    // Write only channels that changed; the spring's values and precision stay intact.
+    if (track.current && before?.trackScale !== frame.trackScale) track.current.style.transform = 'scale(' + frame.trackScale + ')';
     if (distortion.current) {
-      distortion.current.style.transformOrigin = frame.originX * density + 'px 50%';
-      distortion.current.style.transform = 'translateY(' + frame.trackOffsetY * density + 'px) scaleX(' + frame.trackScaleX + ')';
+      if (originChanged) distortion.current.style.transformOrigin = frame.originX * density + 'px 50%';
+      if (resized || before?.trackOffsetY !== frame.trackOffsetY || before?.trackScaleX !== frame.trackScaleX) distortion.current.style.transform = 'translateY(' + frame.trackOffsetY * density + 'px) scaleX(' + frame.trackScaleX + ')';
     }
     if (panel.current) {
-      panel.current.style.transform = 'translateX(' + frame.panelOffset * density + 'px)';
-      panel.current.style.setProperty('--nav-glow-x', frame.originX * density + 'px');
-      panel.current.style.setProperty('--nav-glow-y', frame.glowY * density + 'px');
-      panel.current.style.setProperty('--nav-glow-opacity', String(frame.glowOpacity));
+      if (resized || before?.panelOffset !== frame.panelOffset) panel.current.style.transform = 'translateX(' + frame.panelOffset * density + 'px)';
+      if (originChanged) panel.current.style.setProperty('--nav-glow-x', frame.originX * density + 'px');
+      if (resized || before?.glowY !== frame.glowY) panel.current.style.setProperty('--nav-glow-y', frame.glowY * density + 'px');
+      if (before?.glowOpacity !== frame.glowOpacity) panel.current.style.setProperty('--nav-glow-opacity', String(frame.glowOpacity));
     }
-    const bounds = jellyPillBounds(frame, width / density, height / density, labels.length);
-    const path = jellyPillPath({ x: bounds.x * density, y: bounds.y * density, width: bounds.width * density, height: bounds.height * density, rx: bounds.rx * density, ry: bounds.ry * density });
+    if (resized || previous?.count !== labels.length || previous?.selected !== selected.current || before?.position !== frame.position || before?.pillScaleX !== frame.pillScaleX || before?.pillScaleY !== frame.pillScaleY) {
+      const bounds = jellyPillBounds(frame, width / density, height / density, labels.length);
+      const path = jellyPillPath({ x: bounds.x * density, y: bounds.y * density, width: bounds.width * density, height: bounds.height * density, rx: bounds.rx * density, ry: bounds.ry * density });
+      if (active.current) active.current.style.clipPath = 'path("' + path + '")';
+      if (inactive.current) inactive.current.style.clipPath = selected.current >= 0 ? 'path(evenodd, "M -48 -16 H ' + (width + 48) + ' V ' + (height + 16) + ' H -48 Z ' + path + '")' : 'none';
+    }
     if (active.current) {
-      active.current.style.clipPath = 'path("' + path + '")';
-      active.current.style.visibility = selected.current >= 0 ? 'visible' : 'hidden';
-      active.current.style.setProperty('--nav-content-scale', String(frame.contentScale));
+      if (previous?.selected !== selected.current) active.current.style.visibility = selected.current >= 0 ? 'visible' : 'hidden';
+      if (before?.contentScale !== frame.contentScale) active.current.style.setProperty('--nav-content-scale', String(frame.contentScale));
     }
-    if (inactive.current) inactive.current.style.clipPath = selected.current >= 0 ? 'path(evenodd, "M -48 -16 H ' + (width + 48) + ' V ' + (height + 16) + ' H -48 Z ' + path + '")' : 'none';
     // The Settings avatar is painted once by the interactive target, like ProfileSwitcherTab.
     const coverage = Math.max(0, 1 - Math.abs(frame.position - (labels.length - 1)));
-    element.style.setProperty('--nav-profile-scale', String(1 + (frame.contentScale - 1) * coverage));
+    if (previous?.count !== labels.length || before?.contentScale !== frame.contentScale || before?.position !== frame.position) element.style.setProperty('--nav-profile-scale', String(1 + (frame.contentScale - 1) * coverage));
+    painted.current = { frame, geometry: geometry.current, selected: selected.current, count: labels.length };
   }, [labels.length]);
   const start = useCallback(() => {
     if (raf.current !== null) return;
@@ -70,19 +78,30 @@ export function LiquidNavigation({ children, visuals, labels, selectedIndex, sty
   useLayoutEffect(() => {
     const element = nav.current;
     if (!element) return;
-    const measure = () => {
-      const density = Number(getComputedStyle(element).getPropertyValue('--ui-scale')) || 1;
-      const viewportWidth = window.innerWidth / density;
-      const iconSize = viewportWidth < 800 ? 26 : viewportWidth > 1600 ? 30 : 28;
-      element.style.setProperty('--nav-icon-size', iconSize * density + 'px');
-      const width = element.clientWidth, height = element.clientHeight;
-      geometry.current = { width, height, density };
+    let density = 1;
+    const measure = (width: number, height: number) => {
+      const previous = geometry.current;
+      if (width !== previous.width || height !== previous.height || density !== previous.density) geometry.current = { width, height, density };
       motion.current.resize(width / density, height / density, labels.length);
       paint();
     };
-    const observer = new ResizeObserver(measure); observer.observe(element); measure();
-    window.addEventListener('resize', measure);
-    return () => { observer.disconnect(); window.removeEventListener('resize', measure); };
+    const measureViewport = () => {
+      density = Number(getComputedStyle(element).getPropertyValue('--ui-scale')) || 1;
+      const viewportWidth = window.innerWidth / density;
+      const iconSize = viewportWidth < 800 ? 26 : viewportWidth > 1600 ? 30 : 28;
+      const iconPixels = iconSize * density + 'px';
+      if (element.style.getPropertyValue('--nav-icon-size') !== iconPixels) element.style.setProperty('--nav-icon-size', iconPixels);
+      measure(element.clientWidth, element.clientHeight);
+    };
+    // The observer already supplies the laid-out size during label expansion.
+    // Reading clientWidth after rewriting icon size would force another layout.
+    const observer = new ResizeObserver(entries => {
+      const entry = entries.find(item => item.target === element);
+      if (entry) measure(Math.round(entry.contentRect.width), Math.round(entry.contentRect.height));
+    });
+    observer.observe(element); measureViewport();
+    window.addEventListener('resize', measureViewport);
+    return () => { observer.disconnect(); window.removeEventListener('resize', measureViewport); };
   }, [paint, labels.length]);
   useEffect(() => {
     const media = window.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -92,18 +111,27 @@ export function LiquidNavigation({ children, visuals, labels, selectedIndex, sty
   }, []);
   useLayoutEffect(() => {
     const shell = nav.current?.closest('.shell');
+    const settingsRoute = routeKey === '/settings' || routeKey.startsWith('/settings/');
+    // Retained Settings keeps a `.settings-pane` in the DOM while hidden. Only
+    // treat it as the current scroller on the Settings route.
+    const pane = settingsRoute ? shell?.querySelector<HTMLElement>('.settings-pane') ?? null : null;
+    const updateOffset = (offset: number) => {
+      const value = offset > (selectedIndex === labels.length - 1 ? 70 : 35);
+      if (value !== scrollState.current) { scrollState.current = value; setScrolled(value); }
+    };
     const readOffset = () => {
-      const main = shell?.querySelector<HTMLElement>('.settings-pane, .main-area');
-      const settings = shell?.querySelector<HTMLElement>('.settings-pane');
-      setScrollOffset((settings ?? main)?.scrollTop ?? 0);
+      const main = shell?.querySelector<HTMLElement>('.main-area');
+      updateOffset((pane ?? main)?.scrollTop ?? 0);
     };
     readOffset(); const first = requestAnimationFrame(readOffset);
     const onScroll = (event: Event) => {
-      if (event.target instanceof HTMLElement && (event.target.matches('.main-area') || event.target.matches('.settings-pane'))) setScrollOffset(event.target.scrollTop);
+      if (!(event.target instanceof HTMLElement)) return;
+      if (event.target === pane) updateOffset(event.target.scrollTop);
+      else if (!pane && event.target.matches('.main-area')) updateOffset(event.target.scrollTop);
     };
     shell?.addEventListener('scroll', onScroll, true);
     return () => { cancelAnimationFrame(first); shell?.removeEventListener('scroll', onScroll, true); };
-  }, [routeKey]);
+  }, [routeKey, selectedIndex, labels.length]);
   useEffect(() => {
     if (profileOpen && motion.current.dragging) { motion.current.cancel(selectedIndex); down.current = null; if (reducedMotion) motion.current.settle(selectedIndex); paint(); if (!reducedMotion) start(); }
   }, [profileOpen, selectedIndex, paint, start, reducedMotion]);
@@ -117,7 +145,7 @@ export function LiquidNavigation({ children, visuals, labels, selectedIndex, sty
     if (!gesture.claimed && Math.max(Math.abs(dx), Math.abs(dy)) > 8) { gesture.claimed = true; onDragStart(); event.currentTarget.setPointerCapture(event.pointerId); }
     motion.current.drag(dx, dy, reducedMotion);
     if (gesture.claimed) event.preventDefault();
-    paint(); if (!reducedMotion) start();
+    if (reducedMotion) paint(); else start();
   }
   function renderVisuals() { return labels.map((label, index) => <div className="liquid-nav-item" key={label}><div className="liquid-nav-content"><span className="liquid-nav-icon">{visuals[index]}</span><span className="liquid-nav-label"><span>{label}</span></span></div></div>); }
   return <nav ref={nav} aria-label="Main navigation" className={'floating-nav liquid-nav' + (frosted ? ' frosted' : '') + (glowEnabled ? ' glow-enabled' : '')} style={{ '--nav-label-fraction': expanded ? 1 : 0, '--nav-count': labels.length, '--nav-glow-strength': glowEnabled ? 1 : 0 } as CSSProperties} data-expanded={expanded} data-reduced-motion={reducedMotion}
@@ -161,4 +189,4 @@ export function LiquidNavigation({ children, visuals, labels, selectedIndex, sty
       <div className="liquid-nav-targets">{children}</div>
     </div></div></div>
   </nav>;
-}
+});

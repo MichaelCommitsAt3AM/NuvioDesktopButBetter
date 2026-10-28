@@ -1,14 +1,16 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
-import { Home, LibraryBig, Search as SearchIcon, Settings as SettingsIcon } from 'lucide-react';
-import { actions, initialize, refreshFeature, useAppState, useFeatureSnapshot, useSelector } from './bridge';
+import { memo, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
+import { actions, initialize, refreshFeature, useFeatureSnapshot, useSelector } from './bridge';
 import { AuthPage } from './features/auth/AuthPage';
-import { ProfileMenu } from './features/profiles/ProfileMenu';
-import { CachedHomeRoute } from './features/home/CachedHomeRoute';
+// Retain the stylesheet order when moving profile controls into AppNavigation.
+import './features/profiles/ProfileMenu';
+// Screens used only by RetainedMainTabs are imported for their stylesheet
+// evaluation order; the component references live in the retention module.
+import './features/home/HomePage';
 import { posterMetrics } from './components/posterMetrics';
 import { LaunchResumePrompt } from './features/home/LaunchResumePrompt';
-import { SearchPage } from './features/search/SearchPage';
-import { LibraryPage } from './features/library/LibraryPage';
+import './features/search/SearchPage';
+import './features/library/LibraryPage';
 import { DetailsPage } from './features/details/DetailsPage';
 import { PersonPage } from './features/details/PersonPage';
 import { EntityPage } from './features/details/EntityPage';
@@ -22,33 +24,22 @@ import { CatalogPage } from './features/catalog/CatalogPage';
 import { DownloadsPage } from './features/downloads/DownloadsPage';
 import { DownloadNotifications } from './features/downloads/DownloadNotifications';
 import { CollectionsPage, CollectionEditorPage, CollectionFolderPage } from './features/collections/CollectionsPages';
-import { SettingsPage } from './features/settings/SettingsPage';
-import { Avatar } from './components/ui';
+import './features/settings/SettingsPage';
+import { RetainedMainTabs } from './navigation/RetainedMainTabs';
 import { ConnectionNotice, InlineError } from './components/Status';
 import './features/features.css';
-import { LiquidNavigation } from './components/navigation/LiquidNavigation';
-import { KotlinNavigationIcon } from './components/navigation/KotlinNavigationIcon';
-import { sidebarExpanded } from './components/navigation/sidebarState';
+import { AppNavigation } from './components/navigation/AppNavigation';
 import './components/navigation/sidebarAdaptive.css';
 import { RewriteWelcome, useRewriteWelcome } from './features/welcome/RewriteWelcome';
 import { resolveThemeEntry, themeCssVars } from './theme/palette';
 import { useThemeRoot } from './theme/useThemeRoot';
 import { mainScroller, shouldResetMainScroll } from './navigation/scrollStore';
-import { useLocale } from './i18n/strings';
 import { useFullscreenEscape } from './components/useFullscreenEscape';
 
-const navItems = [
-  { to: '/', key: 'compose_nav_home', Icon: Home },
-  { to: '/search', key: 'compose_nav_search', Icon: SearchIcon },
-  { to: '/library', key: 'compose_nav_library', Icon: LibraryBig },
-  { to: '/settings', key: 'compose_nav_settings', Icon: SettingsIcon },
-] as const;
-
-function Shell({ offlineDownloads = false, welcomePending = false }: { offlineDownloads?: boolean; welcomePending?: boolean }) {
-  const session = useSelector((current) => current.session);
+const Shell = memo(function Shell({ offlineDownloads = false, welcomePending = false }: { offlineDownloads?: boolean; welcomePending?: boolean }) {
+  const profileId = useSelector(current => current.session.activeProfile);
   const appearance = useFeatureSnapshot<{ navigationLayout: 'sidebar' | 'topbar'; navBarStyle: string; navBarGlowEnabled: boolean; home?: { heroEnabled?: boolean } }>('appearance');
   const location = useLocation();
-  const navigate = useNavigate();
   const navigationType = useNavigationType();
   const previousPath = useRef<string | null>(null);
   const fromPath = previousPath.current;
@@ -62,22 +53,15 @@ function Shell({ offlineDownloads = false, welcomePending = false }: { offlineDo
       ? navigationType === 'POP' ? 'route-enter-back' : 'route-enter-forward'
       : '';
   useEffect(() => { previousPath.current = location.pathname; }, [location.pathname]);
-  const [profileOpen, setProfileOpen] = useState(false);
   const [focusSearch, setFocusSearch] = useState(false);
-  const [sideHover, setSideHover] = useState(false);
-  const { t } = useLocale();
-  const labelOf = (key: string) => t(key);
-  const selected = navItems.find((item) => item.to === location.pathname || (item.to !== '/' && location.pathname.startsWith(`${item.to}/`)))?.to;
-  useEffect(() => { if (!appearance) void refreshFeature('appearance').catch(() => {}); }, [appearance]);
-  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const held = useRef(false);
-  // The top bar stays extended until the appearance snapshot arrives, so
-  // startup never flashes the compact bar at users who selected extended.
+  const requestSearchFocus = useCallback(() => setFocusSearch(true), []);
+  const searchFocusHandled = useCallback(() => setFocusSearch(false), []);
+  useEffect(() => {
+    // A pending double-click focus must not fire when Search is opened later
+    // for an unrelated reason.
+    if (location.pathname !== '/search') setFocusSearch(false);
+  }, [location.pathname]);
   const navBarStyle = appearance?.navBarStyle ?? 'expanded';
-  const selectedProfile = session.profiles.find(profile => profile.id === session.activeProfile);
-  const clearHold = () => { if (holdTimer.current) clearTimeout(holdTimer.current); holdTimer.current = null; };
-  useEffect(() => () => clearHold(), []);
-  useEffect(() => { setProfileOpen(false); }, [location.pathname]);
   useEffect(() => {
     // The main scroll container is shared across routes. Forward navigation
     // into a list starts at the top instead of inheriting the previous
@@ -90,41 +74,24 @@ function Shell({ offlineDownloads = false, welcomePending = false }: { offlineDo
       if (main) main.scrollTop = 0;
     }
   }, [location.pathname, navigationType]);
-  const navigation = <>{navItems.map(({ to,key,Icon }) => { const label = labelOf(key); return to === '/settings' ? <div className="profile-anchor settings-profile-anchor" key={to}>
-    <Link to={to} className={`nav-link ${selected === to ? 'active' : ''}`} aria-current={selected === to ? 'page' : undefined} aria-haspopup="menu" aria-expanded={profileOpen} title={`${label} — hold to switch profiles`}
-      onPointerDown={event => { if (event.button !== 0) return; held.current=false; clearHold(); holdTimer.current=setTimeout(() => { held.current=true; setProfileOpen(true); },500); }}
-      onPointerUp={clearHold} onPointerCancel={clearHold} onPointerLeave={clearHold}
-      onClick={event => { if (held.current) { event.preventDefault(); held.current=false; } }}
-      onContextMenu={event => { event.preventDefault(); clearHold(); setProfileOpen(true); }}
-      onKeyDown={event => { if (event.key === 'ArrowDown' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); setProfileOpen(true); } }}>
-      <Avatar profile={selectedProfile} size="sm" /><span>{label}</span>
-    </Link>{profileOpen && <ProfileMenu holdGesture={held} onClose={() => setProfileOpen(false)} />}
-  </div> : <Link key={to} to={to} className={`nav-link ${selected === to ? 'active' : ''}`} aria-current={selected === to ? 'page' : undefined} title={label}
-    onClick={event => { if (to === '/search' && event.detail > 1 && location.pathname === '/search') event.preventDefault(); }}
-    onDoubleClick={to === '/search' ? event => { event.preventDefault(); setFocusSearch(true); if (location.pathname !== '/search') navigate('/search'); } : undefined}
-  ><Icon size={19} strokeWidth={1.9} /><span>{label}</span></Link>; })}</>;
   const sidebar = appearance?.navigationLayout === 'sidebar';
   const isDetailsRoute = /^\/(details\/[^/]+\/[^/]+|person\/[^/]+|entity\/[^/]+\/[^/]+)$/.test(location.pathname);
   const isStreamsRoute = /^\/details\/[^/]+\/[^/]+\/streams\/[^/]+$/.test(location.pathname);
   const isPlaybackRoute = location.pathname === '/playback';
   return <div className={`shell ${sidebar ? 'sidebar-layout' : 'topbar-layout'} ${location.pathname==='/'?'home-layout':''} ${isDetailsRoute?'details-layout':''} ${isStreamsRoute?'streams-layout':''} ${isPlaybackRoute?'playback-layout':''} nav-style-${navBarStyle} ${appearance?.navBarGlowEnabled ? 'nav-glow' : ''}`}>
-    {sidebar ? <aside className={`side-nav${sidebarExpanded(navBarStyle, sideHover, profileOpen) ? ' is-expanded' : ''}`} aria-expanded={sidebarExpanded(navBarStyle, sideHover, profileOpen)} onPointerEnter={() => setSideHover(true)} onPointerLeave={() => setSideHover(false)} onFocusCapture={() => setSideHover(true)} onBlurCapture={() => setSideHover(false)}>
-      <nav className="side-nav-links" aria-label="Main navigation">{navigation}</nav>
-    </aside> : <header className="topbar">
-      <LiquidNavigation labels={navItems.map(item => labelOf(item.key))} visuals={navItems.map(item => <KotlinNavigationIcon key={item.key} route={item.to} />)} selectedIndex={navItems.findIndex(item => item.to === selected)} style={navBarStyle} heroEnabled={appearance?.home?.heroEnabled !== false} profileOpen={profileOpen} glowEnabled={appearance?.navBarGlowEnabled !== false} routeKey={location.pathname} onDragStart={clearHold} onDragSelect={index => { const item = navItems[index]; if (item) { held.current = false; navigate(item.to); } }}>{navigation}</LiquidNavigation>
-    </header>}
+    <AppNavigation onSearchFocus={requestSearchFocus} />
     <main className={`main-area ${routeMotion}`}>
-      <CachedHomeRoute profileId={session.activeProfile} />
+      <RetainedMainTabs key={profileId ?? 'none'} focusRequested={focusSearch} onFocusHandled={searchFocusHandled} />
       <Routes key={location.pathname}>
         <Route path="/" element={null} />
-        <Route path="/search" element={<SearchPage focusRequested={focusSearch} onFocusHandled={() => setFocusSearch(false)} />} />
-        <Route path="/library" element={<LibraryPage />} />
+        <Route path="/search" element={null} />
+        <Route path="/library" element={null} />
         <Route path="/library/downloads" element={<DownloadsPage />} />
         <Route path="/downloads" element={<Navigate to="/library/downloads" replace />} />
         <Route path="/collections" element={<CollectionsPage />} />
         <Route path="/collections/:collectionId/edit" element={<CollectionEditorPage />} />
         <Route path="/collections/:collectionId/folders/:folderId" element={<CollectionFolderPage />} />
-        <Route path="/settings/*" element={<SettingsPage />} />
+        <Route path="/settings/*" element={null} />
         <Route path="/profiles" element={<Navigate to="/profiles/choose" replace />} />
         <Route path="/profiles/new" element={<ProfileEditorPage />} />
         <Route path="/profiles/:id/edit" element={<ProfileEditorPage />} />
@@ -139,11 +106,17 @@ function Shell({ offlineDownloads = false, welcomePending = false }: { offlineDo
     </main>
     {!offlineDownloads && !welcomePending && <LaunchResumePrompt />}
   </div>;
-}
+});
 
 function AppContent() {
   const welcome = useRewriteWelcome();
-  const state = useAppState();
+  // Page snapshots have their own subscribers; they must not rerender the app shell.
+  const status = useSelector(current => current.status);
+  const session = useSelector(current => current.session);
+  const settings = useSelector(current => current.settings);
+  const connectionMessage = useSelector(current => current.connectionMessage);
+  const profileTransition = useSelector(current => current.profileTransition);
+  const state = { status, session, settings, connectionMessage, profileTransition };
   const location = useLocation();
   const navigate = useNavigate();
   useFullscreenEscape(() => { if ((window.history.state?.idx ?? 0) > 0) navigate(-1); });

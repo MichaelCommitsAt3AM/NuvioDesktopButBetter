@@ -7,6 +7,13 @@ import { actions, call, disposeBridge, getSnapshot } from './bridge';
 import { isAutomaticStreamSelectionEnabled, streamAddonNames } from './features/streams/StreamsPage';
 import type { Addons } from './generated/contract';
 
+const navigationMetrics = vi.hoisted(() => ({ commit: vi.fn() }));
+vi.mock('./components/navigation/AppNavigation', async importOriginal => {
+  const actual = await importOriginal<typeof import('./components/navigation/AppNavigation')>();
+  return { AppNavigation: (props: React.ComponentProps<typeof actual.AppNavigation>) =>
+    <React.Profiler id="navigation" onRender={navigationMetrics.commit}><actual.AppNavigation {...props} /></React.Profiler> };
+});
+
 const bridgeMock = vi.hoisted(() => ({ kidsProfile:false, networkCondition: undefined as string | undefined, deferPlayback:false, deferProfiles:false, multipleProfiles:false, homeLoading:false, rejectSelection:false, failSessionSnapshot:false, failSignOut:false, streamAutoPlayMode:'MANUAL', epoch:5,activeProfile:7 as number|null,sessionStatus:'signedIn',listeners: new Map<string, (event: { payload: unknown }) => void>(), requests: [] as Array<{ id: string; method: string; params: Record<string, unknown> }> }));
 
 vi.mock('@tauri-apps/api/event', () => ({
@@ -708,6 +715,117 @@ describe('desktop bridge UI workflow', () => {
     });
   });
 
+  it('keeps visited main tabs mounted with their local state', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+
+    fireEvent.click(screen.getByRole('link', { name: /search/i }));
+    const input = await screen.findByRole('searchbox', { name: 'Search movies and shows' });
+    fireEvent.change(input, { target: { value: 'Arrival' } });
+    await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'search.start')).toBe(true));
+    const request = bridgeMock.requests.find((item) => item.method === 'search.start')!;
+    await act(async () => emit({ topic: 'search', epoch: bridgeMock.epoch, revision: 965, data: { requestId: request.id, query: 'Arrival', loading: false, error: null, shelves: [{ key: 'results', title: 'Search results', subtitle: '', items: [media('arrival', 'Arrival')], hasMore: false }] } }));
+    const searchPage = document.querySelector('.search-page');
+
+    fireEvent.click(screen.getByRole('link', { name: /library/i }));
+    const libraryPage = document.querySelector('.library-page');
+    expect(await screen.findByRole('heading', { name: 'Library' })).toBeVisible();
+
+    fireEvent.click(screen.getByRole('link', { name: /settings/i }));
+    const settingsPage = document.querySelector('.settings-desktop');
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeVisible();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Home' }));
+    expect(screen.getByText('Your home is ready for content')).toBeVisible();
+
+    fireEvent.click(screen.getByRole('link', { name: /search/i }));
+    const restored = await screen.findByRole('searchbox', { name: 'Search movies and shows' });
+    expect(document.querySelector('.search-page')).toBe(searchPage);
+    expect(restored).toBe(input);
+    expect(restored).toHaveValue('Arrival');
+    expect(screen.getByText('Search results')).toBeVisible();
+    expect(bridgeMock.requests.filter((item) => item.method === 'search.start')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('link', { name: /library/i }));
+    expect(document.querySelector('.library-page')).toBe(libraryPage);
+    fireEvent.click(screen.getByRole('link', { name: /settings/i }));
+    expect(document.querySelector('.settings-desktop')).toBe(settingsPage);
+  });
+
+  it('does not keep a retained tab visible or interactive behind another tab', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    fireEvent.click(screen.getByRole('link', { name: /search/i }));
+    await screen.findByRole('searchbox', { name: 'Search movies and shows' });
+    fireEvent.click(screen.getByRole('link', { name: /library/i }));
+    expect(await screen.findByRole('heading', { name: 'Library' })).toBeVisible();
+    // The retained Search DOM stays mounted, but display:none removes it from
+    // the accessibility tree and the tab order.
+    expect(screen.queryByRole('searchbox', { name: 'Search movies and shows' })).toBeNull();
+    expect(document.querySelector('[data-retained-tab="search"]')).toHaveAttribute('aria-hidden', 'true');
+    expect(document.querySelector('[data-retained-tab="library"]')).not.toHaveAttribute('aria-hidden');
+  });
+
+  it('pauses pending Search work while its tab is hidden and resumes on return', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    fireEvent.click(screen.getByRole('link', { name: /search/i }));
+    const input = await screen.findByRole('searchbox', { name: 'Search movies and shows' });
+    fireEvent.change(input, { target: { value: 'Arrival' } });
+    fireEvent.click(screen.getByRole('link', { name: 'Home' }));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 450)); });
+    expect(bridgeMock.requests.some((request) => request.method === 'search.start')).toBe(false);
+
+    fireEvent.click(screen.getByRole('link', { name: /search/i }));
+    await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'search.start')).toBe(true));
+    expect(screen.getByRole('searchbox', { name: 'Search movies and shows' })).toHaveValue('Arrival');
+  });
+
+  it('disposes retained tabs on a profile change', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    fireEvent.click(screen.getByRole('link', { name: /search/i }));
+    const before = await screen.findByRole('searchbox', { name: 'Search movies and shows' });
+    const searchPage = document.querySelector('.search-page');
+    await act(async () => emit({ topic: 'session', epoch: bridgeMock.epoch, revision: 1200, data: { ...getSnapshot().session, activeProfile: 8 } }));
+    const after = await screen.findByRole('searchbox', { name: 'Search movies and shows' });
+    expect(document.querySelector('.search-page')).not.toBe(searchPage);
+    expect(after).not.toBe(before);
+  });
+
+  it('restores a retained tab scroll after switching away without saving the other tab', async () => {
+    window.history.pushState({}, '', '/search');
+    render(<AppRoot />);
+    await screen.findByRole('button', { name: 'Open Discover popular title' });
+    const main = document.querySelector<HTMLElement>('.main-area')!;
+    const searchPage = document.querySelector('.search-page');
+    main.scrollTop = 1250;
+    fireEvent.scroll(main);
+
+    fireEvent.click(screen.getByRole('link', { name: 'Home' }));
+    expect(screen.getByText('Your home is ready for content')).toBeVisible();
+    main.scrollTop = 500;
+    fireEvent.scroll(main);
+
+    act(() => { window.history.back(); });
+    await waitFor(() => expect(window.location.pathname).toBe('/search'));
+    expect(document.querySelector('.search-page')).toBe(searchPage);
+    expect(main.scrollTop).toBe(1250);
+  });
+
+  it('keeps navigation out of page snapshot and playback update commits', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    await act(async () => {});
+    navigationMetrics.commit.mockClear();
+    for (let revision = 1100; revision < 1104; revision++) {
+      await act(async () => emit({ topic: 'home', epoch: bridgeMock.epoch, revision, data: { loading: false, error: null, hero: [], shelves: [{ key: 'new', title: `Updated shelf ${revision}`, subtitle: '', items: [], hasMore: false }] } }));
+      await act(async () => emit({ topic: 'playback', epoch: bridgeMock.epoch, revision, data: { state: 'idle', active: false } }));
+    }
+    expect(screen.getByText('Updated shelf 1103')).toBeVisible();
+    expect(navigationMetrics.commit).not.toHaveBeenCalled();
+  });
+
   it('opens Settings on a normal click in a kids profile and keeps right-click profile switching', async () => {
     bridgeMock.kidsProfile = true;
     render(<AppRoot />);
@@ -768,6 +886,8 @@ describe('desktop bridge UI workflow', () => {
     fireEvent.click(screen.getByRole('link', { name: /search/i }));
     await screen.findByRole('heading', { name: 'Discover' });
 
+    // Discovery options arrive with the snapshot; the chip is disabled until then.
+    await waitFor(() => expect(screen.getByRole('button', { name: /Movies/i })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Movies/i }));
     fireEvent.click(await screen.findByRole('option', { name: 'Series' }));
     await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'discover.selectType' && request.params.type === 'series')).toBe(true));

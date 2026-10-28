@@ -3,11 +3,13 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom';
 import { HomePage } from './HomePage';
 import { HomeVisibility } from './homeVisibility';
+import { memo } from 'react';
 
 const bridge = vi.hoisted(() => ({
   state: { session: { activeProfile: 1 }, home: { shelves: [] as any[], hero: [] as any[], loading: false } },
   extras: undefined as unknown,
   refresh: vi.fn(),
+  collectionsRender: vi.fn(),
 }));
 vi.mock('../../bridge', () => ({
   useSelector: (select: (state: unknown) => unknown) => select(bridge.state),
@@ -15,7 +17,7 @@ vi.mock('../../bridge', () => ({
   refreshFeature: (...args: unknown[]) => bridge.refresh(...args),
   actions: {}, call: vi.fn(),
 }));
-vi.mock('../collections/CollectionsPages', () => ({ HomeCollections: () => null }));
+vi.mock('../collections/CollectionsPages', () => ({ HomeCollections: () => { bridge.collectionsRender(); return null; } }));
 
 const item = {
   parentMetaId: 'movie-1', parentMetaType: 'movie', videoId: 'movie-1',
@@ -43,6 +45,17 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks(); vi.useRealTimers(); globalThis.Image = originalImage; });
 
 describe('Continue Watching snapshot loading', () => {
+  it('hides retained Home without rendering its content again', () => {
+    const RetainedHome = memo(HomePage);
+    const page = (visible: boolean) => <MemoryRouter><HomeVisibility value={visible}><RetainedHome /></HomeVisibility></MemoryRouter>;
+    const view = render(page(true));
+    bridge.collectionsRender.mockClear();
+    view.rerender(page(false));
+    expect(screen.queryByRole('button', { name: 'Enter fullscreen' })).toBeNull();
+    view.rerender(page(true));
+    expect(screen.getByRole('button', { name: 'Enter fullscreen' })).toBeVisible();
+    expect(bridge.collectionsRender).not.toHaveBeenCalled();
+  });
   it('keeps the fullscreen control outside scrolling Home content and hides it on other routes', () => {
     const page = (visible: boolean) => <MemoryRouter><HomeVisibility value={visible}><HomePage /></HomeVisibility></MemoryRouter>;
     const view = render(page(true));

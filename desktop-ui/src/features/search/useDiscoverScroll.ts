@@ -1,14 +1,16 @@
 import { useLayoutEffect, useRef } from 'react';
-import { useLocation, useNavigationType } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
+import { useTabNavigationType } from '../../navigation/tabActivity';
 
 const positions = new Map<string, { catalog: string; top: number; renderedCount: number }>();
 const MAX_POSITIONS = 40;
 
 /** Keep a Discover history entry's position separate from searches and other profiles. */
-export function useDiscoverScroll(profileId: number | null, catalog: string | null, searching: boolean, onPosition: (top: number) => void) {
+export function useDiscoverScroll(profileId: number | null, catalog: string | null, searching: boolean, onPosition: (top: number) => void, active = true) {
   const location = useLocation();
-  const navigationType = useNavigationType();
+  const navigationType = useTabNavigationType();
   const mayRestore = useRef(navigationType === 'POP');
+  const previousActive = useRef(active);
   const restoring = useRef(false);
   const save = useRef(() => {});
   const positionCallback = useRef(onPosition);
@@ -19,6 +21,17 @@ export function useDiscoverScroll(profileId: number | null, catalog: string | nu
     ? initialPosition.current.position.renderedCount : 0;
 
   useLayoutEffect(() => {
+    if (!active) {
+      // A retained-but-hidden Discover must not record another tab's offset.
+      previousActive.current = false;
+      return;
+    }
+    if (!previousActive.current) {
+      // Re-entering a retained tab is a fresh visit for this route; consume
+      // the history entry's saved offset only when Back/Forward returned here.
+      mayRestore.current = navigationType === 'POP';
+      previousActive.current = true;
+    }
     const main = document.querySelector<HTMLElement>('.main-area');
     if (!main) return;
     save.current = () => {};
@@ -90,7 +103,7 @@ export function useDiscoverScroll(profileId: number | null, catalog: string | nu
       main.removeEventListener('keydown', interruptKey);
       // Never save here: the next route may already have shortened the shared scroller.
     };
-  }, [entry, catalog, searching]);
+  }, [entry, catalog, searching, active, navigationType]);
 
   return { save, restoring, initialVisibleCount };
 }

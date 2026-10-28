@@ -33,10 +33,10 @@
 .tracking-preference-value{display:flex;align-items:center;gap:8.64px;max-width:35%;flex:none;text-align:right;margin-left:12px;color:var(--app-accent);font-size:16px;line-height:22px;font-weight:500}
 .tracking-progress-error{display:flex;align-items:center;gap:10.8px;padding:15px 21.6px;color:var(--danger,#ffb4ab);font-size:14px;line-height:20px;border-bottom:1px solid #ffffff04}
 .tracking-progress-error span{flex:1}.tracking-progress-error button{background:none;border:0;border-radius:24px;padding:10px 14px;color:var(--app-accent);font:inherit;cursor:pointer}
-body:has(.settings-desktop) .tracking-picker .dialog-surface{width:min(480px,90vw);padding:26px 0;border-radius:30px;background:var(--settings-surface,var(--app-surface));color:var(--text)}
-body:has(.settings-desktop) .tracking-picker h2,body:has(.settings-desktop) .tracking-picker .tracking-picker-subtitle{padding:0 26px;margin:0 0 6.48px}
-body:has(.settings-desktop) .tracking-picker h2{font-size:24px;line-height:31px;font-weight:600}
-body:has(.settings-desktop) .tracking-picker .tracking-picker-subtitle{font-size:16px;line-height:24px;color:#989da2;margin-bottom:12.96px}
+body:has(.settings-desktop:where([data-tab-active="true"])) .tracking-picker .dialog-surface{width:min(480px,90vw);padding:26px 0;border-radius:30px;background:var(--settings-surface,var(--app-surface));color:var(--text)}
+body:has(.settings-desktop:where([data-tab-active="true"])) .tracking-picker h2,body:has(.settings-desktop:where([data-tab-active="true"])) .tracking-picker .tracking-picker-subtitle{padding:0 26px;margin:0 0 6.48px}
+body:has(.settings-desktop:where([data-tab-active="true"])) .tracking-picker h2{font-size:24px;line-height:31px;font-weight:600}
+body:has(.settings-desktop:where([data-tab-active="true"])) .tracking-picker .tracking-picker-subtitle{font-size:16px;line-height:24px;color:#989da2;margin-bottom:12.96px}
 .tracking-picker-options{max-height:520px;overflow:auto}
 .tracking-picker-options button{width:100%;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px 26px;background:none;border:0;border-top:1px solid #ffffff08;color:inherit;text-align:left;font:inherit;cursor:pointer}
 .tracking-picker-options button:first-child{border-top:0}.tracking-picker-options button:disabled{opacity:.5;cursor:default}
@@ -46,4 +46,4 @@ body:has(.settings-desktop) .tracking-picker .tracking-picker-subtitle{font-size
 .tracking-dialog .dialog-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:18px}
 .tracking-dialog .button.danger{background:none;color:var(--danger,#ffb4ab)}
 .tracking-provider-card button:focus-visible,.tracking-preference-row:focus-visible,.tracking-picker-options button:focus-visible{outline:2px solid var(--app-accent);outline-offset:-3px}
-@media(max-width:650px){.tracking-provider-content,.tracking-provider-card.connected .tracking-provider-content{padding:18px}.tracking-provider-cards{gap:12px}.tracking-preference-value{max-width:32%;font-size:14px}body:has(.settings-desktop) .tracking-picker{align-items:flex-end}body:has(.settings-desktop) .tracking-picker .dialog-surface{width:100%;max-height:90vh;border-radius:28px 28px 0 0}}
+@media(max-width:650px){.tracking-provider-content,.tracking-provider-card.connected .tracking-provider-content{padding:18px}.tracking-provider-cards{gap:12px}.tracking-preference-value{max-width:32%;font-size:14px}body:has(.settings-desktop:where([data-tab-active="true"])) .tracking-picker{align-items:flex-end}body:has(.settings-desktop:where([data-tab-active="true"])) .tracking-picker .dialog-surface{width:100%;max-height:90vh;border-radius:28px 28px 0 0}}

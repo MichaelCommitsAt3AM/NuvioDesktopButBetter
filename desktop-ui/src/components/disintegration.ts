@@ -11,7 +11,7 @@ export function removalDurationMs(): number {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 160 : 550;
 }
 
-export function useDisintegratingRemoval<T>(items: readonly T[], keyOf: (item: T) => string, scope?: string | number | null) {
+export function useDisintegratingRemoval<T>(items: readonly T[], keyOf: (item: T) => string, scope?: string | number | null, durationMs?: number) {
   const [extra, setExtra] = useState<ReadonlyMap<string, T>>(new Map());
   const [bursting, setBursting] = useState<ReadonlySet<string>>(new Set());
   const timers = useRef<number[]>([]);
@@ -59,7 +59,7 @@ export function useDisintegratingRemoval<T>(items: readonly T[], keyOf: (item: T
       slots.current.delete(key);
       setExtra((current) => { const next = new Map(current); next.delete(key); return next; });
       setBursting((current) => { const next = new Set(current); next.delete(key); return next; });
-    }, removalDurationMs()));
+    }, window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 160 : durationMs ?? removalDurationMs()));
   };
 
   return { visible, bursting: currentScope.current === scope ? bursting : new Set<string>(), remove };

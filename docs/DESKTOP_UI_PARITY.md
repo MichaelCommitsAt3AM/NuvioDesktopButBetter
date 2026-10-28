@@ -102,3 +102,8 @@ Playback follow-up: stepped sliders expose all selectable positions with tick do
 ## Upstream 0.1.33 checkpoint — 2026-10-28
 
 Native playback now includes embedded chapter navigation/timeline, stream information and upstream badge delivery. React Playback preferences expose the Kotlin chapter switch and profile-scoped external subtitle autosync controls (enable, thorough search and tolerance); the bridge initializes persistence and observes profile/preference changes. These additions are **built**, with automated behavior checks recorded in `UPSTREAM_SYNC_2026-10-28.md`. Real subtitle alignment/provider playback and cross-platform interactive acceptance remain pending. Existing partial areas above are not promoted by this source-inventory refresh.
+
+
+### Continue Watching destructive motion — 2026-10-28
+
+The enlarged-card ash effect now ports the Kotlin particle field, front and motion equations, with the same 1500 ms easing, menu fade, 300 ms scrim release and default placement spring. Real Chromium fixtures cover rendered card capture and popup lifetime across source removal. This is **built**; the updated embedded Windows debug app remains the user acceptance surface. Library removal is unchanged.

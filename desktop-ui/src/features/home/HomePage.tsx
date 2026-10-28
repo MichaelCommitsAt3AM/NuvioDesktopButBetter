@@ -9,6 +9,8 @@ import { HomeCollections } from '../collections/CollectionsPages';
 import { FullscreenButton } from '../../components/FullscreenButton';
 import type { AppearanceSnapshot } from '../settings/appearanceStore';
 import { HomeActionDialog } from './HomeActionDialog';
+import { ContinueActionHost, ContinueActionPortal, useContinueActionHost } from './ContinueActionHost';
+import { ASH_DURATION_MS } from '../../components/ashMotion';
 import { useCardHold } from '../../components/useCardHold';
 import { PosterLoadingCard } from '../../components/PosterLoadingCard';
 import { HomeVisibility } from './homeVisibility';
@@ -205,14 +207,14 @@ export function HomePage() {
   const heroEnabled = appearance?.home.heroEnabled !== false;
   const heroLoading = heroEnabled && !hero && home.loading;
   const showFullSkeleton = (home.loading && !home.shelves.length) || (homeEmpty && !showHomeEmpty);
-  const cwRemoval = useDisintegratingRemoval(continueItems, (entry) => `${entry.parentMetaId}:${entry.videoId}`, profileId);
-  const upcomingRemoval = useDisintegratingRemoval(upcoming, (entry) => `${entry.parentMetaId}:next:${entry.videoId}`, profileId);
+  const cwRemoval = useDisintegratingRemoval(continueItems, (entry) => `${entry.parentMetaId}:${entry.videoId}`, profileId, ASH_DURATION_MS);
+  const upcomingRemoval = useDisintegratingRemoval(upcoming, (entry) => `${entry.parentMetaId}:next:${entry.videoId}`, profileId, ASH_DURATION_MS);
   const cwRailRef = useRef<HTMLDivElement>(null);
   const upcomingRailRef = useRef<HTMLDivElement>(null);
-  usePlacementFlip(cwRailRef);
-  usePlacementFlip(upcomingRailRef);
+  usePlacementFlip(cwRailRef, true);
+  usePlacementFlip(upcomingRailRef, true);
 
-  return <div className="home-page" style={heroStyle}>
+  return <ContinueActionHost scope={profileId}><div className="home-page" style={heroStyle}>
     <HomeActivity viewKey={viewKey} locationKey={location.key} resetScroll={resetHomeScroll} heroIndexRef={heroIndexRef} heroIndex={heroIndex} heroKey={heroKey} settledHero={settledHero} heroActive={heroActive} heroDragging={heroDragging} heroCount={heroItems.length} setHeroIndex={setHeroIndex} onError={setActionError} />
     {hero && appearance?.home.heroEnabled!==false && <section ref={heroElement} className="home-hero" tabIndex={0} aria-label="Featured titles" aria-roledescription="carousel" onKeyDown={event=>{if(event.key==='ArrowRight'){event.preventDefault();moveHero(1);}if(event.key==='ArrowLeft'){event.preventDefault();moveHero(-1);}}}
       onClickCapture={event=>{if(heroSuppressedClick.current){heroSuppressedClick.current=false;event.preventDefault();event.stopPropagation();}}}
@@ -239,15 +241,15 @@ export function HomePage() {
     {continueWatchingVisible && (continueWatchingLoading || cwRemoval.visible.length > 0) && <section className="home-cw-section" aria-busy={continueWatchingLoading}>
       <div className="home-cw-heading"><h2>Continue Watching</h2></div>
       <HorizontalRail label="Continue Watching" trackRef={cwRailRef} className={`home-cw-rail style-${preferences?.style.toLowerCase() ?? 'wide'}`}>
-        {continueWatchingLoading ? Array.from({ length: 5 }, (_, index) => <PosterLoadingCard key={index} variant="poster" className="home-cw-skeleton" />) : cwRemoval.visible.map((item) => <ContinueCard key={`${item.parentMetaId}:${item.videoId}`} item={item} disintegrating={cwRemoval.bursting.has(`${item.parentMetaId}:${item.videoId}`)} blurArtwork={preferences?.blurNextUp&&!!item.isNextUp&&preferences?.useEpisodeThumbnails&&!!item.episodeThumbnail} useEpisodeThumbnails={preferences?.useEpisodeThumbnails ?? true} isBusy={busyKey === item.videoId} onResume={() => resume(item)} onManual={() => playManually(item)} onRemove={() => void cwRemoval.remove(item, () => runAction(item.videoId, item.isNextUp?'home.continueWatching.dismissUpNext':'home.continueWatching.remove', { contentId: item.parentMetaId, seasonNumber: item.isNextUp?item.nextUpSeedSeasonNumber:item.seasonNumber, episodeNumber: item.isNextUp?item.nextUpSeedEpisodeNumber:item.episodeNumber })).catch(() => {})} onDetails={()=>openTitle(item.parentMetaType,item.parentMetaId)} onReset={item.isNextUp?undefined:()=>navigate(playbackRoute(item, 'beginning'))} />)}
+        {continueWatchingLoading ? Array.from({ length: 5 }, (_, index) => <PosterLoadingCard key={index} variant="poster" className="home-cw-skeleton" />) : cwRemoval.visible.map((item) => <ContinueCard key={`${item.parentMetaId}:${item.videoId}`} item={item} disintegrating={cwRemoval.bursting.has(`${item.parentMetaId}:${item.videoId}`)} blurArtwork={preferences?.blurNextUp&&!!item.isNextUp&&preferences?.useEpisodeThumbnails&&!!item.episodeThumbnail} useEpisodeThumbnails={preferences?.useEpisodeThumbnails ?? true} isBusy={busyKey === item.videoId} onResume={() => resume(item)} onManual={() => playManually(item)} onRemove={() => cwRemoval.remove(item, () => runAction(item.videoId, item.isNextUp?'home.continueWatching.dismissUpNext':'home.continueWatching.remove', { contentId: item.parentMetaId, seasonNumber: item.isNextUp?item.nextUpSeedSeasonNumber:item.seasonNumber, episodeNumber: item.isNextUp?item.nextUpSeedEpisodeNumber:item.episodeNumber }))} onDetails={()=>openTitle(item.parentMetaType,item.parentMetaId)} onReset={item.isNextUp?undefined:()=>navigate(playbackRoute(item, 'beginning'))} />)}
       </HorizontalRail>
     </section>}
     {preferences?.isVisible && upcomingRemoval.visible.length > 0 && <section className="home-cw-section"><div className="home-cw-heading"><h2>Upcoming</h2></div>
-      <HorizontalRail label="Upcoming" trackRef={upcomingRailRef} className={`home-cw-rail style-${preferences.style.toLowerCase()}`}>{upcomingRemoval.visible.map((item) => <ContinueCard key={`${item.parentMetaId}:next:${item.videoId}`} item={item} disintegrating={upcomingRemoval.bursting.has(`${item.parentMetaId}:next:${item.videoId}`)} blurArtwork={preferences.blurNextUp} useEpisodeThumbnails={preferences.useEpisodeThumbnails} onResume={() => resume(item)} onManual={() => playManually(item)} onDetails={()=>openTitle(item.parentMetaType,item.parentMetaId)} onDismiss={() => void upcomingRemoval.remove(item, () => runAction(`dismiss:${item.parentMetaId}`, 'home.continueWatching.dismissUpNext', { contentId: item.parentMetaId, seasonNumber: item.nextUpSeedSeasonNumber, episodeNumber: item.nextUpSeedEpisodeNumber })).catch(() => {})} />)}</HorizontalRail>
+      <HorizontalRail label="Upcoming" trackRef={upcomingRailRef} className={`home-cw-rail style-${preferences.style.toLowerCase()}`}>{upcomingRemoval.visible.map((item) => <ContinueCard key={`${item.parentMetaId}:next:${item.videoId}`} item={item} disintegrating={upcomingRemoval.bursting.has(`${item.parentMetaId}:next:${item.videoId}`)} blurArtwork={preferences.blurNextUp} useEpisodeThumbnails={preferences.useEpisodeThumbnails} onResume={() => resume(item)} onManual={() => playManually(item)} onDetails={()=>openTitle(item.parentMetaType,item.parentMetaId)} onDismiss={() => upcomingRemoval.remove(item, () => runAction(`dismiss:${item.parentMetaId}`, 'home.continueWatching.dismissUpNext', { contentId: item.parentMetaId, seasonNumber: item.nextUpSeedSeasonNumber, episodeNumber: item.nextUpSeedEpisodeNumber }))} />)}</HorizontalRail>
     </section>}
     <HomeCollections shelves={home.shelves} />
     {showHomeEmpty && <EmptyState title="Your home is ready for content" message="Install an addon from Settings to add catalogs and discover titles here." icon={<Compass size={22} />} />}
-  </div>;
+  </div></ContinueActionHost>;
 }
 
 /** Visibility changes only update lifecycle work, not the retained Home content. */
@@ -287,9 +289,10 @@ function HomeLoadingSkeleton({ showHero }: { showHero: boolean }) {
 }
 
 function ContinueCard({ item, isBusy, disintegrating = false, onResume, onManual, onRemove, onReset, onDismiss, onDetails, blurArtwork = false, useEpisodeThumbnails = true }: {
-  item: ContinueItem; isBusy?: boolean; disintegrating?: boolean; blurArtwork?: boolean; useEpisodeThumbnails?: boolean; onResume: () => void; onManual?: () => void; onRemove?: () => void; onReset?: () => void; onDismiss?: () => void; onDetails?:()=>void;
+  item: ContinueItem; isBusy?: boolean; disintegrating?: boolean; blurArtwork?: boolean; useEpisodeThumbnails?: boolean; onResume: () => void; onManual?: () => void; onRemove?: () => void | Promise<void>; onReset?: () => void; onDismiss?: () => void | Promise<void>; onDetails?:()=>void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const presentAction = useContinueActionHost();
   const artRef = useRef<HTMLButtonElement>(null);
   const [sourceRect, setSourceRect] = useState<SourceRect | null>(null);
   const sourceInstance = useId();
@@ -309,14 +312,14 @@ function ContinueCard({ item, isBusy, disintegrating = false, onResume, onManual
       <span className="home-cw-art-copy">{item.seasonNumber!=null&&item.episodeNumber!=null&&<small>S{item.seasonNumber} E{item.episodeNumber}</small>}<strong>{item.title}</strong>{item.episodeTitle&&<small>{item.episodeTitle}</small>}</span>
   </>;
   return <article className={`home-cw-card ${menuOpen?'action-anchor-hidden':''} ${blurArtwork ? "blur-artwork" : ""} ${depthOn?'has-card-depth':''} ${disintegrating?'is-disintegrating':''}`} style={depthOn ? depthVars(appearance?.cardDepth) : undefined} data-flip-key={`${item.parentMetaId}:${item.videoId}`}>
-    {disintegrating && <span className="disintegration-burst" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/></span>}
+    {disintegrating && !menuOpen && <span className="disintegration-burst" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/></span>}
     <button {...hold} data-source-key={sourceKey} ref={artRef} className={`home-cw-art ${depthOn?'depth-frame':''}`} onClick={onResume} onContextMenu={event=>{event.preventDefault();openActions();}} aria-label={`Resume ${item.title}`} style={{ backgroundImage: artwork ? `linear-gradient(0deg,rgba(0,0,0,.82),transparent 60%),url("${artwork}")` : undefined }}>
       {blurArtwork&&<span className="home-cw-blurred-image" style={{backgroundImage:artwork?`url("${artwork}")`:undefined}}/>}{cardContent}
     </button>
     <div className="home-cw-copy"><div className="home-cw-text"><strong title={item.title}>{item.title}</strong><span>{item.subtitle || (item.isNextUp ? 'Next episode' : item.providerName || 'Continue watching')}</span></div>
       <button className="home-icon-button" aria-label="More continue watching actions" aria-expanded={menuOpen} onClick={openActions}><MoreHorizontal size={18} /></button>
     </div>
-    {menuOpen && <HomeActionDialog title={item.title} poster={item.poster} artwork={<div className="home-cw-art home-cw-zoom" style={{backgroundImage:artwork?`linear-gradient(0deg,rgba(0,0,0,.82),transparent 60%),url("${artwork}")`:undefined}}>{cardContent}</div>} subtitle={item.subtitle} sourceKey={sourceKey} sourceRect={sourceRect} onClose={()=>setMenuOpen(false)}>{onDetails&&<button onClick={()=>{setMenuOpen(false);onDetails();}}>Go to details <Info size={18}/></button>}{onManual&&<button onClick={()=>{setMenuOpen(false);onManual();}}>Play manually <Play size={18} fill="currentColor"/></button>}{onReset && <button disabled={isBusy} onClick={()=>{setMenuOpen(false);onReset();}}>Start from beginning <RotateCcw size={18} /></button>}{onRemove && <button disabled={isBusy} className="destructive" onClick={()=>{setMenuOpen(false);onRemove();}}>Remove <Trash2 size={18} /></button>}{onDismiss && <button disabled={isBusy} className="destructive" onClick={()=>{setMenuOpen(false);onDismiss();}}>Remove <Trash2 size={18} /></button>}</HomeActionDialog>}
+    {menuOpen && <ContinueActionPortal><HomeActionDialog title={item.title} poster={item.poster} artwork={<div className="home-cw-art home-cw-zoom" style={{backgroundImage:artwork?`linear-gradient(0deg,rgba(0,0,0,.82),transparent 60%),url("${artwork}")`:undefined}}>{cardContent}</div>} subtitle={item.subtitle} sourceKey={sourceKey} sourceRect={sourceRect} onClose={()=>{setMenuOpen(false);presentAction?.(null);}} onDestructiveAction={onRemove ?? onDismiss}>{onDetails&&<button onClick={()=>{setMenuOpen(false);presentAction?.(null);onDetails();}}>Go to details <Info size={18}/></button>}{onManual&&<button onClick={()=>{setMenuOpen(false);presentAction?.(null);onManual();}}>Play manually <Play size={18} fill="currentColor"/></button>}{onReset && <button disabled={isBusy} onClick={()=>{setMenuOpen(false);presentAction?.(null);onReset();}}>Start from beginning <RotateCcw size={18} /></button>}{onRemove && <button disabled={isBusy} className="destructive" onClick={()=>{setMenuOpen(false);onRemove();}}>Remove <Trash2 size={18} /></button>}{onDismiss && <button disabled={isBusy} className="destructive" onClick={()=>{setMenuOpen(false);onDismiss();}}>Remove <Trash2 size={18} /></button>}</HomeActionDialog></ContinueActionPortal>}
   </article>;
 }
 

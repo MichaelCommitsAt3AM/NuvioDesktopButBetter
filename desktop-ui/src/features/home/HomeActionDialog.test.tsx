@@ -3,13 +3,58 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HomeActionDialog } from './HomeActionDialog';
 import { POSTER_CLOSE_MS } from '../../components/posterZoomMotion';
 
+const ash = vi.hoisted(() => ({ start: undefined as (() => void) | undefined, finish: undefined as (() => void) | undefined, cancel: vi.fn() }));
+vi.mock('../../components/artworkDisintegration', () => ({ animateArtworkDisintegration: (_node: HTMLElement, start: () => void, finish: () => void) => { ash.start = start; ash.finish = finish; return ash.cancel; } }));
+
 beforeEach(() => {
+  ash.start = undefined; ash.finish = undefined; ash.cancel.mockClear();
   vi.useFakeTimers();
   vi.stubGlobal('matchMedia', () => ({ matches: false }));
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('title action dialog dismissal', () => {
+  it('dissolves the enlarged card before fading the scrim, without returning to the shelf', async () => {
+    const onClose = vi.fn(), operation = vi.fn().mockResolvedValue(undefined), oldClick = vi.fn();
+    render(<HomeActionDialog title="Movie" artwork={<div>Card</div>} onClose={onClose} onDestructiveAction={operation}><button className="destructive" onClick={oldClick}>Remove</button></HomeActionDialog>);
+    fireEvent.click(screen.getByText('Remove'));
+    expect(oldClick).not.toHaveBeenCalled();
+    expect(operation).not.toHaveBeenCalled();
+    expect(document.querySelector('.home-actions-dialog')).toHaveClass('is-disintegrating-overlay');
+    expect(document.querySelector('.home-actions-dialog')).not.toHaveClass('is-closing');
+    await act(async () => { ash.start?.(); });
+    expect(operation).toHaveBeenCalledOnce();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    act(() => vi.advanceTimersByTime(2000));
+    expect(onClose).not.toHaveBeenCalled();
+    act(() => ash.finish?.());
+    expect(document.querySelector('.home-actions-dialog')).toHaveClass('is-dissolved');
+    act(() => vi.advanceTimersByTime(299)); expect(onClose).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1)); expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('restores the same popup and permits retry when removal fails', async () => {
+    const operation = vi.fn().mockRejectedValue(new Error('Repository unavailable'));
+    const onClose = vi.fn();
+    render(<HomeActionDialog title="Movie" artwork={<div>Card</div>} onClose={onClose} onDestructiveAction={operation}><button className="destructive">Remove</button></HomeActionDialog>);
+    fireEvent.click(screen.getByText('Remove'));
+    await act(async () => { ash.start?.(); });
+    expect(screen.getByRole('alert')).toHaveTextContent('Repository unavailable');
+    expect(document.querySelector('.home-actions-dialog')).not.toHaveClass('is-disintegrating-overlay');
+    expect(ash.cancel).toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Remove'));
+    await act(async () => { ash.start?.(); });
+    expect(operation).toHaveBeenCalledTimes(2);
+  });
+
+  it('cancels the particle renderer when the overlay unmounts', () => {
+    const view = render(<HomeActionDialog title="Movie" artwork={<div>Card</div>} onClose={() => {}} onDestructiveAction={() => {}}><button className="destructive">Remove</button></HomeActionDialog>);
+    fireEvent.click(screen.getByText('Remove'));
+    view.unmount();
+    expect(ash.cancel).toHaveBeenCalledOnce();
+  });
+
   it('fits the visible poster frame and scales the original card corner radius', () => {
     const source = document.createElement('span');
     source.dataset.sourceKey = 'rounded-source';

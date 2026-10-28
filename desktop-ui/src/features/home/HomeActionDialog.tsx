@@ -3,12 +3,19 @@ import { Dialog } from '../../components/Dialog';
 import { LiftedCardArtwork } from '../../components/LiftedCardArtwork';
 import { liveSourceRect, rectOf, type SourceRect } from '../../components/sourceLift';
 import { animatePosterArtwork, animatePosterMenu, POSTER_CLOSE_MS, POSTER_EXPAND } from '../../components/posterZoomMotion';
+import { animateArtworkDisintegration } from '../../components/artworkDisintegration';
+import { ASH_FADE_MS } from '../../components/ashMotion';
 import './homeParity.css';
 
-export function HomeActionDialog({title,poster,subtitle,onClose,children,artwork,sourceKey,sourceRect}:{title:string;poster?:string|null;subtitle?:string;onClose:()=>void;children:ReactNode;artwork?:ReactNode;sourceKey?:string;sourceRect?:SourceRect|null}) {
+export function HomeActionDialog({title,poster,subtitle,onClose,children,artwork,sourceKey,sourceRect,onDestructiveAction}:{title:string;poster?:string|null;subtitle?:string;onClose:()=>void;children:ReactNode;artwork?:ReactNode;sourceKey?:string;sourceRect?:SourceRect|null;onDestructiveAction?:()=>void|Promise<void>}) {
   const [closing, setClosing] = useState(false);
   const [opening, setOpening] = useState(true);
+  const [disintegrating, setDisintegrating] = useState(false);
+  const [dissolved, setDissolved] = useState(false);
+  const [removalError, setRemovalError] = useState('');
+  const cancelDisintegration = useRef<(() => void) | undefined>(undefined);
   const closingRef = useRef(false);
+  const operationGeneration = useRef(0);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -17,7 +24,7 @@ export function HomeActionDialog({title,poster,subtitle,onClose,children,artwork
   const menuRef = useRef<HTMLDivElement>(null);
   const animations = useRef<Animation[]>([]);
   const openAnimation = useRef<Animation | null>(null);
-  useEffect(() => () => { window.clearTimeout(closeTimer.current); openAnimation.current?.cancel(); animations.current.forEach(animation => animation.cancel()); }, []);
+  useEffect(() => () => { operationGeneration.current++; window.clearTimeout(closeTimer.current); cancelDisintegration.current?.(); openAnimation.current?.cancel(); animations.current.forEach(animation => animation.cancel()); }, []);
   // Measure the untransformed destination and install the lift before paint.
   // CSS must not also scale this node while the destination is measured.
   useLayoutEffect(() => {
@@ -63,11 +70,42 @@ export function HomeActionDialog({title,poster,subtitle,onClose,children,artwork
     closeTimer.current = window.setTimeout(() => onCloseRef.current(), duration);
   };
 
-  return <Dialog label={`Actions for ${title}`} className={`home-actions-dialog ${opening?'is-opening':''} ${artwork?'home-cw-actions-dialog':''} ${closing?'is-closing':''}`} onClose={dismiss}>
-    <div className="home-actions-content" inert={closing}>
+  const destroy = () => {
+    if (closingRef.current || !onDestructiveAction) return;
+    closingRef.current = true;
+    const ticket = ++operationGeneration.current;
+    setOpening(false); setDisintegrating(true); setRemovalError('');
+    animations.current.forEach(animation => animation.cancel());
+    let succeeded = false, animationDone = false;
+    const finish = () => {
+      if (operationGeneration.current !== ticket || !succeeded || !animationDone) return;
+      setDissolved(true);
+      closeTimer.current = window.setTimeout(() => onCloseRef.current(), ASH_FADE_MS);
+    };
+    const perform = () => {
+      void Promise.resolve().then(() => operationGeneration.current === ticket ? onDestructiveAction() : undefined).then(() => { succeeded = true; finish(); }).catch(cause => {
+        cancelDisintegration.current?.(); closingRef.current = false;
+        setDisintegrating(false); setDissolved(false);
+        setRemovalError(cause instanceof Error ? cause.message : 'Could not remove this title.');
+      });
+    };
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || !artworkRef.current) {
+      perform();
+      closeTimer.current = window.setTimeout(() => { animationDone = true; finish(); }, 160);
+    } else {
+      cancelDisintegration.current = animateArtworkDisintegration(artworkRef.current, perform, () => { animationDone = true; finish(); });
+    }
+  };
+
+  return <Dialog label={`Actions for ${title}`} exiting={closing || disintegrating} className={`home-actions-dialog ${opening?'is-opening':''} ${artwork?'home-cw-actions-dialog':''} ${closing?'is-closing':''} ${disintegrating?'is-disintegrating-overlay':''} ${dissolved?'is-dissolved':''}`} onClose={dismiss}>
+    <div className="home-actions-content" inert={closing || disintegrating}>
     {(artwork || poster) && <div className="home-actions-artwork" ref={artworkRef}>{artwork ? <LiftedCardArtwork sourceKey={sourceKey} fallback={artwork}/> : <img className="home-actions-poster" src={poster ?? undefined} alt="" onLoad={event => { const image = event.currentTarget; if (image.naturalWidth && image.naturalHeight) artworkRef.current?.style.setProperty('--action-artwork-ratio', String(image.naturalWidth / image.naturalHeight)); }}/>}</div>}
     <div className="home-actions-copy" ref={copyRef}><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>
-    <div className="home-actions-options" ref={menuRef}>{children}</div>
+    {removalError && <p role="alert">{removalError}</p>}
+    <div className="home-actions-options" ref={menuRef} onClickCapture={event => {
+      const button = (event.target as HTMLElement).closest('button.destructive');
+      if (onDestructiveAction && button && !(button as HTMLButtonElement).disabled) { event.preventDefault(); event.stopPropagation(); destroy(); }
+    }}>{children}</div>
     </div>
   </Dialog>;
 }

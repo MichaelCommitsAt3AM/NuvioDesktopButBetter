@@ -128,3 +128,13 @@
 @media(prefers-reduced-motion:reduce){.home-actions-dialog.is-closing .dialog-surface,.home-actions-dialog.is-closing::after{animation:none;opacity:0}}
 
 .home-cw-blurred-image{position:absolute;inset:-18px;background-size:cover;background-position:center;filter:blur(18px);pointer-events:none}.home-cw-blurred-image~span{z-index:1}
+
+/* Kotlin destructive exit keeps the lifted poster in place for its 1500ms ash
+   pass, hides copy/menu in 160ms, then releases the scrim over 300ms. */
+.home-actions-dialog.is-disintegrating-overlay .dialog-surface{overflow:visible;pointer-events:none}
+.home-actions-dialog.is-disintegrating-overlay .home-actions-artwork{overflow:visible}
+.home-actions-dialog.is-disintegrating-overlay .home-actions-copy,
+.home-actions-dialog.is-disintegrating-overlay .home-actions-options{animation:home-actions-scrim-out 160ms both}
+.home-actions-dialog.is-dissolved::before,
+.home-actions-dialog.is-dissolved::after{animation:home-actions-scrim-out 300ms cubic-bezier(.2,0,0,1) both}
+@media(prefers-reduced-motion:reduce){.home-actions-dialog.is-disintegrating-overlay .home-actions-artwork{animation:home-actions-scrim-out 160ms both}}

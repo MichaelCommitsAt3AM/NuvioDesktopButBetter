@@ -57,6 +57,6 @@ Automated chapter/panel, preference and native presentation checks are distinct 
 
 ## Integration
 
-All required automated local and CI checks passed on `b13f923c772d8d38e905d32f929aa1c95f512fe6`. The evidence-only follow-up commit changes this Markdown report, leaving the tested application/workflow tree unchanged. Promote the integration branch by normal fast-forward into `feature/react-tauri-desktop-rewrite` and push to origin, retaining the two-parent merge `9972795d9ae59dff18d91e0d81702460de136f58` and upstream target in ancestry. Fetch origin again and verify no incoming rewrite changes before promotion.
+All required automated local and CI checks passed on `b13f923c772d8d38e905d32f929aa1c95f512fe6`. The evidence-only follow-up commit changes this Markdown report, leaving the tested application/workflow tree unchanged. Origin was fetched again with no incoming rewrite commits. The integration branch was fast-forwarded into `feature/react-tauri-desktop-rewrite` and pushed to origin at `aafacf731`, retaining the two-parent merge `9972795d9ae59dff18d91e0d81702460de136f58` and upstream target in ancestry.
 
 The user reported the running debug app looked good during testing and separately requested Kotlin-style Continue Watching removal animation. That frontend follow-up is a separate change, not evidence about the upstream candidate's application tree. No default-branch change, tag, release publication or production migration belongs to this batch.

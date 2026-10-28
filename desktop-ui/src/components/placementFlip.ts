@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, type RefObject } from 'react';
+import { sampleSpring } from './posterZoomMotion';
 
 /** Pure FLIP delta computation, unit-tested separately from DOM measurement. */
 export function flipDeltas(
@@ -23,7 +24,7 @@ export function flipDeltas(
  * updates (e.g. progress ticks) animate nothing. Entrance effects never
  * replay: only keys present in both frames move.
  */
-export function usePlacementFlip(container: RefObject<HTMLElement | null>): void {
+export function usePlacementFlip(container: RefObject<HTMLElement | null>, composeSpring = false): void {
   const previous = useRef(new Map<string, { left: number; top: number }>());
   const lastContainer = useRef<HTMLElement | null>(null);
   const animations = useRef(new Map<string, Animation>());
@@ -54,10 +55,13 @@ export function usePlacementFlip(container: RefObject<HTMLElement | null>): void
       for (const [key, { dx, dy }] of flipDeltas(previous.current, current)) {
         const node = element.querySelector(`[data-flip-key="${CSS.escape(key)}"]`);
         animations.current.get(key)?.cancel();
-        const animation = (node as HTMLElement | null)?.animate?.(
-          [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0px, 0px)' }],
-          { duration: 220, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
-        );
+        // LazyItemScope.animateItem(): critically damped MediumLow (400),
+        // with IntOffset's one-pixel visibility threshold.
+        const spring = composeSpring ? sampleSpring(400, 1, 1 / Math.max(1, Math.abs(dx), Math.abs(dy))) : null;
+        const frames = spring ? spring.values.map(p => ({ transform: `translate(${dx * (1 - p)}px, ${dy * (1 - p)}px)` }))
+          : [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0px, 0px)' }];
+        const animation = (node as HTMLElement | null)?.animate?.(frames,
+          { duration: spring?.duration ?? 220, easing: spring ? 'linear' : 'cubic-bezier(0.2, 0, 0, 1)' });
         if (animation) {
           animations.current.set(key, animation);
           void animation.finished?.then(() => {

@@ -116,6 +116,7 @@ internal fun LazyListScope.playbackSettingsContent(
     androidLibmpvVideoOutput: AndroidLibmpvVideoOutput,
     androidLibmpvHardwareDecodingEnabled: Boolean,
     androidLibmpvYuv420pEnabled: Boolean,
+    androidExoChaptersEnabled: Boolean,
     decoderPriority: Int,
     mapDV7ToHevc: Boolean,
     tunnelingEnabled: Boolean,
@@ -140,6 +141,7 @@ internal fun LazyListScope.playbackSettingsContent(
             androidLibmpvVideoOutput = androidLibmpvVideoOutput,
             androidLibmpvHardwareDecodingEnabled = androidLibmpvHardwareDecodingEnabled,
             androidLibmpvYuv420pEnabled = androidLibmpvYuv420pEnabled,
+            androidExoChaptersEnabled = androidExoChaptersEnabled,
             decoderPriority = decoderPriority,
             mapDV7ToHevc = mapDV7ToHevc,
             tunnelingEnabled = tunnelingEnabled,
@@ -327,6 +329,7 @@ private fun PlaybackSettingsSection(
     androidLibmpvVideoOutput: AndroidLibmpvVideoOutput,
     androidLibmpvHardwareDecodingEnabled: Boolean,
     androidLibmpvYuv420pEnabled: Boolean,
+    androidExoChaptersEnabled: Boolean,
     decoderPriority: Int,
     mapDV7ToHevc: Boolean,
     tunnelingEnabled: Boolean,
@@ -1257,6 +1260,17 @@ private fun PlaybackSettingsSection(
                             )
                         }
                     }
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playback_exo_chapters),
+                        description = stringResource(
+                            if (isDesktop) Res.string.settings_playback_chapters_description else Res.string.settings_playback_exo_chapters_description,
+                        ),
+                        checked = androidExoChaptersEnabled,
+                        enabled = exoOptionsEnabled,
+                        isTablet = isTablet,
+                        onCheckedChange = PlayerSettingsRepository::setAndroidExoChaptersEnabled,
+                    )
                 }
             }
         }

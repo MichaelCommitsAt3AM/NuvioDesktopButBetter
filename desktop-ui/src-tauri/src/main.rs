@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod artwork;
 mod supervisor;
 mod updater;
 
@@ -584,7 +585,8 @@ fn main() {
             bridge_report_diagnostic,
             updater::update_check,
             updater::update_download,
-            updater::update_install
+            updater::update_install,
+            artwork::artwork_image_data_url
         ])
         .build(tauri::generate_context!())
         .expect("failed to build Nuvio desktop shell")

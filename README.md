@@ -83,6 +83,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Holding a title or Continue Watching card opens its action popup with the original Kotlin spring motion and cascading menu, with duplicate blur and competing animations removed.
 - Closing card popups returns to the artwork bounds, and Continue Watching keeps the original card's text proportions throughout the zoom.
 - Removing a Continue Watching title dissolves the enlarged artwork into image-colored ash with the Kotlin app’s timing and particle motion, fully hides the original card, then fades the backdrop and settles the remaining cards.
+- Continue Watching removal uses GPU acceleration for smoother particle fading while preserving the original density and motion.
 - Expanded Home categories use the same poster action popup and animations as Home.
 - All title cards, including Search and Discover, use Home's artwork popup and opening/closing animations; the older button-only popup is removed.
 - Poster popups show the complete image without cropping its edges or lettering.

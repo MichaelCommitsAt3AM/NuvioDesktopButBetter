@@ -1,4 +1,6 @@
-import { ASH_DURATION_MS, ashGrainFrame, ashProgress, createAshField, frontWave } from './ashMotion';
+import { ASH_DURATION_MS, ashProgress, createAshField } from './ashMotion';
+import { createCanvasAshRenderer, createGpuAshRenderer, type AshRenderer } from './ashRenderer';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 
 function loadImage(url: string, crossOrigin = false): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -50,7 +52,14 @@ export async function captureArtwork(node: HTMLElement): Promise<HTMLCanvasEleme
   // data: SVG has no external resources; foreignObject keeps the exact live
   // text layout, even when the lifted source has a scale transform.
   const overlayPromise = loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
-  const backgroundPromise = artworkUrl ? loadImage(artworkUrl, true).catch(() => loadImage(artworkUrl!)) : Promise.resolve(null);
+  const backgroundPromise = artworkUrl ? loadImage(artworkUrl, true).catch(async () => {
+    // Native preparation is only for an image already displayed by this card.
+    // An origin-clean copy lets blocked-CORS providers use the same GPU batch.
+    if (isTauri() && artworkUrl!.startsWith('https://')) {
+      try { return await loadImage(await invoke<string>('artwork_image_data_url', { url: artworkUrl })); } catch { /* retain the browser-only path */ }
+    }
+    return loadImage(artworkUrl!);
+  }) : Promise.resolve(null);
   const [overlay, background] = await Promise.all([overlayPromise, backgroundPromise]);
   context.save();
   const radius = parseFloat(getComputedStyle(node).borderTopLeftRadius) || 0;
@@ -67,94 +76,68 @@ export async function captureArtwork(node: HTMLElement): Promise<HTMLCanvasEleme
   return bitmap;
 }
 
-/** The callback runs only after the immutable snapshot exists, as in Kotlin.
- * A cancellation never invokes completion (profile/route changes own cleanup). */
+const prepared = new WeakMap<HTMLElement, { width: number; height: number; bitmap: Promise<HTMLCanvasElement> }>();
+
+/** Prepare while the menu is open, so image decoding/network work does not
+ * compete with the first particle frames. Entries leave with their DOM node. */
+export function prepareArtworkDisintegration(node: HTMLElement): Promise<HTMLCanvasElement> {
+  const existing = prepared.get(node);
+  if (existing?.width === node.clientWidth && existing.height === node.clientHeight) return existing.bitmap;
+  const bitmap = captureArtwork(node);
+  const entry = { width: node.clientWidth, height: node.clientHeight, bitmap };
+  prepared.set(node, entry);
+  void bitmap.catch(() => { if (prepared.get(node) === entry) prepared.delete(node); });
+  return bitmap;
+}
+
+/** Snapshot first, then run at the display's rAF cadence. Frame work consists of
+ * a progress uniform and GPU submissions; field buffers/textures are immutable. */
 export function animateArtworkDisintegration(node: HTMLElement, onStarted: () => void, onFinished: () => void) {
-  let cancelled = false, frame = 0;
-  let didStart = false;
+  let cancelled = false, frame = 0, didStart = false;
   const startOnce = () => { if (!didStart) { didStart = true; onStarted(); } };
-  let canvas: HTMLCanvasElement | undefined;
+  let renderer: AshRenderer | undefined;
   let fallback: Animation | undefined;
   let timer = 0;
   const originalOpacity = [...node.children].map(child => [child as HTMLElement, (child as HTMLElement).style.opacity] as const);
-  const restore = () => { canvas?.remove(); for (const [child, opacity] of originalOpacity) child.style.opacity = opacity; };
-  void captureArtwork(node).then(bitmap => {
+  const restore = () => {
+    renderer?.dispose(); renderer?.canvas.remove(); renderer = undefined;
+    for (const [child, opacity] of originalOpacity) child.style.opacity = opacity;
+  };
+  const fade = (duration = ASH_DURATION_MS) => {
     if (cancelled) return;
-    const width = bitmap.width, height = bitmap.height;
-    const field = createAshField(width, height);
-    canvas = document.createElement('canvas');
-    // Match Compose's unclipped draw scope: ash rises above/right of the card.
-    canvas.width = Math.ceil(width * 2.6); canvas.height = Math.ceil(height * 3.6);
-    Object.assign(canvas.style, { position: 'absolute', left: `${-width * .2}px`, top: `${-height * 2.6}px`, width: `${canvas.width}px`, height: `${canvas.height}px`, pointerEvents: 'none' });
-    canvas.setAttribute('aria-hidden', 'true');
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('Canvas unavailable');
-    // Read image colors once where permitted. With non-CORS artwork, draw
-    // one-pixel source samples directly; canvas taint never breaks the effect.
-    let colors: string[] | undefined;
-    let atlas: HTMLCanvasElement | undefined;
-    try {
-      const pixels = bitmap.getContext('2d')!.getImageData(0, 0, width, height).data;
-      colors = field.grains.map(grain => {
-        const offset = (Math.floor(grain.ny * (height - 1)) * width + Math.floor(grain.nx * (width - 1))) * 4;
-        return `rgba(${Math.min(255, pixels[offset] * grain.shade)},${Math.min(255, pixels[offset + 1] * grain.shade)},${Math.min(255, pixels[offset + 2] * grain.shade)},${pixels[offset + 3] / 255})`;
-      });
-    } catch {
-      // Prepare the tiny palette once, rather than sampling a full-size tainted
-      // bitmap thousands of times per frame. Brightness matches Kotlin's shade.
-      atlas = document.createElement('canvas'); atlas.width = field.cols; atlas.height = field.rows;
-      const palette = atlas.getContext('2d')!;
-      field.grains.forEach((grain, index) => {
-        palette.filter = `brightness(${grain.shade})`;
-        palette.drawImage(bitmap, Math.floor(grain.nx * (width - 1)), Math.floor(grain.ny * (height - 1)), 1, 1, index % field.cols, Math.floor(index / field.cols), 1, 1);
-      });
-    }
-    node.appendChild(canvas);
-    // LiftedCardArtwork deliberately gives every cloned descendant explicit
-    // visibility:visible. Opacity hides the composited subtree, so descendants
-    // cannot leave the intact card showing underneath (or after) the ash.
+    restore(); startOnce();
+    fallback = node.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration, fill: 'forwards' });
+    timer = window.setTimeout(() => { if (!cancelled) onFinished(); }, duration);
+  };
+  const snapshot = prepareArtworkDisintegration(node);
+  prepared.delete(node); // Consume the warm snapshot; retries must capture current artwork.
+  void snapshot.then(bitmap => {
+    if (cancelled) return;
+    const field = createAshField(bitmap.width, bitmap.height);
+    renderer = createGpuAshRenderer(bitmap, field) ?? createCanvasAshRenderer(bitmap, field);
+    node.appendChild(renderer.canvas);
+    // Opacity hides the entire composited clone, including descendants whose
+    // frozen visibility:visible would override a visibility:hidden wrapper.
     for (const [child] of originalOpacity) child.style.opacity = '0';
     const start = performance.now();
     startOnce();
-    const grainFrame = { x: 0, y: 0, scale: 0, alpha: 0 };
     const draw = (now: number) => {
       if (cancelled) return;
       const fraction = Math.min(1, (now - start) / ASH_DURATION_MS);
       const p = ashProgress(fraction);
-      context.clearRect(0, 0, canvas!.width, canvas!.height);
-      context.save(); context.translate(width * .2, height * 2.6);
-      const threshold = 1 - p / .5;
-      if (threshold > -.1) {
-        context.save(); context.beginPath();
-        for (let i = 0; i <= 28; i++) {
-          const ny = i / 28;
-          const boundary = (threshold - .52 * (1 - ny) - frontWave(ny, field.wavePhase)) / .48;
-          const x = Math.min(width, Math.max(0, boundary * width));
-          if (i === 0) context.moveTo(x, ny * height); else context.lineTo(x, ny * height);
-        }
-        context.lineTo(0, height); context.lineTo(0, 0); context.closePath(); context.clip();
-        context.drawImage(bitmap, 0, 0); context.restore();
+      try { renderer!.draw(p); }
+      catch {
+        // GPU switching/context loss must not strand the popup or restart time.
+        try {
+          const previous = renderer!;
+          renderer = createCanvasAshRenderer(bitmap, field);
+          previous.canvas.replaceWith(renderer.canvas); previous.dispose(); renderer.draw(p);
+        } catch { fade(Math.max(0, ASH_DURATION_MS - (now - start))); return; }
       }
-      field.grains.forEach((grain, index) => {
-        const tile = ashGrainFrame(grain, p, width, height, grainFrame);
-        if (!tile) return;
-        const w = (width / field.cols + .6) * tile.scale, h = (height / field.rows + .6) * tile.scale;
-        context.globalAlpha = tile.alpha;
-        if (colors) { context.fillStyle = colors[index]; context.fillRect(tile.x - w / 2, tile.y - h / 2, w, h); }
-        else context.drawImage(atlas!, index % field.cols, Math.floor(index / field.cols), 1, 1, tile.x - w / 2, tile.y - h / 2, w, h);
-      });
-      context.restore();
       if (fraction < 1) frame = requestAnimationFrame(draw);
       else onFinished();
     };
     frame = requestAnimationFrame(draw);
-  }).catch(() => {
-    if (cancelled) return;
-    restore();
-    // A failed image decode must not prevent removal or strand the dialog.
-    startOnce();
-    fallback = node.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: ASH_DURATION_MS, fill: 'forwards' });
-    timer = window.setTimeout(() => { if (!cancelled) onFinished(); }, ASH_DURATION_MS);
-  });
+  }).catch(() => fade());
   return () => { cancelled = true; cancelAnimationFrame(frame); clearTimeout(timer); fallback?.cancel(); restore(); };
 }

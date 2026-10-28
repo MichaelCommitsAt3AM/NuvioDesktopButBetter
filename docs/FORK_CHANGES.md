@@ -1139,3 +1139,23 @@ Validation: all 517 frontend tests across 84 files passed, the frontend producti
 The user's recording exposed an intact enlarged card underneath the ash and during the final backdrop fade. `LiftedCardArtwork` freezes `visibility: visible` on every cloned descendant, so the ash renderer's `visibility: hidden` wrapper did not hide that clone. The renderer now hides the original composited subtree with wrapper opacity and restores its exact previous opacity when cancelled or rolled back. The canvas remains a visible sibling; no repository/removal behavior changed.
 
 Validation: 16 focused renderer/motion/dialog/host tests passed, including a new final-frame regression with explicitly visible descendants. A real Chromium fixture deliberately kept the repository operation pending beyond the last particle frame: the canvas was fully transparent, the lifted wrapper remained at opacity zero, the dialog remained mounted without an intact card, and releasing the operation cleaned up both dialog and canvas. The production frontend and embedded Windows debug shell were rebuilt for user testing.
+
+
+### Smoother Continue Watching particle rendering (2026-10-28)
+
+The ash effect now uploads its immutable field and artwork texture once and uses WebGL2 instancing: one draw for the intact wave-clipped image and one for every particle. Per-frame JavaScript updates only eased progress and submits those draws; positions, shade, swirl, drift, alpha and scale are computed on the GPU using the existing Kotlin equations. The 130-column density, 26,000-grain ceiling, 1500 ms easing, 300 ms backdrop fade and opacity-based intact-card hiding are retained. Pixel comparisons use the same seeded field against the original Canvas renderer, including the Kotlin 28-segment clipping boundary.
+
+Snapshots are prepared while the action menu is open and consumed once, so retries capture current artwork. When an already-displayed HTTPS image blocks browser pixel reads, a presentation-only Tauri command prepares an origin-clean image copy for GPU upload. It accepts no user/account headers or cookies, rejects URL credentials and unsupported content types, permits at most three HTTPS redirects, enforces a two-second timeout and a 4 MiB limit including streamed bodies, and emits errors without provider URLs. Base64 reuses the version already present in the lockfile. Kotlin repositories and business behavior are unchanged. Browser-only use, unavailable image preparation and absent WebGL retain the existing Canvas fallback; graphics-context loss switches to that fallback without resetting the animation clock. Cancellation disposes GPU buffers, programs, textures and context, and restores the original card opacity.
+
+Foreground Windows WebView2 comparison used the user's first Continue Watching card (Henry Danger), with its actual artwork and no watch-history mutation. Three 1.5-second runs per variant at 700 CSS-pixel card width produced:
+
+| Measurement | Original Canvas | GPU batch |
+| --- | --- | --- |
+| Frames across three runs | 151 | 240 |
+| Median of per-run p95 renderer submission time | 10.6 ms | 0.1 ms |
+| Median of per-run p95 frame interval | 127.6 ms | 24.3 ms |
+| Worst observed frame gap | 363.7 ms | 48.5 ms |
+
+The artwork was tainted in the original path and origin-clean after local preparation; all optimized runs selected WebGL2. The display reports 165 Hz, but this foreground WebView2 session delivered approximately 55 FPS even when idle. These measurements demonstrate fewer dropped frames and lower renderer cost, not verified 165 FPS presentation. No browser frame-limit, throttling or security overrides are shipped. A profiling command containing browser-throttling overrides was rejected by automatic approval review; measurements above use normal settings with only a temporary local DevTools port.
+
+Validation: all 520 frontend tests across 84 files passed, the production frontend build passed, Rust formatting and all 11 Rust tests passed, plus `desktop-ui/scripts/ash-renderer-browser-check.mjs`. The real-browser check compares six GPU/Canvas frames (maximum mean premultiplied-channel error 2.22/255; both final frames fully transparent), exercises non-CORS Canvas fallback, real WebGL context loss, and cancellation before preparation finishes. The final embedded Windows debug shell is rebuilt and opened for user testing. macOS/Linux GPU presentation and sustained 165 Hz acceptance are not inferred from Windows tests.

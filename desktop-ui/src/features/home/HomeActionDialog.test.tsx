@@ -4,7 +4,7 @@ import { HomeActionDialog } from './HomeActionDialog';
 import { POSTER_CLOSE_MS } from '../../components/posterZoomMotion';
 
 const ash = vi.hoisted(() => ({ start: undefined as (() => void) | undefined, finish: undefined as (() => void) | undefined, cancel: vi.fn() }));
-vi.mock('../../components/artworkDisintegration', () => ({ animateArtworkDisintegration: (_node: HTMLElement, start: () => void, finish: () => void) => { ash.start = start; ash.finish = finish; return ash.cancel; } }));
+vi.mock('../../components/artworkDisintegration', () => ({ prepareArtworkDisintegration: () => Promise.resolve(document.createElement('canvas')), animateArtworkDisintegration: (_node: HTMLElement, start: () => void, finish: () => void) => { ash.start = start; ash.finish = finish; return ash.cancel; } }));
 
 beforeEach(() => {
   ash.start = undefined; ash.finish = undefined; ash.cancel.mockClear();

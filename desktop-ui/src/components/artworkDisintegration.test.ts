@@ -1,7 +1,10 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { animateArtworkDisintegration, captureArtwork } from './artworkDisintegration';
+import { animateArtworkDisintegration, captureArtwork, prepareArtworkDisintegration } from './artworkDisintegration';
 
-afterEach(() => { document.body.replaceChildren(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
+const native = vi.hoisted(() => ({ available: false, invoke: vi.fn() }));
+vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => native.available, invoke: native.invoke }));
+
+afterEach(() => { native.available = false; native.invoke.mockReset(); document.body.replaceChildren(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 function frame() {
   const node = document.body.appendChild(document.createElement('div'));
@@ -79,4 +82,30 @@ it('keeps explicitly visible lifted descendants hidden after the last particle f
   cancel();
   expect(wrapper.style.opacity).toBe('0.65');
   expect(node.querySelector('canvas')).toBeNull();
+});
+
+it.each([false, true])('prepares blocked-CORS images locally, retaining the browser fallback on native failure=%s', async (fail) => {
+  native.available = true;
+  const localImage = 'data:image/png;base64,local-image';
+  if (fail) native.invoke.mockRejectedValue(new Error('Image preparation unavailable'));
+  else native.invoke.mockResolvedValue(localImage);
+  const sources: string[] = [];
+  class DecodedImage {
+    naturalWidth = 100; naturalHeight = 60; crossOrigin = ''; onload?: () => void; onerror?: () => void;
+    set src(value: string) {
+      sources.push(value);
+      queueMicrotask(() => this.crossOrigin === 'anonymous' ? this.onerror?.() : this.onload?.());
+    }
+  }
+  vi.stubGlobal('Image', DecodedImage);
+  const context = { save: vi.fn(), beginPath: vi.fn(), roundRect: vi.fn(), clip: vi.fn(), drawImage: vi.fn(), restore: vi.fn(), filter: 'none' };
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D);
+  const node = frame();
+  // Menu warmup and selection share decoding and the native request.
+  const warm = prepareArtworkDisintegration(node);
+  expect(prepareArtworkDisintegration(node)).toBe(warm);
+  await warm;
+  expect(native.invoke).toHaveBeenCalledExactlyOnceWith('artwork_image_data_url', { url: 'https://art.example/title.jpg' });
+  if (fail) expect(sources.filter(src => src === 'https://art.example/title.jpg')).toHaveLength(2);
+  else expect(sources).toContain(localImage);
 });

@@ -3,7 +3,7 @@ import { Dialog } from '../../components/Dialog';
 import { LiftedCardArtwork } from '../../components/LiftedCardArtwork';
 import { liveSourceRect, rectOf, type SourceRect } from '../../components/sourceLift';
 import { animatePosterArtwork, animatePosterMenu, POSTER_CLOSE_MS, POSTER_EXPAND } from '../../components/posterZoomMotion';
-import { animateArtworkDisintegration } from '../../components/artworkDisintegration';
+import { animateArtworkDisintegration, prepareArtworkDisintegration } from '../../components/artworkDisintegration';
 import { ASH_FADE_MS } from '../../components/ashMotion';
 import './homeParity.css';
 
@@ -53,6 +53,11 @@ export function HomeActionDialog({title,poster,subtitle,onClose,children,artwork
     const timer = window.setTimeout(() => setOpening(false), POSTER_EXPAND.duration);
     return () => { observer?.disconnect(); window.clearTimeout(timer); openAnimation.current?.cancel(); animations.current.forEach(animation => animation.cancel()); };
   }, [sourceRect, sourceKey, !!artwork]);
+  useEffect(() => {
+    if (!onDestructiveAction || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const node = artworkRef.current;
+    if (node) void prepareArtworkDisintegration(node).catch(() => {});
+  }, [sourceKey, !!onDestructiveAction]);
   const dismiss = () => {
     if (closingRef.current) return;
     closingRef.current = true;

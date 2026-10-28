@@ -2269,6 +2269,7 @@ dependencies = [
 name = "nuvio-desktop-shell"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "dunce",
  "futures-util",
  "rand 0.8.8",

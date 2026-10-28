@@ -76,8 +76,8 @@ export function animateArtworkDisintegration(node: HTMLElement, onStarted: () =>
   let canvas: HTMLCanvasElement | undefined;
   let fallback: Animation | undefined;
   let timer = 0;
-  const originalVisibility = [...node.children].map(child => [child as HTMLElement, (child as HTMLElement).style.visibility] as const);
-  const restore = () => { canvas?.remove(); for (const [child, visibility] of originalVisibility) child.style.visibility = visibility; };
+  const originalOpacity = [...node.children].map(child => [child as HTMLElement, (child as HTMLElement).style.opacity] as const);
+  const restore = () => { canvas?.remove(); for (const [child, opacity] of originalOpacity) child.style.opacity = opacity; };
   void captureArtwork(node).then(bitmap => {
     if (cancelled) return;
     const width = bitmap.width, height = bitmap.height;
@@ -110,7 +110,10 @@ export function animateArtworkDisintegration(node: HTMLElement, onStarted: () =>
       });
     }
     node.appendChild(canvas);
-    for (const [child] of originalVisibility) child.style.visibility = 'hidden';
+    // LiftedCardArtwork deliberately gives every cloned descendant explicit
+    // visibility:visible. Opacity hides the composited subtree, so descendants
+    // cannot leave the intact card showing underneath (or after) the ash.
+    for (const [child] of originalOpacity) child.style.opacity = '0';
     const start = performance.now();
     startOnce();
     const grainFrame = { x: 0, y: 0, scale: 0, alpha: 0 };

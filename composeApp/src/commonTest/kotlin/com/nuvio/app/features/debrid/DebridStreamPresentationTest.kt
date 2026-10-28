@@ -383,7 +383,8 @@ class DebridStreamPresentationTest {
         ).languages
 
         assertEquals(
-            listOf(DebridStreamLanguage.EN, DebridStreamLanguage.IT),
+            // The fork keeps language appearance order rather than enum order.
+            listOf(DebridStreamLanguage.IT, DebridStreamLanguage.EN),
             languages("Movie.2023.1080p.WEB-DL.ITA.ENG.x264-GRP.mkv"),
         )
         assertEquals(listOf(DebridStreamLanguage.FR), languages("Movie.2023.TRUEFRENCH.1080p.WEB-DL.x265-GRP.mkv"))

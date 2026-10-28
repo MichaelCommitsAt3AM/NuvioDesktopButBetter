@@ -512,7 +512,7 @@ internal object DebridStreamMetadata {
         val resolve = stream.clientResolve
         val titles = listOfNotNull(resolve?.stream?.raw?.parsed?.parsedTitle, resolve?.title)
             .mapNotNull { title ->
-                val words = title.split(nonAlphanumericRunRegex).filter { it.isNotEmpty() }
+                val words = title.lowercase().split(nonAlphanumericRunRegex).filter { it.isNotEmpty() }
                 if (words.isEmpty()) null else Regex(
                     "(^|[^a-z0-9])${words.joinToString("[^a-z0-9]+") { Regex.escape(it) }}(?=[^a-z0-9]|$)",
                     RegexOption.IGNORE_CASE,

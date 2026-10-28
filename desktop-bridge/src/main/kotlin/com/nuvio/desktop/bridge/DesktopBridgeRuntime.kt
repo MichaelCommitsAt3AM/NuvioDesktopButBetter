@@ -211,6 +211,7 @@ class DesktopBridgeRuntime {
         // Match AppGate/MainAppContent initialization while keeping ownership in one runtime.
         AuthRepository.initialize()
         ProfileRepository.loadCachedProfiles()
+        com.nuvio.app.features.autosync.AutoSyncPreferencesDesktop.initialize()
         ThemeSettingsRepository.ensureLoaded()
         SearchHistoryRepository.ensureLoaded()
         DownloadsRepository.ensureLoaded()
@@ -231,7 +232,6 @@ class DesktopBridgeRuntime {
                         // Read after acquiring the lock: a profile switch may have
                         // replaced both repositories while this observer waited.
                         homeCatalogLifecycle.update(epoch, AddonRepository.uiState.value.addons, CollectionRepository.collections.value, com.nuvio.app.features.servers.ServerRepository.uiState.value.revision)
-                        com.nuvio.app.features.servers.ServerMatcher.warm()
                         emit("home", homeJson())
                         emit("appearance", AppearanceBridge.snapshot())
                     }
@@ -265,6 +265,11 @@ class DesktopBridgeRuntime {
         scope.launch { com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesRepository.uiState.collect { emit("homeExtras", HomeBridge.snapshot()) } }
         scope.launch { com.nuvio.app.features.watched.WatchedRepository.uiState.collect { emit("homeExtras", HomeBridge.snapshot()) } }
         scope.launch { com.nuvio.app.features.player.PlayerSettingsRepository.uiState.collect { emit("playbackSettings", PlaybackSettingsBridge.snapshot()) } }
+        scope.launch {
+            val preferences = com.nuvio.app.features.autosync.AutoSyncPreferencesRepository
+            kotlinx.coroutines.flow.combine(preferences.preferredSubtitleAutoSyncOnStart, preferences.aggressiveMode, preferences.syncToleranceMs) { _, _, _ -> Unit }
+                .collect { emit("playbackSettings", PlaybackSettingsBridge.snapshot()) }
+        }
         scope.launch { com.nuvio.app.features.details.MetaScreenSettingsRepository.uiState.collect { emit("metadataSettings", MetadataSettingsBridge.snapshot()) } }
         scope.launch { com.nuvio.app.features.p2p.P2pSettingsRepository.uiState.collect { emit("p2p", PlaybackSettingsBridge.p2pSnapshot()) } }
         scope.launch { com.nuvio.app.features.auth.ServerConnectionController.state.collect { emit("authOptions", AuthOptionsBridge.snapshot()) } }
@@ -325,6 +330,10 @@ class DesktopBridgeRuntime {
                     HomeRepository.clear()
                     refreshHomeAfterAddonChange()
                 }
+            }
+            if (previousProfile != profile?.profileIndex) {
+                com.nuvio.app.features.autosync.AutoSyncPreferencesRepository.ensureLoaded()
+                emit("playbackSettings", PlaybackSettingsBridge.snapshot())
             }
             previousProfile = profile?.profileIndex
             previousPolicy = policy

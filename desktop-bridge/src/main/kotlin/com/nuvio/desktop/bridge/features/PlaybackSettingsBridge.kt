@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.Color
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.plugins.PluginRepository
+import com.nuvio.app.features.autosync.AutoSyncPreferencesRepository
 import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.player.AvailableLanguageOptions
 import com.nuvio.app.features.player.SubtitleStyleState
@@ -79,7 +80,14 @@ object PlaybackSettingsBridge {
         PlayerSettingsRepository.ensureLoaded()
         val state = PlayerSettingsRepository.uiState.value
         val style = state.subtitleStyle
+        AutoSyncPreferencesRepository.ensureLoaded()
         return buildJsonObject {
+            put("chaptersEnabled", state.androidExoChaptersEnabled)
+            put("subtitleAutoSync", buildJsonObject {
+                put("enabled", AutoSyncPreferencesRepository.preferredSubtitleAutoSyncOnStart.value)
+                put("aggressiveMode", AutoSyncPreferencesRepository.aggressiveMode.value)
+                put("toleranceMs", AutoSyncPreferencesRepository.syncToleranceMs.value)
+            })
             put("showLoadingOverlay", state.showLoadingOverlay)
             put("showPlayerLoadingStatus", state.showPlayerLoadingStatus)
             put("pauseOverlayEnabled", state.pauseOverlayEnabled)
@@ -157,6 +165,14 @@ object PlaybackSettingsBridge {
         val key = params.str("key")
         val value = params["value"] ?: throw BridgeFeatureException("INVALID_ARGUMENT", "value is required")
         when (key) {
+            "chaptersEnabled" -> PlayerSettingsRepository.setAndroidExoChaptersEnabled(value.asBool(key))
+            "subtitleAutoSyncEnabled" -> AutoSyncPreferencesRepository.setPreferredSubtitleAutoSyncOnStart(value.asBool(key))
+            "subtitleAutoSyncAggressiveMode" -> AutoSyncPreferencesRepository.setAggressiveMode(value.asBool(key))
+            "subtitleAutoSyncToleranceMs" -> {
+                val tolerance = value.asInt(key)
+                if (tolerance !in AutoSyncPreferencesRepository.syncToleranceOptionsMs) invalid(key)
+                AutoSyncPreferencesRepository.setSyncToleranceMs(tolerance)
+            }
             "showLoadingOverlay" -> PlayerSettingsRepository.setShowLoadingOverlay(value.asBool(key))
             "showPlayerLoadingStatus" -> PlayerSettingsRepository.setShowPlayerLoadingStatus(value.asBool(key))
             "pauseOverlayEnabled" -> PlayerSettingsRepository.setPauseOverlayEnabled(value.asBool(key))

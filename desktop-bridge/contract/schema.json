@@ -1445,6 +1445,34 @@
           "type": "boolean"
         }
       }
+    },
+    "SubtitleAutoSyncPreferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "aggressiveMode",
+        "toleranceMs"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "aggressiveMode": {
+          "type": "boolean"
+        },
+        "toleranceMs": {
+          "type": "integer",
+          "enum": [
+            0,
+            100,
+            200,
+            300,
+            400,
+            500
+          ]
+        }
+      }
     }
   },
   "anyOf": [

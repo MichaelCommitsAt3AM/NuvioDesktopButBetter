@@ -79,6 +79,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Playback sliders show their selectable stops. Skip Segments follows Kotlin's separate detection switch, automatic-skipping dialog, and AnimeSkip/IntroDB credential dialogs, including IntroDB key verification.
 
 **React/Tauri desktop interface**
+- Playback includes embedded chapters and stream information, with optional automatic alignment for external subtitles and per-profile controls in Playback settings.
 - Holding a title or Continue Watching card opens its action popup with the original Kotlin spring motion and cascading menu, with duplicate blur and competing animations removed.
 - Closing card popups returns to the artwork bounds, and Continue Watching keeps the original card's text proportions throughout the zoom.
 - Expanded Home categories use the same poster action popup and animations as Home.

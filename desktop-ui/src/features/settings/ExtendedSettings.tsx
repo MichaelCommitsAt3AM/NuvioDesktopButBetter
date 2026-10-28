@@ -1,3 +1,5 @@
+import type { SubtitleAutoSyncPreferences } from '../../generated/contract';
+import { SubtitleAutoSyncSettings } from './SubtitleAutoSyncSettings';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ArrowLeft, Check, ChevronRight, Film, Gauge, HardDrive, LoaderCircle, Network, RotateCcw, Subtitles, Volume2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -11,7 +13,7 @@ import { SkipSegmentSettings } from './SkipSegmentSettings';
 
 type PlaybackSnapshot = {
   showLoadingOverlay: boolean; showPlayerLoadingStatus: boolean; pauseOverlayEnabled: boolean; showParentalGuide: boolean;
-  decoderPriority: number;
+  decoderPriority: number; chaptersEnabled: boolean; subtitleAutoSync: SubtitleAutoSyncPreferences;
   availableLanguages: string[];
   preferredAudioLanguage: string; secondaryPreferredAudioLanguage: string | null; preferredSubtitleLanguage: string; secondaryPreferredSubtitleLanguage: string | null;
   subtitleStyle: { textColor: string; backgroundColor: string; outlineColor: string; outlineEnabled: boolean; outlineWidth: number; bold: boolean; fontSizeSp: number; bottomOffset: number; stripSdh: boolean; useForcedSubtitles: boolean; showOnlyPreferredLanguages: boolean };
@@ -113,6 +115,9 @@ export function PlaybackSettingsPage() {
       <Toggle title="Use Forced Subtitles" description="Prefer forced subtitles when audio matches the subtitle language; if unavailable, select nothing." checked={style.useForcedSubtitles} onChange={(value) => updateSubtitle({ useForcedSubtitles: value })} />
       <Toggle title="Show Only Preferred Languages" description="Only show subtitles matching your preferred subtitle languages." checked={style.showOnlyPreferredLanguages} onChange={(value) => updateSubtitle({ showOnlyPreferredLanguages: value })} />
     </SettingCard>
+    <SettingCard icon={Subtitles} title="Subtitle auto sync">
+      <SubtitleAutoSyncSettings preferences={s.subtitleAutoSync} preferredLanguage={s.preferredSubtitleLanguage} onChange={set} />
+    </SettingCard>
     <SettingCard icon={Subtitles} title="Subtitle rendering">
       <ColorSetting title="Text color" value={style.textColor} kind="text" onChange={(value) => updateSubtitle({ textColor: value })} />
       <ColorSetting title="Background color" value={style.backgroundColor} kind="background" onChange={(value) => updateSubtitle({ backgroundColor: value })} />
@@ -136,6 +141,7 @@ export function PlaybackSettingsPage() {
       {s.streamAutoPlayMode !== 'MANUAL' && s.streamAutoPlaySource === 'ENABLED_PLUGINS_ONLY' && (plugins?.scrapers ?? []).filter((plugin) => plugin.enabled).map((plugin) => <Toggle key={plugin.id} title={plugin.name} checked={s.streamAutoPlaySelectedPlugins.includes(plugin.name)} onChange={(enabled) => set('streamAutoPlaySelectedPlugins', enabled ? [...s.streamAutoPlaySelectedPlugins, plugin.name] : s.streamAutoPlaySelectedPlugins.filter((name) => name !== plugin.name))} />)}
     </SettingCard>
     <SettingCard icon={Gauge} title="Decoder">
+      <Toggle title="Show chapters" description="Read embedded chapters and show chapter navigation in the player." checked={s.chaptersEnabled} onChange={(value) => set('chaptersEnabled', value)} />
       <Select title="Decoder Priority" value={String(s.decoderPriority)} values={['0', '1', '2']} labels={['Device decoders only', 'Prefer device decoders', 'Prefer app decoders (FFmpeg)']} onChange={(value) => set('decoderPriority', Number(value))} />
     </SettingCard>
     <SkipSegmentSettings preferences={s} run={run} />

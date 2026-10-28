@@ -22,3 +22,4 @@ export declare const Catalog: ValidateFunction;
 export declare const Discover: ValidateFunction;
 export declare const SearchHistory: ValidateFunction;
 export declare const ProfileAddonChoice: ValidateFunction;
+export declare const SubtitleAutoSyncPreferences: ValidateFunction;

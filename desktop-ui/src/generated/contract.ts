@@ -21,3 +21,4 @@ export type Catalog = { "key": string | null; "source": string | null; "title": 
 export type Discover = { "loading": boolean; "typeOptions": Array<string>; "selectedType": string | null; "catalogOptions": Array<{ "key": string; "addonName": string; "type": string; "catalogId": string; "catalogName": string; "genreOptions": Array<string>; "genreRequired": boolean; "supportsPagination": boolean; }>; "selectedCatalogKey": string | null; "selectedGenre": string | null; "genreOptions": Array<string>; "items": Array<Media>; "hasMore": boolean; "emptyStateReason": string | null; "error": string | null; };
 export type SearchHistory = { "enabled": boolean; "items": Array<string>; };
 export type ProfileAddonChoice = { "url": string; "name": string; "enabled": boolean; "kidsConflicting": boolean; "recommended": boolean; };
+export type SubtitleAutoSyncPreferences = { "enabled": boolean; "aggressiveMode": boolean; "toleranceMs": 0 | 100 | 200 | 300 | 400 | 500; };

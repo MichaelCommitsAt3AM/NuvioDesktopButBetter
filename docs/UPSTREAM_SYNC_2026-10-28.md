@@ -40,10 +40,16 @@ Local checks passed on the application changes committed with this report. Full 
 - Full frontend suite: 81 files / 506 tests passed; new settings and chapter/info DOM regressions also passed in a focused 11-test run. Initial accessibility-label failures were fixed in the new controls. Existing jsdom canvas diagnostic is non-fatal.
 - Frontend production build, contract/locales/inventory checks and whitespace check: passed. Existing chunk-size and mixed static/dynamic locale import warnings remain.
 - Rust formatting and all 9 tests passed. Embedded Windows shell `cargo build --locked --features custom-protocol`: passed in 22 seconds, embedding final frontend assets and the staged Kotlin runtime.
-- Full `:composeApp:stageBridgeRuntime :composeApp:desktopTest --no-configuration-cache --console=plain`: passed in 4m 29s on the final source. Detailed XML counts are recorded below. Native Windows presentation tests use the real JNI/mpv/WebView2 boundary; no JNI source change required a new native implementation in this batch.
+- Full `:composeApp:stageBridgeRuntime :composeApp:desktopTest --no-configuration-cache --console=plain`: passed in 4m 29s on the final source. XML reports: 282 suites, 1,856 tests, zero failures/errors and one macOS-only skip. Included: 2 Windows JNI/mpv/WebView2 presentation tests, 2 bridge autosync/chapter preference tests, 18 stream presentation tests, 8 chapter tests, 8 Matroska parser tests and 13 server title-lookup tests. Native Windows presentation tests use the real JNI/mpv/WebView2 boundary; no JNI source change required a new native implementation in this batch.
 - The first Kotlin run exposed three title-stripping regressions (case normalization of regex words) and an upstream assertion expecting enum language order. Title stripping was corrected; the test explicitly retains the fork's appearance ordering (`ITA.ENG` yields Italian then English). No tests were disabled.
 - Release/Windows launcher checks: 10 passed, 1 explicit Tauri CLI schema skip.
-- Database and all-platform build-only CI: pending on the exact pushed candidate.
+- Application candidate: `b13f923c772d8d38e905d32f929aa1c95f512fe6`, pushed to origin's integration branch.
+- Database CI: [40728558770](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/40728558770), **passed** on that candidate: RPC contract, fresh database/PostgREST smoke and upgrade database.
+- All-platform build-only CI: [40728583260](https://github.com/MichaelCommitsAt3AM/NuvioDesktopButBetter/actions/runs/40728583260), **passed** on that candidate: Windows MSI, macOS arm64/Intel, Linux AppImage/DEB/RPM/Flatpak and packaging preflight. Release creation/publication jobs were skipped by build-only mode.
+
+## Embedded Windows startup smoke
+
+At the user's request, launched the final embedded debug executable at 19:45 EAT (PID 10840) and left it running for testing. No existing debug frontend was running. The new process remained alive; new startup diagnostics accepted a signed-in session with five profiles and Home settled at epoch 3 with `loading=false`, `shelves=10`, `hero=8`. This is process/transport evidence, not visual or playback acceptance. No Vite server or legacy Compose launcher was used.
 
 ## Acceptance limits
 
@@ -51,4 +57,6 @@ Automated chapter/panel, preference and native presentation checks are distinct 
 
 ## Integration
 
-Pending validation on the integration branch. Preserve the normal upstream merge when promoting; do not squash or rebase it. No default-branch change, tag, release publication or production migration belongs to this batch.
+All required automated local and CI checks passed on `b13f923c772d8d38e905d32f929aa1c95f512fe6`. The evidence-only follow-up commit changes this Markdown report, leaving the tested application/workflow tree unchanged. Promote the integration branch by normal fast-forward into `feature/react-tauri-desktop-rewrite` and push to origin, retaining the two-parent merge `9972795d9ae59dff18d91e0d81702460de136f58` and upstream target in ancestry. Fetch origin again and verify no incoming rewrite changes before promotion.
+
+The user reported the running debug app looked good during testing and separately requested Kotlin-style Continue Watching removal animation. That frontend follow-up is a separate change, not evidence about the upstream candidate's application tree. No default-branch change, tag, release publication or production migration belongs to this batch.

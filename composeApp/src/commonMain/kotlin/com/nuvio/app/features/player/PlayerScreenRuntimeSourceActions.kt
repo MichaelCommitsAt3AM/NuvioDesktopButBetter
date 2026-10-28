@@ -462,12 +462,27 @@ internal fun PlayerScreenRuntime.switchToDownloadedEpisode(downloadItem: Downloa
 }
 
 internal fun PlayerScreenRuntime.playNextEpisode(automatic: Boolean = false) {
+    playPlayerEpisode(automatic = automatic)
+}
+
+internal fun PlayerScreenRuntime.playSelectedEpisode(episode: MetaVideo) {
+    cancelNextEpisodeAutoPlay()
+    cancelNextEpisodePreload()
+    selectedEpisodeAutoPlay = episode
+    nextEpisodeCardDismissed = true
+    showEpisodesPanel = false
+    episodeStreamsPanelState = EpisodeStreamsPanelState()
+    playerControlsCloseModalsToken += 1
+    playPlayerEpisode(selectedEpisode = episode)
+}
+
+private fun PlayerScreenRuntime.playPlayerEpisode(selectedEpisode: MetaVideo? = null, automatic: Boolean = false) {
     if (nextEpisodeAutoPlaySearching || nextEpisodeAutoPlayCountdown != null) return
     nextEpisodePreloadTriggered = false
     val playbackKey = activePlaybackKey
-    val nextVideoId = nextEpisodeInfo?.takeIf { it.hasAired }?.videoId ?: return
+    val nextVideoId = selectedEpisode?.id ?: nextEpisodeInfo?.takeIf { it.hasAired }?.videoId ?: return
     fun isCurrentRequest(): Boolean = playbackKey == activePlaybackKey &&
-        nextEpisodeInfo?.videoId == nextVideoId &&
+        (selectedEpisode != null || nextEpisodeInfo?.videoId == nextVideoId) &&
         (!automatic || (
             playerSettingsUiState.streamAutoPlayNextEpisodeEnabled &&
                 !nextEpisodeCardDismissed && isAtNextEpisodeThreshold()
@@ -482,7 +497,11 @@ internal fun PlayerScreenRuntime.playNextEpisode(automatic: Boolean = false) {
         parentMetaId = parentMetaId,
         parentMetaType = parentMetaType,
         contentType = contentType,
-        settings = playerSettingsUiState,
+        // An explicit episode click uses the normal stream preferences, without
+        // next-episode-only binge-group selection or the transition countdown.
+        settings = if (selectedEpisode != null) {
+            playerSettingsUiState.copy(streamAutoPlayPreferBingeGroup = false)
+        } else playerSettingsUiState,
         contentTitle = title,
         currentStreamBingeGroup = currentStreamBingeGroup,
         onDownloadedEpisodeSelected = { item, episode ->
@@ -502,7 +521,10 @@ internal fun PlayerScreenRuntime.playNextEpisode(automatic: Boolean = false) {
             }
         },
         onSearchingChanged = {
-            if (playbackKey == activePlaybackKey) nextEpisodeAutoPlaySearching = it
+            if (playbackKey == activePlaybackKey) {
+                nextEpisodeAutoPlaySearching = it
+                if (!it) selectedEpisodeAutoPlay = null
+            }
         },
         onSourceNameChanged = {
             if (playbackKey == activePlaybackKey) nextEpisodeAutoPlaySourceName = it
@@ -513,6 +535,7 @@ internal fun PlayerScreenRuntime.playNextEpisode(automatic: Boolean = false) {
         onNextEpisodeCardVisibleChanged = {
             if (playbackKey == activePlaybackKey) showNextEpisodeCard = it
         },
+        selectedEpisode = selectedEpisode,
     )?.let { job ->
         nextEpisodeAutoPlayJob = job
     }

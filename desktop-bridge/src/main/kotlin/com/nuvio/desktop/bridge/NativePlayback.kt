@@ -303,7 +303,10 @@ class NativePlayback(
                         }
                     }
                     applyNativeDesktopWindowChrome(window)
+                    if (embeddedInTauri) excludeEmbeddedPlaybackWindowFromTaskSwitcher(window)
                     window.isVisible = true
+                    // AWT may change extended styles while showing its peer.
+                    if (embeddedInTauri) excludeEmbeddedPlaybackWindowFromTaskSwitcher(window)
                 }
                 // Preserve React's artwork until the native loading UI replaces it.
                 // Cancellation/failure leaves ownership with withPreparedPlaybackHost,
@@ -353,6 +356,9 @@ class NativePlayback(
             window.setSize(1280, 720)
             if (embedded) {
                 window.type = java.awt.Window.Type.UTILITY
+                // AWT rejects opacity on decorated frames, which otherwise
+                // leaves this internal host eligible for a visible thumbnail.
+                window.isUndecorated = true
                 window.focusableWindowState = false
                 // If transparency is unavailable, keep the host invisible until handoff.
                 val transparent = runCatching { window.opacity = 0f }.isSuccess
@@ -367,7 +373,9 @@ class NativePlayback(
                 }
                 // Start Compose/Skia without creating mpv, loading media or attaching
                 // native children to Tauri before stream resolution has succeeded.
+                excludeEmbeddedPlaybackWindowFromTaskSwitcher(window)
                 if (transparent) window.isVisible = true
+                excludeEmbeddedPlaybackWindowFromTaskSwitcher(window)
             }
             return window
         } catch (error: Throwable) {

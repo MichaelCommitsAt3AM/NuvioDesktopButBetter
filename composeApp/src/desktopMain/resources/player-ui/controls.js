@@ -3763,7 +3763,6 @@ root.addEventListener("pointerdown", event => {
       event.stopPropagation();
       setSuppressNextRootClick();
       pipPointerDown = false;
-      root.classList.add("native-resizing");
       if (event.target && event.target.releasePointerCapture) {
         try { event.target.releasePointerCapture(event.pointerId); } catch (_) {}
       }

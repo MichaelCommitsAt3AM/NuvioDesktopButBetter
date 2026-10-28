@@ -14,6 +14,9 @@ desktopKotlin.sourceSets.getByName('desktopTest').kotlin.srcDir(rootProject.file
 // regression. Never let it run against a stale native DLL from an earlier build.
 if (System.getProperty('os.name').startsWith('Windows')) {
     tasks.named('desktopTest') {
+        // Match the shell's AWT peer access for embedded runtime-host tests.
+        jvmArgs('--add-opens=java.desktop/java.awt=ALL-UNNAMED',
+                '--add-opens=java.desktop/sun.awt.windows=ALL-UNNAMED')
         dependsOn('buildWindowsPlayerBridge', 'prepareWindowsPlayerRuntime')
         inputs.file(layout.buildDirectory.file('native/windows/player_bridge.dll')).withPropertyName('windowsPlayerBridge')
     }

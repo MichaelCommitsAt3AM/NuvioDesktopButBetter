@@ -74,6 +74,7 @@ constexpr double kMaxVolumePercent = 200.0;
 
 const wchar_t *kMessageWindowClass = L"NuvioPlayerBridgeMessageWindow";
 const wchar_t *kContainerWindowClass = L"NuvioPlayerBridgeContainerWindow";
+const wchar_t *kPipWindowClass = L"NuvioPlayerBridgePipWindow";
 constexpr DWORD kDwmwaUseImmersiveDarkMode = 20;
 constexpr DWORD kDwmwaUseImmersiveDarkModeLegacy = 19;
 constexpr DWORD kDwmwaWindowCornerPreference = 33;
@@ -653,6 +654,18 @@ void registerWindowClasses() {
         containerClass.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
         containerClass.lpszClassName = kContainerWindowClass;
         RegisterClassExW(&containerClass);
+
+        // PiP is a top-level window, not a STATIC control. Static controls
+        // consume non-client mouse messages instead of running the system's
+        // move/size loop, leaving WebView gestures without an end notification.
+        WNDCLASSEXW pipClass = {};
+        pipClass.cbSize = sizeof(pipClass);
+        pipClass.lpfnWndProc = DefWindowProcW;
+        pipClass.hInstance = gModule;
+        pipClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+        pipClass.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+        pipClass.lpszClassName = kPipWindowClass;
+        RegisterClassExW(&pipClass);
     });
 }
 
@@ -1030,7 +1043,7 @@ public:
     }
 
     void restoreForegroundControlsFocus() {
-        if (shuttingDown.load() || !controller || !controlsWebReady.load()) return;
+        if (shuttingDown.load() || nativeSizeMoveActive || !controller || !controlsWebReady.load()) return;
         HWND rootWindow = containerHwnd ? GetAncestor(containerHwnd, GA_ROOT) : nullptr;
         if (!rootWindow || GetForegroundWindow() != rootWindow) return;
         GUITHREADINFO foreground = {};
@@ -1087,6 +1100,8 @@ public:
     }
 
     void notifyNativeResizeStarted() {
+        nativeSizeMoveActive = true;
+        sendPlayerEvent("bridgeControlsSizeMoveStarted", 0.0);
         postUiTask([self = shared_from_this()]() {
             if (self->shuttingDown.load() || !self->webView) return;
             self->webView->ExecuteScript(
@@ -1097,6 +1112,8 @@ public:
     }
 
     void notifyNativeResizeEnded() {
+        nativeSizeMoveActive = false;
+        sendPlayerEvent("bridgeControlsSizeMoveEnded", 0.0);
         postUiTask([self = shared_from_this()]() {
             if (self->shuttingDown.load() || !self->webView) return;
             self->webView->ExecuteScript(
@@ -1137,7 +1154,9 @@ public:
             GetMonitorInfoW(MonitorFromWindow(self->hostHwnd, MONITOR_DEFAULTTONEAREST), &monitor);
             int width = MulDiv(480, GetDpiForWindow(self->hostHwnd), 96);
             int height = static_cast<int>(std::round(width / ratio));
-            HWND window = CreateWindowExW(WS_EX_TOPMOST, L"STATIC", title.c_str(),
+            // Keep the shell's taskbar entry as the single app entry. An owner
+            // would hide PiP when the shell minimizes, so use a tool window.
+            HWND window = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW, kPipWindowClass, title.c_str(),
                 WS_POPUP | WS_THICKFRAME | WS_CLIPCHILDREN,
                 monitor.rcWork.right - width - 24, monitor.rcWork.bottom - height - 24,
                 width, height, nullptr, nullptr, gModule, nullptr);
@@ -1515,6 +1534,7 @@ public:
 private:
     HWND hostHwnd = nullptr;
     HWND pipHwnd = nullptr;
+    std::atomic_bool nativeSizeMoveActive{false};
     HWND containerHwnd = nullptr;
     HWND messageHwnd = nullptr;
     LONG lastContainerLayoutWidth = -1;
@@ -2146,6 +2166,7 @@ private:
     }
 
     void focusNativeControls() {
+        if (nativeSizeMoveActive) return;
         if (deferPresentation && !controlsPresented) return;
         // Focus requests can arrive after an async bridge round-trip. Do not
         // activate the player if the user has already switched to another app.
@@ -3368,6 +3389,19 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_clearExternalSubtitlesAndSelect(JNIEnv *, jobject, jlong handle, jint trackId) {
     auto player = playerFromHandle(handle);
     if (player) player->removeExternalSubtitlesAndSelect(trackId);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_excludeWindowFromTaskSwitcher(
+    JNIEnv *, jobject, jlong windowHwnd
+) {
+    HWND window = reinterpret_cast<HWND>(static_cast<intptr_t>(windowHwnd));
+    if (!window || !IsWindow(window)) return;
+    LONG_PTR style = GetWindowLongPtrW(window, GWL_EXSTYLE);
+    style = (style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
+    SetWindowLongPtrW(window, GWL_EXSTYLE, style);
+    SetWindowPos(window, nullptr, 0, 0, 0, 0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
 }
 
 extern "C" JNIEXPORT void JNICALL

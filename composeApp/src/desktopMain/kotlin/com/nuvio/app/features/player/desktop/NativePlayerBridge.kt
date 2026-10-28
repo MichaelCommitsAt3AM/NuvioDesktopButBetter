@@ -74,6 +74,8 @@ internal object NativePlayerBridge {
     external fun beginWindowDrag(handle: Long)
     external fun setWindowResizable(windowHwnd: Long, enabled: Boolean)
     external fun setWindowAspectRatio(windowHwnd: Long, ratio: Float)
+    /** Windows only: keep an internal AWT runtime host out of shell navigation. */
+    external fun excludeWindowFromTaskSwitcher(windowHwnd: Long)
     external fun layoutNativeSubviews(handle: Long)
     /** Windows PiP is created in the native container's DPI mode. */
     external fun enterPictureInPicture(handle: Long, title: String, aspectRatio: Float): Boolean

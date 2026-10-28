@@ -38,8 +38,10 @@ import com.nuvio.app.features.party.PartyRepository
 import com.nuvio.app.features.p2p.formatP2pMegabytes
 import com.nuvio.app.features.p2p.formatP2pSpeed
 import com.nuvio.app.features.player.skip.SkipIntroRepository
+import com.nuvio.app.features.player.skip.NextEpisodeInfo
 import com.nuvio.app.features.streams.AddonStreamGroup
 import com.nuvio.app.features.streams.StreamBadgeSettingsRepository
+import com.nuvio.app.features.streams.StreamAutoPlayMode
 import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.streams.isSelectableForPlayback
 import com.nuvio.app.features.watchprogress.buildPlaybackVideoId
@@ -315,7 +317,21 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         initialLoadCompleted && !pausedOverlayVisible && !skipIntervalDismissed
     }
     val nativeSkipAction = nativeSkipInterval?.internalSkipAction(skipIntervals, playbackSnapshot.durationMs)
-    val nextEpisodeForControls = nextEpisodeInfo.takeIf { 
+    val autoPlayEpisode = selectedEpisodeAutoPlay
+    val nextEpisodeForControls = (autoPlayEpisode?.let { episode ->
+        NextEpisodeInfo(
+            videoId = episode.id,
+            season = episode.season ?: 0,
+            episode = episode.episode ?: 0,
+            title = episode.title,
+            thumbnail = episode.thumbnail,
+            overview = episode.overview,
+            released = episode.released,
+            hasAired = true,
+            isWatched = false,
+            unairedMessage = null,
+        )
+    } ?: nextEpisodeInfo).takeIf {
         isSeries && (showNextEpisodeCard || nextEpisodeAutoPlaySearching || nextEpisodeAutoPlayCountdown != null) 
     }
     val nextEpisodeStatus = when {
@@ -1028,6 +1044,8 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
         }
         "selectEpisode" -> {
             val episode = playerMetaVideos.getOrNull(value.toInt()) ?: return true
+            cancelNextEpisodeAutoPlay()
+            cancelNextEpisodePreload()
             if (selectDownloadedEpisodeForPlayback(
                     parentMetaId = parentMetaId,
                     episode = episode,
@@ -1035,6 +1053,8 @@ private fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: D
                 )
             ) {
                 playerControlsCloseModalsToken += 1
+            } else if (playerSettingsUiState.streamAutoPlayMode != StreamAutoPlayMode.MANUAL) {
+                playSelectedEpisode(episode)
             } else {
                 requestEpisodeStreamsForPlayerControls(episode)
             }

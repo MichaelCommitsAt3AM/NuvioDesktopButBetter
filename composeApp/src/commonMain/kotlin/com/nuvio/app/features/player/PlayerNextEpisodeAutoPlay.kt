@@ -62,6 +62,7 @@ internal fun PlayerScreenRuntime.cancelNextEpisodeAutoPlay() {
     nextEpisodeAutoPlayJob?.cancel()
     nextEpisodeAutoPlayJob = null
     nextEpisodeAutoPlayAutomatic = false
+    selectedEpisodeAutoPlay = null
     nextEpisodeAutoPlaySearching = false
     nextEpisodeAutoPlaySourceName = null
     nextEpisodeAutoPlayCountdown = null
@@ -84,10 +85,13 @@ internal fun CoroutineScope.launchPlayerNextEpisodeAutoPlay(
     onSourceNameChanged: (String?) -> Unit,
     onCountdownChanged: (Int?) -> Unit,
     onNextEpisodeCardVisibleChanged: (Boolean) -> Unit,
+    selectedEpisode: MetaVideo? = null,
 ): Job? {
-    val nextVideoId = nextEpisodeInfo?.videoId ?: return null
-    val nextVideo = allEpisodes.firstOrNull { video -> video.id == nextVideoId } ?: return null
-    if (nextEpisodeInfo.hasAired != true) return null
+    val nextVideo = selectedEpisode ?: run {
+        val nextVideoId = nextEpisodeInfo?.videoId ?: return null
+        if (nextEpisodeInfo.hasAired != true) return null
+        allEpisodes.firstOrNull { video -> video.id == nextVideoId } ?: return null
+    }
 
     val downloadedNextEpisode = DownloadsRepository.findPlayableDownload(
         parentMetaId = parentMetaId,
@@ -288,9 +292,11 @@ internal fun CoroutineScope.launchPlayerNextEpisodeAutoPlay(
         onSearchingChanged(false)
         if (selected != null) {
             onSourceNameChanged((selected.name?.takeIf { it.isNotBlank() } ?: selected.addonName).trim())
-            for (i in 3 downTo 1) {
-                onCountdownChanged(i)
-                delay(1000)
+            if (selectedEpisode == null) {
+                for (i in 3 downTo 1) {
+                    onCountdownChanged(i)
+                    delay(1000)
+                }
             }
             onEpisodeStreamSelected(selected, nextVideo)
             onNextEpisodeCardVisibleChanged(false)

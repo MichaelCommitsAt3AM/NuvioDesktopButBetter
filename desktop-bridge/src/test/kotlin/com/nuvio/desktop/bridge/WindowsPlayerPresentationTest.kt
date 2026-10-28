@@ -13,6 +13,7 @@ import java.nio.ByteOrder
 import java.nio.file.Files
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import kotlin.test.Test
@@ -145,6 +146,7 @@ class WindowsPlayerPresentationTest {
         val presented = CompletableFuture<Boolean>()
         val closeRequested = CompletableFuture<Boolean>()
         val reparentError = CompletableFuture<Double>()
+        val sizeMoveEvents = LinkedBlockingQueue<String>()
         try {
             hwnd = hostReady.get(10, TimeUnit.SECONDS)
             // Real video is essential: a WAV never creates mpv's child HWND.
@@ -164,6 +166,7 @@ class WindowsPlayerPresentationTest {
                     if (type == "nativeControlsFailed") presented.complete(false)
                     if (type == "pictureInPicture") closeRequested.complete(true)
                     if (type == "bridgeControlsLayoutReparentError") reparentError.complete(value)
+                    if (type == "bridgeControlsSizeMoveStarted" || type == "bridgeControlsSizeMoveEnded") sizeMoveEvents.add(type)
                 },
             )
             assertTrue(handle != 0L)
@@ -219,6 +222,25 @@ class WindowsPlayerPresentationTest {
             assertTrue(user32.GetWindowRect(pip, screenRect))
             assertEquals(-30000, screenRect.getInt(0))
             assertEquals(-30000, screenRect.getInt(4))
+            val pipClassName = CharArray(256)
+            assertTrue(user32.GetClassNameW(pip, pipClassName, pipClassName.size) > 0)
+            assertEquals("NuvioPlayerBridgePipWindow", pipClassName.concatToString().substringBefore('\u0000'))
+            assertTrue(user32.GetWindowLongW(pip, -20) and 0x00000080 != 0, "PiP must not create a second taskbar entry") // GWL_EXSTYLE, WS_EX_TOOLWINDOW
+            // Exercise repeated resize lifecycles without moving the user's
+            // physical cursor. Actual mouse drags are checked in the debug app.
+            for (width in listOf(640, 480)) {
+                sizeMoveEvents.clear()
+                assertTrue(user32.PostMessageW(pip, 0x0231, null, null)) // WM_ENTERSIZEMOVE
+                try {
+                    assertEquals("bridgeControlsSizeMoveStarted", sizeMoveEvents.poll(5, TimeUnit.SECONDS))
+                    assertTrue(user32.SetWindowPos(pip, null, -30000, -30000, width, width * 9 / 16, 0x0004 or 0x0010))
+                    val interactiveBounds = clientRect(user32, pip)
+                    assertRectEquals(interactiveBounds, awaitClientRect(user32, video, interactiveBounds, 8000), "Video stopped responding during resize")
+                } finally {
+                    user32.PostMessageW(pip, 0x0232, null, null) // WM_EXITSIZEMOVE
+                }
+                assertEquals("bridgeControlsSizeMoveEnded", sizeMoveEvents.poll(5, TimeUnit.SECONDS))
+            }
             assertTrue(user32.PostMessageW(pip, 0x0010, null, null)) // WM_CLOSE
             assertTrue(closeRequested.get(5, TimeUnit.SECONDS), "Native close did not request restore")
             assertTrue(user32.IsWindow(pip), "Close destroyed PiP before the coordinator restored video")
@@ -289,4 +311,6 @@ private interface PlayerTestUser32 : StdCallLibrary {
     fun GetWindowRect(hwnd: Pointer, rect: Pointer): Boolean
     fun PostMessageW(hwnd: Pointer, message: Int, wparam: Pointer?, lparam: Pointer?): Boolean
     fun GetParent(hwnd: Pointer): Pointer?
+    fun GetClassNameW(hwnd: Pointer, name: CharArray, maxCount: Int): Int
+    fun GetWindowLongW(hwnd: Pointer, index: Int): Int
 }

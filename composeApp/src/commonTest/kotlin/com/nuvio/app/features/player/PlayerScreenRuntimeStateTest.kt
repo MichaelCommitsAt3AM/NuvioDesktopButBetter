@@ -2,6 +2,8 @@ package com.nuvio.app.features.player
 
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Modifier
+import com.nuvio.app.features.details.MetaVideo
+import com.nuvio.app.features.streams.StreamAutoPlayMode
 import com.nuvio.app.features.streams.StreamsUiState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.test.runTest
@@ -155,6 +157,37 @@ class PlayerScreenRuntimeStateTest {
         assertSame(job, runtime.nextEpisodeAutoPlayJob)
         assertTrue(job.isActive)
         job.cancel()
+    }
+
+    @Test
+    fun clickingAnEpisodeReplacesPendingAutoPlayWithoutOpeningTheStreamPicker() = runTest {
+        for (mode in listOf(StreamAutoPlayMode.FIRST_STREAM, StreamAutoPlayMode.REGEX_MATCH)) {
+            val oldJob = Job()
+            val preloadJob = Job()
+            val runtime = PlayerScreenRuntime(testPlayerScreenArgs()).apply {
+                scope = backgroundScope
+                playerSettingsUiState = PlayerSettingsUiState(streamAutoPlayMode = mode)
+                nextEpisodeAutoPlayJob = oldJob
+                nextEpisodePreloadJob = preloadJob
+                nextEpisodeAutoPlayCountdown = 2
+                showEpisodesPanel = true
+            }
+
+            // The chosen episode need not be the next episode, or even present
+            // in a loaded episode list, to start automatic stream selection.
+            runtime.playSelectedEpisode(MetaVideo(id = "tt1234567:3:8", title = "Chosen", season = 3, episode = 8))
+
+            assertTrue(oldJob.isCancelled)
+            assertTrue(preloadJob.isCancelled)
+            assertTrue(runtime.nextEpisodeAutoPlaySearching)
+            assertEquals("tt1234567:3:8", runtime.selectedEpisodeAutoPlay?.id)
+            assertNull(runtime.nextEpisodeAutoPlayCountdown)
+            assertFalse(runtime.showEpisodesPanel)
+            assertFalse(runtime.episodeStreamsPanelState.showStreams)
+            assertEquals(1L, runtime.playerControlsCloseModalsToken)
+            runtime.cancelNextEpisodeAutoPlay()
+            assertNull(runtime.selectedEpisodeAutoPlay)
+        }
     }
 
     @Test

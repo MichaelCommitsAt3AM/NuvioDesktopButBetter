@@ -16,6 +16,7 @@ export function useDiscoverScroll(profileId: number | null, catalog: string | nu
   const positionCallback = useRef(onPosition);
   positionCallback.current = onPosition;
   const entry = `${profileId}:${location.key}`;
+  const previousEntry = useRef(entry);
   const initialPosition = useRef({ entry, position: navigationType === 'POP' ? positions.get(entry) : undefined });
   const initialVisibleCount = !searching && initialPosition.current.entry === entry && initialPosition.current.position?.catalog === catalog
     ? initialPosition.current.position.renderedCount : 0;
@@ -26,11 +27,13 @@ export function useDiscoverScroll(profileId: number | null, catalog: string | nu
       previousActive.current = false;
       return;
     }
-    if (!previousActive.current) {
-      // Re-entering a retained tab is a fresh visit for this route; consume
-      // the history entry's saved offset only when Back/Forward returned here.
+    if (!previousActive.current || previousEntry.current !== entry) {
+      // Back/Forward can change history entries without ever hiding Search.
+      // Re-arm restoration for that visit, but not for catalog/query updates
+      // within the same entry.
       mayRestore.current = navigationType === 'POP';
       previousActive.current = true;
+      previousEntry.current = entry;
     }
     const main = document.querySelector<HTMLElement>('.main-area');
     if (!main) return;

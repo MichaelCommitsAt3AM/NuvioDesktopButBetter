@@ -100,7 +100,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Custom themes use the same derived colors as Kotlin instead of mapping the three editor slots directly.
 - A one-time welcome introduces the faster rewritten interface and touchscreen support for both new and upgrading users.
 - Starting a search resets Discover's scroll immediately, and returning from a Discover title keeps Discover instead of reopening an old search.
-- Discover remembers your scroll position when you open a title and go back, with the restored cards kept stable as the grid loads.
+- Discover remembers your scroll position when you open a title and go back, including Back/Forward between Search visits. Hidden tabs pause loading additional poster cards until you return.
 - Offline launches open Downloads directly. Downloads has the details-style back arrow and local title/episode search; offline watch progress and completed viewing sync to Nuvio Sync after reconnection.
 - Library cards use Home's right-click action menu; the extra “Manage lists” buttons below cards and the per-card ⋯ button have been removed there.
 - Library has a labeled Downloads button, a fullscreen control in the top-right corner, and a header toggle between horizontal shelves and the vertical grid. Saved titles also get sort, list and type filters whose menus match the original app, and each shelf scrolls with the same hover arrows as Home.

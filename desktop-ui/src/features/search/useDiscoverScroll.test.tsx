@@ -25,6 +25,9 @@ function Discover() {
   return <section className="search-discover" onClickCapture={() => scroll.save.current()}>
     <div className="poster-grid" data-rendered-count="72" data-initial-count={scroll.initialVisibleCount} />
     <button onClick={() => navigate('/details/movie')}>Open title</button>
+    <button onClick={() => navigate('/search')}>Repeat Search</button>
+    <button onClick={() => navigate(-1)}>Search Back</button>
+    <button onClick={() => navigate(1)}>Search Forward</button>
     <button onClick={() => setCatalog('series')}>Change catalog</button>
     <button onClick={() => setProfile(2)}>Change profile</button>
     <button onClick={() => setSearching(true)}>Start search</button>
@@ -75,6 +78,23 @@ it('does not apply an old offset to a fresh Search navigation entry', () => {
   fireEvent.click(screen.getByText('Fresh Search entry'));
   expect(main.scrollTop).toBe(0);
   expect(document.querySelector('.poster-grid')).toHaveAttribute('data-initial-count', '0');
+});
+
+it('restores Back and Forward offsets between entries while Search stays mounted', () => {
+  render(page());
+  const main = scrollTo(1600);
+  const grid = document.querySelector('.poster-grid');
+  fireEvent.click(screen.getByText('Repeat Search'));
+  expect(document.querySelector('.poster-grid')).toBe(grid);
+  expect(main.scrollTop).toBe(0);
+  scrollTo(500);
+
+  fireEvent.click(screen.getByText('Search Back'));
+  expect(main.scrollTop).toBe(1600);
+  fireEvent.click(screen.getByText('Search Forward'));
+  expect(main.scrollTop).toBe(500);
+  expect(document.querySelector('.poster-grid')).toBe(grid);
+  expect(vi.getTimerCount()).toBe(0);
 });
 
 it.each([false, true])('retries a clamped grid and respects user interruption (%s)', interrupt => {

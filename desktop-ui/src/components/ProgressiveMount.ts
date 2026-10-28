@@ -1,4 +1,5 @@
-import { startTransition, useEffect, useState } from 'react';
+import { startTransition, use, useEffect, useState } from 'react';
+import { TabActivity } from '../navigation/tabActivity';
 
 export const PROGRESSIVE_MOUNT_STEP = 24;
 
@@ -19,8 +20,11 @@ export function useProgressiveCount(total: number, resetKey: string, step = PROG
     setState({ key: resetKey, count: initial });
   }
   const count = state.key === resetKey ? state.count : initial;
+  // React 19's use(context) can be conditional. Completed shelves have no
+  // pending work, so do not wake their entire card tree on tab visibility.
+  const active = count < total ? use(TabActivity) : true;
   useEffect(() => {
-    if (count >= total) return;
+    if (!active || count >= total) return;
     const frame = requestAnimationFrame(() => {
       // Poster filling is background work; input and navigation can interrupt
       // React between cards instead of competing with an urgent full batch.
@@ -31,6 +35,6 @@ export function useProgressiveCount(total: number, resetKey: string, step = PROG
       });
     });
     return () => cancelAnimationFrame(frame);
-  }, [count, total, resetKey, step]);
+  }, [active, count, total, resetKey, step]);
   return Math.min(count, total);
 }

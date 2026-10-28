@@ -546,6 +546,8 @@ Retention required making the shared-scroll and global-overlay assumptions expli
 
 Search keeps its query/results and Library keeps mode, filters and layout. Settings keeps its current sub-route while it is open, but opening Settings from the nav returns to the root; transient dialogs and menus are not restored. Data invalidation stays intentional: Search history and discovery, Library extras/cloud, and Settings metadata refresh on re-entry as they did on remount, while the retained trees themselves do not mount again.
 
+Poster filling now cancels its pending animation frame while a retained tab is hidden and resumes from the existing count when shown. Fully populated shelves stop subscribing to tab visibility, avoiding unnecessary shelf updates. Discover also restores the correct saved offset on Back/Forward between Search history entries while Search remains active. Regression tests cover both paths; all 502 frontend tests and the production build pass. Temporary navigation timing instrumentation was removed after testing; the reported Home-return stutter remains unresolved.
+
 Regression coverage verifies lazy first mount, DOM/effect/state identity across returns and Back/Forward, hidden-tab inaccessibility, profile isolation, Discover and Library scroll restoration without cross-tab saves, and the retained Settings sub-route. All 499 frontend tests and `npm run build` pass. Retention reduces repeat-visit setup but does not remove first-visit work; it is not a separate animation thread and measured smoothness on the user's Windows host remains pending.
 
 ### Rewrite episode scrolling and trailer capability

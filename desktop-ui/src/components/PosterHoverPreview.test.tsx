@@ -5,6 +5,43 @@ import { PosterHoverPreview } from './PosterHoverPreview';
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('PosterHoverPreview', () => {
+  it.each([
+    [{ deltaX: 0, deltaY: 37.5 }, null, { left: 0, top: 37.5, behavior: 'instant' }],
+    [{ deltaX: -24.5, deltaY: 0 }, { left: -24.5, top: 0, behavior: 'instant' }, null],
+    [{ deltaX: 12, deltaY: 18 }, { left: 12, top: 0, behavior: 'instant' }, { left: 0, top: 18, behavior: 'instant' }],
+    [{ deltaX: 0, deltaY: 40, shiftKey: true }, { left: 40, top: 0, behavior: 'instant' }, null],
+    [{ deltaX: 0, deltaY: 2, deltaMode: 1 }, null, { left: 0, top: 40, behavior: 'instant' }],
+    [{ deltaX: 1, deltaY: 0, deltaMode: 2 }, { left: 600, top: 0, behavior: 'instant' }, null],
+    [{ deltaX: 0, deltaY: 40, ctrlKey: true }, null, null],
+  ])('forwards wheel input from the expanded card to its source row and page (%j)', (input, horizontal, vertical) => {
+    const main = document.createElement('main');
+    main.style.overflowY = 'auto';
+    main.style.lineHeight = '20px';
+    const row = document.createElement('div');
+    row.style.overflowX = 'auto';
+    const anchor = document.createElement('button');
+    row.appendChild(anchor); main.appendChild(row); document.body.appendChild(main);
+    Object.defineProperties(main, { clientHeight: { value: 600 }, scrollHeight: { value: 2400 }, scrollTop: { value: 100 } });
+    Object.defineProperties(row, { clientWidth: { value: 600 }, scrollWidth: { value: 1800 }, scrollLeft: { value: 100 } });
+    main.scrollBy = vi.fn(); row.scrollBy = vi.fn();
+    const onMouseLeave = vi.fn();
+    try {
+      render(<PosterHoverPreview
+        anchorRef={{ current: anchor }}
+        item={{ id: 'wheel', type: 'movie', name: 'Wheel Movie', poster: null, background: null, logo: null, description: '', releaseInfo: '2026', rating: null, genres: [] }}
+        rect={{ left: 100, top: 80 } as DOMRect} saved={false} watched={false}
+        onOpen={() => {}} onToggleWatched={() => {}} onToggleSaved={() => {}} onMouseEnter={() => {}} onMouseLeave={onMouseLeave}
+      />);
+      const allowed = fireEvent.wheel(document.querySelector('.poster-preview')!, input);
+      if (horizontal) expect(row.scrollBy).toHaveBeenCalledExactlyOnceWith(horizontal);
+      else expect(row.scrollBy).not.toHaveBeenCalled();
+      if (vertical) expect(main.scrollBy).toHaveBeenCalledExactlyOnceWith(vertical);
+      else expect(main.scrollBy).not.toHaveBeenCalled();
+      const zoom = 'ctrlKey' in input && input.ctrlKey;
+      expect(allowed).toBe(Boolean(zoom));
+      expect(onMouseLeave).toHaveBeenCalledTimes(zoom ? 0 : 1);
+    } finally { main.remove(); }
+  });
   it('retains the closing card for its exit and cancels dismissal when reopened', () => {
     vi.useFakeTimers();
     vi.stubGlobal('matchMedia', () => ({ matches: false }));

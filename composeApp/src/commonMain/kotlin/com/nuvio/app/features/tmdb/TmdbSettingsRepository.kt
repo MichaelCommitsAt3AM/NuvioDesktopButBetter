@@ -185,7 +185,7 @@ object TmdbSettingsRepository {
         val previousEnabled = enabled
         val previousUseCredits = useCredits
         hasLoaded = true
-        enabled = TmdbSettingsStorage.loadEnabled() ?: false
+        enabled = TmdbSettingsStorage.loadEnabled() ?: (ProfileRepository.state.value.activeProfile?.kidsEnabled == true)
         apiKey = TmdbSettingsStorage.loadApiKey()?.trim().orEmpty()
         val storedLanguage = TmdbSettingsStorage.loadLanguage()
         language = if (storedLanguage == null) "en" else normalizeLanguage(storedLanguage)
@@ -193,7 +193,7 @@ object TmdbSettingsRepository {
         useArtwork = TmdbSettingsStorage.loadUseArtwork() ?: true
         useBasicInfo = TmdbSettingsStorage.loadUseBasicInfo() ?: true
         useDetails = TmdbSettingsStorage.loadUseDetails() ?: true
-        useCredits = TmdbSettingsStorage.loadUseCredits() ?: true
+        useCredits = TmdbSettingsStorage.loadUseCredits() ?: (ProfileRepository.state.value.activeProfile?.kidsEnabled != true)
         useProductions = TmdbSettingsStorage.loadUseProductions() ?: (ProfileRepository.state.value.activeProfile?.kidsEnabled != true)
         useNetworks = TmdbSettingsStorage.loadUseNetworks() ?: (ProfileRepository.state.value.activeProfile?.kidsEnabled != true)
         useEpisodes = TmdbSettingsStorage.loadUseEpisodes() ?: true

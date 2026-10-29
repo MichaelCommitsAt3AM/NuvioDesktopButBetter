@@ -29,7 +29,10 @@ vi.mock('@tauri-apps/api/core', () => ({
     if (command === 'bridge_report_diagnostic') return undefined;
     const request = args!.request!;
     bridgeMock.requests.push(request);
-    if (request.method === 'details.load') return { id: request.id, epoch: bridgeMock.epoch, result: { requestId: request.id, loading: true, error: null, media: null, episodes: [], cast: [], related: [], loadingSections: [] } };
+    if (request.method === 'details.load') {
+      if (request.params.id === 'event-first') emit({ topic: 'details', epoch: bridgeMock.epoch, revision: 500, data: { requestId: request.id, loading: false, error: null, media: media('event-first', 'Event-first title'), episodes: [], cast: [], related: [], loadingSections: [] } });
+      return { id: request.id, epoch: bridgeMock.epoch, result: { requestId: request.id, loading: true, error: null, media: null, episodes: [], cast: [], related: [], loadingSections: [] } };
+    }
     if (request.method === 'streams.load') {
       if (request.params.videoId === 'event-first') emit({ topic: 'streams', epoch: bridgeMock.epoch, revision: 500, data: { requestId: request.id, loading: false, error: null, groups: [] } });
       return { id: request.id, epoch: bridgeMock.epoch, result: { requestId: request.id, loading: bridgeMock.streamAutoPlayMode !== 'MANUAL', error: null, groups: [] } };
@@ -811,6 +814,32 @@ describe('desktop bridge UI workflow', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/search'));
     expect(document.querySelector('.search-page')).toBe(searchPage);
     expect(main.scrollTop).toBe(1250);
+  });
+
+  it('does not replace completed details events with an older loading RPC response', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    await act(async () => { await actions.loadDetails('movie', 'event-first'); });
+    expect(getSnapshot().details.loading).toBe(false);
+    expect(getSnapshot().details.media?.id).toBe('event-first');
+    expect(getSnapshot().details.requestedId).toBe('event-first');
+  });
+
+  it('opens a TMDB recommendation using its resolved IMDb identity and ignores old-title events', async () => {
+    window.history.replaceState({}, '', '/details/series/tmdb%3A101');
+    render(<AppRoot />);
+    await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'details.load')).toBe(true));
+    const original = bridgeMock.requests.find((request) => request.method === 'details.load')!;
+    const result = { requestId: original.id, loading: false, error: null, media: { ...media('tt1234567', 'Resolved recommendation'), type: 'series' }, episodes: [], cast: [], related: [], loadingSections: [] };
+    await act(async () => emit({ topic: 'details', epoch: bridgeMock.epoch, revision: 901, data: result }));
+    await waitFor(() => expect(window.location.pathname).toBe('/details/series/tt1234567'));
+    expect(bridgeMock.requests.filter((request) => request.method === 'details.load')).toHaveLength(1);
+    expect(await screen.findByRole('button', { name: 'Play' })).toBeVisible();
+    // Later enrichment from the alias request still owns the canonical page.
+    await act(async () => emit({ topic: 'details', epoch: bridgeMock.epoch, revision: 902, data: { ...result, media: { ...result.media, description: 'Enriched description' } } }));
+    expect(await screen.findByText('Enriched description')).toBeVisible();
+    await act(async () => emit({ topic: 'details', epoch: bridgeMock.epoch, revision: 903, data: { ...result, requestId: 'older-request', media: media('stale', 'Stale title') } }));
+    expect(window.location.pathname).toBe('/details/series/tt1234567');
   });
 
   it('keeps navigation out of page snapshot and playback update commits', async () => {

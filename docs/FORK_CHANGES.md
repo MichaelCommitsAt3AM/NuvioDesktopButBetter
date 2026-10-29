@@ -4,6 +4,24 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Scroll through expanded poster previews — 2026-10-29
+
+Expanded poster previews are body portals and therefore have no native scroll ancestry back to their shelf or page. A non-passive wheel listener forwards each input axis to the nearest scrollable ancestor of the actual source poster, then dismisses the preview through its existing close behavior. Vertical input scrolls the page; horizontal and Shift-wheel input scroll the originating row. Pixel-mode touchpad deltas retain their magnitude and use instant movement so CSS smooth scrolling cannot amplify or queue gestures. Line/page wheel units are converted for the target container, and Ctrl-wheel remains available for browser zoom. Regression tests cover vertical, horizontal, diagonal, Shift-wheel, line/page units and Ctrl-wheel.
+
+Validation: all 11 preview tests and the frontend production build passed. The existing debug preview serves the updated component through Vite hot reload; live touchpad acceptance remains for user testing.
+
+### Details navigation, native scrolling, pause timing and TMDB sync — 2026-10-29
+
+The bridge store retains each details request's route identity independently of the returned media identity. When a TMDB recommendation resolves to an add-on's IMDb identity, Details replaces its route with that canonical title while keeping its ongoing enrichment alive; old request events cannot redirect the current title. A late loading RPC response cannot overwrite a newer details event. Details keeps Back available and presents an error for completed empty responses.
+
+Season selectors remain bounded by their container and use native automatic horizontal overflow. Selecting an offscreen season scrolls only its own track; fitting rows stay still. The old `scrollIntoView` could move ancestor scrollers while season metadata arrived. Details enrichment anchoring now compares content coordinates, preserving any touchpad movement between anchor capture and React commit. The React UI has no touchpad wheel-speed multiplier; native wheel deltas remain untouched.
+
+Fullscreen controls now use the same 3.5-second inactivity timeout as windowed controls. The paused metadata timer starts once controls hide, waits two seconds, and resets when controls reappear or playback resumes. Reduced-motion timing retains its immediate behavior.
+
+TMDB preference sharing now covers all profiles using the compatible `shared_tmdb_v1` bucket. Pulls consult it even without a local-platform or primary settings record, preserving other device settings in that case. Legacy migration fills missing preferences from the other platform; explicit shared opt-outs remain authoritative. Unset kids enrichment defaults on, with credits/production/network details off. API keys continue through the existing provider credential sync; kids use their existing authenticated KidsScreen TMDB proxy. No credentials are added to preference records.
+
+Validation: all 524 frontend tests passed, followed by the final 69 bridge tests after adding late-response protection. The frontend production build, contract check, targeted Kotlin desktop TMDB preference/credential/proxy tests and `stageBridgeRuntime` passed. Regression coverage includes canonical title navigation with continued enrichment, stale events, fitting/overflowing season rows, user scrolling during enrichment, pause timing and fresh-platform preference migration. Installed second-device sign-in/sync and live touchpad/player acceptance remain to be exercised.
+
 ### Enable desktop custom subtitle styling by default — 2026-10-25
 
 Desktop's unset `useLibass` preference now defaults to false, enabling the player's inverse “Use custom styling” option. The initial UI state, repository initial/reset state and missing-storage fallback agree. Explicit stored true/false values remain authoritative, including synced preferences. Other platform defaults retain their upstream value. Kotlin desktop compilation and bridge runtime staging passed.

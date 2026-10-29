@@ -18,7 +18,7 @@ type State = {
   addonsReady: boolean;
   settings: Settings;
   search: Search;
-  details: Details;
+  details: Details & { requestedType?: string; requestedId?: string };
   streams: Streams;
   playback: PlaybackState;
   catalog: Catalog | null;
@@ -138,7 +138,7 @@ function acceptEvent(event: Event) {
       break;
     case 'details':
       reportDiagnostic(`Received details event (incomingRequest=${(data as Details).requestId}, currentRequest=${state.details.requestId}, requestMatch=${(data as Details).requestId === state.details.requestId}, loading=${Boolean((data as Details).loading)}, media=${Boolean((data as Details).media)}, error=${Boolean((data as Details).error)})`);
-      update((current) => (data as Details).requestId === current.details.requestId ? { ...current, details: data as Details } : current);
+      update((current) => (data as Details).requestId === current.details.requestId ? { ...current, details: { ...data as Details, requestedType: current.details.requestedType, requestedId: current.details.requestedId } } : current);
       break;
     case 'streams':
       reportDiagnostic(`Streams event request=${(data as Streams).requestId} matches=${(data as Streams).requestId === state.streams.requestId} loading=${(data as Streams).loading} groups=${(data as Streams).groups.length} error=${Boolean((data as Streams).error)}`);
@@ -426,14 +426,15 @@ export const actions = {
   async loadDetails(type: string, id: string) {
     const rid = requestId();
     reportDiagnostic(`Details screen requested a title (request=${rid})`);
-    update((current) => ({ ...current, details: { requestId: rid, loading: true, error: null, media: null, episodes: [], cast: [], related: [], loadingSections: [] } }));
+    const pending: State['details'] = { requestId: rid, requestedType: type, requestedId: id, loading: true, error: null, media: null, episodes: [], cast: [], related: [], loadingSections: [] };
+    update((current) => ({ ...current, details: pending }));
     try {
       // Cached details can be returned synchronously by Kotlin before the
       // request-scoped event collector has activated this request ID. Apply
-      // the RPC snapshot as well as listening for later enrichment updates.
+      // the RPC snapshot unless an event already supplied newer details.
       const details = await call<Details>('details.load', { type, id }, true, rid);
       reportDiagnostic(`details.load response received (request=${rid}, loading=${details.loading}, media=${Boolean(details.media)}, error=${Boolean(details.error)})`);
-      update((current) => current.details.requestId === rid ? { ...current, details } : current);
+      update((current) => current.details === pending ? { ...current, details: { ...details, requestedType: type, requestedId: id } } : current);
     }
     catch (error) {
       reportDiagnostic(`details.load failed (request=${rid}): ${errorMessage(error)}`);

@@ -45,7 +45,10 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 - Home shows the first available featured titles while other catalogs load, keeping the initial poster stable during startup.
 
-- Moving the mouse reveals hidden player controls in fullscreen without needing a click.
+- Moving the mouse reveals hidden player controls in fullscreen without needing a click. Controls stay visible for 3.5 seconds, with paused title details appearing two seconds after the controls hide.
+- Seasons scroll horizontally only when they overflow, and selecting a season keeps the page in place. Details updates preserve touchpad scrolling, and TMDB recommendations open their resolved title correctly.
+- Scrolling over an expanded poster card moves its original row horizontally or the page vertically, without needing to move the cursor away first.
+- TMDB enrichment preferences follow profiles across devices and platforms, including fresh installations. Kids profiles default to enrichment on, using their existing KidsScreen configuration; explicit opt-outs are preserved.
 
 - Provider accounts and API keys stay separate for each profile, including TorBox and Premiumize. Switching profiles reloads the correct credentials.
 - Every profile includes OpenSubtitles v3, checked by default and marked Recommended, with an option to turn it off. Kids-profile add-on selection disables Cinemeta and AIOMetadata; the add-on sync card follows Kids settings.

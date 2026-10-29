@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { ArrowRight, Check, CircleCheck, Plus } from 'lucide-react';
 import type { Media } from '../generated/contract';
 import { HoverTrailer } from './HoverTrailer';
@@ -10,6 +10,7 @@ type Props = {
   visible?: boolean;
   item: Media;
   rect: DOMRect;
+  anchorRef?: RefObject<HTMLElement | null>;
   saved: boolean;
   watched: boolean;
   onOpen: () => void;
@@ -74,11 +75,12 @@ function usePreloadedImage(src: string | null): boolean {
   return ready;
 }
 
-export function PosterHoverPreview({ visible = true, item, rect, saved, watched, onOpen, onToggleWatched, onToggleSaved, onMouseEnter, onMouseLeave, trailer }: Props) {
+export function PosterHoverPreview({ visible = true, item, rect, anchorRef, saved, watched, onOpen, onToggleWatched, onToggleSaved, onMouseEnter, onMouseLeave, trailer }: Props) {
   const [present, setPresent] = useState(visible);
   const [trailerDone, setTrailerDone] = useState(false);
   const active = useTabActive();
   const hideRef = useRef(onMouseLeave);
+  const previewRef = useRef<HTMLDivElement>(null);
   hideRef.current = onMouseLeave;
   const backdropReady = usePreloadedImage(item.background);
   const logoReady = usePreloadedImage(item.logo);
@@ -95,6 +97,38 @@ export function PosterHoverPreview({ visible = true, item, rect, saved, watched,
     const timer = window.setTimeout(() => setPresent(false), duration);
     return () => window.clearTimeout(timer);
   }, [visible]);
+  useEffect(() => {
+    const preview = previewRef.current;
+    if (!preview || !anchorRef) return;
+    const wheel = (event: WheelEvent) => {
+      const anchor = anchorRef.current;
+      if (!anchor?.isConnected || event.ctrlKey) return;
+      // A body portal has no scrollable shelf/page ancestors. Start at the
+      // original poster and route each axis to its nearest scrollable ancestor.
+      // Pixel-mode touchpad deltas pass through unchanged, without animation.
+      const x = event.shiftKey && !event.deltaX ? event.deltaY : event.deltaX;
+      const y = event.shiftKey && !event.deltaX ? 0 : event.deltaY;
+      for (const [axis, delta] of [['x', x], ['y', y]] as const) {
+        if (!delta) continue;
+        for (let node = anchor.parentElement; node; node = node.parentElement) {
+          const style = getComputedStyle(node);
+          const overflow = axis === 'x' ? style.overflowX : style.overflowY;
+          const size = axis === 'x' ? node.clientWidth : node.clientHeight;
+          const extent = axis === 'x' ? node.scrollWidth : node.scrollHeight;
+          const position = axis === 'x' ? node.scrollLeft : node.scrollTop;
+          if (!/^(auto|scroll|overlay)$/.test(overflow) || extent <= size) continue;
+          if (delta < 0 ? position <= 0 : position >= extent - size) continue;
+          const unit = event.deltaMode === 1 ? Number.parseFloat(style.lineHeight) || 16 : event.deltaMode === 2 ? size : 1;
+          node.scrollBy({ left: axis === 'x' ? delta * unit : 0, top: axis === 'y' ? delta * unit : 0, behavior: 'instant' });
+          break;
+        }
+      }
+      event.preventDefault();
+      hideRef.current();
+    };
+    preview.addEventListener('wheel', wheel, { passive: false });
+    return () => preview.removeEventListener('wheel', wheel);
+  }, [anchorRef, active, present]);
   const scale = uiScale();
   const width = HOVER_PREVIEW_WIDTH_DP * scale;
   const height = 510 * scale;
@@ -103,9 +137,7 @@ export function PosterHoverPreview({ visible = true, item, rect, saved, watched,
   const top = Math.max(HOVER_PREVIEW_EDGE_MARGIN, Math.min(rect.top - HOVER_PREVIEW_TOP_OVERLAP * scale, window.innerHeight - height - HOVER_PREVIEW_EDGE_MARGIN));
 
   if (!active || !present) return null;
-  // Like Kotlin's scroll listener on the preview, wheel input dismisses
-  // instead of scrolling the page behind the card.
-  return createPortal(<div className={`poster-preview home-preview ${visible ? '' : 'is-closing'}`} inert={!visible} aria-hidden={!visible} style={{ left, top, width }} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} onWheel={onMouseLeave} onAnimationEnd={event => { if (!visible && event.target === event.currentTarget && event.animationName === 'poster-preview-close') setPresent(false); }} onClick={event => event.stopPropagation()}>
+  return createPortal(<div ref={previewRef} className={`poster-preview home-preview ${visible ? '' : 'is-closing'}`} inert={!visible} aria-hidden={!visible} style={{ left, top, width }} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} onWheel={anchorRef ? undefined : onMouseLeave} onAnimationEnd={event => { if (!visible && event.target === event.currentTarget && event.animationName === 'poster-preview-close') setPresent(false); }} onClick={event => event.stopPropagation()}>
     {item.background && <div className="home-preview-art">{backdropReady && <img className="home-preview-backdrop" src={item.background} alt="" draggable={false} decoding="async" />}{trailer?.enabled && !trailerDone && <HoverTrailer ownerId={`hover:${item.type}:${item.id}`} type={item.type} id={item.id} soundEnabled={trailer.soundEnabled} startSeconds={trailer.startSeconds} onReady={() => {}} onDone={() => setTrailerDone(true)} />}</div>}
     {item.logo && logoReady && <img className="home-preview-logo" src={item.logo} alt={item.name} draggable={false} decoding="async" />}
     <div className="poster-preview-copy">

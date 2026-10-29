@@ -139,7 +139,8 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
     visibleAnchors.current = [...document.querySelectorAll<HTMLElement>('[data-details-anchor]')]
       .map((node) => ({ key: node.dataset.detailsAnchor ?? '', top: node.getBoundingClientRect().top }))
       .filter((anchor) => anchor.key && anchor.top >= top - 48 && anchor.top <= bottom)
-      .slice(0, 12);
+      .slice(0, 12)
+      .map((anchor) => ({ ...anchor, top: anchor.top + scroller.scrollTop }));
   };
   // Keep the topmost visible stable section at the same viewport position when
   // enrichment inserts or removes sections. This runs in the same commit as the
@@ -150,7 +151,9 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
       for (const anchor of visibleAnchors.current) {
         const node = document.querySelector<HTMLElement>(`[data-details-anchor="${anchor.key}"]`);
         if (!node) continue;
-        const delta = node.getBoundingClientRect().top - anchor.top;
+        // Compare content coordinates so a touchpad gesture between capture and
+        // commit is preserved rather than mistaken for a metadata layout shift.
+        const delta = node.getBoundingClientRect().top + scroller.scrollTop - anchor.top;
         if (Math.abs(delta) > 1) scroller.scrollTop += delta;
         break;
       }

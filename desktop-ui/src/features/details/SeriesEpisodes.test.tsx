@@ -26,6 +26,27 @@ afterEach(() => {
 });
 
 describe('resume season selection', () => {
+  it('only scrolls overflowing seasons and never scrolls the page to a season button', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false }));
+    const scrollIntoView = vi.spyOn(HTMLElement.prototype, 'scrollIntoView');
+    scrollIntoView.mockClear();
+    renderEpisodes({ videos: [1, 2].map(season => ({ ...episode, id: `ep-${season}`, season })) });
+    const first = screen.getByRole('button', { name: 'Season 1' });
+    const second = screen.getByRole('button', { name: 'Season 2' });
+    const track = first.parentElement!;
+    const scrollTo = vi.fn();
+    track.scrollTo = scrollTo;
+    Object.defineProperties(track, { clientWidth: { value: 600, configurable: true }, scrollWidth: { value: 400, configurable: true } });
+    fireEvent.click(second);
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    Object.defineProperties(track, { clientWidth: { value: 200 }, scrollWidth: { value: 400 } });
+    vi.spyOn(track, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 200 } as DOMRect);
+    vi.spyOn(first, 'getBoundingClientRect').mockReturnValue({ left: -150, right: -50, width: 100 } as DOMRect);
+    fireEvent.click(first);
+    expect(scrollTo).toHaveBeenCalledWith({ left: -200, behavior: 'smooth' });
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
   it('pages horizontal episodes with the shared Home arrows and disables them at the edges', () => {
     const props = renderEpisodes();
     const right = screen.getByRole('button', { name: 'Scroll Season 1 episodes right' });

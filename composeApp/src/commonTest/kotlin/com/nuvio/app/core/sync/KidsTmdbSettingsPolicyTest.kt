@@ -4,6 +4,20 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class KidsTmdbSettingsPolicyTest {
+    @Test fun freshPlatformRestoresNormalAndKidsPreferencesWithoutCredentials() {
+        val source = withKidsTmdbEnrichment(JsonObject(emptyMap()), true, useCredits = false)
+        val normal = migratedTmdbSettings(listOf(JsonObject(emptyMap()), source), kids = false)
+        assertEquals(true, normal.decodeSyncBoolean("tmdb_enabled"))
+        val fresh = withSharedTmdbSettings(JsonObject(emptyMap()), sharedTmdbSettings(sharedTmdbRecord(normal))!!)
+        assertTrue(kidsTmdbEnabledPreference(null, fresh))
+        val optedOut = withKidsTmdbEnrichment(JsonObject(emptyMap()), false, useCredits = true)
+        assertEquals(false, migratedTmdbSettings(listOf(optedOut, source), kids = false).decodeSyncBoolean("tmdb_enabled"))
+        val kids = migratedTmdbSettings(emptyList(), kids = true)
+        assertEquals(true, kids.decodeSyncBoolean("tmdb_enabled"))
+        assertEquals(false, kids.decodeSyncBoolean("tmdb_use_credits"))
+        assertEquals(false, kids.decodeSyncBoolean("tmdb_use_productions"))
+        assertFalse(kids.containsKey("tmdb_api_key"))
+    }
     @Test fun productionDefaultsOverrideCopiedSettingsAndPreserveLaterOptIns() {
         val copied = withKidsTmdbEnrichment(JsonObject(emptyMap()), true,
             useProductions = true, useNetworks = true)

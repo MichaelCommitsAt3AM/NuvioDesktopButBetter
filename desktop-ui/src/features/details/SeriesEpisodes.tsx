@@ -57,11 +57,18 @@ export function SeriesEpisodes({ videos, preferredSeason, poster, background, se
   const [direction, setDirection] = useState(1);
   const transitionTimer = useRef<number | null>(null);
   const seasonButtons = useRef(new Map<number, HTMLButtonElement>());
+  const seasonTrack = useRef<HTMLDivElement>(null);
   const hasSeasonPosters = seasons.some((season) => Boolean(resolveSeasonPoster(season, grouped, seasonPosters)));
   const fallbackImage = background || poster;
 
   useEffect(() => {
-    seasonButtons.current.get(currentSeason)?.scrollIntoView({ behavior: chosenSeason == null ? 'instant' : 'smooth', block: 'nearest', inline: 'center' });
+    const track = seasonTrack.current;
+    const button = seasonButtons.current.get(currentSeason);
+    if (!track || !button || track.scrollWidth <= track.clientWidth) return;
+    const trackBounds = track.getBoundingClientRect();
+    const bounds = button.getBoundingClientRect();
+    if (bounds.left >= trackBounds.left && bounds.right <= trackBounds.right) return;
+    track.scrollTo({ left: track.scrollLeft + bounds.left - trackBounds.left - (track.clientWidth - bounds.width) / 2, behavior: chosenSeason == null || matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   }, [currentSeason, chosenSeason, seasonView]);
   useEffect(() => () => { if (transitionTimer.current != null) window.clearTimeout(transitionTimer.current); }, []);
 
@@ -87,7 +94,7 @@ export function SeriesEpisodes({ videos, preferredSeason, poster, background, se
     <div className="series-episodes-heading"><h2>Episodes</h2><span>{videos.length}</span></div>
     {seasons.length > 1 && <div className="series-season-selector">
       <div className="series-season-selector-heading"><h3>Seasons</h3>{hasSeasonPosters && <button type="button" className="series-season-view-toggle" onClick={() => setView(seasonView === 'posters' ? 'text' : 'posters')}>{seasonView === 'posters' ? 'Posters' : 'Text'}</button>}</div>
-      <div className={`series-season-options ${hasSeasonPosters && seasonView === 'posters' ? 'poster-mode' : 'text-mode'}`}>
+      <div ref={seasonTrack} className={`series-season-options ${hasSeasonPosters && seasonView === 'posters' ? 'poster-mode' : 'text-mode'}`}>
         {seasons.map((season) => {
           const selected = season === currentSeason;
           const image = resolveSeasonPoster(season, grouped, seasonPosters) || poster || background;

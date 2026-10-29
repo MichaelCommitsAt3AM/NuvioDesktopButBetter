@@ -76,6 +76,18 @@ internal fun sharedTmdbSettings(record: JsonObject?): JsonObject? =
     (record?.get(PROFILE_TMDB_SETTINGS_FEATURE) as? JsonObject)
         ?.let { withoutProfileCredentials(PROFILE_TMDB_SETTINGS_FEATURE, it) }
 
+/** Prefer the current platform's explicit choices, filling gaps from the other platform. */
+internal fun migratedTmdbSettings(platformBlobs: List<JsonObject>, kids: Boolean): JsonObject {
+    val merged = JsonObject(platformBlobs.asReversed().fold(emptyMap<String, kotlinx.serialization.json.JsonElement>()) { result, blob ->
+        result + tmdbSettingsFromProfileBlob(blob)
+    })
+    if (!kids) return merged
+    val (enabled, credits) = legacyKidsTmdbPreferences(platformBlobs)
+    return tmdbSettingsWithPreferences(merged, enabled, credits,
+        useProductions = merged.decodeSyncBoolean("tmdb_use_productions") ?: false,
+        useNetworks = merged.decodeSyncBoolean("tmdb_use_networks") ?: false)
+}
+
 /**
  * Legacy migration before a shared record exists. An explicit true on either platform wins, so a
  * copied/default false on the other platform cannot turn a configured kids profile back off. If

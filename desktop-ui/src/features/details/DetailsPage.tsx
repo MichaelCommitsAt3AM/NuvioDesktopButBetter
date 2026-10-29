@@ -50,6 +50,9 @@ export function DetailsPage() {
     // the Kotlin RPCs arrive out of order and make every result look stale.
     if (requestedDetailsKey.current === key) return;
     requestedDetailsKey.current = key;
+    // Following the resolved route must keep the original enrichment request
+    // alive. Reloading here would cancel its work under the TMDB alias.
+    if (details.media?.type === type && details.media.id === id && details.requestedId && details.requestedId !== id) return;
     void actions.loadDetails(type, id);
   }, [type, id]);
   useEffect(() => { if (!playbackSettings) void refreshFeature('playbackSettings', 'playbackSettings.snapshot').catch(() => {}); }, [playbackSettings]);
@@ -62,6 +65,13 @@ export function DetailsPage() {
   useEffect(() => { setActionsOpen(false); setSavedOverride(null); setActionError(''); setNotice(null); setWatchBusy(false); setSavedBusy(false); }, [type, id, profileId]);
   useEffect(() => () => { if (playHoldTimer.current !== null) window.clearTimeout(playHoldTimer.current); }, []);
   const media = details.media?.id === id && details.media.type === type ? details.media : null;
+  // TMDB recommendations can resolve to an add-on's canonical IMDb identity.
+  // Only follow results belonging to this route's request, never the previous title.
+  useEffect(() => {
+    const resolved = details.media;
+    if (details.requestedType !== type || details.requestedId !== id || !resolved || media) return;
+    navigate(`/details/${encodeURIComponent(resolved.type)}/${encodeURIComponent(resolved.id)}`, { replace: true });
+  }, [details, type, id, media, navigate]);
   const artworkOwner = `${profileId}:${type}:${id}`;
   const backdrop = useRetainedDecodedImage(media?.background, artworkOwner);
   // Returning from streams/person/entity restores the details offset once
@@ -183,12 +193,13 @@ export function DetailsPage() {
     <Toast notice={notice?.owner === actionOwner ? notice : null} onDismiss={dismissNotice} />
     {showBackdrop && media && backdrop && createPortal(<div className={`detail-viewport-backdrop${backgroundMode === 'dominant_color' ? ' detail-dominant-fallback' : ''}`} aria-hidden="true" style={{ backgroundImage: backdropImage }} />, document.body)}
     <div className="detail-page" ref={pageRef}>
-    {(media || details.loading) && <div className="detail-screen-controls">
+    <div className="detail-screen-controls">
       <BackButton className="detail-back" onClick={() => navigate(-1)} />
       {media && <FullscreenButton />}
-    </div>}
+    </div>
     {details.loading && loadTimedOut && <InlineError message="This title is taking longer than expected to load." onRetry={() => { setLoadTimedOut(false); void actions.loadDetails(type, id); }} />}
     {details.error && <InlineError message={details.error} onRetry={() => void actions.loadDetails(type, id)} />}
+    {!media && !details.media && !details.loading && !details.error && details.requestedType === type && details.requestedId === id && <InlineError message="No details were returned for this title." onRetry={() => void actions.loadDetails(type, id)} />}
     {!media && details.loading && <section className="detail-hero detail-loading-hero" role="status" aria-label="Loading title details" aria-busy="true">
       <div className="detail-loading-placeholder">
         <span className="detail-skeleton-title" />

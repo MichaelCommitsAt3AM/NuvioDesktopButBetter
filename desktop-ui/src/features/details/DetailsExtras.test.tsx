@@ -31,6 +31,31 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
+it('preserves a touchpad scroll between enrichment capture and commit while compensating for inserted content', async () => {
+  let updates = 0;
+  let shift = 0;
+  const main = document.createElement('main');
+  main.className = 'main-area';
+  Object.defineProperty(main, 'clientHeight', { value: 1000 });
+  document.body.appendChild(main);
+  const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const top = this.hasAttribute('data-details-anchor') ? 100 + shift - main.scrollTop : 0;
+    return { top, bottom: top + 40, left: 0, right: 100, width: 100, height: 40 } as DOMRect;
+  });
+  bridge.call.mockImplementation(async (method: string) => method === 'details.extras' ? { ...meta(), runtime: '90m' } : { loaded: true });
+  const onMetaLoaded = () => { if (++updates === 2) { main.scrollTop += 150; shift = 50; } };
+  const renderView = () => <MemoryRouter><DetailsExtras type="movie" id="movie" onMetaLoaded={onMetaLoaded} /></MemoryRouter>;
+  try {
+    const rendered = render(renderView(), { container: main });
+    expect(await screen.findByText('1h 30m')).toBeInTheDocument();
+    bridge.details = { ...bridge.details as object };
+    rendered.rerender(renderView());
+    await act(async () => {});
+    expect(updates).toBe(2);
+    expect(main.scrollTop).toBe(200);
+  } finally { bounds.mockRestore(); main.remove(); }
+});
+
 it('updates the first open page when background enrichment finishes without revisiting it', async () => {
   let payload = meta();
   bridge.call.mockImplementation(async (method: string) => method === 'details.extras' ? payload : { loaded: true });

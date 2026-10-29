@@ -481,7 +481,7 @@ const prefersReducedMotion = window.matchMedia &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const modalTransitionMs = prefersReducedMotion ? 1 : 240;
 const chromeAutoHideDelayMs = 3500;
-const fullscreenChromeAutoHideDelayMs = 2500;
+const fullscreenChromeAutoHideDelayMs = 3500;
 const chromeActivityThrottleMs = 300;
 const hiddenCursorHideDelayMs = 3000;
 const cursorActivityThrottleMs = 100;
@@ -931,7 +931,7 @@ const resetPauseMetadataTimer = () => {
 
 const syncPauseMetadataTimer = showOpening => {
   const durationMs = Math.max(0, Number(state.durationMs) || 0);
-  const eligible = Boolean(!state.isPlaying && !state.isLoading && durationMs > 0 && !showOpening);
+  const eligible = Boolean(!state.isPlaying && !state.isLoading && !state.controlsVisible && durationMs > 0 && !showOpening);
   const key = eligible ? `${Math.round(durationMs)}:${state.title || ""}:${state.pauseOverlayEpisodeInfo || ""}` : "";
   if (!eligible) {
     resetPauseMetadataTimer();
@@ -945,7 +945,7 @@ const syncPauseMetadataTimer = showOpening => {
     pauseMetadataTimer = 0;
     pauseMetadataReady = true;
     renderChrome();
-  }, prefersReducedMotion ? 1 : 5000);
+  }, prefersReducedMotion ? 1 : 2000);
 };
 
 const renderPauseMetadataOverlay = showOpening => {

@@ -77,6 +77,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Premiumize supports browser sign-in with this fork’s registered app, plus an API-key alternative.
 - Stream-loading backgrounds and title artwork fade in after the images finish loading.
 - Escape exits fullscreen throughout the rewrite interface, including while a menu or dialog is open.
+- Stream loading keeps the same fullscreen/windowed and close buttons while finding streams, resolving a source, building the player and buffering.
 - Visited main tabs keep their state, pause background screen updates while hidden, and avoid repeated work when refreshed data has not changed.
 - The top-bar bubble keeps its original movement speed while the screen switches concurrently. Its browser-run animation can continue through screen-rendering pauses.
 

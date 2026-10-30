@@ -192,10 +192,11 @@ describe('desktop bridge UI workflow', () => {
     expect(await screen.findByRole('heading', { name: 'Downloads' })).toBeInTheDocument();
   });
 
-  it('cancels a resolving player immediately when Back is pressed', async () => {
+  it('keeps fullscreen and cancel available while resolving a stream', async () => {
     bridgeMock.deferPlayback = true;
     await openPreparedStream();
-    fireEvent.click(await screen.findByRole('button', { name: 'Back' }));
+    expect(await screen.findByRole('button', { name: 'Enter fullscreen' })).toBeVisible();
+    fireEvent.click(await screen.findByRole('button', { name: 'Close player' }));
     await waitFor(() => expect(bridgeMock.requests.filter(request => request.method === 'playback.stop')).toHaveLength(1));
   });
 
@@ -205,6 +206,8 @@ describe('desktop bridge UI workflow', () => {
     await act(async () => emit({ topic: 'playback', epoch: bridgeMock.epoch, revision: 901,
       data: { state: 'starting', phase: 'preparing', active: true, error: null } }));
     expect(await screen.findByText('Building player…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enter fullscreen' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Close player' })).toBeVisible();
     expect(screen.queryByLabelText('Player')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Close player' }));
     await waitFor(() => expect(bridgeMock.requests.filter(request => request.method === 'playback.stop')).toHaveLength(1));
@@ -216,6 +219,8 @@ describe('desktop bridge UI workflow', () => {
     await act(async () => { emit({ topic: 'playback', epoch: bridgeMock.epoch, revision: 901,
       data: { state: 'starting', phase: 'preparing', active: true, error: null } }); });
     expect(await screen.findByText('Building player…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enter fullscreen' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Close player' })).toBeVisible();
     expect(screen.queryByLabelText('Player')).not.toBeInTheDocument();
     // The playback.start RPC answer is still in flight; the playing event alone
     // must complete the handoff to the player surface.
@@ -251,6 +256,8 @@ describe('desktop bridge UI workflow', () => {
     await act(async () => { emit({ topic: 'playback', epoch: bridgeMock.epoch, revision: 901,
       data: { state: 'starting', phase: 'preparing', active: true, error: null } }); });
     expect(await screen.findByText('Building player…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enter fullscreen' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Close player' })).toBeVisible();
     await act(async () => { emit({ topic: 'playback', epoch: bridgeMock.epoch, revision: 902,
       data: { state: 'failed', phase: 'failed', active: false, error: 'PLAYBACK_FAILED' } }); });
     await waitFor(() => expect(document.querySelector('.streams-opening-overlay')).toBeNull());
@@ -697,6 +704,8 @@ describe('desktop bridge UI workflow', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Play/ }));
     await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'streams.load' && request.params.manualSelection === false)).toBe(true));
     expect(await screen.findByText('Finding streams…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enter fullscreen' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Close player' })).toBeVisible();
     expect(screen.queryByRole('region', { name: 'Available streams' })).not.toBeInTheDocument();
   });
 

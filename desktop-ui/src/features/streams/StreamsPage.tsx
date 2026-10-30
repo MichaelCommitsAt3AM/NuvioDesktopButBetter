@@ -238,7 +238,6 @@ export function StreamsPage() {
   const loadingMessage = playback.phase === 'resolving' || playbackStarting?.resolvingDebrid && playback.phase !== 'preparing' && playback.phase !== 'buffering'
     ? 'Resolving debrid stream'
     : playback.phase === 'buffering' ? 'Buffering…' : 'Building player…';
-  const isResolvingStage = playback.phase === 'resolving' || playbackStarting?.resolvingDebrid === true && playback.phase !== 'preparing' && playback.phase !== 'buffering';
   const cancelPlayerStart = () => {
     cancelStartingPlayback.current = true;
     startingStreamId.current = null;
@@ -254,12 +253,10 @@ export function StreamsPage() {
     <StreamsBackdrop url={heroArtwork} />
     <div className="streams-backdrop-shade" />
     <div className="streams-opening-overlay" role="status" aria-live="polite">
-      {isResolvingStage || waitingForAutomaticSelection && !playbackStarting
-        ? <button className="streams-opening-back" type="button" aria-label="Back" onClick={cancelPlayerStart}><ArrowLeft size={21} /></button>
-        : <nav className="streams-opening-actions" aria-label="Player actions">
-          <FullscreenButton inline onError={setError} />
-          <button className="streams-opening-back" type="button" aria-label="Close player" onClick={cancelPlayerStart}><X size={21} /></button>
-        </nav>}
+      <nav className="streams-opening-actions" aria-label="Player actions">
+        <FullscreenButton inline onError={setError} />
+        <button className="streams-opening-back" type="button" aria-label="Close player" onClick={cancelPlayerStart}><X size={21} /></button>
+      </nav>
       <div className={`streams-opening-content${playbackLoadingSettings?.showPlayerLoadingStatus === false ? ' no-status' : ''}`}>
         <StreamsTitle url={titleLogo} title={title} opening />
         {playbackLoadingSettings?.showPlayerLoadingStatus !== false && <p>{playbackStarting ? loadingMessage : 'Finding streams…'}</p>}

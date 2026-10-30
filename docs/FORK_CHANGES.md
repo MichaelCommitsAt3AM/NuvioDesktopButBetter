@@ -4,6 +4,10 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Consistent stream-loading actions — 2026-10-30
+
+The rewrite stream-opening overlay always uses the existing two-button Player actions layout: fullscreen/windowed followed by Close player. Finding streams and resolving a source now match the building-player and buffering stages. The existing cancellation handler, loading labels and playback initialization order are preserved; no speculative player preparation or bridge API changes are included. Frontend regression coverage checks the two controls during discovery, resolution and player preparation.
+
 ### Top-bar animation concurrent with screen navigation — 2026-10-30
 
 Top-bar clicks, keyboard activation and drag release select the bubble directly through a local `LiquidNavigation` controller. The original spring timing is restored: there is no accelerated playback or wait for the bubble to arrive. The spring is sampled at 120Hz into Web Animations transform keyframes. A rounded overflow clip and a counter-transformed content layer keep the moving pill and its labels on browser-owned transform animations, replacing per-frame JavaScript path updates for committed selections. Free dragging retains the original live gesture physics. Avatar scaling, press scale and surface glow release are sampled with the selection.

@@ -1,3 +1,4 @@
+import { subscribeViewportResize } from '../../viewportResize';
 import { useEffect, useState, type RefObject } from 'react';
 
 /** Port of `core/ui/PosterGridSizing.kt` so the library grid uses the same column counts as Kotlin. */
@@ -54,8 +55,8 @@ export function useLibraryGridColumns(ref: RefObject<HTMLElement | null>, basePo
     update();
     const observer = new ResizeObserver(update);
     observer.observe(element);
-    window.addEventListener('resize', update);
-    return () => { observer.disconnect(); window.removeEventListener('resize', update); };
+    const unsubscribe = subscribeViewportResize(update);
+    return () => { observer.disconnect(); unsubscribe(); };
   }, [ref, basePosterWidthDp, enabled]);
   return columns;
 }

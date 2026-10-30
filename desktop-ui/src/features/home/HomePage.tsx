@@ -14,6 +14,7 @@ import { ASH_DURATION_MS } from '../../components/ashMotion';
 import { useCardHold } from '../../components/useCardHold';
 import { PosterLoadingCard } from '../../components/PosterLoadingCard';
 import { HomeVisibility } from './homeVisibility';
+import { useViewportSize } from '../../useViewportSize';
 import { HeroBackdrop } from './HeroBackdrop';
 import { HeroTitle } from './HeroTitle';
 import { ImdbRating } from '../../components/ImdbRating';
@@ -106,8 +107,13 @@ export function HomePage() {
   const heroElement=useRef<HTMLElement>(null);
   const [heroActive,setHeroActive]=useState(true);
   const [heroDragging,setHeroDragging]=useState(false);
-  const [viewport,setViewport]=useState({width:window.innerWidth,height:window.innerHeight});
-  useEffect(()=>{const resize=()=>setViewport({width:window.innerWidth,height:window.innerHeight});window.addEventListener('resize',resize);return ()=>window.removeEventListener('resize',resize);},[]);
+  const viewportHost = useRef<HTMLDivElement>(null);
+  const attachViewportHost = useCallback((element: HTMLDivElement | null) => {
+    viewportHost.current = element;
+    // Child layout effects run before this parent host ref is attached.
+    // Initialize here so the first hero has dimensions without a resize.
+    if (element) applyHomeViewportMetrics(element, window.innerWidth, window.innerHeight);
+  }, []);
   useEffect(()=>{const element=heroElement.current;if(!element||typeof IntersectionObserver==='undefined')return;const observer=new IntersectionObserver(([entry])=>setHeroActive(entry.isIntersecting));observer.observe(element);return ()=>observer.disconnect();},[heroItems.length]);
   // Keep the starting item stable when catalogs update underneath the pager.
   useEffect(()=>{setHeroIndex(current=>heroItems.length?current%heroItems.length:0);},[heroItems.length]);
@@ -126,11 +132,7 @@ export function HomePage() {
     }
   },[heroIndex,heroItems.length]);
   useEffect(() => { const position = homeViewPositions.get(viewKey); homeViewPositions.set(viewKey, { scrollTop: position?.scrollTop ?? 0, heroIndex }); }, [viewKey, heroIndex]);
-  const unit=1.08,widthDp=viewport.width/unit,heightDp=viewport.height/unit;
-  const wideProgress=Math.max(0,Math.min(1,(widthDp/heightDp-16/9)/(32/9-16/9)));
-  const baseline=Math.max(460,Math.min(640,widthDp*.56));
-  const gutter=(widthDp>=1440?32:widthDp>=1024?28:widthDp>=768?24:16)*unit;
-  const heroStyle={'--home-hero-height':`${(baseline+(Math.max(baseline,heightDp)-baseline)*wideProgress)*unit}px`,'--home-hero-inset':`${gutter+(120*unit-gutter)*wideProgress}px`,'--home-hero-bottom':`${(40+152*wideProgress)*unit}px`,'--home-poster-width':`${Math.round((appearance?.cardStyle.widthDp??126)*1.4)*unit}px`,'--home-cw-width':`${Math.round((appearance?.cardStyle.widthDp??126)*1.4)*180/110*1.2*unit}px`,'--page-gutter':`${gutter}px`} as CSSProperties;
+  const heroStyle={'--home-poster-width':`${Math.round((appearance?.cardStyle.widthDp??126)*1.4)*1.08}px`,'--home-cw-width':`${Math.round((appearance?.cardStyle.widthDp??126)*1.4)*180/110*1.2*1.08}px`} as CSSProperties;
 
   useEffect(() => {
     const current = ++generation.current;
@@ -211,10 +213,11 @@ export function HomePage() {
   const upcomingRemoval = useDisintegratingRemoval(upcoming, (entry) => `${entry.parentMetaId}:next:${entry.videoId}`, profileId, ASH_DURATION_MS);
   const cwRailRef = useRef<HTMLDivElement>(null);
   const upcomingRailRef = useRef<HTMLDivElement>(null);
-  usePlacementFlip(cwRailRef, true);
-  usePlacementFlip(upcomingRailRef, true);
+  usePlacementFlip(cwRailRef, true, JSON.stringify([showFullSkeleton, continueWatchingLoading, continueWatchingVisible, preferences?.style, cwRemoval.visible.map(item => `${item.parentMetaId}:${item.videoId}`)]));
+  usePlacementFlip(upcomingRailRef, true, JSON.stringify([showFullSkeleton, continueWatchingVisible, preferences?.style, upcomingRemoval.visible.map(item => `${item.parentMetaId}:next:${item.videoId}`)]));
 
-  return <ContinueActionHost scope={profileId}><div className="home-page" style={heroStyle}>
+  return <ContinueActionHost scope={profileId}><div ref={attachViewportHost} className="home-page" style={heroStyle}>
+    <HomeViewportMetrics host={viewportHost} />
     <HomeActivity viewKey={viewKey} locationKey={location.key} resetScroll={resetHomeScroll} heroIndexRef={heroIndexRef} heroIndex={heroIndex} heroKey={heroKey} settledHero={settledHero} heroActive={heroActive} heroDragging={heroDragging} heroCount={heroItems.length} setHeroIndex={setHeroIndex} onError={setActionError} />
     {hero && appearance?.home.heroEnabled!==false && <section ref={heroElement} className="home-hero" tabIndex={0} aria-label="Featured titles" aria-roledescription="carousel" onKeyDown={event=>{if(event.key==='ArrowRight'){event.preventDefault();moveHero(1);}if(event.key==='ArrowLeft'){event.preventDefault();moveHero(-1);}}}
       onClickCapture={event=>{if(heroSuppressedClick.current){heroSuppressedClick.current=false;event.preventDefault();event.stopPropagation();}}}
@@ -253,6 +256,33 @@ export function HomePage() {
 }
 
 /** Visibility changes only update lifecycle work, not the retained Home content. */
+// Resize only this small controller, not the retained Home content tree.
+function HomeViewportMetrics({ host }: { host: RefObject<HTMLDivElement | null> }) {
+  const active = useContext(HomeVisibility);
+  const viewport = useViewportSize(active);
+  useLayoutEffect(() => {
+    if (!active || !host.current) return;
+    applyHomeViewportMetrics(host.current, viewport.width, viewport.height);
+  }, [active, host, viewport]);
+  return null;
+}
+
+function applyHomeViewportMetrics(element: HTMLDivElement, width: number, height: number) {
+  const unit = 1.08, widthDp = width / unit, heightDp = height / unit;
+  const wideProgress = Math.max(0, Math.min(1, (widthDp / heightDp - 16 / 9) / (32 / 9 - 16 / 9)));
+  const baseline = Math.max(460, Math.min(640, widthDp * .56));
+  const gutter = (widthDp >= 1440 ? 32 : widthDp >= 1024 ? 28 : widthDp >= 768 ? 24 : 16) * unit;
+  const values = {
+    '--home-hero-height': `${(baseline + (Math.max(baseline, heightDp) - baseline) * wideProgress) * unit}px`,
+    '--home-hero-inset': `${gutter + (120 * unit - gutter) * wideProgress}px`,
+    '--home-hero-bottom': `${(40 + 152 * wideProgress) * unit}px`,
+    '--page-gutter': `${gutter}px`,
+  };
+  for (const [property, value] of Object.entries(values)) {
+    if (element.style.getPropertyValue(property) !== value) element.style.setProperty(property, value);
+  }
+}
+
 function HomeActivity({ viewKey, locationKey, resetScroll, heroIndexRef, heroIndex, heroKey, settledHero, heroActive, heroDragging, heroCount, setHeroIndex, onError }: {
   viewKey: string; locationKey: string; resetScroll: boolean; heroIndexRef: RefObject<number>;
   heroIndex: number; heroKey: string; settledHero: string | null; heroActive: boolean; heroDragging: boolean; heroCount: number;

@@ -1,5 +1,7 @@
+/* ProfileMeshBackground.animateColorAsState: tween(520), FastOutSlowIn. */
+@property --profile-color{syntax:'<color>';inherits:true;initial-value:#1e88e5}
 /* ProfileSelectionScreen: 42dp logo, 30sp title, 150dp cards / 100dp avatars. */
-.profile-picker{position:relative;display:flex;align-items:center;justify-content:center;width:100%;min-height:100dvh;padding:26px;overflow:auto;box-sizing:border-box;background-color:#000;background-size:cover;background-position:center;color:#eee;--profile-color:#1e88e5}
+.profile-picker{position:relative;display:flex;align-items:center;justify-content:center;width:100%;min-height:100dvh;padding:26px;overflow:auto;box-sizing:border-box;background-color:#000;background-size:cover;background-position:center;color:#eee;--profile-color:#1e88e5;transition:--profile-color 520ms cubic-bezier(.4,0,.2,1)}
 .profile-picker:not([style*="background-image"]){background-image:radial-gradient(circle at 28% 40%,color-mix(in srgb,var(--profile-color) 7%,transparent),transparent 28vw),radial-gradient(circle at 90% 12%,color-mix(in srgb,color-mix(in srgb,var(--profile-color) 68%,#aaa) 16%,transparent),color-mix(in srgb,color-mix(in srgb,var(--profile-color) 68%,#aaa) 5%,transparent) 18vw,transparent 36vw),radial-gradient(circle at 16% 18%,color-mix(in srgb,var(--profile-color) 24%,transparent),color-mix(in srgb,var(--profile-color) 9%,transparent) 20.24vw,color-mix(in srgb,var(--profile-color) 2%,transparent) 35.88vw,transparent 46vw),radial-gradient(circle at -8% -2%,color-mix(in srgb,var(--profile-color) 26.68%,transparent),color-mix(in srgb,var(--profile-color) 11.6%,transparent) 26.6vw,color-mix(in srgb,var(--profile-color) 2.9%,transparent) 50.4vw,transparent 70vw)}
 .profile-picker-content{display:flex;flex-direction:column;align-items:center;max-width:100%;text-align:center}
 .profile-picker-wordmark{height:45.36px;width:auto;object-fit:contain;animation:profile-title-in 600ms cubic-bezier(.4,0,.2,1) both}
@@ -27,3 +29,5 @@
 .profile-loading-content img{height:47.52px;max-width:48%;object-fit:contain}
 .profile-loading-spinner{width:43.2px;height:43.2px;color:var(--app-accent,#fff)}
 @media(prefers-reduced-motion:reduce){.profile-loading-screen{animation:none;transition:none}}
+
+@media(prefers-reduced-motion:reduce){.profile-picker{transition:none}}

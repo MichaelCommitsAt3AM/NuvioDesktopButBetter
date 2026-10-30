@@ -52,7 +52,6 @@ export function LibraryPage() {
   useEffect(() => { setSelectedList(''); setSelectedType(''); }, [profileId, extras?.source]);
   const layout = extras?.layout === 'vertical' ? 'vertical' : 'horizontal';
   const selectedSection = extras?.sections.find(section => section.type === selectedList);
-  usePlacementFlip(gridRef);
   useEffect(() => { void refreshFeature('libraryExtras', 'library.extras').catch(cause => setError(String(cause))); }, []);
   // Retained Library keeps local filters/mode/scroll, but local repository
   // data can change from Details or Settings while it is hidden.
@@ -100,6 +99,8 @@ export function LibraryPage() {
     if (removal.bursting.has(mediaKey(entry.type, entry.id)) && !removalPaged.includes(entry)) removalPaged.push(entry);
   }
   const pendingCount = Math.max(0, displayItems.length - visibleCount);
+  const placementKey = JSON.stringify([library.loading, hasContent, layout, mode, columns, appearance?.cardStyle, removalPaged.map(item => mediaKey(item.type, item.id))]);
+  usePlacementFlip(gridRef, false, placementKey, active);
   const targetLayout = layout === 'horizontal' ? 'vertical' : 'horizontal';
   const sectionTitle = (section: { type: string; title: string }) => {
     const resource = ({ 'simkl:status:watching': 'library_status_watching', 'simkl:status:plantowatch': 'library_status_plan_to_watch', 'simkl:status:hold': 'library_status_on_hold', 'simkl:status:completed': 'library_status_completed', 'simkl:status:dropped': 'library_status_dropped' } as Record<string, string>)[section.type];

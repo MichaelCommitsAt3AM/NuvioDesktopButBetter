@@ -103,6 +103,16 @@ describe('Continue Watching snapshot loading', () => {
     expect(document.querySelector('.home-loading-hero')).toBeNull();
   });
 
+  it('initializes featured layout on first mount before any tab switch or resize', () => {
+    const view = render(<MemoryRouter><HomePage /></MemoryRouter>);
+    const home = view.container.querySelector<HTMLElement>('.home-page')!;
+    expect(parseFloat(home.style.getPropertyValue('--home-hero-height'))).toBeGreaterThan(0);
+    expect(home.style.getPropertyValue('--home-hero-inset')).not.toBe('');
+    bridge.state.home.hero = [{ id: 'startup', type: 'movie', name: 'Startup feature', genres: [] }];
+    view.rerender(<MemoryRouter><HomePage /></MemoryRouter>);
+    expect(screen.getByRole('region', { name: 'Featured titles' })).toHaveTextContent('Startup feature');
+    expect(parseFloat(home.style.getPropertyValue('--home-hero-height'))).toBeGreaterThan(0);
+  });
   it('uses the selected Kotlin hero even when it belongs to a hidden catalog', () => {
     bridge.state.home.hero = [{ id: 'movie', type: 'movie', name: 'Selected title', genres: [] }];
     render(<MemoryRouter><HomePage /></MemoryRouter>);

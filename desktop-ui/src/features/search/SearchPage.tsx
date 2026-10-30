@@ -79,11 +79,9 @@ export function SearchPage({ focusRequested = false, onFocusHandled }: { focusRe
 
   useEffect(() => {
     if (!active) return;
-    let requestActive = true;
-    void call('discover.refresh')
-      .then(() => requestActive ? refreshFeature<Discover>('discover') : undefined)
-      .catch(() => {});
-    return () => { requestActive = false; };
+    // refresh already returns a snapshot; avoid a second IPC round trip on
+    // every visit. refreshFeature keeps the epoch/revision race guards.
+    void refreshFeature<Discover>('discover', 'discover.refresh').catch(() => {});
   }, [active, addonRefreshKey, hideUnreleasedContent]);
 
   useEffect(() => {

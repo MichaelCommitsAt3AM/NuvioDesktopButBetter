@@ -132,7 +132,7 @@ pub struct BridgeManager {
     worker: Mutex<Option<Worker>>,
     operation: Mutex<()>,
     #[cfg(windows)]
-    fullscreen_sync: Mutex<()>,
+    fullscreen_sync: Mutex<Option<(u64, bool)>>,
     generation: AtomicU64,
     shutting_down: AtomicBool,
     client: reqwest::Client,
@@ -237,7 +237,7 @@ impl BridgeManager {
             worker: Mutex::new(None),
             operation: Mutex::new(()),
             #[cfg(windows)]
-            fullscreen_sync: Mutex::new(()),
+            fullscreen_sync: Mutex::new(None),
             generation: AtomicU64::new(0),
             shutting_down: AtomicBool::new(false),
             client,
@@ -600,20 +600,28 @@ impl BridgeManager {
     pub async fn sync_host_fullscreen(&self) -> Result<(), BridgeCallError> {
         // Read at send time and serialize acknowledgements so a resize cannot
         // overwrite a newer toggle with a stale mode.
-        let _sync = self.fullscreen_sync.lock().await;
+        let mut last_synced = self.fullscreen_sync.lock().await;
         let Some(window) = self.app.get_webview_window("main") else {
             return Ok(());
         };
         let Ok(fullscreen) = window.is_fullscreen() else {
             return Ok(());
         };
+        let generation = self.generation.load(Ordering::Acquire);
+        if *last_synced == Some((generation, fullscreen)) {
+            return Ok(());
+        }
         let request = crate::BridgeRequest {
-            id: format!("fullscreen-{}", self.generation.load(Ordering::Acquire)),
+            id: format!("fullscreen-{generation}"),
             method: "playback.hostFullscreenChanged".into(),
             params: Map::from_iter([("fullscreen".into(), Value::Bool(fullscreen))]),
             epoch: None,
         };
-        self.request(&request).await.map(|_| ())
+        self.request(&request).await?;
+        // Cache only successful delivery; errors remain retryable, and a new
+        // backend generation must receive its initial mode even if unchanged.
+        *last_synced = Some((generation, fullscreen));
+        Ok(())
     }
 
     pub async fn shutdown(self: &Arc<Self>) {

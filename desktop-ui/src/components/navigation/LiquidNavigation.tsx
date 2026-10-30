@@ -1,24 +1,44 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode, type Ref } from 'react';
 import { JellyMotion, desktopNavigationLabels, jellyPillBounds, jellyPillPath, type JellyFrame } from './jellyMotion';
 import './liquidNavigation.css';
+import { subscribeViewportResize } from '../../viewportResize';
+import { playNativeJellySelection } from './nativeJellySelection';
 
-type Props = { children: ReactNode; visuals: ReactNode[]; labels: string[]; selectedIndex: number; style: string; heroEnabled: boolean; profileOpen: boolean; glowEnabled: boolean; routeKey: string; onDragSelect: (index: number) => void; onDragStart: () => void };
-export const LiquidNavigation = memo(function LiquidNavigation({ children, visuals, labels, selectedIndex, style, heroEnabled, profileOpen, glowEnabled, routeKey, onDragSelect, onDragStart }: Props) {
+export type LiquidNavigationController = { select: (index: number, commit: () => void) => void };
+
+type Props = { children: ReactNode; visuals: ReactNode[]; labels: string[]; selectedIndex: number; style: string; heroEnabled: boolean; profileOpen: boolean; glowEnabled: boolean; routeKey: string; routeVersion?: string; controllerRef?: Ref<LiquidNavigationController>; onDragSelect: (index: number) => void; onDragStart: () => void };
+export const LiquidNavigation = memo(function LiquidNavigation({ children, visuals, labels, selectedIndex, style, heroEnabled, profileOpen, glowEnabled, routeKey, routeVersion, controllerRef, onDragSelect, onDragStart }: Props) {
   const nav = useRef<HTMLElement>(null);
   const track = useRef<HTMLDivElement>(null), distortion = useRef<HTMLDivElement>(null), panel = useRef<HTMLDivElement>(null);
   const inactive = useRef<HTMLDivElement>(null), active = useRef<HTMLDivElement>(null);
   const motion = useRef(new JellyMotion(selectedIndex, labels.length));
   const raf = useRef<number | null>(null), lastFrame = useRef<number | null>(null);
+  const nativePill = useRef<HTMLDivElement>(null), nativeContent = useRef<HTMLDivElement>(null);
+  const native = useRef<ReturnType<typeof playNativeJellySelection> | null>(null);
   const selected = useRef(selectedIndex);
+  const [visualIndex, setVisualIndex] = useState(selectedIndex);
+  const pending = useRef<{ index: number; commit: () => void } | null>(null);
+  const commitFrame = useRef<number | null>(null);
+  const clearPending = useCallback(() => {
+    pending.current = null;
+    if (commitFrame.current !== null) cancelAnimationFrame(commitFrame.current);
+    commitFrame.current = null;
+  }, []);
   const geometry = useRef({ width: 0, height: 0, density: 1 });
   const painted = useRef<{ frame: JellyFrame; geometry: typeof geometry.current; selected: number; count: number } | null>(null);
+  const stopNative = useCallback((sample = true) => {
+    const playing = native.current;
+    if (!playing) return;
+    if (sample) motion.current = playing.sample();
+    playing.cancel(); native.current = null; painted.current = null;
+  }, []);
   const [hovered, setHovered] = useState(false), [focused, setFocused] = useState(false), [scrolled, setScrolled] = useState(false);
   const scrollState = useRef(false);
   const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
   const down = useRef<{ pointerId: number; x: number; y: number; claimed: boolean } | null>(null);
   const suppressClick = useRef(false), suppressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const expanded = desktopNavigationLabels(style, selectedIndex === 0, heroEnabled, hovered || focused, profileOpen, scrolled);
-  const frosted = hovered || focused || profileOpen || ((selectedIndex === 0 || selectedIndex === labels.length - 1) && scrolled);
+  const expanded = desktopNavigationLabels(style, visualIndex === 0, heroEnabled, hovered || focused, profileOpen, scrolled);
+  const frosted = hovered || focused || profileOpen || ((visualIndex === 0 || visualIndex === labels.length - 1) && scrolled);
   const paint = useCallback(() => {
     const element = nav.current;
     if (!element) return;
@@ -55,8 +75,8 @@ export const LiquidNavigation = memo(function LiquidNavigation({ children, visua
     painted.current = { frame, geometry: geometry.current, selected: selected.current, count: labels.length };
   }, [labels.length]);
   const start = useCallback(() => {
-    if (raf.current !== null) return;
-    lastFrame.current = null;
+    if (native.current || raf.current !== null) return;
+    lastFrame.current = performance.now();
     const tick = (now: number) => {
       raf.current = null;
       if (lastFrame.current !== null) motion.current.advance((now - lastFrame.current) / 1000);
@@ -65,25 +85,72 @@ export const LiquidNavigation = memo(function LiquidNavigation({ children, visua
     };
     raf.current = requestAnimationFrame(tick);
   }, [paint]);
+  const playNative = useCallback(() => {
+    if (!nav.current || !nativePill.current?.animate || !nativeContent.current || !track.current || !distortion.current || !panel.current) return false;
+    if (raf.current !== null) cancelAnimationFrame(raf.current);
+    raf.current = null; lastFrame.current = null;
+    native.current = playNativeJellySelection(motion.current, geometry.current, labels.length, {
+      nav: nav.current, pill: nativePill.current, content: nativeContent.current,
+      track: track.current, distortion: distortion.current, panel: panel.current,
+    }, final => {
+      stopNative(false); motion.current = final; paint();
+    });
+    return true;
+  }, [labels.length, paint, stopNative]);
+  useImperativeHandle(controllerRef, () => ({
+    select(index, commit) {
+      clearPending(); stopNative();
+      const alreadyPainted = selected.current === index && !motion.current.running;
+      selected.current = index;
+      setVisualIndex(index);
+      if (reducedMotion || alreadyPainted) {
+        motion.current.settle(index); paint(); commit();
+      } else {
+        const intent = { index, commit };
+        pending.current = intent;
+        motion.current.select(index);
+        if (!playNative()) start();
+        // Submit the browser-owned animation and let its first frame paint.
+        // Navigation then overlaps the remaining original-speed movement.
+        commitFrame.current = requestAnimationFrame(() => {
+          commitFrame.current = requestAnimationFrame(() => {
+            commitFrame.current = null;
+            if (pending.current !== intent) return;
+            pending.current = null;
+            intent.commit();
+          });
+        });
+      }
+    },
+  }), [clearPending, stopNative, reducedMotion, paint, start, playNative]);
   useLayoutEffect(() => {
+    clearPending();
+    const matchingSelection = selected.current === selectedIndex;
     selected.current = selectedIndex;
+    setVisualIndex(selectedIndex);
+    // Our own route commit must not restart an animation already in flight.
+    if (matchingSelection && native.current && !reducedMotion) return;
+    stopNative();
     if (reducedMotion) { motion.current.settle(selectedIndex); paint(); } else { motion.current.select(selectedIndex); start(); }
-    return () => {
-      if (raf.current !== null) cancelAnimationFrame(raf.current);
-      // A cancelled frame must not prevent the next effect from starting one.
-      raf.current = null;
-      lastFrame.current = null;
-    };
-  }, [selectedIndex, reducedMotion, paint, start]);
+  }, [selectedIndex, routeKey, routeVersion, reducedMotion, paint, start, clearPending, stopNative]);
+  useLayoutEffect(() => () => {
+    clearPending(); stopNative(false);
+    if (raf.current !== null) cancelAnimationFrame(raf.current);
+    raf.current = null; lastFrame.current = null;
+  }, [clearPending, stopNative]);
   useLayoutEffect(() => {
     const element = nav.current;
     if (!element) return;
     let density = 1;
     const measure = (width: number, height: number) => {
       const previous = geometry.current;
-      if (width !== previous.width || height !== previous.height || density !== previous.density) geometry.current = { width, height, density };
+      if (width === previous.width && height === previous.height && density === previous.density) return;
+      const playing = native.current !== null;
+      if (playing) stopNative();
+      geometry.current = { width, height, density };
       motion.current.resize(width / density, height / density, labels.length);
       paint();
+      if (playing) playNative();
     };
     const measureViewport = () => {
       density = Number(getComputedStyle(element).getPropertyValue('--ui-scale')) || 1;
@@ -100,9 +167,9 @@ export const LiquidNavigation = memo(function LiquidNavigation({ children, visua
       if (entry) measure(Math.round(entry.contentRect.width), Math.round(entry.contentRect.height));
     });
     observer.observe(element); measureViewport();
-    window.addEventListener('resize', measureViewport);
-    return () => { observer.disconnect(); window.removeEventListener('resize', measureViewport); };
-  }, [paint, labels.length]);
+    const unsubscribe = subscribeViewportResize(measureViewport);
+    return () => { observer.disconnect(); unsubscribe(); };
+  }, [paint, labels.length, stopNative, playNative]);
   useEffect(() => {
     const media = window.matchMedia?.('(prefers-reduced-motion: reduce)');
     if (!media) return;
@@ -136,7 +203,7 @@ export const LiquidNavigation = memo(function LiquidNavigation({ children, visua
     if (profileOpen && motion.current.dragging) { motion.current.cancel(selectedIndex); down.current = null; if (reducedMotion) motion.current.settle(selectedIndex); paint(); if (!reducedMotion) start(); }
   }, [profileOpen, selectedIndex, paint, start, reducedMotion]);
   useEffect(() => () => { if (suppressTimer.current) clearTimeout(suppressTimer.current); }, []);
-  function cancel() { down.current = null; motion.current.cancel(selectedIndex); if (reducedMotion) motion.current.settle(selectedIndex); paint(); if (!reducedMotion) start(); }
+  function cancel() { clearPending(); stopNative(); selected.current = selectedIndex; setVisualIndex(selectedIndex); down.current = null; motion.current.cancel(selectedIndex); if (reducedMotion) motion.current.settle(selectedIndex); paint(); if (!reducedMotion) start(); }
   function dragTo(event: PointerEvent<HTMLElement>) {
     const gesture = down.current;
     if (!gesture || gesture.pointerId !== event.pointerId || profileOpen) return;
@@ -157,6 +224,7 @@ export const LiquidNavigation = memo(function LiquidNavigation({ children, visua
     onPointerDown={event => {
       if (event.button !== 0 || profileOpen || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       if (down.current) { cancel(); return; }
+      clearPending(); stopNative();
       suppressClick.current = false;
       const box = event.currentTarget.getBoundingClientRect();
       const density = Number(getComputedStyle(event.currentTarget).getPropertyValue('--ui-scale')) || 1;
@@ -177,15 +245,16 @@ export const LiquidNavigation = memo(function LiquidNavigation({ children, visua
         if (suppressTimer.current) clearTimeout(suppressTimer.current);
         suppressTimer.current = setTimeout(() => { suppressClick.current = false; }, 0);
       }
-      if (reducedMotion) motion.current.settle(gesture.claimed ? index : selectedIndex); else start();
+      if (reducedMotion) motion.current.settle(gesture.claimed ? index : selected.current); else start();
       paint();
     }}
     onPointerCancel={cancel} onLostPointerCapture={() => { if (down.current) cancel(); }}
     onClickCapture={event => { if (suppressClick.current) { event.preventDefault(); event.stopPropagation(); } }}>
     <div ref={track} className="liquid-nav-track"><div ref={distortion} className="liquid-nav-distortion"><div ref={panel} className="liquid-nav-panel">
-      <div className="liquid-nav-surface" aria-hidden="true"><div className="liquid-nav-glow" /></div>
+      <div className="liquid-nav-surface-clip" aria-hidden="true"><div className="liquid-nav-surface" /><div className="liquid-nav-glow" /></div>
       <div ref={inactive} className="liquid-nav-paint inactive" aria-hidden="true"><div className="liquid-nav-row">{renderVisuals()}</div></div>
       <div ref={active} className="liquid-nav-paint selected" aria-hidden="true"><div className="liquid-nav-glow" /><div className="liquid-nav-row">{renderVisuals()}</div></div>
+      <div ref={nativePill} className="liquid-nav-native" aria-hidden="true"><div ref={nativeContent} className="liquid-nav-native-content"><div className="liquid-nav-row">{renderVisuals()}</div></div></div>
       <div className="liquid-nav-targets">{children}</div>
     </div></div></div>
   </nav>;

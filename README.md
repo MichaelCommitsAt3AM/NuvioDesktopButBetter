@@ -77,6 +77,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Premiumize supports browser sign-in with this fork’s registered app, plus an API-key alternative.
 - Stream-loading backgrounds and title artwork fade in after the images finish loading.
 - Escape exits fullscreen throughout the rewrite interface, including while a menu or dialog is open.
+- Visited main tabs keep their state, pause background screen updates while hidden, and avoid repeated work when refreshed data has not changed.
+- The top-bar bubble keeps its original movement speed while the screen switches concurrently. Its browser-run animation can continue through screen-rendering pauses.
 
 - Home Layout and Detail Page sections share Kotlin-style rows with visibility switches and drag reordering. Home catalogs follow addon and collection updates, with catalog renaming, locked pinned collections, and hero source selection.
 - Playback sliders show their selectable stops. Skip Segments follows Kotlin's separate detection switch, automatic-skipping dialog, and AnimeSkip/IntroDB credential dialogs, including IntroDB key verification.
@@ -358,3 +360,15 @@ Rating edits from another signed-in device can reuse the server-held key through
 - Actor filmography rows stop cleanly at the first card and hide the left arrow at that edge.
 
 - Fullscreen buttons throughout the rewrite use the player’s icons, sizes and interaction styling.
+
+- Fullscreen/windowed transitions avoid duplicate backend notifications and batch viewport updates; hidden Home keeps its content without resize renders.
+
+- Loaded posters stop their loading shimmer, reducing unnecessary animation work on large Home screens.
+
+- Home loads catalog and collection rows as you approach them and skips far-offscreen row layout, while retaining visited rows and scroll positions.
+
+- Featured Home artwork receives its layout dimensions immediately on startup.
+
+- The top bar clips its frosted hover background to a capsule, and profile hover colors fade smoothly like the Kotlin app.
+
+- The stretched navigation pill keeps rounded ends when it extends beyond the first or last tab.

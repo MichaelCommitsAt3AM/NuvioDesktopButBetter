@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { JellyMotion, JellySpring, desktopNavigationLabels, jellyPanelOffset, jellyPillBounds, jellyRubberBand } from './jellyMotion';
 describe('Kotlin jelly navigation physics', () => {
+  it('copies all spring state without advancing the live gesture during browser sampling', () => {
+    const original = new JellyMotion(0, 4);
+    original.resize(456, 48, 4); original.begin(60, 24); original.drag(200, 30); original.advance(.032); original.finish();
+    const frame = original.frame;
+    const copy = original.copy();
+    expect(copy.frame).toEqual(frame);
+    copy.advance(.032);
+    expect(original.frame).toEqual(frame);
+    original.advance(.032);
+    expect(copy.frame).toEqual(original.frame);
+  });
   it('keeps critically damped selection independent of frame rate', () => {
     const full = new JellySpring(0, 1000, 1), halves = new JellySpring(0, 1000, 1);
     full.advance(3, .032); halves.advance(3, .016); halves.advance(3, .016);

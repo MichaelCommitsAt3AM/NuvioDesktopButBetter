@@ -12,6 +12,8 @@ import { Dialog } from '../../components/Dialog';
 import { DraftInput, DraftScope, useDraftController } from '../../components/DraftInput';
 import { mediaKey, stableKeys } from '../../components/keys';
 import { Shelf } from '../../components/Shelf';
+import { HomeRow } from '../home/HomeRow';
+import { posterMetrics } from '../../components/posterMetrics';
 import { HorizontalRail } from '../../components/HorizontalRail';
 import { scrollKey, useActiveProfileId, useListScrollRestore } from '../../navigation/scrollStore';
 import './collections.css';
@@ -48,11 +50,16 @@ export const HomeCollections = memo(function HomeCollections({ shelves }: { shel
   useEffect(() => { void refreshFeature('collections').catch(() => {}); }, []);
   const items = state?.items ?? [];
   const preferences = appearance?.home.items ?? [];
+  const cardStyle = appearance?.cardStyle;
+  const metrics = posterMetrics(cardStyle);
+  const ratio = cardStyle?.catalogLandscapeModeEnabled ? 16 / 9 : (cardStyle?.widthDp ?? 126) / (cardStyle?.heightDp ?? 189);
+  // Header, track padding, labels and trailing margin match Home's row styling.
+  const rowHeight = Math.ceil(metrics.width / ratio + (cardStyle?.hideLabelsEnabled ? 0 : 44) + 103);
   const rows = [...items.filter(collection => !preferences.some(p => p.collectionId === collection.id && !p.enabled)).map(collection => {
     const setting = preferences.find(p => p.collectionId === collection.id);
-    return { order: collection.pinToTop ? -1 : setting?.order ?? Number.MAX_SAFE_INTEGER, content: <section className="shelf home-collection" key={collection.id}><div className="shelf-heading"><h2>{setting?.title ?? collection.title}</h2><Link className="text-button" to={`/collections/${collection.id}/edit`}>Edit collection</Link></div><HorizontalRail label={collection.title}>{collection.folders.map(folder => <HomeFolderTile key={folder.id} collectionId={collection.id} folder={folder} />)}</HorizontalRail></section> };
-  }), ...shelves.map((shelf,index) => ({ order: preferences.find(p => p.key === shelf.key)?.order ?? index, content: <Shelf key={shelf.key} shelf={shelf} /> }))];
-  return <>{rows.sort((a,b) => a.order-b.order).map(row => row.content)}</>;
+    return { key: `collection:${collection.id}`, order: collection.pinToTop ? -1 : setting?.order ?? Number.MAX_SAFE_INTEGER, content: <section className="shelf home-collection" key={collection.id}><div className="shelf-heading"><h2>{setting?.title ?? collection.title}</h2><Link className="text-button" to={`/collections/${collection.id}/edit`}>Edit collection</Link></div><HorizontalRail label={collection.title}>{collection.folders.map(folder => <HomeFolderTile key={folder.id} collectionId={collection.id} folder={folder} />)}</HorizontalRail></section> };
+  }), ...shelves.map((shelf,index) => ({ key: `shelf:${shelf.key}`, order: preferences.find(p => p.key === shelf.key)?.order ?? index, content: <Shelf key={shelf.key} shelf={shelf} /> }))];
+  return <>{rows.sort((a,b) => a.order-b.order).map(row => <HomeRow key={row.key} estimatedHeight={rowHeight}>{row.content}</HomeRow>)}</>;
 });
 function HomeFolderTile({ collectionId,folder }: { collectionId: string; folder: Folder }) {
   const [focused,setFocused] = useState(false);

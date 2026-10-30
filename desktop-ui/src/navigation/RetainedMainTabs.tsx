@@ -1,4 +1,6 @@
-import { memo, useEffect, useRef, type ReactNode } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { BridgeStoreContext, getSnapshot, subscribe } from '../bridge';
+import { createPausedStore } from './pausedStore';
 import { Route, Routes, useLocation, useNavigationType, type Location } from 'react-router-dom';
 import { HomePage } from '../features/home/HomePage';
 import { HomeVisibility } from '../features/home/homeVisibility';
@@ -46,6 +48,11 @@ const TabScreen = memo(function TabScreen({ tab, location, focusRequested, onFoc
 });
 
 function RetainedTab({ tab, active, children }: { tab: RootTab; active: boolean; children: ReactNode }) {
+  const [store] = useState(() => createPausedStore({ getSnapshot, subscribe }));
+  useLayoutEffect(() => {
+    store.setActive(active);
+    return () => store.setActive(false);
+  }, [store, active]);
   const element = useRef<HTMLDivElement>(null);
   const navigationType = useNavigationType();
   const lastActiveNavigationType = useRef(navigationType);
@@ -65,11 +72,13 @@ function RetainedTab({ tab, active, children }: { tab: RootTab; active: boolean;
     aria-hidden={active ? undefined : true}
     style={{ display: active ? 'contents' : 'none' }}
   >
-    <TabActivity.Provider value={active}>
-      <TabNavigationType.Provider value={active ? navigationType : lastActiveNavigationType.current}>
-        {tab === 'home' ? <HomeVisibility value={active}>{children}</HomeVisibility> : children}
-      </TabNavigationType.Provider>
-    </TabActivity.Provider>
+    <BridgeStoreContext.Provider value={store}>
+      <TabActivity.Provider value={active}>
+        <TabNavigationType.Provider value={active ? navigationType : lastActiveNavigationType.current}>
+          {tab === 'home' ? <HomeVisibility value={active}>{children}</HomeVisibility> : children}
+        </TabNavigationType.Provider>
+      </TabActivity.Provider>
+    </BridgeStoreContext.Provider>
   </div>;
 }
 

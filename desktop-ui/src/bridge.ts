@@ -1,6 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { useCallback, useRef, useSyncExternalStore } from 'react';
+import { createContext, useCallback, useContext, useRef, useSyncExternalStore } from 'react';
+import { shareSnapshot } from './snapshotSharing';
+import type { SnapshotStore } from './navigation/pausedStore';
 import type { Addon, Addons, Catalog, Discover, SearchHistory, Details, Event, Home, Library, Profile, Search, Session, Settings, Streams } from './generated/contract';
 import type { ProfilesSnapshot } from './features/profiles/profileStore';
 import { assertEvent, assertMethodResult, assertResponse } from './contractValidation';
@@ -61,6 +63,23 @@ export class BridgeError extends Error {
 }
 
 function publish(next: State) {
+  if (next === state) return;
+  // Request-scoped Details/Streams objects deliberately use identity as their
+  // pending-response guard. Share presentation snapshots without replacing
+  // those markers or changing request/epoch/revision ordering.
+  next = {
+    ...next,
+    session: shareSnapshot(state.session, next.session),
+    home: shareSnapshot(state.home, next.home),
+    library: shareSnapshot(state.library, next.library),
+    addons: shareSnapshot(state.addons, next.addons),
+    settings: shareSnapshot(state.settings, next.settings),
+    catalog: shareSnapshot(state.catalog, next.catalog),
+    discover: shareSnapshot(state.discover, next.discover),
+    searchHistory: shareSnapshot(state.searchHistory, next.searchHistory),
+    featureSnapshots: shareSnapshot(state.featureSnapshots, next.featureSnapshots),
+  };
+  if ((Object.keys(next) as Array<keyof State>).every(key => Object.is(next[key], state[key]))) return;
   state = next;
   if (next.home.loading && !next.home.shelves.length && !next.home.hero.length && next.session.status === 'signedIn') homePendingSince ??= Date.now();
   else homePendingSince = undefined;
@@ -77,6 +96,8 @@ function reportDiagnostic(message: string) {
 
 export function subscribe(listener: () => void) { subscribers.add(listener); return () => subscribers.delete(listener); }
 export function getSnapshot() { return state; }
+
+export const BridgeStoreContext = createContext<SnapshotStore<State>>({ subscribe, getSnapshot });
 
 const epochChangingMethods = ['profiles.select', 'profiles.delete', 'session.signOut', 'session.signIn', 'session.signUp', 'session.guest'];
 
@@ -466,7 +487,8 @@ export const actions = {
 };
 
 export function useAppState() {
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const store = useContext(BridgeStoreContext);
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }
 
 export async function refreshFeature<T>(topic: string, method = `${topic}.snapshot`): Promise<T> {
@@ -489,9 +511,10 @@ export function useFeatureSnapshot<T>(topic: string): T | undefined {
 }
 
 export function useSelector<T>(selector: (current: State) => T): T {
+  const store = useContext(BridgeStoreContext);
   const cache = useRef<{ state: State; value: T } | null>(null);
   const getSelection = useCallback(() => {
-    const current = getSnapshot();
+    const current = store.getSnapshot();
     if (cache.current?.state === current) return cache.current.value;
     const value = selector(current);
     if (cache.current && Object.is(cache.current.value, value)) {
@@ -500,8 +523,8 @@ export function useSelector<T>(selector: (current: State) => T): T {
     }
     cache.current = { state: current, value };
     return value;
-  }, [selector]);
-  return useSyncExternalStore(subscribe, getSelection, getSelection);
+  }, [selector, store]);
+  return useSyncExternalStore(store.subscribe, getSelection, getSelection);
 }
 
 export function disposeBridge() {

@@ -1,8 +1,8 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { render, cleanup, fireEvent } from '@testing-library/react';
+import { act, render, cleanup, fireEvent } from '@testing-library/react';
 import { Link, MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
-import { Profiler, StrictMode } from 'react';
-import { LiquidNavigation } from './LiquidNavigation';
+import { createRef, Profiler, StrictMode } from 'react';
+import { LiquidNavigation, type LiquidNavigationController } from './LiquidNavigation';
 
 class StubObserver {
   callback: ResizeObserverCallback;
@@ -17,12 +17,13 @@ function visuals(count: number) {
 }
 
 describe('LiquidNavigation selection', () => {
-  afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
   it('keeps animating selection after StrictMode restarts effects', () => {
     vi.stubGlobal('ResizeObserver', StubObserver);
     vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
     const frames = new Map<number, FrameRequestCallback>();
     let frameId = 0, time = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => time);
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
       frames.set(++frameId, callback);
       return frameId;
@@ -47,6 +48,7 @@ describe('LiquidNavigation selection', () => {
     const nav = view.getByRole('navigation');
     Object.defineProperties(nav, { clientWidth: { value: 456 }, clientHeight: { value: 48 } });
     window.dispatchEvent(new Event('resize'));
+    advance(); // Complete the batched resize before checking animation-only frames.
     const measurements = vi.spyOn(window, 'getComputedStyle');
     advance();
     expect(measurements).not.toHaveBeenCalled();
@@ -114,6 +116,130 @@ describe('LiquidNavigation selection', () => {
   });
 });
 
+describe('navigation intent independent of the committed route', () => {
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+  function setup(reduced = false) {
+    vi.stubGlobal('ResizeObserver', StubObserver);
+    vi.stubGlobal('matchMedia', () => ({ matches: reduced, addEventListener() {}, removeEventListener() {} }));
+    const frames = new Map<number, FrameRequestCallback>();
+    let id = 0, time = performance.now();
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames.set(++id, callback); return id; });
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
+    const controller = createRef<LiquidNavigationController>();
+    const tree = (index: number, version = 'initial') => <StrictMode><LiquidNavigation controllerRef={controller} selectedIndex={index}
+      labels={['Home', 'Search', 'Library', 'Settings']} visuals={visuals(4)} style="expanded" heroEnabled profileOpen={false} glowEnabled
+      routeKey={['/', '/search', '/library', '/settings'][index]} routeVersion={version} onDragSelect={() => {}} onDragStart={() => {}}><span>targets</span></LiquidNavigation></StrictMode>;
+    const view = render(tree(0));
+    const nav = view.getByRole('navigation');
+    Object.defineProperties(nav, { clientWidth: { value: 456 }, clientHeight: { value: 48 } });
+    fireEvent.resize(window);
+    const step = (count: number) => act(() => {
+      for (let tick = 0; tick < count; tick++) {
+        time += 16;
+        const pending = [...frames.values()]; frames.clear(); pending.forEach(callback => callback(time));
+      }
+    });
+    step(120);
+    return { ...view, controller, tree, step, frames };
+  }
+  it('moves before navigation, commits only the newest target and never navigates twice', () => {
+    const view = setup();
+    const search = vi.fn(), library = vi.fn();
+    const pill = view.container.querySelector<HTMLElement>('.liquid-nav-paint.selected')!;
+    const initial = pill.style.clipPath;
+    act(() => view.controller.current!.select(1, search));
+    view.step(1);
+    expect(pill.style.clipPath).not.toBe(initial);
+    expect(search).not.toHaveBeenCalled();
+    act(() => view.controller.current!.select(2, library));
+    view.step(120);
+    expect(search).not.toHaveBeenCalled();
+    expect(library).toHaveBeenCalledOnce();
+    expect(Number(pill.style.clipPath.match(/M ([\d.e+-]+)/)?.[1])).toBeCloseTo(248, 2);
+    view.step(120);
+    expect(library).toHaveBeenCalledOnce();
+  });
+  it('cancels a queued destination on Back/Forward even when the root tab is unchanged', () => {
+    const view = setup();
+    const commit = vi.fn();
+    act(() => view.controller.current!.select(1, commit));
+    view.step(1);
+    view.rerender(view.tree(0, 'back-entry'));
+    view.step(120);
+    expect(commit).not.toHaveBeenCalled();
+  });
+  it('cancels both animation and queued navigation on unmount', () => {
+    const view = setup();
+    const commit = vi.fn();
+    act(() => view.controller.current!.select(3, commit));
+    view.unmount();
+    view.step(120);
+    expect(commit).not.toHaveBeenCalled();
+    expect(view.frames.size).toBe(0);
+  });
+  it('navigates immediately with reduced motion', () => {
+    const view = setup(true);
+    const commit = vi.fn();
+    act(() => view.controller.current!.select(1, commit));
+    expect(commit).toHaveBeenCalledOnce();
+  });
+  it('starts navigation after two frames while the original-speed bubble is still moving', () => {
+    const view = setup();
+    const commit = vi.fn();
+    act(() => view.controller.current!.select(3, commit));
+    view.step(1);
+    expect(commit).not.toHaveBeenCalled();
+    view.step(1);
+    expect(commit).toHaveBeenCalledOnce();
+    const pill = view.container.querySelector<HTMLElement>('.liquid-nav-paint.selected')!;
+    expect(Number(pill.style.clipPath.match(/M ([\d.e+-]+)/)?.[1])).toBeLessThan(360);
+    view.step(120);
+    expect(Number(pill.style.clipPath.match(/M ([\d.e+-]+)/)?.[1])).toBeCloseTo(360, 2);
+  });
+  it('does not wait for animation frames when reselecting an already settled tab', () => {
+    const view = setup();
+    const commit = vi.fn();
+    act(() => view.controller.current!.select(0, commit));
+    expect(commit).toHaveBeenCalledOnce();
+  });
+  it('keeps browser playback through its route commit and retargets from the visible position', () => {
+    const view = setup();
+    const original = HTMLElement.prototype.animate;
+    const animations: Array<{ currentTime: number; cancel: ReturnType<typeof vi.fn> }> = [];
+    const animate = vi.fn(() => {
+      const animation = { currentTime: 0, cancel: vi.fn(), finished: new Promise<void>(() => {}) };
+      animations.push(animation);
+      return animation as unknown as Animation;
+    });
+    HTMLElement.prototype.animate = animate;
+    try {
+      const commit = vi.fn();
+      act(() => view.controller.current!.select(1, commit));
+      view.step(2);
+      expect(commit).toHaveBeenCalledOnce();
+      expect(view.frames.size).toBe(0);
+      view.rerender(view.tree(1, 'own-route'));
+      expect(animations.every(animation => !animation.cancel.mock.calls.length)).toBe(true);
+      animations[0].currentTime = 120;
+      const previousCount = animations.length;
+      const nextCommit = vi.fn();
+      act(() => view.controller.current!.select(2, nextCommit));
+      expect(animations.slice(0, previousCount).every(animation => animation.cancel.mock.calls.length === 1)).toBe(true);
+      const firstFrame = (animate.mock.calls[previousCount] as unknown as [Keyframe[]])[0][0];
+      const x = Number(String(firstFrame.transform).match(/translate\(([\d.e+-]+)px/)?.[1]);
+      expect(x).toBeGreaterThan(4); expect(x).toBeLessThan(116);
+      view.rerender(view.tree(0, 'back-entry'));
+      view.step(120);
+      expect(nextCommit).not.toHaveBeenCalled();
+      expect(animations.every(animation => animation.cancel.mock.calls.length === 1)).toBe(true);
+    } finally {
+      view.unmount();
+      if (original) HTMLElement.prototype.animate = original;
+      else delete (HTMLElement.prototype as { animate?: unknown }).animate;
+    }
+  });
+});
+
 const routes = ['/', '/search', '/library', '/settings'];
 const tabLabels = ['Home', 'Search', 'Library', 'Settings'];
 function DragNavigation({ onSelect, onStart, profileOpen = false }: { onSelect: (index: number) => void; onStart: () => void; profileOpen?: boolean }) {
@@ -134,6 +260,7 @@ describe('Kotlin-style navigation dragging', () => {
     vi.stubGlobal('matchMedia', () => ({ matches: reduced, addEventListener() {}, removeEventListener() {} }));
     const frames = new Map<number, FrameRequestCallback>();
     let frameId = 0, time = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => time);
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames.set(++frameId, callback); return frameId; });
     vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
     const onSelect = vi.fn(), onStart = vi.fn();
@@ -152,6 +279,7 @@ describe('Kotlin-style navigation dragging', () => {
     const frame = () => {
       time += 16; const pending = [...frames.values()]; frames.clear(); pending.forEach(callback => callback(time));
     };
+    advance(); // Apply the initial viewport measurement before interacting.
     const pointer = (x: number) => ({ button: 0, clientX: x * density, clientY: 24 * density });
     return { ...view, nav, onSelect, onStart, advance, frame, commits, pointer };
   }
@@ -254,7 +382,7 @@ describe('Kotlin-style navigation dragging', () => {
     const scroller = view.container.querySelector('.main-area') as HTMLElement;
     view.commits.mockClear();
     for (const top of [1, 5, 10, 15, 20, 25, 30]) { scroller.scrollTop = top; fireEvent.scroll(scroller); }
-    expect({ beforeFrame, afterFrame, scrollCommits: view.commits.mock.calls.length }).toEqual({ beforeFrame: 0, afterFrame: 1, scrollCommits: 0 });
+    expect({ beforeFrame, afterFrame, scrollCommits: view.commits.mock.calls.length }).toEqual({ beforeFrame: 0, afterFrame: 2, scrollCommits: 0 });
   });
 
   it('uses observer geometry during label expansion without forcing layout or rereading styles', () => {

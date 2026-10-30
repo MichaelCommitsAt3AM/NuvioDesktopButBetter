@@ -102,3 +102,24 @@ it('shows the watched state and toggles it through the existing backend action',
   fireEvent.click(screen.getByRole('button', { name: 'Mark as unwatched' }));
   await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('details.watched.toggle', expect.objectContaining({ type: 'movie', id: 'movie' })));
 });
+
+
+it('removes completed poster shimmers and keeps cached cards free of loading animations', () => {
+  const item = { ...movie, id: 'shimmer-lifecycle', name: 'Shimmer lifecycle', poster: '/shimmer-lifecycle.jpg' };
+  const page = () => <MemoryRouter><Poster item={item} /></MemoryRouter>;
+  const view = render(page());
+  const frame = view.container.querySelector('.poster-frame')!;
+  expect(frame.querySelector('.poster-loading-shimmer')).not.toBeNull();
+  fireEvent.load(frame.querySelector('img')!);
+  expect(frame.querySelector('.poster-loading-shimmer')).toBeNull();
+  expect(frame.querySelector('img')).toHaveClass('poster-image-loaded');
+  view.unmount();
+  const cached = render(page());
+  expect(cached.container.querySelector('.poster-loading-shimmer')).toBeNull();
+  fireEvent.error(cached.container.querySelector('.poster-frame img')!);
+  expect(cached.container.querySelector('.poster-loading-shimmer')).not.toBeNull();
+});
+it('keeps loading placeholders for missing artwork', () => {
+  const view = render(<MemoryRouter><Poster item={{ ...movie, id: 'no-art', poster: null }} /></MemoryRouter>);
+  expect(view.container.querySelector('.poster-loading-shimmer')).not.toBeNull();
+});

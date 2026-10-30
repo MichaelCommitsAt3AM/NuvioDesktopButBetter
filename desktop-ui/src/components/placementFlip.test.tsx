@@ -5,9 +5,9 @@ import { usePlacementFlip } from './placementFlip';
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-function Rail({ order = ['a', 'b'], update = 0, composeSpring = false }: { order?: string[]; update?: number; composeSpring?: boolean }) {
+function Rail({ order = ['a', 'b'], update = 0, composeSpring = false, active = true }: { order?: string[]; update?: number; composeSpring?: boolean; active?: boolean }) {
   const track = useRef<HTMLDivElement>(null);
-  usePlacementFlip(track, composeSpring);
+  usePlacementFlip(track, composeSpring, JSON.stringify(order), active);
   return <div ref={track} data-update={update}>{order.map(key => <article key={key} data-flip-key={key} />)}</div>;
 }
 
@@ -59,9 +59,26 @@ it('does not animate stale positions when the cached Home screen becomes visible
   try {
     const view = render(<Rail />);
     fixture.hide(true);
-    view.rerender(<Rail update={1} />);
+    view.rerender(<Rail update={1} active={false} />);
     fixture.hide(false);
     view.rerender(<Rail order={['b', 'a']} update={2} />);
+    expect(fixture.animate).not.toHaveBeenCalled();
+  } finally { fixture.restore(); }
+});
+
+it('does not read item layout for unrelated updates to a large retained list', () => {
+  const fixture = setup();
+  try {
+    const order = Array.from({ length: 200 }, (_, index) => String(index));
+    const view = render(<Rail order={order} />);
+    const reads = vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get');
+    reads.mockClear();
+    view.rerender(<Rail order={order} update={1} />);
+    expect(reads).not.toHaveBeenCalled();
+    view.rerender(<Rail order={order} active={false} />);
+    expect(reads).not.toHaveBeenCalled();
+    view.rerender(<Rail order={order} />);
+    expect(reads).toHaveBeenCalled();
     expect(fixture.animate).not.toHaveBeenCalled();
   } finally { fixture.restore(); }
 });

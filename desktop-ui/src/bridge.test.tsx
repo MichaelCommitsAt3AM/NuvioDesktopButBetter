@@ -3,7 +3,7 @@ import React from 'react';
 import { flushSync } from 'react-dom';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AppRoot from './App';
-import { actions, call, disposeBridge, getSnapshot } from './bridge';
+import { actions, call, disposeBridge, getSnapshot, refreshFeature, subscribe } from './bridge';
 import { isAutomaticStreamSelectionEnabled, streamAddonNames } from './features/streams/StreamsPage';
 import type { Addons } from './generated/contract';
 
@@ -125,6 +125,20 @@ describe('desktop bridge UI workflow', () => {
     fireEvent.doubleClick(screen.getByRole('link', { name: 'Search' }));
     await waitFor(() => expect(input).toHaveFocus());
     expect(input).toHaveValue('Keep my query');
+  });
+
+  it('keeps equal refresh snapshots stable without publishing another store update', async () => {
+    render(<AppRoot />);
+    await screen.findByRole('link', { name: 'Search' });
+    await act(async () => { await refreshFeature('discover'); });
+    const discover = getSnapshot().discover;
+    const updated = vi.fn();
+    const stop = subscribe(updated);
+    try {
+      await act(async () => { await refreshFeature('discover'); });
+      expect(getSnapshot().discover).toBe(discover);
+      expect(updated).not.toHaveBeenCalled();
+    } finally { stop(); }
   });
 
   it('does not focus Search on a single navigation click', async () => {
@@ -562,7 +576,7 @@ describe('desktop bridge UI workflow', () => {
     render(<AppRoot />);
     await screen.findByText('Your home is ready for content');
     fireEvent.click(screen.getByRole('link', { name: /search/i }));
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Search movies and shows' }), { target: { value: 'Arrival' } });
+    fireEvent.change(await screen.findByRole('searchbox', { name: 'Search movies and shows' }), { target: { value: 'Arrival' } });
     await waitFor(() => expect(bridgeMock.requests.some((request) => request.method === 'search.start')).toBe(true));
     const searchRequest = bridgeMock.requests.find((request) => request.method === 'search.start')!;
     emit({ topic: 'search', epoch: 5, revision: 1, data: { requestId: 'another-request', query: 'Arrival', loading: false, error: null, shelves: [{ key: 'wrong', title: 'Wrong results', subtitle: '', items: [], hasMore: false }] } });
@@ -576,7 +590,7 @@ describe('desktop bridge UI workflow', () => {
     render(<AppRoot />);
     await screen.findByText('Your home is ready for content');
     fireEvent.click(screen.getByRole('link', { name: /search/i }));
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Search movies and shows' }), { target: { value: 'Arrival' } });
+    fireEvent.change(await screen.findByRole('searchbox', { name: 'Search movies and shows' }), { target: { value: 'Arrival' } });
     await waitFor(() => expect(bridgeMock.requests.some(request => request.method === 'search.start')).toBe(true));
     const request = bridgeMock.requests.find(request => request.method === 'search.start')!;
     const first = { key: 'fast-addon', title: 'Fast addon results', subtitle: '', items: [media('arrival', 'Arrival')], hasMore: false };
@@ -686,36 +700,37 @@ describe('desktop bridge UI workflow', () => {
     expect(screen.queryByRole('region', { name: 'Available streams' })).not.toBeInTheDocument();
   });
 
-  it('commits top bar navigation at input priority without waiting for a transition', async () => {
-    render(<AppRoot />);
-    await screen.findByText('Your home is ready for content');
-    const home = document.querySelector('.home-page');
-
-    // flushSync only flushes urgent work. A router startTransition leaves the
-    // old screen here even though the pointer-driven bubble has already moved.
-    // Assert inside act, before act also drains deferred transition work.
-    act(() => {
+  it('moves the top-bar bubble before committing the destination screen', async () => {
+    const frames = new Map<number, FrameRequestCallback>();
+    let id = 0, time = performance.now();
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => time);
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => { frames.set(++id, callback); return id; });
+    const cancel = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(frame => { frames.delete(frame); });
+    const step = (count: number) => act(() => {
+      for (let tick = 0; tick < count; tick++) {
+        time += 16;
+        const current = [...frames.values()]; frames.clear();
+        current.forEach(callback => callback(time));
+      }
+    });
+    try {
+      render(<AppRoot />);
+      await screen.findByText('Your home is ready for content');
+      const nav = screen.getByRole('navigation');
+      Object.defineProperties(nav, { clientWidth: { value: 456 }, clientHeight: { value: 48 } });
+      fireEvent.resize(window); step(2);
+      const bubble = document.querySelector<HTMLElement>('.liquid-nav-paint.selected')!;
+      const initial = bubble.style.clipPath;
       flushSync(() => screen.getByRole('link', { name: /search/i }).click());
-      expect(screen.getByRole('searchbox', { name: 'Search movies and shows' })).toBeVisible();
-      expect(home).not.toBeVisible();
-    });
-    act(() => {
-      flushSync(() => screen.getByRole('link', { name: 'Home' }).click());
-      expect(home).toBeVisible();
+      expect(window.location.pathname).toBe('/');
+      step(1);
+      expect(bubble.style.clipPath).not.toBe(initial);
+      expect(window.location.pathname).toBe('/');
       expect(screen.queryByRole('searchbox')).toBeNull();
-    });
-    for (const label of ['Library', 'Settings']) {
-      act(() => {
-        flushSync(() => screen.getByRole('link', { name: new RegExp(label, 'i') }).click());
-        expect(screen.getByRole('heading', { name: label })).toBeVisible();
-        expect(home).not.toBeVisible();
-      });
-    }
-    act(() => {
-      flushSync(() => screen.getByRole('link', { name: 'Home' }).click());
-      expect(document.querySelector('.home-page')).toBe(home);
-      expect(home).toBeVisible();
-    });
+      step(1);
+      expect(window.location.pathname).toBe('/search');
+      expect(screen.getByRole('searchbox', { name: 'Search movies and shows' })).toBeVisible();
+    } finally { raf.mockRestore(); cancel.mockRestore(); clock.mockRestore(); }
   });
 
   it('keeps visited main tabs mounted with their local state', async () => {
@@ -731,15 +746,15 @@ describe('desktop bridge UI workflow', () => {
     const searchPage = document.querySelector('.search-page');
 
     fireEvent.click(screen.getByRole('link', { name: /library/i }));
-    const libraryPage = document.querySelector('.library-page');
     expect(await screen.findByRole('heading', { name: 'Library' })).toBeVisible();
+    const libraryPage = document.querySelector('.library-page');
 
     fireEvent.click(screen.getByRole('link', { name: /settings/i }));
-    const settingsPage = document.querySelector('.settings-desktop');
     expect(await screen.findByRole('heading', { name: 'Settings' })).toBeVisible();
+    const settingsPage = document.querySelector('.settings-desktop');
 
     fireEvent.click(screen.getByRole('link', { name: 'Home' }));
-    expect(screen.getByText('Your home is ready for content')).toBeVisible();
+    await waitFor(() => expect(screen.getByText('Your home is ready for content')).toBeVisible());
 
     fireEvent.click(screen.getByRole('link', { name: /search/i }));
     const restored = await screen.findByRole('searchbox', { name: 'Search movies and shows' });
@@ -750,8 +765,10 @@ describe('desktop bridge UI workflow', () => {
     expect(bridgeMock.requests.filter((item) => item.method === 'search.start')).toHaveLength(1);
 
     fireEvent.click(screen.getByRole('link', { name: /library/i }));
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Library' })).toBeVisible());
     expect(document.querySelector('.library-page')).toBe(libraryPage);
     fireEvent.click(screen.getByRole('link', { name: /settings/i }));
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Settings' })).toBeVisible());
     expect(document.querySelector('.settings-desktop')).toBe(settingsPage);
   });
 
@@ -776,6 +793,7 @@ describe('desktop bridge UI workflow', () => {
     const input = await screen.findByRole('searchbox', { name: 'Search movies and shows' });
     fireEvent.change(input, { target: { value: 'Arrival' } });
     fireEvent.click(screen.getByRole('link', { name: 'Home' }));
+    await waitFor(() => expect(window.location.pathname).toBe('/'));
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 450)); });
     expect(bridgeMock.requests.some((request) => request.method === 'search.start')).toBe(false);
 
@@ -806,7 +824,7 @@ describe('desktop bridge UI workflow', () => {
     fireEvent.scroll(main);
 
     fireEvent.click(screen.getByRole('link', { name: 'Home' }));
-    expect(screen.getByText('Your home is ready for content')).toBeVisible();
+    await waitFor(() => expect(screen.getByText('Your home is ready for content')).toBeVisible());
     main.scrollTop = 500;
     fireEvent.scroll(main);
 

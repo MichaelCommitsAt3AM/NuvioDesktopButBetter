@@ -3,6 +3,7 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 export class JellySpring {
   velocity = 0;
   constructor(public value: number, private stiffness: number, private dampingRatio: number) {}
+  copy() { const spring = new JellySpring(this.value, this.stiffness, this.dampingRatio); spring.velocity = this.velocity; return spring; }
   isAtRest(target: number) { return Math.abs(this.value - target) < .0001 && Math.abs(this.velocity) < .0001; }
   snapTo(target: number) { this.value = target; this.velocity = 0; }
   advance(target: number, seconds: number) {
@@ -59,6 +60,11 @@ export class JellyMotion {
   private originX = 0; private width = 0; private height = 64;
   dragging = false; running = false;
   constructor(initialIndex: number, private count: number) { this.target = Math.max(initialIndex, 0); this.position = new JellySpring(this.target, 1000, 1); }
+  copy(): JellyMotion {
+    const motion = Object.assign(new JellyMotion(this.target, this.count), this);
+    for (const key of ['position', 'velocity', 'press', 'scaleX', 'scaleY', 'panel', 'trackY', 'trackX', 'trackPress', 'glow'] as const) motion[key] = this[key].copy();
+    return motion;
+  }
   private get maxIndex() { return Math.max(this.count - 1, 0); }
   private get tabWidth() { return Math.max((this.width - 8) / Math.max(this.count, 1), 0); }
   resize(width: number, height: number, count: number) { this.width = width; this.height = height; this.count = count; this.target = clamp(this.target, 0, this.maxIndex); if (!this.dragging) this.originX = width / 2; }

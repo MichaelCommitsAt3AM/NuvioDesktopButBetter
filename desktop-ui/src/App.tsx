@@ -207,8 +207,7 @@ function AppContent() {
 }
 
 export default function AppRoot() {
-  // Screens already render cached data or loading placeholders. Commit the
-  // route at input priority so it cannot trail the pointer-driven nav bubble
-  // behind background poster mounting and bridge snapshot updates.
+  // Top-bar input paints its own selection before scheduling the route. Other
+  // navigation keeps the router's existing explicit scheduling policy.
   return <BrowserRouter useTransitions={false}><AppContent /></BrowserRouter>;
 }

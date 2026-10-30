@@ -18,6 +18,7 @@ object MdbListSettingsRepository {
     }.stateIn(scope, SharingStarted.Eagerly, MdbListSettings())
 
     private var hasLoaded = false
+    private var loadedProfileId: Int? = null
 
     private var enabled = false
     private var apiKey = ""
@@ -33,7 +34,7 @@ object MdbListSettingsRepository {
 
     fun ensureLoaded() {
         MdbListTracker.ensureLoaded()
-        if (hasLoaded) return
+        if (hasLoaded && loadedProfileId == com.nuvio.app.features.profiles.ProfileRepository.activeProfileId) return
         loadFromDisk()
     }
 
@@ -46,33 +47,40 @@ object MdbListSettingsRepository {
         return _uiState.value.withAccount(MdbListTracker.auth.state.value, ProfileRepository.activeProfileId)
     }
 
-    fun setEnabled(value: Boolean) {
+    fun setEnabled(value: Boolean) = com.nuvio.app.features.profiles.ProfileRepository.settingsGuard.withLock { setEnabledLocked(value) }
+    private fun setEnabledLocked(value: Boolean) {
         ensureLoaded()
         if (enabled == value) return
         enabled = value
-        publish()
         MdbListSettingsStorage.saveEnabled(value)
+        com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
     }
 
-    fun setApiKey(value: String) {
+    fun setApiKey(value: String) = com.nuvio.app.features.profiles.ProfileRepository.settingsGuard.withLock { setApiKeyLocked(value) }
+    private fun setApiKeyLocked(value: String) {
         ensureLoaded()
         val normalized = value.trim()
         if (apiKey == normalized) return
         apiKey = normalized
-        publish()
         MdbListSettingsStorage.saveApiKey(normalized)
+        com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
         MdbListMetadataService.clearCache()
     }
 
-    fun setShowOnHero(value: Boolean) {
+    fun setShowOnHero(value: Boolean) = com.nuvio.app.features.profiles.ProfileRepository.settingsGuard.withLock { setShowOnHeroLocked(value) }
+    private fun setShowOnHeroLocked(value: Boolean) {
         ensureLoaded()
         if (showOnHero == value) return
         showOnHero = value
-        publish()
         MdbListSettingsStorage.saveShowOnHero(value)
+        com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
     }
 
-    fun setProviderEnabled(providerId: String, value: Boolean) {
+    fun setProviderEnabled(providerId: String, value: Boolean) = com.nuvio.app.features.profiles.ProfileRepository.settingsGuard.withLock { setProviderEnabledLocked(providerId, value) }
+    private fun setProviderEnabledLocked(providerId: String, value: Boolean) {
         ensureLoaded()
         when (providerId) {
             MdbListMetadataService.PROVIDER_IMDB -> if (useImdb != value) {
@@ -109,11 +117,13 @@ object MdbListSettingsRepository {
             } else return
             else -> return
         }
+        com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
         publish()
     }
 
     private fun loadFromDisk() {
         hasLoaded = true
+        loadedProfileId = com.nuvio.app.features.profiles.ProfileRepository.activeProfileId
         apiKey = MdbListSettingsStorage.loadApiKey().orEmpty().trim()
         enabled = MdbListSettingsStorage.loadEnabled() ?: false
         useImdb = MdbListSettingsStorage.loadUseImdb() ?: true

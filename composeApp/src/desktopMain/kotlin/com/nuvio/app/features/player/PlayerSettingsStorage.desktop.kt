@@ -491,7 +491,7 @@ internal actual object PlayerSettingsStorage {
         loadNvidiaRtxSuperResolutionEnabled()?.let { put(nvidiaRtxSuperResolutionEnabledKey, encodeSyncBoolean(it)) }
     }
 
-    actual fun replaceFromSyncPayload(payload: JsonObject) {
+    actual fun replaceFromSyncPayload(payload: JsonObject) = store.update {
         store.removeAll(syncKeys.map(::scoped))
         payload.decodeSyncBoolean(showLoadingOverlayKey)?.let(::saveShowLoadingOverlay)
         payload.decodeSyncBoolean(showPlayerLoadingStatusKey)?.let(::saveShowPlayerLoadingStatus)

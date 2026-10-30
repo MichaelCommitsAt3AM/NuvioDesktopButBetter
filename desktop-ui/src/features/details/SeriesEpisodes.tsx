@@ -8,6 +8,7 @@ import { depthActive, depthVars } from '../../theme/cardDepth';
 import '../../theme/cardDepth.css';
 import type { Video } from './DetailsExtras';
 import './series-episodes.css';
+import { useSeasonViewTransition } from './useSeasonViewTransition';
 
 type SeasonView = 'posters' | 'text';
 export type Props = {
@@ -58,7 +59,9 @@ export function SeriesEpisodes({ videos, preferredSeason, poster, background, se
   const transitionTimer = useRef<number | null>(null);
   const seasonButtons = useRef(new Map<number, HTMLButtonElement>());
   const seasonTrack = useRef<HTMLDivElement>(null);
+  const seasonViewport = useRef<HTMLDivElement>(null);
   const hasSeasonPosters = seasons.some((season) => Boolean(resolveSeasonPoster(season, grouped, seasonPosters)));
+  useSeasonViewTransition(hasSeasonPosters ? seasonView : 'text', seasonViewport, seasonTrack);
   const fallbackImage = background || poster;
 
   useEffect(() => {
@@ -94,7 +97,7 @@ export function SeriesEpisodes({ videos, preferredSeason, poster, background, se
     <div className="series-episodes-heading"><h2>Episodes</h2><span>{videos.length}</span></div>
     {seasons.length > 1 && <div className="series-season-selector">
       <div className="series-season-selector-heading"><h3>Seasons</h3>{hasSeasonPosters && <button type="button" className="series-season-view-toggle" onClick={() => setView(seasonView === 'posters' ? 'text' : 'posters')}>{seasonView === 'posters' ? 'Posters' : 'Text'}</button>}</div>
-      <div ref={seasonTrack} className={`series-season-options ${hasSeasonPosters && seasonView === 'posters' ? 'poster-mode' : 'text-mode'}`}>
+      <div ref={seasonViewport} className="series-season-view-transition"><div ref={seasonTrack} className={`series-season-options ${hasSeasonPosters && seasonView === 'posters' ? 'poster-mode' : 'text-mode'}`}>
         {seasons.map((season) => {
           const selected = season === currentSeason;
           const image = resolveSeasonPoster(season, grouped, seasonPosters) || poster || background;
@@ -107,7 +110,7 @@ export function SeriesEpisodes({ videos, preferredSeason, poster, background, se
             <span>{seasonLabel(season)}</span>
           </button>;
         })}
-      </div>
+      </div></div>
     </div>}
     <div className={`series-episode-content ${cardStyle === 'list' ? 'list-style' : 'horizontal-style'}`}>
       {outgoingSeason != null && <div className="series-episode-season outgoing" aria-hidden="true" style={{ '--season-direction': `${direction * -1 * 20}px` } as CSSProperties}><EpisodeCollection progressByVideoId={progressByVideoId} episodes={oldEpisodes} season={outgoingSeason} cardStyle={cardStyle} fallbackImage={fallbackImage} blurUnwatched={blurUnwatched} showRatings={showRatings} ratingsVisibility={ratingsVisibility} isWatched={isWatched} onEpisodeClick={onEpisodeClick} onEpisodeLongPress={onEpisodeLongPress} onToggleSeason={onToggleSeason} mutationBusy={mutationBusy} /></div>}

@@ -82,6 +82,14 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Playback sliders show their selectable stops. Skip Segments follows Kotlin's separate detection switch, automatic-skipping dialog, and AnimeSkip/IntroDB credential dialogs, including IntroDB key verification.
 
 **React/Tauri desktop interface**
+- Saved integration credentials show a “Key saved” card with a replacement action. Cancel keeps the saved key.
+- Kids profiles also show “Key saved” for the TMDB key stored during KidsScreen setup; replacement opens that profile’s setup editor.
+- Details display IMDb once, with the correct labels and score formats for other ratings. Season text/poster modes crossfade and resize smoothly, with room for the selected poster’s full outline.
+- Actor portraits retain the clicked cast photo and return to its restored position; horizontal arrows hide at their scroll edges.
+- Home publishes verified titles progressively, and slow content checks no longer hold the bridge’s event-delivery lock. Pending integration edits survive restarts and cannot be overwritten by an older profile sync.
+- Title details show an outlined age certification badge beside the year and runtime when one is available.
+- Actor pages use the Kotlin layout: circular portraits, personal facts and expandable biographies beside Popular, Latest and Upcoming shelves, with independent scrolling and portrait transitions.
+- Integration keys and switches remain separate for each profile. Profile switches cannot upload another profile's TMDB choice, and older synced settings retain saved options they omit. Preference files are replaced atomically for safer restarts and updates.
 - Playback includes embedded chapters and stream information, with optional automatic alignment for external subtitles and per-profile controls in Playback settings.
 - Holding a title or Continue Watching card opens its action popup with the original Kotlin spring motion and cascading menu, with duplicate blur and competing animations removed.
 - Closing card popups returns to the artwork bounds, and Continue Watching keeps the original card's text proportions throughout the zoom.

@@ -3,6 +3,8 @@ package com.nuvio.app.features.tmdb
 import kotlinx.serialization.json.JsonObject
 
 internal expect object TmdbSettingsStorage {
+    fun loadPendingPreferences(profileId: Int): String?
+    fun savePendingPreferences(profileId: Int, value: String?)
     fun loadEnabled(): Boolean?
     fun saveEnabled(enabled: Boolean)
     fun loadEnabledForProfile(profileId: Int): Boolean?

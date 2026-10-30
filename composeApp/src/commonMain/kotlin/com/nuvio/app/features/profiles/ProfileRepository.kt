@@ -7,6 +7,7 @@ import com.nuvio.app.core.auth.isAnonymous
 import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.core.poster.CustomPosterUrlRepository
 import com.nuvio.app.core.sync.ProfileSettingsSync
+import com.nuvio.app.core.sync.ProfileSettingsGuard
 import com.nuvio.app.core.sync.putSyncOriginClientId
 import com.nuvio.app.core.tracking.ensureTrackingProvidersRegistered
 import com.nuvio.app.features.addons.AddonRepository
@@ -76,6 +77,7 @@ object ProfileRepository {
     private val log = Logger.withTag("ProfileRepository")
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val profileSwitchMutex = Mutex()
+    internal val settingsGuard = ProfileSettingsGuard { activeProfileId }
     private fun localizedString(resource: StringResource): String = runBlocking { getString(resource) }
 
     private val _state = MutableStateFlow(ProfileState())
@@ -201,7 +203,7 @@ object ProfileRepository {
         }
     }
 
-    private fun selectProfile(profileIndex: Int) {
+    private fun selectProfile(profileIndex: Int) = settingsGuard.switching {
         activeProfileIndex = profileIndex
         CustomPosterUrlRepository.onProfileChanged()
         val selectedProfile = _state.value.profiles.find { it.profileIndex == profileIndex }

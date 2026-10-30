@@ -91,7 +91,9 @@ object ProviderCredentialSync {
         ensureRepositoriesLoaded()
         val credentialScope = currentScope(profileId) ?: return@withLock false
         try {
-            val localSnapshot = currentSnapshot(profileId)
+            val captured = ProfileRepository.settingsGuard.capture { currentSnapshot(profileId) }
+            if (captured.token.profileId != profileId) return@withLock false
+            val localSnapshot = captured.value
             val rows = pullRows(profileId)
             requireCurrentScope(credentialScope)
             // A key saved while offline (or immediately before closing) may not have a cloud row yet.
@@ -102,7 +104,7 @@ object ProviderCredentialSync {
             if (applied) {
                 isApplyingRemote = true
                 try {
-                    applySnapshot(remoteSnapshot, credentialScope)
+                    if (!ProfileRepository.settingsGuard.runIfCurrent(captured.token) { applySnapshot(remoteSnapshot, credentialScope) }) return@withLock false
                 } finally {
                     isApplyingRemote = false
                 }
@@ -175,7 +177,8 @@ object ProviderCredentialSync {
         )
     }
 
-    private fun currentSnapshot(profileId: Int): ProviderCredentialSnapshot {
+    private fun currentSnapshot(profileId: Int): ProviderCredentialSnapshot = ProfileRepository.settingsGuard.withLock { currentSnapshotLocked(profileId) }
+    private fun currentSnapshotLocked(profileId: Int): ProviderCredentialSnapshot {
         check(ProfileRepository.activeProfileId == profileId)
         val snapshot = buildSnapshot(
             profileId = profileId,
@@ -225,7 +228,7 @@ object ProviderCredentialSync {
         },
     )
 
-    private suspend fun applySnapshot(
+    private fun applySnapshot(
         snapshot: ProviderCredentialSnapshot,
         expectedScope: ProviderCredentialScope,
     ) {

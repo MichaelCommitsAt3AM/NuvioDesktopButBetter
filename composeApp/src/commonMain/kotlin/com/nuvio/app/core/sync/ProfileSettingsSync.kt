@@ -68,6 +68,11 @@ private const val PUSH_DEBOUNCE_MS = 500L
 private const val PRIMARY_PROFILE_ID = 1
 
 object ProfileSettingsSync {
+    /** A queued local integration edit wins over an older cloud pull, including after restart. */
+    internal fun markIntegrationPreferencesChanged() {
+        val profileId = ProfileRepository.activeProfileId
+        TmdbSettingsStorage.savePendingPreferences(profileId, "${kotlin.time.Clock.System.now().toEpochMilliseconds()}:${kotlin.random.Random.nextLong()}")
+    }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val log = Logger.withTag("ProfileSettingsSync")
     private val syncMutex = Mutex()
@@ -87,7 +92,7 @@ object ProfileSettingsSync {
 
     /** Last TMDB preference payload written to (or read from) the kids profile's shared bucket. */
     @Volatile
-    private var lastKidsTmdbSignature: String? = null
+    private var lastKidsTmdbSignature: Pair<Int, String>? = null
 
     private var observeJob: Job? = null
 
@@ -127,7 +132,12 @@ object ProfileSettingsSync {
             }
             isServerSyncInFlight = true
             try {
-                val localBlob = exportSettingsBlob()
+                if (TmdbSettingsStorage.loadPendingPreferences(profileId) != null) {
+                    return@withLock pushCurrentProfileToRemoteLocked(profileId)
+                }
+                val captured = ProfileRepository.settingsGuard.capture { exportSettingsBlob() }
+                if (captured.token.profileId != profileId) return@withLock false
+                val localBlob = captured.value
                 if (ProfileRepository.activeProfileId != profileId) return@withLock false
                 val localSignature = buildSignature(localBlob)
 
@@ -166,8 +176,15 @@ object ProfileSettingsSync {
                     }
 
                     if (ProfileRepository.activeProfileId != profileId) return@withLock false
-                    applyRemoteBlob(remoteBlob)
-                    skipNextPushSignature = currentObservedStateSignature()
+                    var applied = false
+                    ProfileRepository.settingsGuard.runIfCurrent(captured.token) {
+                        if (buildSignature(exportSettingsBlob()) == localSignature && TmdbSettingsStorage.loadPendingPreferences(profileId) == null) {
+                            applyRemoteBlob(remoteBlob)
+                            skipNextPushSignature = currentObservedStateSignature()
+                            applied = true
+                        }
+                    }
+                    if (!applied) return@withLock false
                     if (inheritedFromPrimary) {
                         pushToRemoteLocked(profileId, remoteBlob)
                     }
@@ -195,12 +212,35 @@ object ProfileSettingsSync {
     suspend fun pushCurrentProfileToRemote(): Boolean {
         ensureRepositoriesLoaded()
         return syncMutex.withLock {
+            pushCurrentProfileToRemoteLocked()
+        }
+    }
+
+    private suspend fun pushCurrentProfileToRemoteLocked(expectedProfileId: Int? = null): Boolean {
+        return run {
             runCatching {
-                val profileId = ProfileRepository.activeProfileId
-                val blob = exportSettingsBlob()
-                if (ProfileRepository.activeProfileId != profileId) return@runCatching false
-                pushToRemoteLocked(profileId, blob)
-                publishKidsTmdbLocked(profileId)
+                val captured = ProfileRepository.settingsGuard.capture {
+                    exportSettingsBlob() to TmdbSettingsStorage.loadPendingPreferences(ProfileRepository.activeProfileId)
+                }
+                val profileId = captured.token.profileId
+                if (expectedProfileId != null && profileId != expectedProfileId) return@runCatching false
+                val (blob, pending) = captured.value
+                // Capture the complete TMDB payload before the first suspension.
+                // A profile switch while the platform RPC is in flight must not
+                // publish the next profile's preferences into this profile's bucket.
+                uploadProfileSettingsSnapshot(
+                    profileId, blob,
+                    captureTmdb = { tmdbSettingsWithPreferences(
+                        blob.features.tmdbSettings,
+                        blob.features.tmdbSettings.decodeSyncBoolean("tmdb_enabled") ?: isKidsProfile(profileId),
+                        blob.features.tmdbSettings.decodeSyncBoolean("tmdb_use_credits") ?: !isKidsProfile(profileId),
+                    ) },
+                    pushSettings = ::pushToRemoteLocked,
+                    pushTmdb = ::publishKidsTmdbLocked,
+                )
+                ProfileRepository.settingsGuard.withLock {
+                    if (pending != null && TmdbSettingsStorage.loadPendingPreferences(profileId) == pending) TmdbSettingsStorage.savePendingPreferences(profileId, null)
+                }
                 true
             }.onFailure { error ->
                 log.e(error) { "pushCurrentProfileToRemote() — FAILED" }
@@ -289,7 +329,7 @@ object ProfileSettingsSync {
                 pushSettingsBlob(profileId, withSharedTmdbSettings(otherBlob, shared), otherPlatform)
             }
             TmdbSettingsStorage.saveKidsProfileSettings(profileId, null, enabled, useCredits, useProductions, useNetworks)
-            rememberKidsTmdb(shared)
+            rememberKidsTmdb(profileId, shared)
             if (active) TmdbSettingsRepository.onProfileChanged()
         }
     }
@@ -332,7 +372,7 @@ object ProfileSettingsSync {
                     if (authState !is AuthState.Authenticated || authState.isAnonymous) return@collect
                     if (isApplyingRemoteBlob || isServerSyncInFlight) return@collect
                     if (signature != currentObservedStateSignature()) return@collect
-                    if (signature == skipNextPushSignature) {
+                    if (signature == skipNextPushSignature && TmdbSettingsStorage.loadPendingPreferences(ProfileRepository.activeProfileId) == null) {
                         skipNextPushSignature = null
                         return@collect
                     }
@@ -367,8 +407,8 @@ object ProfileSettingsSync {
     private fun isKidsProfile(profileId: Int): Boolean =
         ProfileRepository.state.value.profiles.firstOrNull { it.profileIndex == profileId }?.kidsEnabled == true
 
-    private fun rememberKidsTmdb(settings: JsonObject) {
-        lastKidsTmdbSignature = settings.toString()
+    private fun rememberKidsTmdb(profileId: Int, settings: JsonObject) {
+        lastKidsTmdbSignature = profileId to settings.toString()
     }
 
     private suspend fun pushSettingsBlob(profileId: Int, blob: JsonObject, platform: String) {
@@ -385,16 +425,10 @@ object ProfileSettingsSync {
     }
 
     /** Publish this profile's TMDB choices so a fresh device or platform agrees on its next pull. */
-    private suspend fun publishKidsTmdbLocked(profileId: Int) {
-        val snapshot = TmdbSettingsRepository.snapshot()
-        val settings = tmdbSettingsWithPreferences(
-            TmdbSettingsStorage.exportToSyncPayload(),
-            snapshot.enabled,
-            snapshot.useCredits,
-        )
-        if (settings.toString() == lastKidsTmdbSignature) return
+    private suspend fun publishKidsTmdbLocked(profileId: Int, settings: JsonObject) {
+        if (profileId to settings.toString() == lastKidsTmdbSignature) return
         writeSharedKidsTmdb(profileId, settings)
-        rememberKidsTmdb(settings)
+        rememberKidsTmdb(profileId, settings)
     }
 
     /**
@@ -412,7 +446,7 @@ object ProfileSettingsSync {
         return runCatching {
             val shared = sharedTmdbSettings(fetchPlatformSettingsJson(profileId, KIDS_TMDB_SHARED_SYNC_PLATFORM))
             if (shared != null) {
-                rememberKidsTmdb(shared)
+                rememberKidsTmdb(profileId, shared)
                 return@runCatching withSharedTmdbSettings(remoteJson, shared)
             }
             val otherPlatform = if (profileSettingsPlatform == DESKTOP_SYNC_PLATFORM) MOBILE_SYNC_PLATFORM else DESKTOP_SYNC_PLATFORM
@@ -425,7 +459,7 @@ object ProfileSettingsSync {
             }
             val migrated = migratedTmdbSettings(platformBlobs, isKidsProfile(profileId))
             writeSharedKidsTmdb(profileId, migrated)
-            rememberKidsTmdb(migrated)
+            rememberKidsTmdb(profileId, migrated)
             log.i { "pull(profileId=$profileId) — migrated TMDB preferences to the shared bucket" }
             withSharedTmdbSettings(remoteJson, migrated)
         }.getOrElse { error ->
@@ -434,7 +468,8 @@ object ProfileSettingsSync {
         }
     }
 
-    private fun exportSettingsBlob(): MobileProfileSettingsBlob {
+    private fun exportSettingsBlob(): MobileProfileSettingsBlob = ProfileRepository.settingsGuard.withLock { exportSettingsBlobLocked() }
+    private fun exportSettingsBlobLocked(): MobileProfileSettingsBlob {
         ensureRepositoriesLoaded()
         return MobileProfileSettingsBlob(
             features = MobileProfileSettingsFeatures(

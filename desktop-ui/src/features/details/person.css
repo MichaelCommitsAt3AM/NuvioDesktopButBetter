@@ -1,0 +1,58 @@
+/* PersonDetailScreen.kt: 900dp breakpoint, 392dp identity pane, independent scroll. */
+html[data-person-avatar-returning] .person-avatar-return-target{visibility:hidden}
+.details-layout:has(.person-page)>.main-area{zoom:1;overflow:hidden;margin-left:0;padding:0;animation:none}
+.person-page{--poster-page-zoom:1;--person-collapse:0;position:relative;height:100%;width:100%;min-width:0;overflow:auto;background:var(--app-bg,#000);color:var(--text-primary,#f2f3f5);isolation:isolate}
+.person-controls{position:sticky;top:0;height:0;z-index:5}
+.person-page::before{content:'';position:absolute;z-index:-1;inset:0;pointer-events:none;background:linear-gradient(180deg,color-mix(in srgb,var(--app-accent,#a78bfa) 18%,transparent) 0%,color-mix(in srgb,var(--app-accent,#a78bfa) 10%,transparent) 15%,color-mix(in srgb,var(--app-accent,#a78bfa) 4%,transparent) 30%,transparent 50%)}
+.person-page .person-back{position:absolute;z-index:5;top:32px;left:32px;width:48px;height:48px;background:transparent}
+.person-columns{display:grid;grid-template-columns:392px minmax(0,1fr);height:100%;padding-top:34px;min-width:0}
+.person-identity{min-height:0;overflow:auto;padding:72px 36px 42px 40px;border-right:1px solid #ffffff18;display:flex;flex-direction:column;align-items:flex-start;gap:22px;scrollbar-width:thin;scrollbar-color:#454950 transparent}
+.person-avatar-halo{width:162px;height:162px;border-radius:50%;background:color-mix(in srgb,var(--app-accent,#a78bfa) 14%,transparent);display:grid;place-items:center;flex:none}
+.person-avatar{width:148px;height:148px;flex:none;overflow:hidden;border-radius:50%;border:1px solid #ffffff28;background:var(--surface,#28282c);display:grid;place-items:center;will-change:transform}
+.person-avatar img{display:block;width:100%;height:100%;object-fit:cover}
+.person-avatar>span{font-size:36px;font-weight:700;color:var(--muted,#989da2)}
+.person-identity h1{margin:0;font-size:28px;font-weight:800;letter-spacing:-.5px;line-height:34px;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+.person-facts{display:grid;gap:15px;width:100%}
+.person-fact h2,.person-biography h2{margin:0;color:color-mix(in srgb,var(--muted,#989da2) 70%,transparent);font-size:11px;line-height:16px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+.person-fact p{margin:3px 0 0;font-size:14px;line-height:20px;color:var(--muted,#989da2)}
+.person-biography{border-top:1px solid #ffffff18;padding-top:22px;width:100%}
+.person-biography-copy{max-height:264px;overflow:hidden;transition:max-height 300ms cubic-bezier(.2,0,0,1);margin-top:9px}
+.person-biography-copy p{margin:0;line-height:22px;font-size:14px;color:var(--muted,#989da2);white-space:pre-line}
+.person-biography-copy.expanded{max-height:var(--biography-height,2000px)}
+.person-biography button{border:0;padding:4px 0;background:transparent;color:var(--muted,#989da2);font:inherit;font-size:14px;cursor:pointer}
+.person-biography button:hover{color:var(--text,#f2f3f5)}
+.person-credits{min-width:0;min-height:0;overflow:auto;padding:0 0 40px 40px;scrollbar-width:thin;scrollbar-color:#454950 transparent}
+.person-credits-arrive,.person-loading-rails{display:grid;gap:34px;min-width:0}
+.person-credits-arrive{animation:person-fade-in 300ms cubic-bezier(.4,0,.2,1) both}
+.person-rail{min-width:0;--page-gutter:40px}
+.person-rail h2{margin:0 0 3px;font-size:22px;font-weight:700;line-height:28px}
+.person-rail .horizontal-rail{margin-inline:0}
+.person-rail .shelf-track{padding-right:40px;scroll-padding-inline:0 40px;overflow-y:hidden}
+.person-rail .poster-overflow-button{display:none}
+.person-page .horizontal-rail .rail-arrow:disabled{visibility:hidden;pointer-events:none}
+.person-heading-skeleton{display:block;width:120px;height:18px;margin-bottom:15px;border-radius:4px;background:#ffffff10;animation:person-shimmer 1.8s ease-in-out infinite}
+.person-skeleton span{display:block;height:14px;width:88%;border-radius:4px;background:#ffffff10;animation:person-shimmer 1.8s ease-in-out infinite}
+.person-skeleton span:nth-child(2n){width:58%}
+.person-error{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:90px 40px}
+.person-error h1{font-size:22px}
+@media(min-width:1024px) and (max-width:1439px){.person-page .person-back{left:28px}}
+@media(min-width:900px) and (max-width:1023px){.person-page .person-back{left:24px}}
+@keyframes person-fade-in{from{opacity:0}to{opacity:1}}
+@keyframes person-shimmer{50%{opacity:.4}}
+@media(max-width:899px){
+  .person-columns{display:block;height:auto;padding-top:48px}
+  .person-page .person-back{top:8px;left:4px}
+  .person-identity{overflow:visible;border:0;padding:0 20px;align-items:center;gap:16px;transform:translateY(calc(var(--person-collapse) * -40px)) scale(calc(1 - var(--person-collapse) * .12));opacity:calc(1 - var(--person-collapse) * .35);transform-origin:top center}
+  .person-avatar-halo{width:calc(140px - var(--person-collapse) * 68px);height:calc(140px - var(--person-collapse) * 68px);background:transparent}
+  .person-avatar{width:100%;height:100%}
+  .person-identity h1{font-size:24px;text-align:center}
+  .person-facts{justify-items:center;text-align:center;gap:6px}
+  .person-biography{border:0;padding:0}
+  .person-biography-copy{max-height:160px}
+  .person-biography-copy.expanded{max-height:var(--biography-height,2000px)}
+  .person-biography-copy p{line-height:20px}
+  .person-credits{overflow:visible;padding:24px 0 32px 20px}
+  .person-rail{--page-gutter:20px}
+  .person-rail .shelf-track{padding-right:20px}
+}
+@media(prefers-reduced-motion:reduce){.person-credits-arrive,.person-skeleton span,.person-heading-skeleton{animation:none}.person-biography-copy{transition:none}}

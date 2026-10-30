@@ -17,6 +17,9 @@ import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesRepositor
 import com.nuvio.app.features.watching.domain.playLabel
 import com.nuvio.app.features.watching.domain.resumeLabel
 import com.nuvio.app.features.home.MetaPreview
+import com.nuvio.app.core.poster.CustomPosterUrlRepository
+import com.nuvio.app.core.poster.CustomPosterScreen
+import com.nuvio.app.core.poster.withCustomPosterUrls
 import com.nuvio.app.features.tmdb.TmdbEntityKind
 import com.nuvio.app.features.tmdb.TmdbEntityMediaType
 import com.nuvio.app.features.tmdb.TmdbEntityRailType
@@ -74,7 +77,8 @@ object DetailsExtrasBridge {
                 personId = personId,
                 preferCrewCredits = params.nullableBool("preferCrew"),
             ) ?: error("Person details are unavailable")
-            personDetailJson(detail)
+            CustomPosterUrlRepository.ensureLoaded()
+            personDetailJson(detail.withCustomPosterUrls(CustomPosterUrlRepository.patternForScreen(CustomPosterScreen.DETAILS)))
         }
         "details.entity" -> {
             val kind = TmdbEntityKind.fromRouteValue(params.str("kind"))
@@ -326,6 +330,8 @@ object DetailsExtrasBridge {
     }
 
     private fun personDetailJson(person: com.nuvio.app.features.details.PersonDetail) = buildJsonObject {
+        val credits = (person.movieCredits + person.tvCredits).distinctBy { it.id }
+        val today = CurrentDateProvider.todayIsoDate()
         put("tmdbId", person.tmdbId)
         put("name", person.name)
         putNullable("biography", person.biography)
@@ -336,6 +342,17 @@ object DetailsExtrasBridge {
         putNullable("knownFor", person.knownFor)
         put("movieCredits", JsonArray(person.movieCredits.map(::mediaJson)))
         put("tvCredits", JsonArray(person.tvCredits.map(::mediaJson)))
+        put("popularCredits", JsonArray(credits.sortedByDescending { it.popularity ?: 0.0 }.map(::mediaJson)))
+        put("latestCredits", JsonArray(credits.filter { it.rawReleaseDate?.let { date -> date <= today } == true }
+            .sortedByDescending { it.rawReleaseDate }.map(::mediaJson)))
+        put("upcomingCredits", JsonArray(credits.filter { it.rawReleaseDate?.let { date -> date > today } == true }
+            .sortedBy { it.rawReleaseDate }.map(::mediaJson)))
+        val firstYear = credits.mapNotNull { it.rawReleaseDate?.take(4)?.toIntOrNull() }.minOrNull()
+        put("creditSummary", if (credits.isEmpty()) "" else buildString {
+            append(credits.size)
+            append(if (credits.size == 1) " title" else " titles")
+            if (firstYear != null) append(" · since $firstYear")
+        })
     }
 
     private fun mediaJson(item: MetaPreview) = buildJsonObject {

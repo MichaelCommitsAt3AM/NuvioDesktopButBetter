@@ -44,6 +44,8 @@ actual object TmdbSettingsStorage {
     )
 
     private var preferences: SharedPreferences? = null
+    actual fun loadPendingPreferences(profileId: Int): String? = preferences?.getString(ProfileScopedKey.of("tmdb_pending_preferences", profileId), null)
+    actual fun savePendingPreferences(profileId: Int, value: String?) { preferences?.edit()?.putString(ProfileScopedKey.of("tmdb_pending_preferences", profileId), value)?.apply() }
 
     fun initialize(context: Context) {
         preferences = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)

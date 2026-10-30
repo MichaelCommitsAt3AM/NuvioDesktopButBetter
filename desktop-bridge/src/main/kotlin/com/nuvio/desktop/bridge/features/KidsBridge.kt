@@ -16,6 +16,7 @@ import io.github.jan.supabase.postgrest.rpc
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runInterruptible
 import kotlinx.serialization.json.*
 import java.net.URI
 import java.net.http.HttpClient
@@ -31,6 +32,8 @@ object KidsBridge {
     private val management = DesktopStorage.store("kidsscreen_management")
     private data class Verdict(val allowed: Boolean, val expires: Long)
     private val verdicts = ConcurrentHashMap<String, Verdict>()
+    private fun policyKey(profile: NuvioProfile) = "${profile.userId}|${profile.kidsServiceUrl}|${profile.kidsConfigId}|${profile.kidsMaxRating}"
+    private fun verdictKey(profile: NuvioProfile, ref: Ref) = "${policyKey(profile)}|${ref.type}|${ref.id}"
     val active: NuvioProfile? get() = ProfileRepository.state.value.activeProfile?.takeIf { it.kidsEnabled }
     internal fun normalizeService(raw: String): String {
         val uri = runCatching { URI(raw.trim().trimEnd('/')) }.getOrElse { throw BridgeFeatureException("INVALID_KIDS_SERVER", "Enter a valid KidsScreen server address") }
@@ -44,7 +47,8 @@ object KidsBridge {
         val builder = HttpRequest.newBuilder(URI(normalizeService(base) + path)).timeout(Duration.ofSeconds(50))
         token?.let { builder.header("Authorization", "Bearer $it") }
         when { delete -> builder.DELETE(); data != null -> builder.header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(data.toString())); else -> builder.GET() }
-        val response = try { client.send(builder.build(), HttpResponse.BodyHandlers.ofString()) }
+        val response = try { runInterruptible { client.send(builder.build(), HttpResponse.BodyHandlers.ofString()) } }
+        catch (error: CancellationException) { throw error }
         catch (error: Exception) { throw BridgeFeatureException("KIDSSCREEN_UNAVAILABLE", "KidsScreen is unavailable. Start the server and try again") }
         if (response.statusCode() !in 200..299) throw BridgeFeatureException("KIDSSCREEN_REQUEST_FAILED",
             if (path.endsWith("/clone-owned")) "Could not update the saved kids configuration. Check your Nuvio sign-in and connection."
@@ -195,7 +199,7 @@ object KidsBridge {
     }
     internal suspend fun check(profile: NuvioProfile, refs: Set<Ref>): Set<Ref> {
         val now = System.currentTimeMillis()
-        fun key(ref: Ref) = "${profile.userId}|${profile.kidsServiceUrl}|${profile.kidsConfigId}|${profile.kidsMaxRating}|${ref.type}|${ref.id}"
+        fun key(ref: Ref) = verdictKey(profile, ref)
         val missing = refs.filter { it.type in setOf("movie", "series") }.filter { verdicts[key(it)]?.expires?.let { expiry -> expiry > now } != true }
         for (batch in missing.chunked(200)) {
             val allowed = try {
@@ -227,10 +231,30 @@ object KidsBridge {
         val source = if (topic in setOf("cloud", "searchHistory")) JsonObject(data.mapValues { (_, value) -> if (value is JsonArray) JsonArray(emptyList()) else value }) else data
         return sanitize(source) as? JsonObject ?: JsonObject(emptyMap())
     }
+    suspend fun publishHome(data: JsonObject, isCurrent: () -> Boolean, publish: suspend (JsonObject) -> Unit) {
+        val profile = active
+        if (profile == null) { if (isCurrent()) publish(data); return }
+        val now = System.currentTimeMillis()
+        val allowed = verdicts.entries.filter { (key, verdict) -> key.startsWith(policyKey(profile) + "|") && verdict.allowed && verdict.expires > now }
+            .mapNotNull { (key, _) -> val parts = key.split('|'); if (parts.size < 2) null else Ref(parts[parts.size - 2], parts.last()) }.toSet()
+        progressiveHomeVisibility(data, allowed, { check(profile, it) }, { isCurrent() && active == profile }, publish)
+    }
     suspend fun sanitizeReply(method: String, value: JsonElement): JsonElement = when {
+        value is JsonObject && method == "home.snapshot" -> cachedHome(value)
         value is JsonObject && method.startsWith("cloud.") -> sanitizeTopic("cloud", value)
         value is JsonObject && method == "search.historySnapshot" -> sanitizeTopic("searchHistory", value)
         else -> sanitize(value)
+    }
+    private fun cachedHome(data: JsonObject): JsonObject {
+        val profile = active ?: return data
+        val refs = mutableSetOf<Ref>()
+        fun collect(node: JsonElement) { when (node) { is JsonObject -> { reference(node)?.let(refs::add); node.values.forEach(::collect) }; is JsonArray -> node.forEach(::collect); else -> Unit } }
+        collect(data)
+        val now = System.currentTimeMillis()
+        val allowed = refs.filter { verdicts[verdictKey(profile, it)]?.let { verdict -> verdict.allowed && verdict.expires > now } == true }.toSet()
+        val pending = refs.any { verdicts[verdictKey(profile, it)]?.expires?.let { expiry -> expiry > now } != true }
+        val filtered = filter(data, allowed) as? JsonObject ?: JsonObject(emptyMap())
+        return JsonObject(filtered + ("loading" to JsonPrimitive(pending || data["loading"]?.jsonPrimitive?.booleanOrNull == true)))
     }
     suspend fun sanitize(value: JsonElement): JsonElement {
         val profile = active ?: return value

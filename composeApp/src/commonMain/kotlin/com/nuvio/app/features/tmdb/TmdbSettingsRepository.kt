@@ -1,5 +1,6 @@
 package com.nuvio.app.features.tmdb
 
+import com.nuvio.app.core.sync.ProfileSettingsSync
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.watchprogress.ContinueWatchingEnrichmentCache
@@ -12,6 +13,7 @@ object TmdbSettingsRepository {
     val uiState: StateFlow<TmdbSettings> = _uiState.asStateFlow()
 
     private var hasLoaded = false
+    private var loadedProfileId: Int? = null
 
     private var enabled = false
     private var apiKey = ""
@@ -29,7 +31,7 @@ object TmdbSettingsRepository {
     private var useCollections = true
 
     fun ensureLoaded() {
-        if (hasLoaded) return
+        if (hasLoaded && loadedProfileId == ProfileRepository.activeProfileId) return
         loadFromDisk()
     }
 
@@ -37,9 +39,9 @@ object TmdbSettingsRepository {
         loadFromDisk()
     }
 
-    fun snapshot(): TmdbSettings {
+    fun snapshot(): TmdbSettings = ProfileRepository.settingsGuard.withLock {
         ensureLoaded()
-        return _uiState.value
+        _uiState.value
     }
 
     /** Called only after KidsScreen has validated the key and saved the kids policy. */
@@ -61,122 +63,128 @@ object TmdbSettingsRepository {
 
     fun effectiveApiKey(): String = snapshot().apiKey.ifBlank { TmdbConfig.API_KEY }
 
-    fun setEnabled(value: Boolean) {
+    fun setEnabled(value: Boolean) = com.nuvio.app.features.profiles.ProfileRepository.settingsGuard.withLock { setEnabledLocked(value) }
+    private fun setEnabledLocked(value: Boolean) {
         ensureLoaded()
         if (enabled == value) return
         enabled = value
-        publish()
         TmdbSettingsStorage.saveEnabled(value)
+        ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
         invalidateMetadata()
     }
 
-    fun setApiKey(value: String) {
+    fun setApiKey(value: String) = com.nuvio.app.features.profiles.ProfileRepository.settingsGuard.withLock { setApiKeyLocked(value) }
+    private fun setApiKeyLocked(value: String) {
         ensureLoaded()
         val normalized = value.trim()
         if (apiKey == normalized) return
         apiKey = normalized
-        publish()
         TmdbSettingsStorage.saveApiKey(normalized)
+        publish()
         invalidateMetadata()
     }
 
-    fun setLanguage(value: String) {
+    fun setLanguage(value: String) = com.nuvio.app.features.profiles.ProfileRepository.settingsGuard.withLock { setLanguageLocked(value) }
+    private fun setLanguageLocked(value: String) {
         ensureLoaded()
         val normalized = normalizeLanguage(value)
         if (language == normalized) return
         language = normalized
         publish()
         TmdbSettingsStorage.saveLanguage(normalized)
+        ProfileSettingsSync.markIntegrationPreferencesChanged()
     }
 
     fun setUseTrailers(value: Boolean) = setBoolean(
-        current = useTrailers,
+        current = { useTrailers },
         next = value,
         update = { useTrailers = it },
         persist = TmdbSettingsStorage::saveUseTrailers,
     )
 
     fun setUseArtwork(value: Boolean) = setBoolean(
-        current = useArtwork,
+        current = { useArtwork },
         next = value,
         update = { useArtwork = it },
         persist = TmdbSettingsStorage::saveUseArtwork,
     )
 
     fun setUseBasicInfo(value: Boolean) = setBoolean(
-        current = useBasicInfo,
+        current = { useBasicInfo },
         next = value,
         update = { useBasicInfo = it },
         persist = TmdbSettingsStorage::saveUseBasicInfo,
     )
 
     fun setUseDetails(value: Boolean) = setBoolean(
-        current = useDetails,
+        current = { useDetails },
         next = value,
         update = { useDetails = it },
         persist = TmdbSettingsStorage::saveUseDetails,
     )
 
     fun setUseCredits(value: Boolean) = setBoolean(
-        current = useCredits,
+        current = { useCredits },
         next = value,
         update = { useCredits = it },
         persist = TmdbSettingsStorage::saveUseCredits,
     )
 
     fun setUseProductions(value: Boolean) = setBoolean(
-        current = useProductions,
+        current = { useProductions },
         next = value,
         update = { useProductions = it },
         persist = TmdbSettingsStorage::saveUseProductions,
     )
 
     fun setUseNetworks(value: Boolean) = setBoolean(
-        current = useNetworks,
+        current = { useNetworks },
         next = value,
         update = { useNetworks = it },
         persist = TmdbSettingsStorage::saveUseNetworks,
     )
 
     fun setUseEpisodes(value: Boolean) = setBoolean(
-        current = useEpisodes,
+        current = { useEpisodes },
         next = value,
         update = { useEpisodes = it },
         persist = TmdbSettingsStorage::saveUseEpisodes,
     )
 
     fun setUseSeasonPosters(value: Boolean) = setBoolean(
-        current = useSeasonPosters,
+        current = { useSeasonPosters },
         next = value,
         update = { useSeasonPosters = it },
         persist = TmdbSettingsStorage::saveUseSeasonPosters,
     )
 
     fun setUseMoreLikeThis(value: Boolean) = setBoolean(
-        current = useMoreLikeThis,
+        current = { useMoreLikeThis },
         next = value,
         update = { useMoreLikeThis = it },
         persist = TmdbSettingsStorage::saveUseMoreLikeThis,
     )
 
     fun setUseCollections(value: Boolean) = setBoolean(
-        current = useCollections,
+        current = { useCollections },
         next = value,
         update = { useCollections = it },
         persist = TmdbSettingsStorage::saveUseCollections,
     )
 
     private fun setBoolean(
-        current: Boolean,
+        current: () -> Boolean,
         next: Boolean,
         update: (Boolean) -> Unit,
         persist: (Boolean) -> Unit,
-    ) {
+    ) = ProfileRepository.settingsGuard.withLock {
         ensureLoaded()
-        if (current == next) return
+        if (current() == next) return@withLock
         update(next)
-        publish()
         persist(next)
+        ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
     }
 
     private fun loadFromDisk() {
@@ -185,6 +193,7 @@ object TmdbSettingsRepository {
         val previousEnabled = enabled
         val previousUseCredits = useCredits
         hasLoaded = true
+        loadedProfileId = ProfileRepository.activeProfileId
         enabled = TmdbSettingsStorage.loadEnabled() ?: (ProfileRepository.state.value.activeProfile?.kidsEnabled == true)
         apiKey = TmdbSettingsStorage.loadApiKey()?.trim().orEmpty()
         val storedLanguage = TmdbSettingsStorage.loadLanguage()

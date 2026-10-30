@@ -12,6 +12,7 @@ import { Toast } from '../../components/Toast';
 import { useRetainedDecodedImage } from '../../components/useRetainedDecodedImage';
 import { DetailsExtras, type ExtrasMeta, type DetailsPrimaryAction } from './DetailsExtras';
 import { DetailsTitle } from './DetailsTitle';
+import { DetailsRatings } from './DetailsRatings';
 import './details.css';
 
 export function DetailsPage() {
@@ -65,6 +66,7 @@ export function DetailsPage() {
   useEffect(() => { setActionsOpen(false); setSavedOverride(null); setActionError(''); setNotice(null); setWatchBusy(false); setSavedBusy(false); }, [type, id, profileId]);
   useEffect(() => () => { if (playHoldTimer.current !== null) window.clearTimeout(playHoldTimer.current); }, []);
   const media = details.media?.id === id && details.media.type === type ? details.media : null;
+  const ageRating = (extraMeta?.id === id && extraMeta.type === type ? extraMeta.ageRating?.trim() : '') || media?.ageRating?.trim();
   // TMDB recommendations can resolve to an add-on's canonical IMDb identity.
   // Only follow results belonging to this route's request, never the previous title.
   useEffect(() => {
@@ -216,14 +218,9 @@ export function DetailsPage() {
           <div className="detail-meta-line">
             {(extraMeta?.releaseInfo ?? media.releaseInfo) && <strong>{(extraMeta?.releaseInfo ?? media.releaseInfo)!.slice(0, 4)}</strong>}
             {extraMeta?.runtime && <strong>{formatRuntime(extraMeta.runtime)}</strong>}
+            {ageRating && <span className="detail-age-rating" aria-label={`Age certification: ${ageRating}`}>{ageRating}</span>}
           </div>
-          <div className="detail-ratings-row">
-            {extraMeta?.rating ? <span className="detail-external-rating detail-imdb"><img src="/images/ratings/imdb.png" alt="IMDb" /><strong>{extraMeta.rating}</strong></span> : !extraMeta && media.rating && <span className="detail-rating"><img src="/images/ratings/imdb.png" alt="IMDb" /><strong>{media.rating}</strong></span>}
-            {extraMeta?.externalRatings.map((rating) => <span className={`detail-external-rating ${rating.source.toLowerCase().includes('tomato') ? 'detail-tomatoes' : ''}`} key={rating.source}>
-              {rating.source.toLowerCase().includes('tomato') && <img src="/images/ratings/tomatoes-certified.png" alt="Rotten Tomatoes" />}
-              <strong>{Number.isInteger(rating.value) ? rating.value : rating.value.toFixed(1)}%</strong>
-            </span>)}
-          </div>
+          <DetailsRatings rating={extraMeta ? extraMeta.rating : media.rating} externalRatings={extraMeta?.externalRatings ?? []} />
           {media.genres.length > 0 && <p className="detail-genres">{media.genres.slice(0, 4).join(' · ')}</p>}
           {media.description && <p className="detail-description">{media.description}</p>}
           <div className="detail-actions">

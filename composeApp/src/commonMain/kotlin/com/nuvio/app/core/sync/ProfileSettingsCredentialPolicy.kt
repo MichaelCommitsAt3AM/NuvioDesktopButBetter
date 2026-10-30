@@ -32,10 +32,14 @@ internal fun preservingLocalProfileCredentials(
     remotePayload: JsonObject,
     localPayload: JsonObject,
 ): JsonObject {
-    if (feature == PROFILE_TMDB_SETTINGS_FEATURE) return withoutProfileCredentials(feature, remotePayload)
+    // Older versions may omit options introduced by a newer client. Absence
+    // must not reset a saved switch; explicit remote values (including false)
+    // still win. Credentials continue to use their separate sync channel.
+    val preferences = localPayload + withoutProfileCredentials(feature, remotePayload)
+    if (feature == PROFILE_TMDB_SETTINGS_FEATURE) return withoutProfileCredentials(feature, JsonObject(preferences))
     val keys = profileCredentialKeys[feature].orEmpty()
-    if (keys.isEmpty()) return remotePayload
-    val merged = remotePayload.toMutableMap()
+    if (keys.isEmpty()) return JsonObject(preferences)
+    val merged = preferences.toMutableMap()
     keys.forEach { key ->
         val localValue = localPayload[key]
         if (localValue == null) {

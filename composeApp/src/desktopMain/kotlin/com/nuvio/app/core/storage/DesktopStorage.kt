@@ -5,6 +5,8 @@ import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
+import java.nio.file.AtomicMoveNotSupportedException
 import java.util.Comparator
 import java.util.Locale
 import java.util.Properties
@@ -87,6 +89,25 @@ internal object DesktopStorage {
         private val lock = Any()
         private val properties = Properties()
         private var loaded = false
+        private var batching = false
+
+        /** Commit a complete settings replacement as one file write. */
+        fun update(block: () -> Unit) = synchronized(lock) {
+            ensureLoaded()
+            val previous = properties.clone() as Properties
+            val wasBatching = batching
+            batching = true
+            try {
+                block()
+                batching = wasBatching
+                if (!wasBatching && properties != previous) persist()
+            } catch (error: Throwable) {
+                properties.clear()
+                properties.putAll(previous)
+                batching = wasBatching
+                throw error
+            }
+        }
 
         fun contains(key: String): Boolean = synchronized(lock) {
             ensureLoaded()
@@ -188,9 +209,20 @@ internal object DesktopStorage {
         }
 
         private fun persist() {
+            if (batching) return
             Files.createDirectories(file.parent)
-            Files.newOutputStream(file).use { output ->
-                properties.store(output, "Nuvio desktop preferences")
+            val pending = Files.createTempFile(file.parent, file.fileName.toString(), ".tmp")
+            try {
+                Files.newOutputStream(pending).use { output ->
+                    properties.store(output, "Nuvio desktop preferences")
+                }
+                try {
+                    Files.move(pending, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+                } catch (_: AtomicMoveNotSupportedException) {
+                    Files.move(pending, file, StandardCopyOption.REPLACE_EXISTING)
+                }
+            } finally {
+                Files.deleteIfExists(pending)
             }
         }
     }

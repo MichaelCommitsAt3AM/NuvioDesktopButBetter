@@ -11,6 +11,11 @@ import kotlinx.serialization.json.put
 import platform.Foundation.NSUserDefaults
 
 actual object TmdbSettingsStorage {
+    actual fun loadPendingPreferences(profileId: Int): String? = NSUserDefaults.standardUserDefaults.stringForKey(ProfileScopedKey.of("tmdb_pending_preferences", profileId))
+    actual fun savePendingPreferences(profileId: Int, value: String?) {
+        val key = ProfileScopedKey.of("tmdb_pending_preferences", profileId)
+        if (value == null) NSUserDefaults.standardUserDefaults.removeObjectForKey(key) else NSUserDefaults.standardUserDefaults.setObject(value, key)
+    }
     private const val enabledKey = "tmdb_enabled"
     private const val apiKeyKey = "tmdb_api_key"
     private const val languageKey = "tmdb_language"

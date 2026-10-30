@@ -9,6 +9,24 @@ import kotlinx.serialization.json.put
 
 class ProfileSettingsCredentialPolicyTest {
     @Test
+    fun `older settings blobs preserve configured integration switches but explicit false wins`() {
+        listOf(
+            Triple(PROFILE_TMDB_SETTINGS_FEATURE, "tmdb_enabled", "tmdb_use_credits"),
+            Triple(PROFILE_MDBLIST_SETTINGS_FEATURE, "mdblist_enabled", "mdblist_use_tomatoes"),
+            Triple(PROFILE_DEBRID_SETTINGS_FEATURE, "debrid_enabled", "debrid_cloud_library_enabled"),
+            Triple(PROFILE_PLAYER_SETTINGS_FEATURE, "animeskip_enabled", "skip_intro_enabled"),
+        ).forEach { (feature, enabled, module) ->
+            val local = buildJsonObject { put(enabled, encodeSyncBoolean(true)); put(module, encodeSyncBoolean(false)) }
+            val absent = preservingLocalProfileCredentials(feature, buildJsonObject {}, local)
+            assertEquals(local, absent, feature)
+            val remote = buildJsonObject { put(enabled, encodeSyncBoolean(false)) }
+            val merged = preservingLocalProfileCredentials(feature, remote, local)
+            assertEquals(false, merged.decodeSyncBoolean(enabled), feature)
+            assertEquals(false, merged.decodeSyncBoolean(module), feature)
+        }
+    }
+
+    @Test
     fun `credential fields are removed from profile settings payloads`() {
         val payload = buildJsonObject {
             put("debrid_enabled", JsonPrimitive(true))

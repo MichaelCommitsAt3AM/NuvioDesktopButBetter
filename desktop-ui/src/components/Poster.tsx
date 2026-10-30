@@ -53,7 +53,7 @@ export const Poster = memo(function Poster({ item, compact = false, onClick, sho
   const homeWatched = useFeatureSnapshot<{watchedKeys:string[]}>('homeWatched');
   const saved=useSelector(current=>current.library.items.some(row=>row.id===item.id&&row.type===item.type));
   const cardStyle = appearance?.cardStyle;
-  const screen = pathname.startsWith('/library') ? 'library' : pathname.startsWith('/details') ? 'details' : pathname.startsWith('/search') || pathname.startsWith('/catalog') ? 'search' : pathname.startsWith('/collections') ? 'collections' : 'home';
+  const screen = pathname.startsWith('/library') ? 'library' : pathname.startsWith('/details') || pathname.startsWith('/person/') ? 'details' : pathname.startsWith('/search') || pathname.startsWith('/catalog') ? 'search' : pathname.startsWith('/collections') ? 'collections' : 'home';
   const pattern = appearance?.posters.pattern;
   const activeScreens = appearance?.posters.activeScreens;
   const landscape = cardStyle?.catalogLandscapeModeEnabled ?? false;

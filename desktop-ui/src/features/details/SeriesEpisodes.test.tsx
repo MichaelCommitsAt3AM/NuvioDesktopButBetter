@@ -26,6 +26,25 @@ afterEach(() => {
 });
 
 describe('resume season selection', () => {
+  it('crossfades season modes and animates their height together for Kotlin’s 280ms duration', () => {
+    localStorage.setItem('nuvio.details.seasonViewMode', 'posters');
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })));
+    const original = HTMLElement.prototype.animate;
+    const animate = vi.fn(() => ({ finished: new Promise<void>(() => {}), cancel: vi.fn() }));
+    HTMLElement.prototype.animate = animate as unknown as typeof original;
+    try {
+      renderEpisodes({ videos: [episode, { ...episode, id: 'second', season: 2 }], seasonPosters: { '1': '/one.jpg', '2': '/two.jpg' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Posters' }));
+      expect(animate).toHaveBeenCalledTimes(3);
+      for (const [, options] of animate.mock.calls as unknown as Array<[unknown, KeyframeAnimationOptions]>) expect(options).toMatchObject({ duration: 280, easing: 'cubic-bezier(.4,0,.2,1)' });
+      const outgoing = document.querySelector('.series-season-view-transition>[aria-hidden="true"]');
+      expect(outgoing).toHaveAttribute('inert');
+      expect(screen.getByRole('button', { name: 'Season 1' })).toHaveAttribute('aria-pressed', 'true');
+      fireEvent.click(screen.getByRole('button', { name: 'Text' }));
+      expect(document.querySelectorAll('.series-season-view-transition>[aria-hidden="true"]')).toHaveLength(1);
+    } finally { cleanup(); HTMLElement.prototype.animate = original; localStorage.removeItem('nuvio.details.seasonViewMode'); }
+  });
+
   it('only scrolls overflowing seasons and never scrolls the page to a season button', () => {
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false }));
     const scrollIntoView = vi.spyOn(HTMLElement.prototype, 'scrollIntoView');

@@ -119,6 +119,7 @@ object PlayerSettingsRepository {
     val uiState: StateFlow<PlayerSettingsUiState> = _uiState.asStateFlow()
 
     private var hasLoaded = false
+    private var loadedProfileId: Int? = null
     private var useLegacyPlayerLayout = false
     private var showLoadingOverlay = true
     private var showPlayerLoadingStatus = true
@@ -199,7 +200,7 @@ object PlayerSettingsRepository {
     private var nvidiaRtxSuperResolutionEnabled = false
 
     fun ensureLoaded() {
-        if (hasLoaded) return
+        if (hasLoaded && loadedProfileId == com.nuvio.app.features.profiles.ProfileRepository.activeProfileId) return
         loadFromDisk()
     }
 
@@ -293,6 +294,7 @@ object PlayerSettingsRepository {
 
     private fun loadFromDisk() {
         hasLoaded = true
+        loadedProfileId = com.nuvio.app.features.profiles.ProfileRepository.activeProfileId
         useLegacyPlayerLayout = PlayerSettingsStorage.loadUseLegacyPlayerLayout() ?: false
         showLoadingOverlay = PlayerSettingsStorage.loadShowLoadingOverlay() ?: true
         showPlayerLoadingStatus = PlayerSettingsStorage.loadShowPlayerLoadingStatus() ?: true
@@ -894,53 +896,65 @@ object PlayerSettingsRepository {
         PlayerSettingsStorage.saveStreamAutoPlayTimeoutSeconds(seconds)
     }
 
-    fun setSkipIntroEnabled(enabled: Boolean) {
+    fun setSkipIntroEnabled(enabled: Boolean) = com.nuvio.app.features.profiles.ProfileRepository.settingsGuard.withLock { setSkipIntroEnabledLocked(enabled) }
+    private fun setSkipIntroEnabledLocked(enabled: Boolean) {
         ensureLoaded()
         if (skipIntroEnabled == enabled) return
         skipIntroEnabled = enabled
-        publish()
         PlayerSettingsStorage.saveSkipIntroEnabled(enabled)
+        com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
     }
 
-    fun setAutoSkipSegmentTypeEnabled(segmentType: AutoSkipSegmentType, enabled: Boolean) {
+    fun setAutoSkipSegmentTypeEnabled(segmentType: AutoSkipSegmentType, enabled: Boolean) = com.nuvio.app.features.profiles.ProfileRepository.settingsGuard.withLock { setAutoSkipSegmentTypeEnabledLocked(segmentType, enabled) }
+    private fun setAutoSkipSegmentTypeEnabledLocked(segmentType: AutoSkipSegmentType, enabled: Boolean) {
         ensureLoaded()
         val updated = if (enabled) autoSkipSegmentTypes + segmentType else autoSkipSegmentTypes - segmentType
         if (autoSkipSegmentTypes == updated) return
         autoSkipSegmentTypes = updated
-        publish()
         PlayerSettingsStorage.saveAutoSkipSegmentTypes(updated.mapTo(linkedSetOf()) { it.storedValue })
+        com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
     }
 
-    fun setAnimeSkipEnabled(enabled: Boolean) {
+    fun setAnimeSkipEnabled(enabled: Boolean) = com.nuvio.app.features.profiles.ProfileRepository.settingsGuard.withLock { setAnimeSkipEnabledLocked(enabled) }
+    private fun setAnimeSkipEnabledLocked(enabled: Boolean) {
         ensureLoaded()
         if (animeSkipEnabled == enabled) return
         animeSkipEnabled = enabled
-        publish()
         PlayerSettingsStorage.saveAnimeSkipEnabled(enabled)
+        com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
     }
 
-    fun setAnimeSkipClientId(clientId: String) {
+    fun setAnimeSkipClientId(clientId: String) = com.nuvio.app.features.profiles.ProfileRepository.settingsGuard.withLock { setAnimeSkipClientIdLocked(clientId) }
+    private fun setAnimeSkipClientIdLocked(clientId: String) {
         ensureLoaded()
         if (animeSkipClientId == clientId) return
         animeSkipClientId = clientId
-        publish()
         PlayerSettingsStorage.saveAnimeSkipClientId(clientId)
+        com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
     }
 
-    fun setIntroDbApiKey(apiKey: String) {
+    fun setIntroDbApiKey(apiKey: String) = com.nuvio.app.features.profiles.ProfileRepository.settingsGuard.withLock { setIntroDbApiKeyLocked(apiKey) }
+    private fun setIntroDbApiKeyLocked(apiKey: String) {
         ensureLoaded()
         if (introDbApiKey == apiKey) return
         introDbApiKey = apiKey
-        publish()
         PlayerSettingsStorage.saveIntroDbApiKey(apiKey)
+        com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
     }
 
-    fun setIntroSubmitEnabled(enabled: Boolean) {
+    fun setIntroSubmitEnabled(enabled: Boolean) = com.nuvio.app.features.profiles.ProfileRepository.settingsGuard.withLock { setIntroSubmitEnabledLocked(enabled) }
+    private fun setIntroSubmitEnabledLocked(enabled: Boolean) {
         ensureLoaded()
         if (introSubmitEnabled == enabled) return
         introSubmitEnabled = enabled
-        publish()
         PlayerSettingsStorage.saveIntroSubmitEnabled(enabled)
+        com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
     }
 
     fun setStreamAutoPlayNextEpisodeEnabled(enabled: Boolean) {

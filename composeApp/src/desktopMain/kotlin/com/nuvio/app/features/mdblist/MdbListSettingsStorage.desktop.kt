@@ -79,7 +79,7 @@ internal actual object MdbListSettingsStorage {
         loadShowOnHero()?.let { put(showOnHeroKey, encodeSyncBoolean(it)) }
     }
 
-    actual fun replaceFromSyncPayload(payload: JsonObject) {
+    actual fun replaceFromSyncPayload(payload: JsonObject) = store.update {
         store.removeAll(syncKeys.map(ProfileScopedKey::of))
         payload.decodeSyncBoolean(enabledKey)?.let(::saveEnabled)
         payload.decodeSyncString(apiKey)?.let(::saveApiKey)

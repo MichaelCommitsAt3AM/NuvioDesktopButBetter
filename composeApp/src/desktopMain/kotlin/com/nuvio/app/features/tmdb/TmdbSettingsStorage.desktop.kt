@@ -41,6 +41,8 @@ internal actual object TmdbSettingsStorage {
         useCollectionsKey,
     )
     private val store = DesktopStorage.store("nuvio_tmdb_settings")
+    actual fun loadPendingPreferences(profileId: Int): String? = store.getString(ProfileScopedKey.of("tmdb_pending_preferences", profileId))
+    actual fun savePendingPreferences(profileId: Int, value: String?) = store.putString(ProfileScopedKey.of("tmdb_pending_preferences", profileId), value)
 
     actual fun loadEnabledForProfile(profileId: Int): Boolean? = store.getBoolean(ProfileScopedKey.of(enabledKey, profileId))
     actual fun loadUseCreditsForProfile(profileId: Int): Boolean? = store.getBoolean(ProfileScopedKey.of(useCreditsKey, profileId))
@@ -104,7 +106,7 @@ internal actual object TmdbSettingsStorage {
         loadUseCollections()?.let { put(useCollectionsKey, encodeSyncBoolean(it)) }
     }
 
-    actual fun replaceFromSyncPayload(payload: JsonObject) {
+    actual fun replaceFromSyncPayload(payload: JsonObject) = store.update {
         store.removeAll(syncKeys.map(ProfileScopedKey::of))
         payload.decodeSyncBoolean(enabledKey)?.let(::saveEnabled)
         payload.decodeSyncString(languageKey)?.let(::saveLanguage)

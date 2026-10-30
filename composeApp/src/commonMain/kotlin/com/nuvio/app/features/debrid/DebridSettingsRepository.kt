@@ -49,29 +49,34 @@ object DebridSettingsRepository {
         return _uiState.value
     }
 
-    fun setEnabled(value: Boolean) {
+    fun setEnabled(value: Boolean) = com.nuvio.app.features.profiles.ProfileRepository.settingsGuard.withLock { setEnabledLocked(value) }
+    private fun setEnabledLocked(value: Boolean) {
         ensureLoaded()
         if (value && !hasResolverProvider()) return
         if (enabled == value) return
         enabled = value
-        publish()
         DebridSettingsStorage.saveEnabled(value)
+        com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
     }
 
     fun setLinkResolvingEnabled(value: Boolean) {
         setEnabled(value)
     }
 
-    fun setCloudLibraryEnabled(value: Boolean) {
+    fun setCloudLibraryEnabled(value: Boolean) = com.nuvio.app.features.profiles.ProfileRepository.settingsGuard.withLock { setCloudLibraryEnabledLocked(value) }
+    private fun setCloudLibraryEnabledLocked(value: Boolean) {
         ensureLoaded()
         if (value && !hasCloudLibraryProvider()) return
         if (cloudLibraryEnabled == value) return
         cloudLibraryEnabled = value
-        publish()
         DebridSettingsStorage.saveCloudLibraryEnabled(value)
+        com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
     }
 
-    fun setProviderApiKey(providerId: String, value: String) {
+    fun setProviderApiKey(providerId: String, value: String) = com.nuvio.app.features.profiles.ProfileRepository.settingsGuard.withLock { setProviderApiKeyLocked(providerId, value) }
+    private fun setProviderApiKeyLocked(providerId: String, value: String) {
         ensureLoaded()
         val provider = DebridProviders.byId(providerId) ?: return
         val normalized = value.trim()
@@ -83,8 +88,9 @@ object DebridSettingsRepository {
         }
         normalizePreferredResolverProviderId(save = true)
         disableIfNoResolver()
-        publish()
         DebridSettingsStorage.saveProviderApiKey(provider.id, normalized)
+        com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
     }
 
     fun setTorboxApiKey(value: String) {

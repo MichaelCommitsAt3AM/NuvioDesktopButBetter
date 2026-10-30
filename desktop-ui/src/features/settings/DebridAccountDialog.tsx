@@ -12,7 +12,8 @@ function startError(error: unknown) {
   return (error as { code?: string })?.code === 'DEVICE_AUTH_NOT_CONFIGURED' ? 'Browser sign-in is not configured in this build. Connect with your API key below.' : failed;
 }
 
-export function DebridAccountDialog({ provider, onClose }: { provider: AccountProvider; onClose: () => void }) {
+export function DebridAccountDialog({ provider, onClose, replaceKey = false }: { provider: AccountProvider; onClose: () => void; replaceKey?: boolean }) {
+  const connected = provider.configured && !replaceKey;
   const deviceCode = provider.authMethod === 'DeviceCode';
   const [session, setSession] = useState<Authorization | null>(null);
   const [starting, setStarting] = useState(!provider.configured && deviceCode);
@@ -99,10 +100,10 @@ export function DebridAccountDialog({ provider, onClose }: { provider: AccountPr
     } catch { if (ticket === generation.current) setError('Could not disconnect this account.'); }
     finally { if (ticket === generation.current) setSaving(false); }
   };
-  const title = `${provider.configured ? 'Disconnect' : 'Connect'} ${provider.displayName}`;
+  const title = replaceKey ? `Replace ${provider.displayName} API key` : `${connected ? 'Disconnect' : 'Connect'} ${provider.displayName}`;
   return <Dialog label={title} onClose={onClose} className="debrid-account-dialog">
     <h2>{title}</h2>
-    {provider.configured ? <p>{provider.displayName} is connected on this device.</p>
+    {connected ? <p>{provider.displayName} is connected on this device.</p>
       : starting ? <div className="debrid-auth-status" role="status"><LoaderCircle className="spin" size={19} /><span>Starting secure sign-in...</span></div>
       : <>
         {session && <>
@@ -121,7 +122,7 @@ export function DebridAccountDialog({ provider, onClose }: { provider: AccountPr
     {error && <p className="debrid-auth-error" role="alert">{error}</p>}
     <div className="debrid-auth-actions">
       <button type="button" className="button secondary" onClick={onClose}>Cancel</button>
-      {provider.configured ? <button type="button" className="button danger" disabled={saving} onClick={() => void disconnect()}>Disconnect</button>
+      {connected ? <button type="button" className="button danger" disabled={saving} onClick={() => void disconnect()}>Disconnect</button>
         : !starting && !session && deviceCode ? <button type="button" className="button secondary" onClick={() => setAttempt(value => value + 1)}>Retry</button>
         : session && <button type="button" className="button primary" onClick={() => void call('app.openExternal', { url: session.verificationUrl }).catch(() => setError(failed))}>Open link</button>}
     </div>

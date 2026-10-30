@@ -83,6 +83,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
@@ -137,6 +138,10 @@ class DesktopBridgeRuntime {
     private val rpcMutex = Mutex()
     private val eventMutex = Mutex()
     private val revisions = AtomicLong(0)
+    private val sourceSequence = AtomicLong(0)
+    private val sourceVersions = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private data class HomeEmission(val epoch: Long, val version: Long, val data: JsonObject)
+    private var homeEmissions: Channel<HomeEmission>? = null
     private val streamRegistry = mutableMapOf<String, StreamRecord>()
     private val eventClients = java.util.concurrent.CopyOnWriteArraySet<suspend (JsonObject) -> Unit>()
     private var server: EmbeddedServer<*, *>? = null
@@ -183,6 +188,15 @@ class DesktopBridgeRuntime {
         authToken = token
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         runtimeScope = scope
+        val homeQueue = Channel<HomeEmission>(Channel.CONFLATED)
+        homeEmissions = homeQueue
+        scope.launch {
+            for (pending in homeQueue) {
+                val current = { pending.epoch == epoch && sourceVersions["home"] == pending.version }
+                if (!current()) continue
+                KidsBridge.publishHome(pending.data, current) { safe -> deliverEvent("home", safe, pending.epoch, pending.version) }
+            }
+        }
 
         NetworkStatusRepository.ensureStarted()
         scope.launch {
@@ -449,10 +463,10 @@ class DesktopBridgeRuntime {
                     }
                     val sender: suspend (JsonObject) -> Unit = { event -> send(Frame.Text(event.toString())) }
                     try {
-                        eventMutex.withLock {
-                            sendInitialSnapshots(sender)
-                            eventClients += sender
-                        }
+                        eventMutex.withLock { eventClients += sender }
+                        // Rating verification may use the network. Live Home/session
+                        // events must remain deliverable while initial snapshots load.
+                        sendInitialSnapshots(sender)
                         // Keep the session alive; this protocol uses server-pushed events only.
                         for (frame in incoming) if (frame is Frame.Close) break
                     } finally {
@@ -473,6 +487,8 @@ class DesktopBridgeRuntime {
         server?.stop(250, 1_000)
         server = null
         runtimeScope?.cancel()
+        homeEmissions?.close()
+        homeEmissions = null
         runtimeScope = null
         eventClients.clear()
         synchronized(streamRegistry) { streamRegistry.clear() }
@@ -624,7 +640,7 @@ class DesktopBridgeRuntime {
             }
             sessionJson()
         }
-        "home.snapshot" -> homeJson()
+        "home.snapshot" -> homeJson().also { emit("home", it) }
         "home.refresh" -> {
             if (AddonRepository.uiState.value.profileLoadError != null) AddonRepository.pullFromServer(ProfileRepository.activeProfileId)
             HomeRepository.refresh(AddonRepository.uiState.value.addons, force = true)
@@ -983,6 +999,7 @@ class DesktopBridgeRuntime {
 
     private suspend fun sendInitialSnapshots(sender: suspend (JsonObject) -> Unit) {
         val snapshotEpoch = epoch
+        val initialVersions = sourceVersions.toMap()
         listOf(
             "session" to sessionJson(), "home" to homeJson(), "library" to libraryJson(),
             "addons" to addonsJson(), "settings" to settingsJson(), "search" to searchJson("idle-${epoch}", ""),
@@ -997,19 +1014,43 @@ class DesktopBridgeRuntime {
             "catalog" to CatalogBridge.snapshot("catalog")!!, "discover" to CatalogBridge.snapshot("discover")!!,
             "searchHistory" to CatalogBridge.snapshot("searchHistory")!!,
         ).forEach { (topic, data) ->
+            if (topic == "home") {
+                KidsBridge.publishHome(data, { snapshotEpoch == epoch && sourceVersions[topic] == initialVersions[topic] }) { safe ->
+                    eventMutex.withLock {
+                        if (snapshotEpoch == epoch && sourceVersions[topic] == initialVersions[topic]) sender(eventJson(topic, safe))
+                    }
+                }
+                return@forEach
+            }
             val safeData = KidsBridge.sanitizeTopic(topic, data)
             if (snapshotEpoch != epoch) return
-            sender(eventJson(topic, safeData))
+            eventMutex.withLock {
+                if (snapshotEpoch == epoch && sourceVersions[topic] == initialVersions[topic]) sender(eventJson(topic, safeData))
+            }
         }
     }
 
     private fun emit(topic: String, data: JsonObject) {
         val emittedEpoch = epoch
+        val version = synchronized(sourceVersions) {
+            val next = sourceSequence.incrementAndGet()
+            sourceVersions[topic] = next
+            if (topic == "home") {
+                homeEmissions?.trySend(HomeEmission(emittedEpoch, next, data))
+                return
+            }
+            next
+        }
         runtimeScope?.launch {
+            if (emittedEpoch != epoch || sourceVersions[topic] != version) return@launch
+            val safeData = KidsBridge.sanitizeTopic(topic, data)
+            deliverEvent(topic, safeData, emittedEpoch, version)
+        }
+    }
+
+    private suspend fun deliverEvent(topic: String, safeData: JsonObject, emittedEpoch: Long, version: Long) {
             eventMutex.withLock {
-                if (emittedEpoch != epoch) return@withLock
-                val safeData = KidsBridge.sanitizeTopic(topic, data)
-                if (emittedEpoch != epoch) return@withLock
+                if (emittedEpoch != epoch || sourceVersions[topic] != version) return@withLock
                 val message = eventJson(topic, safeData)
                 eventClients.forEach { client ->
                     try {
@@ -1020,7 +1061,7 @@ class DesktopBridgeRuntime {
                         System.err.println("[BridgeEvents] delivery failed topic=$topic kind=${failure::class.simpleName}")
                         if (topic == "streams") {
                             val fallback = buildJsonObject {
-                                put("requestId", data["requestId"] ?: JsonPrimitive("idle"))
+                                put("requestId", safeData["requestId"] ?: JsonPrimitive("idle"))
                                 put("loading", false); put("error", "Could not display stream results. Please try again.")
                                 put("groups", JsonArray(emptyList()))
                             }
@@ -1029,7 +1070,6 @@ class DesktopBridgeRuntime {
                     }
                 }
             }
-        }
     }
 
     private fun emitIntegrations() {

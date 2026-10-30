@@ -101,7 +101,7 @@ internal actual object DebridSettingsStorage {
         loadStreamDescriptionTemplate()?.let { put(streamDescriptionTemplateKey, encodeSyncString(it)) }
     }
 
-    actual fun replaceFromSyncPayload(payload: JsonObject) {
+    actual fun replaceFromSyncPayload(payload: JsonObject) = store.update {
         store.removeAll(syncKeys().map(::scopedKey))
         payload.decodeSyncBoolean(enabledKey)?.let(::saveEnabled)
         payload.decodeSyncBoolean(cloudLibraryEnabledKey)?.let(::saveCloudLibraryEnabled)

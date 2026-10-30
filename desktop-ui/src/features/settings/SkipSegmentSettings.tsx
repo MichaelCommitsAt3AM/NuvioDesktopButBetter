@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Check, ChevronRight, Eye, EyeOff, LoaderCircle } from 'lucide-react';
 import { Dialog } from '../../components/Dialog';
+import { SavedCredentialCard } from '../../components/SavedCredentialCard';
 import './playbackSettings.css';
 
 export type SkipPreferences = {
@@ -32,9 +33,9 @@ export function SkipSegmentSettings({ preferences, run }: { preferences: SkipPre
       <SkipToggle title="Skip Intro" description="Use introdb.app to detect intros and recaps." checked={preferences.skipIntroEnabled} busy={busy} onChange={value => set('skipIntroEnabled', value)} />
       <SkipNavigation title="Automatic Skipping" description={summary} disabled={busy || !preferences.skipIntroEnabled} onClick={() => { setDialogError(''); setDialog('segments'); }} />
       <SkipToggle title="Anime Skip" description="Also search AnimeSkip for skip timestamps (requires client ID)." checked={preferences.animeSkipEnabled} busy={busy} onChange={value => set('animeSkipEnabled', value)} />
-      {preferences.animeSkipEnabled && <SkipNavigation title="AnimeSkip Client ID" description={preferences.animeSkipClientId || 'Not set'} disabled={busy} onClick={() => { setDialogError(''); setDialog('animeSkipClientId'); }} />}
+      {(preferences.animeSkipEnabled || preferences.animeSkipClientId.trim()) && <SkipCredentialRow title="AnimeSkip Client ID" configured={!!preferences.animeSkipClientId.trim()} disabled={busy} onClick={() => { setDialogError(''); setDialog('animeSkipClientId'); }} />}
       <SkipToggle title="Enable Intro Submission" description="Show a button to submit intro/outro timestamps to the community database." checked={preferences.introSubmitEnabled} busy={busy} onChange={value => set('introSubmitEnabled', value)} />
-      {preferences.introSubmitEnabled && <SkipNavigation title="IntroDB API Key" description={preferences.introDbApiKey || 'Not set'} disabled={busy} onClick={() => { setDialogError(''); setDialog('introDbApiKey'); }} />}
+      {(preferences.introSubmitEnabled || preferences.introDbApiKey.trim()) && <SkipCredentialRow title="IntroDB API Key" configured={!!preferences.introDbApiKey.trim()} disabled={busy} onClick={() => { setDialogError(''); setDialog('introDbApiKey'); }} />}
     </section>
     {dialog === 'segments' && <Dialog label="Automatic Skipping" className="skip-selection-dialog" onClose={() => setDialog(null)}><h2>Automatic Skipping</h2><div className="skip-selection-options">{segmentOptions.map(option => {
       const selected = preferences.autoSkipSegmentTypes.includes(option.key);
@@ -48,6 +49,9 @@ function SkipToggle({ title, description, checked, busy, onChange }: { title: st
 }
 function SkipNavigation({ title, description, disabled, onClick }: { title: string; description: string; disabled: boolean; onClick: () => void }) {
   return <button type="button" className="skip-setting-row" disabled={disabled} onClick={onClick}><span><strong>{title}</strong><small>{description}</small></span><ChevronRight size={24} /></button>;
+}
+function SkipCredentialRow({ title, configured, disabled, onClick }: { title: string; configured: boolean; disabled: boolean; onClick: () => void }) {
+  return configured ? <div className="settings-tmdb-key-row"><strong>{title}</strong><SavedCredentialCard service={title} disabled={disabled} onReplace={onClick} /></div> : <SkipNavigation title={title} description="Not set" disabled={disabled} onClick={onClick} />;
 }
 function SkipCredentialDialog({ credential, initialValue, onClose, onSave }: { credential: 'animeSkipClientId' | 'introDbApiKey'; initialValue: string; onClose: () => void; onSave: (key: string, value: string) => Promise<boolean> }) {
   const [value, setValue] = useState(initialValue);

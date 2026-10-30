@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { isTauri } from '@tauri-apps/api/core';
-import { Maximize, Minimize } from 'lucide-react';
 import { useTabActive } from '../navigation/tabActivity';
 import './fullscreenButton.css';
+import { PlayerFullscreenIcon } from './PlayerFullscreenIcon';
 
 // Route changes replace the button, but do not change the native window mode.
 let lastKnownFullscreen: boolean | null = null;
@@ -53,7 +53,7 @@ export function FullscreenButton({ onError, inline = false }: { onError?: (messa
   const label = fullscreen === null ? 'Checking fullscreen state' : fullscreen ? 'Exit fullscreen' : 'Enter fullscreen';
   if (!active) return null;
   const button = <button className={`fullscreen-toggle${inline ? ' fullscreen-toggle-inline' : ''}`} type="button" aria-label={label} title={label} disabled={busy || fullscreen === null} onClick={() => void toggle()}>
-    {fullscreen !== null && (fullscreen ? <Minimize size={24} /> : <Maximize size={24} />)}
+    {fullscreen !== null && <PlayerFullscreenIcon fullscreen={fullscreen} />}
   </button>;
   return inline ? button : createPortal(button, document.body);
 }

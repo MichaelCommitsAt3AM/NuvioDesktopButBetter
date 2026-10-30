@@ -34,12 +34,12 @@ it('shows the action for the actual initial window state and updates after both 
   render(<FullscreenButton onError={vi.fn()} />);
   const exit = await screen.findByRole('button', { name: 'Exit fullscreen' });
   expect(exit).toHaveAttribute('title', 'Exit fullscreen');
-  expect(exit.querySelector('svg')).toHaveClass('lucide-minimize');
+  expect(exit.querySelector('svg')).toHaveAttribute('viewBox', '0 0 385.331 385.331');
   fireEvent.click(exit);
   await waitFor(() => expect(host.setFullscreen).toHaveBeenCalledWith(false));
   const enter = await screen.findByRole('button', { name: 'Enter fullscreen' });
   await waitFor(() => expect(enter).toBeEnabled());
-  expect(enter.querySelector('svg')).toHaveClass('lucide-maximize');
+  expect(enter.querySelector('svg')).toHaveAttribute('viewBox', '0 0 24 24');
   fireEvent.click(enter);
   await screen.findByRole('button', { name: 'Exit fullscreen' });
   expect(host.setFullscreen).toHaveBeenLastCalledWith(true);
@@ -79,7 +79,7 @@ it.each([true, false])('retains the confirmed fullscreen=%s icon while a new scr
   host.isFullscreen.mockReturnValueOnce(new Promise<boolean>(done => { resolve = done; }));
   render(<FullscreenButton />);
   expect(screen.getByRole('button', { name: label }).querySelector('svg'))
-    .toHaveClass(fullscreen ? 'lucide-minimize' : 'lucide-maximize');
+    .toHaveAttribute('viewBox', fullscreen ? '0 0 385.331 385.331' : '0 0 24 24');
   await act(async () => resolve(fullscreen));
   expect(screen.getByRole('button', { name: label })).toBeEnabled();
 });
@@ -92,5 +92,5 @@ it('retains a successfully toggled mode when navigating immediately afterward', 
   firstScreen.unmount();
   host.isFullscreen.mockReturnValueOnce(new Promise<boolean>(() => {}));
   render(<FullscreenButton />);
-  expect(screen.getByRole('button', { name: 'Exit fullscreen' }).querySelector('svg')).toHaveClass('lucide-minimize');
+  expect(screen.getByRole('button', { name: 'Exit fullscreen' }).querySelector('svg')).toHaveAttribute('viewBox', '0 0 385.331 385.331');
 });

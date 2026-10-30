@@ -111,3 +111,13 @@
 @keyframes streams-artwork-fade-in{from{opacity:0}to{opacity:1}}
 @media(max-width:767px){.streams-logo-slot:not(.streams-opening-logo-slot){width:min(78%,320px);height:100px}.streams-logo-slot .streams-title-logo{max-height:100px}}
 @media(prefers-reduced-motion:reduce){.streams-backdrop-image,.streams-opening-logo-slot .streams-opening-logo,.streams-opening-overlay,.streams-opening-content,.streams-opening-content h1{animation:none}}
+
+/* Match native player header controls during startup. */
+.streams-opening-actions{--player-header-button:38px;--player-header-icon:22px;top:calc(16px + env(safe-area-inset-top));right:20px}
+.streams-opening-actions .streams-opening-back{width:var(--player-header-button);height:var(--player-header-button);padding:0;background:rgba(0,0,0,.35);color:#fff;transition:transform 120ms cubic-bezier(.2,.8,.2,1),background-color 180ms ease}
+.streams-opening-actions .streams-opening-back svg{width:var(--player-header-icon);height:var(--player-header-icon)}
+.streams-opening-actions button:hover{background:var(--selected-surface,#26384f)}
+.streams-opening-actions button:active{transform:scale(.94)}
+@media(min-width:768px){.streams-opening-actions{top:calc(20px + env(safe-area-inset-top))}}
+@media(min-width:1024px){.streams-opening-actions{--player-header-button:42px;--player-header-icon:24px;top:calc(24px + env(safe-area-inset-top));right:24px}}
+@media(min-width:1440px){.streams-opening-actions{--player-header-button:44px;--player-header-icon:26px;top:calc(28px + env(safe-area-inset-top));right:28px}}

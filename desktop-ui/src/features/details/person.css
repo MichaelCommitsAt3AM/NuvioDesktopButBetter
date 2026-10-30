@@ -8,8 +8,8 @@ html[data-person-avatar-returning] .person-avatar-return-target{visibility:hidde
 .person-columns{display:grid;grid-template-columns:392px minmax(0,1fr);height:100%;padding-top:34px;min-width:0}
 .person-identity{min-height:0;overflow:auto;padding:72px 36px 42px 40px;border-right:1px solid #ffffff18;display:flex;flex-direction:column;align-items:flex-start;gap:22px;scrollbar-width:thin;scrollbar-color:#454950 transparent}
 .person-avatar-halo{width:162px;height:162px;border-radius:50%;background:color-mix(in srgb,var(--app-accent,#a78bfa) 14%,transparent);display:grid;place-items:center;flex:none}
-.person-avatar{width:148px;height:148px;flex:none;overflow:hidden;border-radius:50%;border:1px solid #ffffff28;background:var(--surface,#28282c);display:grid;place-items:center;will-change:transform}
-.person-avatar img{display:block;width:100%;height:100%;object-fit:cover}
+.person-avatar{position:relative;width:148px;height:148px;flex:none;overflow:hidden;border-radius:50%;border:1px solid #ffffff28;background:var(--surface,#28282c);display:grid;place-items:center;will-change:transform}
+.person-avatar img{position:absolute;inset:0;display:block;width:100%;height:100%;min-width:0;min-height:0;object-fit:cover;object-position:center}
 .person-avatar>span{font-size:36px;font-weight:700;color:var(--muted,#989da2)}
 .person-identity h1{margin:0;font-size:28px;font-weight:800;letter-spacing:-.5px;line-height:34px;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
 .person-facts{display:grid;gap:15px;width:100%}
@@ -27,7 +27,7 @@ html[data-person-avatar-returning] .person-avatar-return-target{visibility:hidde
 .person-rail{min-width:0;--page-gutter:40px}
 .person-rail h2{margin:0 0 3px;font-size:22px;font-weight:700;line-height:28px}
 .person-rail .horizontal-rail{margin-inline:0}
-.person-rail .shelf-track{padding-right:40px;scroll-padding-inline:0 40px;overflow-y:hidden}
+.person-rail .shelf-track{margin-inline:0;padding-left:0;padding-right:40px;scroll-padding-inline:0 40px;overflow-y:hidden}
 .person-rail .poster-overflow-button{display:none}
 .person-page .horizontal-rail .rail-arrow:disabled{visibility:hidden;pointer-events:none}
 .person-heading-skeleton{display:block;width:120px;height:18px;margin-bottom:15px;border-radius:4px;background:#ffffff10;animation:person-shimmer 1.8s ease-in-out infinite}

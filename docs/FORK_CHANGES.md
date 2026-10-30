@@ -1211,3 +1211,21 @@ Foreground Windows WebView2 comparison used the user's first Continue Watching c
 The artwork was tainted in the original path and origin-clean after local preparation; all optimized runs selected WebGL2. The display reports 165 Hz, but this foreground WebView2 session delivered approximately 55 FPS even when idle. These measurements demonstrate fewer dropped frames and lower renderer cost, not verified 165 FPS presentation. No browser frame-limit, throttling or security overrides are shipped. A profiling command containing browser-throttling overrides was rejected by automatic approval review; measurements above use normal settings with only a temporary local DevTools port.
 
 Validation: all 520 frontend tests across 84 files passed, the production frontend build passed, Rust formatting and all 11 Rust tests passed, plus `desktop-ui/scripts/ash-renderer-browser-check.mjs`. The real-browser check compares six GPU/Canvas frames (maximum mean premultiplied-channel error 2.22/255; both final frames fully transparent), exercises non-CORS Canvas fallback, real WebGL context loss, and cancellation before preparation finishes. The final embedded Windows debug shell is rebuilt and opened for user testing. macOS/Linux GPU presentation and sustained 165 Hz acceptance are not inferred from Windows tests.
+
+### Player startup controls and actor portrait framing (2026-10-30)
+
+The rewrite startup overlay matches native playback fullscreen/exit icons, responsive button/icon sizes, spacing, background and press animation. Actor portraits remain the clicked cast photo and now fill an explicitly positioned square image box with centered cover cropping, avoiding intrinsic portrait sizing in the avatar grid and matching the movie details cast card.
+
+Validation: production frontend build and 86 focused fullscreen, people, avatar-motion and bridge tests passed. A headless Chromium layout check confirmed both cast and actor images have square bounds, cover fitting and centered positioning.
+
+### Actor filmography left scroll boundary (2026-10-30)
+
+Person rails override the shared shelf’s negative horizontal margins and leading gutter padding. The identity/credits layout already supplies that gutter; keeping shelf padding with zero leading scroll-padding made the first poster snap to scrollLeft 40 (20 on narrow windows), enabling a phantom previous page. The first poster now snaps at the actual zero scroll boundary, so the existing edge detection disables and hides the left arrow. Trailing padding and right-arrow behavior are retained.
+
+Validation: reproduced the old 40px first-card snap in Chromium. Checked the actual HorizontalRail component with person CSS at 1280px and 700px: returning left settles at scrollLeft zero with the previous arrow disabled/hidden; at the right edge next is disabled and previous remains enabled. Production frontend build and git diff checks pass.
+
+### Consistent fullscreen controls across the rewrite (2026-10-30)
+
+FullscreenButton now always uses the native player artwork for both fullscreen states, responsive 38/42/44px buttons and 22/24/26px icons, translucent circular backgrounds, hover styling and press animation. This applies to Home, Search, Library, Downloads, details, collection management, profile editing, settings and player startup through the existing shared component. The startup-only player variant was removed; route positioning and native state synchronization are retained.
+
+Validation: all 40 focused fullscreen, Home and poster-action tests passed; the production frontend build passed.

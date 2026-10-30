@@ -352,3 +352,9 @@ Kids profile setup defaults TMDB production companies and networks off, includin
 Editing an existing kids profile shows a Key saved status and reveals the TMDB field only when Replace key is selected. Cancelling a replacement keeps the saved key. Mobile cosmetic profile edits preserve KidsScreen configuration without rerunning setup.
 
 Rating edits from another signed-in device can reuse the server-held key through KidsScreen account-ownership verification. Nuvio session credentials are sent only to the trusted KidsScreen service; custom servers retain capability-based management.
+
+- Player loading matches playback fullscreen controls, and actor portraits keep the cast card’s centered crop.
+
+- Actor filmography rows stop cleanly at the first card and hide the left arrow at that edge.
+
+- Fullscreen buttons throughout the rewrite use the player’s icons, sizes and interaction styling.

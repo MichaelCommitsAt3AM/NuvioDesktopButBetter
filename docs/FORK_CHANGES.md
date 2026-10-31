@@ -4,6 +4,12 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Visible skip-button timeout progress — 2026-10-31
+
+The rewrite's native player now renders the skip progress fill as a block so its animated width and track height apply. The shared prompt covers intro/opening, recap, outro/ending, movie credits, post-credits and generic skip labels. Existing ten-second timeout behavior and controls-visible handling are preserved; the reference Compose button is unchanged.
+
+Compiling Kotlin alone does not update the debug rewrite: its shell reads the staged JARs from `desktop-ui/src-tauri/resources/backend/`. Re-stage with `./gradlew :composeApp:stageBridgeRuntime` after player resource changes and restart the debug app. The previous staged JAR was dated October 30 and did not contain the fix. `desktop-ui/scripts/skip-progress-browser-check.mjs` loads the real player HTML/CSS/JavaScript, checks nonzero three-pixel track/fill geometry for six labels, verifies advancing width and ten-second dismissal, and saves a screenshot and measurements. Set `NUVIO_PLAYWRIGHT_MODULE` to Playwright when needed, optionally `NUVIO_BROWSER_CHANNEL=msedge` and `NUVIO_PLAYER_UI_DIR` to an extracted staged `player-ui` directory, then run the script from `desktop-ui`. Edge checks passed against both source assets and assets extracted from the staged runtime JAR. The user also confirmed the line works in the debug rewrite during playback and supplied a screenshot on October 31.
+
 ### Consistent stream-loading actions — 2026-10-30
 
 The rewrite stream-opening overlay always uses the existing two-button Player actions layout: fullscreen/windowed followed by Close player. Finding streams and resolving a source now match the building-player and buffering stages. The existing cancellation handler, loading labels and playback initialization order are preserved; no speculative player preparation or bridge API changes are included. Frontend regression coverage checks the two controls during discovery, resolution and player preparation.

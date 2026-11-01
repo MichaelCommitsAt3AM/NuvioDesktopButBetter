@@ -5,6 +5,8 @@ import com.nuvio.app.features.mdblist.MdbListSettingsRepository
 import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.tmdb.TmdbSettingsRepository
+import com.nuvio.app.features.tmdb.TmdbSettingsStorage
+import com.nuvio.app.core.sync.PendingProviderCredentials
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -42,11 +44,71 @@ class DesktopIntegrationPreferencesTest {
         }
     }
 
+    @Test fun pendingTmdbKeySurvivesReloadAndOnlyMatchingAcknowledgementClearsIt() {
+        val active = ProfileRepository::class.java.getDeclaredField("activeProfileIndex").apply { isAccessible = true }
+        val previous = active.getInt(null)
+        val store = DesktopStorage.store("nuvio_tmdb_settings")
+        try {
+            active.setInt(null, 905)
+            TmdbSettingsRepository.onProfileChanged()
+            TmdbSettingsRepository.setApiKey("first-key")
+            store.clearInMemory()
+            assertEquals("first-key", TmdbSettingsStorage.loadPendingApiKey(905))
+            TmdbSettingsRepository.setApiKey("second-key")
+            TmdbSettingsStorage.clearPendingApiKey(905, "first-key")
+            assertEquals("second-key", TmdbSettingsStorage.loadPendingApiKey(905))
+            TmdbSettingsStorage.clearPendingApiKey(905, "second-key")
+            assertEquals(null, TmdbSettingsStorage.loadPendingApiKey(905))
+            TmdbSettingsRepository.setApiKey("")
+            store.clearInMemory()
+            assertEquals("", TmdbSettingsStorage.loadPendingApiKey(905))
+            TmdbSettingsRepository.setApiKeyFromSync("remote-key")
+            assertEquals("", TmdbSettingsStorage.loadPendingApiKey(905))
+        } finally {
+            store.removeProfileKeys("_905")
+            active.setInt(null, previous)
+            TmdbSettingsRepository.onProfileChanged()
+        }
+    }
+
+    @Test fun providerKeyEditsSurviveReloadAndStaleAcknowledgements() {
+        val active = ProfileRepository::class.java.getDeclaredField("activeProfileIndex").apply { isAccessible = true }
+        val previous = active.getInt(null)
+        val stores = listOf("nuvio_tmdb_settings", "nuvio_mdblist_settings", "nuvio_debrid_settings", "nuvio_player_settings", "nuvio_pending_provider_credentials")
+        try {
+            active.setInt(null, 906)
+            MdbListSettingsRepository.onProfileChanged()
+            DebridSettingsRepository.onProfileChanged()
+            PlayerSettingsRepository.onProfileChanged()
+            MdbListSettingsRepository.setApiKey("mdb-key")
+            DebridSettingsRepository.setTorboxApiKey("torbox-key")
+            DebridSettingsRepository.setPremiumizeApiKey("premiumize-key")
+            DebridSettingsRepository.setRealDebridApiKey("real-key")
+            PlayerSettingsRepository.setAnimeSkipClientId("anime-key")
+            PlayerSettingsRepository.setIntroDbApiKey("intro-key")
+            DesktopStorage.store("nuvio_pending_provider_credentials").clearInMemory()
+            val expected = mapOf("mdblist" to "mdb-key", "debrid:torbox" to "torbox-key", "debrid:premiumize" to "premiumize-key", "debrid:realdebrid" to "real-key", "animeskip" to "anime-key", "introdb" to "intro-key")
+            expected.forEach { (provider, value) -> assertEquals(value, PendingProviderCredentials.get(906, provider)) }
+            MdbListSettingsRepository.setApiKey("new-mdb-key")
+            PendingProviderCredentials.clearIfMatches(906, "mdblist", "mdb-key")
+            assertEquals("new-mdb-key", PendingProviderCredentials.get(906, "mdblist"))
+            MdbListSettingsRepository.setApiKey("")
+            DesktopStorage.store("nuvio_pending_provider_credentials").clearInMemory()
+            assertEquals("", PendingProviderCredentials.get(906, "mdblist"))
+        } finally {
+            stores.forEach { DesktopStorage.store(it).removeProfileKeys("_906") }
+            active.setInt(null, previous)
+            MdbListSettingsRepository.onProfileChanged()
+            DebridSettingsRepository.onProfileChanged()
+            PlayerSettingsRepository.onProfileChanged()
+        }
+    }
+
     @Test fun configuredAndUnconfiguredProfilesKeepTheirKeysAndEnablementAfterReload() {
         // Isolated, non-user profile indices avoid selecting profiles or starting network work.
         val active = ProfileRepository::class.java.getDeclaredField("activeProfileIndex").apply { isAccessible = true }
         val previous = active.getInt(null)
-        val stores = listOf("nuvio_tmdb_settings", "nuvio_mdblist_settings", "nuvio_debrid_settings", "nuvio_player_settings")
+        val stores = listOf("nuvio_tmdb_settings", "nuvio_mdblist_settings", "nuvio_debrid_settings", "nuvio_player_settings", "nuvio_pending_provider_credentials")
         fun load() {
             TmdbSettingsRepository.onProfileChanged()
             MdbListSettingsRepository.onProfileChanged()

@@ -75,12 +75,14 @@ object TmdbSettingsRepository {
     }
 
     fun setApiKey(value: String) = com.nuvio.app.features.profiles.ProfileRepository.settingsGuard.withLock { setApiKeyLocked(value) }
-    private fun setApiKeyLocked(value: String) {
+    internal fun setApiKeyFromSync(value: String) = ProfileRepository.settingsGuard.withLock { setApiKeyLocked(value, fromSync = true) }
+    private fun setApiKeyLocked(value: String, fromSync: Boolean = false) {
         ensureLoaded()
         val normalized = value.trim()
         if (apiKey == normalized) return
         apiKey = normalized
-        TmdbSettingsStorage.saveApiKey(normalized)
+        if (com.nuvio.app.isDesktop && !fromSync) TmdbSettingsStorage.savePendingApiKey(normalized)
+        else TmdbSettingsStorage.saveApiKey(normalized)
         publish()
         invalidateMetadata()
     }

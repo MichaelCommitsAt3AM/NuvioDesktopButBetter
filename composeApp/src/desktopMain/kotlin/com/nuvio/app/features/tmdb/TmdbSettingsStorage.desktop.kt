@@ -60,6 +60,15 @@ internal actual object TmdbSettingsStorage {
     actual fun saveEnabled(enabled: Boolean) = saveBoolean(enabledKey, enabled)
     actual fun loadApiKey(): String? = loadString(apiKeyKey)
     actual fun saveApiKey(apiKey: String) = saveString(apiKeyKey, apiKey)
+    actual fun savePendingApiKey(apiKey: String) = store.update {
+        saveString(apiKeyKey, apiKey)
+        store.putString(ProfileScopedKey.of("tmdb_pending_api_key"), apiKey)
+    }
+    actual fun loadPendingApiKey(profileId: Int): String? = store.getString(ProfileScopedKey.of("tmdb_pending_api_key", profileId))
+    actual fun clearPendingApiKey(profileId: Int, expected: String) = store.update {
+        val key = ProfileScopedKey.of("tmdb_pending_api_key", profileId)
+        if (store.getString(key) == expected) store.remove(key)
+    }
     actual fun loadLanguage(): String? = loadString(languageKey)
     actual fun saveLanguage(language: String) = saveString(languageKey, language)
     actual fun loadUseTrailers(): Boolean? = loadBoolean(useTrailersKey)

@@ -32,7 +32,7 @@ internal object DesktopStorage {
     fun clearProfileCredentials(profileId: Int) {
         val suffix = "_$profileId"
         listOf(
-            "nuvio_debrid_settings", "nuvio_tmdb_settings", "nuvio_mdblist_settings",
+            "nuvio_debrid_settings", "nuvio_tmdb_settings", "nuvio_mdblist_settings", "nuvio_pending_provider_credentials",
             "nuvio_player_settings", "nuvio_trakt_auth", "nuvio_simkl_sync", "nuvio_mdblist_sync",
         ).forEach { name -> store(name).removeProfileKeys(suffix) }
     }

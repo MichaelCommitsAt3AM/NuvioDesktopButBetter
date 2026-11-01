@@ -26,6 +26,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- API key changes are retained until they can be synced to your account.
+
 - Skip Intro, Recap, Outro and credits buttons show a visible bottom progress bar for their on-screen timeout.
 - Custom subtitle styling is enabled by default on desktop; saved choices are preserved.
 - Home featured ratings and movie-card hover previews use the same IMDb logo as Details.

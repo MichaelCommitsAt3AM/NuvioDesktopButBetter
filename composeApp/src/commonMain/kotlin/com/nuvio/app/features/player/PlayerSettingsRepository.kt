@@ -931,6 +931,7 @@ object PlayerSettingsRepository {
     private fun setAnimeSkipClientIdLocked(clientId: String) {
         ensureLoaded()
         if (animeSkipClientId == clientId) return
+        com.nuvio.app.core.sync.ProviderCredentialSync.recordLocalEdit(com.nuvio.app.core.sync.ProviderCredentialIds.ANIMESKIP, clientId.trim())
         animeSkipClientId = clientId
         PlayerSettingsStorage.saveAnimeSkipClientId(clientId)
         com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
@@ -941,6 +942,7 @@ object PlayerSettingsRepository {
     private fun setIntroDbApiKeyLocked(apiKey: String) {
         ensureLoaded()
         if (introDbApiKey == apiKey) return
+        com.nuvio.app.core.sync.ProviderCredentialSync.recordLocalEdit(com.nuvio.app.core.sync.ProviderCredentialIds.INTRODB, apiKey.trim())
         introDbApiKey = apiKey
         PlayerSettingsStorage.saveIntroDbApiKey(apiKey)
         com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()

@@ -87,6 +87,10 @@ actual object TmdbSettingsStorage {
         saveBoolean(enabledKey, enabled)
     }
 
+    actual fun savePendingApiKey(apiKey: String) = saveApiKey(apiKey)
+    actual fun loadPendingApiKey(profileId: Int): String? = null
+    actual fun clearPendingApiKey(profileId: Int, expected: String) = Unit
+
     actual fun loadApiKey(): String? =
         preferences?.getString(ProfileScopedKey.of(apiKeyKey), null)
 

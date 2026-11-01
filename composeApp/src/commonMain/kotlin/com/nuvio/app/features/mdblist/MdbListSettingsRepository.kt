@@ -62,6 +62,7 @@ object MdbListSettingsRepository {
         ensureLoaded()
         val normalized = value.trim()
         if (apiKey == normalized) return
+        com.nuvio.app.core.sync.ProviderCredentialSync.recordLocalEdit(com.nuvio.app.core.sync.ProviderCredentialIds.MDBLIST, normalized)
         apiKey = normalized
         MdbListSettingsStorage.saveApiKey(normalized)
         com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()

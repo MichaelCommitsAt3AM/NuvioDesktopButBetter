@@ -14,6 +14,9 @@ internal expect object TmdbSettingsStorage {
     fun saveKidsProfileSettings(profileId: Int, apiKey: String?, enabled: Boolean?, useCredits: Boolean? = null, useProductions: Boolean? = null, useNetworks: Boolean? = null)
     fun loadApiKey(): String?
     fun saveApiKey(apiKey: String)
+    fun savePendingApiKey(apiKey: String)
+    fun loadPendingApiKey(profileId: Int): String?
+    fun clearPendingApiKey(profileId: Int, expected: String)
     fun loadLanguage(): String?
     fun saveLanguage(language: String)
     fun loadUseTrailers(): Boolean?

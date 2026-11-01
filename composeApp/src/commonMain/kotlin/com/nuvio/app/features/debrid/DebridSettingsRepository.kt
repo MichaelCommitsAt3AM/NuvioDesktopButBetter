@@ -81,6 +81,7 @@ object DebridSettingsRepository {
         val provider = DebridProviders.byId(providerId) ?: return
         val normalized = value.trim()
         if (providerApiKeys[provider.id].orEmpty() == normalized) return
+        com.nuvio.app.core.sync.ProviderCredentialSync.recordLocalEdit(com.nuvio.app.core.sync.ProviderCredentialIds.debrid(provider.id), normalized)
         providerApiKeys = if (normalized.isBlank()) {
             providerApiKeys - provider.id
         } else {

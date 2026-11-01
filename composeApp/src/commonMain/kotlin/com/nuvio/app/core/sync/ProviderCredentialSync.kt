@@ -14,6 +14,7 @@ import com.nuvio.app.features.player.PlayerSettingsUiState
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.tmdb.TmdbSettings
 import com.nuvio.app.features.tmdb.TmdbSettingsRepository
+import com.nuvio.app.features.tmdb.TmdbSettingsStorage
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.rpc
 import kotlinx.atomicfu.locks.SynchronizedObject
@@ -51,6 +52,13 @@ object ProviderCredentialSync {
     private val baselineSnapshots = mutableMapOf<ProviderCredentialScope, ProviderCredentialSnapshot>()
     private var observeJob: Job? = null
     private var isApplyingRemote = false
+
+    // Called while the profile settings lock is held, before the credential is changed.
+    internal fun recordLocalEdit(provider: String, value: String) {
+        if (com.nuvio.app.isDesktop && !isApplyingRemote) {
+            PendingProviderCredentials.put(ProfileRepository.activeProfileId, provider, value)
+        }
+    }
 
     @OptIn(FlowPreview::class)
     fun startObserving() {
@@ -91,9 +99,42 @@ object ProviderCredentialSync {
         ensureRepositoriesLoaded()
         val credentialScope = currentScope(profileId) ?: return@withLock false
         try {
-            val captured = ProfileRepository.settingsGuard.capture { currentSnapshot(profileId) }
+            val captured = ProfileRepository.settingsGuard.capture {
+                val current = currentSnapshot(profileId)
+                val pending = current.values.mapNotNull { credential ->
+                    PendingProviderCredentials.get(profileId, credential.provider)?.let { credential.copy(value = it) }
+                }
+                if (pending.isNotEmpty()) {
+                    isApplyingRemote = true
+                    try { applySnapshot(current.copy(values = pending), credentialScope) }
+                    finally { isApplyingRemote = false }
+                }
+                currentSnapshot(profileId)
+            }
             if (captured.token.profileId != profileId) return@withLock false
             val localSnapshot = captured.value
+            // A local edit must reach the server before its older value can be pulled.
+            val pendingKey = if (com.nuvio.app.isDesktop) TmdbSettingsStorage.loadPendingApiKey(profileId) else null
+            if (pendingKey != null) {
+                val pending = localSnapshot.values.single { it.provider == ProviderCredentialIds.TMDB }
+                if (pending.value == pendingKey) {
+                    pushSnapshot(localSnapshot.copy(values = listOf(pending)))
+                    requireCurrentScope(credentialScope)
+                    ProfileRepository.settingsGuard.runIfCurrent(captured.token) {
+                        TmdbSettingsStorage.clearPendingApiKey(profileId, pendingKey)
+                    }
+                }
+            }
+            val pendingCredentials = localSnapshot.values.filter {
+                PendingProviderCredentials.get(profileId, it.provider) == it.value
+            }
+            if (pendingCredentials.isNotEmpty()) {
+                pushSnapshot(localSnapshot.copy(values = pendingCredentials))
+                requireCurrentScope(credentialScope)
+                ProfileRepository.settingsGuard.runIfCurrent(captured.token) {
+                    pendingCredentials.forEach { PendingProviderCredentials.clearIfMatches(profileId, it.provider, it.value) }
+                }
+            }
             val rows = pullRows(profileId)
             requireCurrentScope(credentialScope)
             // A key saved while offline (or immediately before closing) may not have a cloud row yet.
@@ -102,12 +143,15 @@ object ProviderCredentialSync {
             val remoteSnapshot = localSnapshot.mergeRemote(rows, preserveMissing = com.nuvio.app.isDesktop)
             val applied = remoteSnapshot != localSnapshot
             if (applied) {
-                isApplyingRemote = true
-                try {
-                    if (!ProfileRepository.settingsGuard.runIfCurrent(captured.token) { applySnapshot(remoteSnapshot, credentialScope) }) return@withLock false
-                } finally {
-                    isApplyingRemote = false
-                }
+                var unchanged = false
+                if (!ProfileRepository.settingsGuard.runIfCurrent(captured.token) {
+                    if (currentSnapshot(profileId) == localSnapshot) {
+                        unchanged = true
+                        isApplyingRemote = true
+                        try { applySnapshot(remoteSnapshot, credentialScope) }
+                        finally { isApplyingRemote = false }
+                    }
+                } || !unchanged) return@withLock false
             }
             requireCurrentScope(credentialScope)
             if (com.nuvio.app.isDesktop) {
@@ -242,7 +286,7 @@ object ProviderCredentialSync {
                     )
                 }
                 credential.provider == ProviderCredentialIds.TMDB -> {
-                    TmdbSettingsRepository.setApiKey(credential.value)
+                    TmdbSettingsRepository.setApiKeyFromSync(credential.value)
                 }
                 credential.provider == ProviderCredentialIds.MDBLIST -> {
                     MdbListSettingsRepository.setApiKey(credential.value)
@@ -282,6 +326,15 @@ object ProviderCredentialSync {
 
             try {
                 pushSnapshot(snapshot)
+                if (com.nuvio.app.isDesktop) {
+                    val tmdbKey = snapshot.values.single { it.provider == ProviderCredentialIds.TMDB }.value
+                    ProfileRepository.settingsGuard.withLock {
+                        if (ProfileRepository.activeProfileId == snapshot.profileId) {
+                            TmdbSettingsStorage.clearPendingApiKey(snapshot.profileId, tmdbKey)
+                            snapshot.values.forEach { PendingProviderCredentials.clearIfMatches(snapshot.profileId, it.provider, it.value) }
+                        }
+                    }
+                }
                 synchronized(stateLock) {
                     baselineSnapshots[credentialScope] = snapshot
                 }

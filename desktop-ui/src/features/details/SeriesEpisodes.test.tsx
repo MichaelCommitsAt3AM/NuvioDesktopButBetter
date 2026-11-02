@@ -25,6 +25,15 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe('episode availability', () => {
+  it('labels unavailable and future episodes without hiding episode actions', () => {
+    const props = renderEpisodes({ videos: [{ ...episode, available: false }, { ...episode, id: 'future', title: 'Future', episode: 2, released: '2999-01-01' }] });
+    expect(screen.getAllByText(/unavailable/i)).toHaveLength(2);
+    fireEvent.contextMenu(screen.getByRole('button', { name: /Pilot/i }));
+    expect(props.onEpisodeLongPress).toHaveBeenCalledWith(expect.objectContaining({ id: 'episode-1' }));
+  });
+});
+
 describe('resume season selection', () => {
   it('crossfades season modes and animates their height together for Kotlin’s 280ms duration', () => {
     localStorage.setItem('nuvio.details.seasonViewMode', 'posters');

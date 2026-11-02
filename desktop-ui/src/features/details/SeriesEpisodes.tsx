@@ -3,6 +3,7 @@ import { Check } from 'lucide-react';
 import { FallbackImage } from '../../components/FallbackImage';
 import { HorizontalRail } from '../../components/HorizontalRail';
 import { useFeatureSnapshot } from '../../bridge';
+import { useLocale } from '../../i18n/strings';
 import type { AppearanceSnapshot } from '../settings/appearanceStore';
 import { depthActive, depthVars } from '../../theme/cardDepth';
 import '../../theme/cardDepth.css';
@@ -128,6 +129,7 @@ function EpisodeCollection({ episodes, season, cardStyle, fallbackImage, blurUnw
   const episodeLongPressTimer = useRef<number | null>(null);
   const longPressTriggered = useRef(false);
   const appearance = useFeatureSnapshot<AppearanceSnapshot>('appearance');
+  const { t } = useLocale();
   const depthOn = depthActive(appearance?.cardDepth, 'episodeCards');
   const depthStyle = depthOn ? depthVars(appearance?.cardDepth) : undefined;
   useEffect(() => () => { if (episodeLongPressTimer.current != null) window.clearTimeout(episodeLongPressTimer.current); }, []);
@@ -137,6 +139,10 @@ function EpisodeCollection({ episodes, season, cardStyle, fallbackImage, blurUnw
     <EpisodeTrack horizontal={cardStyle === 'horizontal'} label={`${seasonLabel(season)} episodes`}>
       {episodes.map((video) => {
         const watched = isWatched(video);
+        const genericTitle = /^Episode\s+(\d+)$/i.exec(video.title.trim());
+        const displayTitle = genericTitle ? `${t('streams_episode_fallback_title')} ${genericTitle[1]}` : video.title;
+        const releaseTime = video.released ? Date.parse(video.released) : NaN;
+        const unavailable = !video.available || (Number.isFinite(releaseTime) && releaseTime > Date.now());
         const progress = progressByVideoId?.[video.id] ?? 0;
         const showRating = showRatings && (ratingsVisibility === 'show_all' || (ratingsVisibility === 'hide_unwatched_episodes' && watched));
         const click = () => video.available && onEpisodeClick(video);
@@ -152,8 +158,8 @@ function EpisodeCollection({ episodes, season, cardStyle, fallbackImage, blurUnw
           if (longPressTriggered.current) { event.preventDefault(); event.stopPropagation(); longPressTriggered.current = false; return; }
           click();
         }} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); if (episodeLongPressTimer.current != null) window.clearTimeout(episodeLongPressTimer.current); episodeLongPressTimer.current = null; longPressTriggered.current = true; onEpisodeLongPress(video); }} title={video.available ? 'Click to find streams · Right-click or hold for episode actions' : 'Right-click or hold for episode actions'}>
-          <span className={`series-episode-art ${depthOn?'depth-frame':''}`}><FallbackImage sources={[video.thumbnail, fallbackImage]} style={{ filter: blurUnwatched && !watched ? 'blur(18px)' : undefined }} /><span className="series-episode-code">{episodeCode(video)}</span>{watched && <span className="series-episode-watched"><Check size={14} /></span>}{!watched && Number.isFinite(progress) && progress > 0 && progress < 1 && <span className="series-episode-progress" role="progressbar" aria-label={`${video.title} playback progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}><span style={{ width: `${progress * 100}%` }} /></span>}</span>
-          <span className="series-episode-copy"><strong>{video.title}</strong><small>{formatReleaseDate(video.released)}{showRating && video.rating != null && video.rating > 0 && <span className="series-episode-rating"><span aria-hidden="true"> · </span><ImdbLogo /><span><span className="sr-only">IMDb </span>{video.rating.toFixed(1)}</span></span>}{video.runtime && cardStyle === 'horizontal' ? ` · ${video.runtime} min` : ''}</small>{video.overview && <span className="series-episode-overview">{video.overview}</span>}</span>
+          <span className={`series-episode-art ${depthOn?'depth-frame':''}`}><FallbackImage sources={[video.thumbnail, fallbackImage]} style={{ filter: blurUnwatched && !watched ? 'blur(18px)' : undefined }} /><span className="series-episode-code">{episodeCode(video)}</span>{unavailable && <span className="series-episode-unavailable">{t("episodes_unavailable")}</span>}{watched && <span className="series-episode-watched"><Check size={14} /></span>}{!watched && Number.isFinite(progress) && progress > 0 && progress < 1 && <span className="series-episode-progress" role="progressbar" aria-label={`${video.title} playback progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}><span style={{ width: `${progress * 100}%` }} /></span>}</span>
+          <span className="series-episode-copy"><strong>{displayTitle}</strong><small>{formatReleaseDate(video.released)}{showRating && video.rating != null && video.rating > 0 && <span className="series-episode-rating"><span aria-hidden="true"> · </span><ImdbLogo /><span><span className="sr-only">IMDb </span>{video.rating.toFixed(1)}</span></span>}{video.runtime && cardStyle === 'horizontal' ? ` · ${video.runtime} min` : ''}</small>{video.overview && <span className="series-episode-overview">{video.overview}</span>}</span>
         </button>;
       })}
     </EpisodeTrack>

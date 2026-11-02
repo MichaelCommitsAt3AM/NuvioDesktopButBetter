@@ -8,3 +8,5 @@
 
 .series-season-view-transition{position:relative;min-width:0}
 .series-season-options{padding:6px 4px 8px}
+
+.series-episode-unavailable{position:absolute;z-index:2;right:8px;bottom:8px;padding:3px 6px;border-radius:4px;background:#5d4037cc;color:#fff;font-size:11px;font-weight:600;text-transform:uppercase}.series-episode-card:has(.series-episode-progress) .series-episode-unavailable{bottom:20px}

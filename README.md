@@ -26,6 +26,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- Preferred subtitles are rechecked when embedded tracks or add-on results appear late, while manual subtitle choices remain in effect.
+
 - API key changes are retained until they can be synced to your account.
 
 - Skip Intro, Recap, Outro and credits buttons show a visible bottom progress bar for their on-screen timeout.

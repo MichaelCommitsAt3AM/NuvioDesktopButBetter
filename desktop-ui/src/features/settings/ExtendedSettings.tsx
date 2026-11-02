@@ -16,7 +16,7 @@ type PlaybackSnapshot = {
   decoderPriority: number; chaptersEnabled: boolean; subtitleAutoSync: SubtitleAutoSyncPreferences;
   availableLanguages: string[];
   preferredAudioLanguage: string; secondaryPreferredAudioLanguage: string | null; preferredSubtitleLanguage: string; secondaryPreferredSubtitleLanguage: string | null;
-  subtitleStyle: { textColor: string; backgroundColor: string; outlineColor: string; outlineEnabled: boolean; outlineWidth: number; bold: boolean; fontSizeSp: number; bottomOffset: number; stripSdh: boolean; useForcedSubtitles: boolean; showOnlyPreferredLanguages: boolean };
+  subtitleStyle: { textColor: string; backgroundColor: string; outlineColor: string; outlineEnabled: boolean; outlineWidth: number; bold: boolean; fontSizeSp: number; bottomOffset: number; stripSdh: boolean; useForcedSubtitles: boolean; showOnlyPreferredLanguages: boolean; fontId?: string; backgroundRadius?: number; shadowEnabled?: boolean; shadowOpacity?: number; shadowSize?: number };
   streamReuseLastLinkEnabled: boolean; streamReuseLastLinkCacheHours: number; streamAutoPlayMode: 'MANUAL' | 'FIRST_STREAM' | 'REGEX_MATCH'; streamAutoPlaySource: 'ALL_SOURCES' | 'INSTALLED_ADDONS_ONLY' | 'ENABLED_PLUGINS_ONLY'; streamAutoPlaySelectedAddons: string[]; streamAutoPlaySelectedPlugins: string[]; streamAutoPlayRegex: string; streamAutoPlayTimeoutSeconds: number;
   holdToSpeedEnabled: boolean; holdToSpeedValue: number;
   skipIntroEnabled: boolean; autoSkipSegmentTypes: string[]; animeSkipEnabled: boolean; animeSkipClientIdConfigured: boolean; introDbApiKeyConfigured: boolean; introSubmitEnabled: boolean;
@@ -119,6 +119,10 @@ export function PlaybackSettingsPage() {
       <SubtitleAutoSyncSettings preferences={s.subtitleAutoSync} preferredLanguage={s.preferredSubtitleLanguage} onChange={set} />
     </SettingCard>
     <SettingCard icon={Subtitles} title="Subtitle rendering">
+      <Select title="Subtitle font" value={style.fontId ?? 'default'} values={['default', 'sans', 'serif', 'mono', ...(style.fontId?.startsWith('custom-') ? [style.fontId] : [])]} labels={['Default', 'Sans serif', 'Serif', 'Monospace', ...(style.fontId?.startsWith('custom-') ? ['Imported font'] : [])]} onChange={(value) => updateSubtitle({ fontId: value })} />
+      <NumberField title="Background roundness" value={style.backgroundRadius ?? 0} min={0} max={24} onSave={(value) => updateSubtitle({ backgroundRadius: value })} />
+      <Toggle title="Subtitle shadow" checked={style.shadowEnabled ?? false} onChange={(value) => updateSubtitle({ shadowEnabled: value })} />
+      {style.shadowEnabled && <><NumberField title="Shadow opacity" value={style.shadowOpacity ?? 75} min={0} max={100} onSave={(value) => updateSubtitle({ shadowOpacity: value })} suffix="%" /><NumberField title="Shadow size" value={style.shadowSize ?? 2} min={1} max={8} onSave={(value) => updateSubtitle({ shadowSize: value })} /></>}
       <ColorSetting title="Text color" value={style.textColor} kind="text" onChange={(value) => updateSubtitle({ textColor: value })} />
       <ColorSetting title="Background color" value={style.backgroundColor} kind="background" onChange={(value) => updateSubtitle({ backgroundColor: value })} />
       <NumberField title="Subtitle size" value={style.fontSizeSp} min={6} max={40} step={2} onSave={(value) => updateSubtitle({ fontSizeSp: value })} suffix="sp" />

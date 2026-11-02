@@ -105,6 +105,11 @@ object PlaybackSettingsBridge {
                 put("bold", style.bold); put("fontSizeSp", style.fontSizeSp); put("bottomOffset", style.bottomOffset)
                 put("stripSdh", style.stripSdh); put("useForcedSubtitles", style.useForcedSubtitles)
                 put("showOnlyPreferredLanguages", style.showOnlyPreferredLanguages)
+                put("fontId", style.appearance.fontId)
+                put("backgroundRadius", style.appearance.backgroundRadius)
+                put("shadowEnabled", style.appearance.shadowEnabled)
+                put("shadowOpacity", style.appearance.shadowOpacity)
+                put("shadowSize", style.appearance.shadowSize)
             })
             put("streamReuseLastLinkEnabled", state.streamReuseLastLinkEnabled)
             put("streamReuseLastLinkCacheHours", state.streamReuseLastLinkCacheHours)
@@ -257,7 +262,15 @@ object PlaybackSettingsBridge {
         val outlineWidth = int("outlineWidth", defaults.outlineWidth)
         val bottomOffset = int("bottomOffset", defaults.bottomOffset)
         if (fontSize !in 6..40 || outlineWidth !in 0..10 || bottomOffset !in 0..200) throw BridgeFeatureException("INVALID_ARGUMENT", "Subtitle style values are out of range")
-        return SubtitleStyleState(
+        val fontId = json["fontId"]?.asString("fontId") ?: defaults.appearance.fontId
+        val radius = int("backgroundRadius", defaults.appearance.backgroundRadius)
+        val opacity = int("shadowOpacity", defaults.appearance.shadowOpacity)
+        val size = int("shadowSize", defaults.appearance.shadowSize)
+        if (fontId !in setOf("default", "sans", "serif", "mono") && fontId != defaults.appearance.fontId) invalid("fontId")
+        if (radius !in 0..24 || opacity !in 0..100 || size !in 1..8) invalid("appearance")
+        return defaults.copy(
+            appearance = defaults.appearance.copy(fontId = fontId, backgroundRadius = radius,
+                shadowEnabled = bool("shadowEnabled", defaults.appearance.shadowEnabled), shadowOpacity = opacity, shadowSize = size),
             textColor = color("textColor", defaults.textColor), backgroundColor = color("backgroundColor", defaults.backgroundColor), outlineColor = color("outlineColor", defaults.outlineColor),
             outlineEnabled = bool("outlineEnabled", defaults.outlineEnabled), outlineWidth = outlineWidth, bold = bool("bold", defaults.bold), fontSizeSp = fontSize,
             bottomOffset = bottomOffset, stripSdh = bool("stripSdh", defaults.stripSdh), useForcedSubtitles = bool("useForcedSubtitles", defaults.useForcedSubtitles),

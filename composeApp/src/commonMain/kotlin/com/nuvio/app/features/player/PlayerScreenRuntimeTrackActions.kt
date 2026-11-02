@@ -263,9 +263,11 @@ private fun PlayerScreenRuntime.tryAutoSelectPreferredSubtitleFromAvailableTrack
         }
         val isPrimarySatisfied = primaryTarget != null && currentSelectedLang != null &&
             SubtitleLanguageMatching.matchesLanguageCode(currentSelectedLang, primaryTarget)
-        val hasBetterAddonMatch = !isPrimarySatisfied && primaryTarget != null &&
-            addonSubtitles.any { SubtitleLanguageMatching.matchesLanguageCode(it.language, primaryTarget) }
-        if (!hasBetterAddonMatch) return
+        val hasBetterMatch = !isPrimarySatisfied && primaryTarget != null && (
+            subtitleTracks.any { subtitleTrackMatchesLanguage(it, primaryTarget) } ||
+                addonSubtitles.any { SubtitleLanguageMatching.matchesLanguageCode(it.language, primaryTarget) }
+            )
+        if (!hasBetterMatch) return
     }
 
     val selectedAudioTrack = audioTracks.firstOrNull { track -> track.index == selectedAudioIndex }

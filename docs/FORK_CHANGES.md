@@ -4,6 +4,10 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Upstream 0.1.34-alpha integration — 2026-11-02 (in progress)
+
+The sync branch merges upstream subtitle appearance, track selection and auto-sync, native player and settings changes, and watch-progress persistence. The rewrite exposes built-in subtitle fonts, background roundness and shadow settings; imported fonts remain available through the native player. Subtitle selection rechecks late embedded and add-on tracks while preserving manual choices. Watch-progress persistence ordering is scoped per profile. See [the batch report](UPSTREAM_SYNC_2026-11-02.md) for unresolved review and validation gates. This batch has not been promoted.
+
 ### Visible skip-button timeout progress — 2026-10-31
 
 The rewrite's native player now renders the skip progress fill as a block so its animated width and track height apply. The shared prompt covers intro/opening, recap, outro/ending, movie credits, post-credits and generic skip labels. Existing ten-second timeout behavior and controls-visible handling are preserved; the reference Compose button is unchanged.

@@ -78,6 +78,40 @@ class PlayerBuiltInSubtitleSelectionTest {
         assertEquals(listOf(frenchAddon.url), controller.subtitleUrls)
     }
 
+    @Test
+    fun lateEnglishTrackReplacesAutomaticGermanSelection() {
+        val controller = RecordingController(
+            listOf(
+                SubtitleTrack(index = 0, id = "de", label = "German", language = "de", isSelected = true),
+                SubtitleTrack(index = 1, id = "en", label = "English", language = "en"),
+            ),
+        )
+        val runtime = runtime(controller).apply {
+            playbackSnapshot = PlayerPlaybackSnapshot(isLoading = false)
+            trackPreferenceRestoreApplied = true
+            preferredSubtitleSelectionApplied = true
+            selectedSubtitleIndex = 0
+        }
+        runtime.refreshTracks()
+        assertEquals(1, runtime.selectedSubtitleIndex)
+        assertEquals(listOf(1), controller.subtitleSelections)
+    }
+
+    @Test
+    fun lateEnglishAddonReplacesAutomaticNone() {
+        val controller = RecordingController()
+        val english = addonSubtitle("en")
+        val runtime = runtime(controller).apply {
+            playbackSnapshot = PlayerPlaybackSnapshot(isLoading = false)
+            trackPreferenceRestoreApplied = true
+            preferredSubtitleSelectionApplied = true
+            addonSubtitles = listOf(english)
+        }
+        runtime.refreshTracks()
+        assertEquals(english.selectionKey, runtime.selectedAddonSubtitleId)
+        assertEquals(listOf(english.url), controller.subtitleUrls)
+    }
+
     private fun addonSubtitle(language: String) = AddonSubtitle(
         id = "addon-$language",
         url = "https://example.com/episode-1-$language.srt",

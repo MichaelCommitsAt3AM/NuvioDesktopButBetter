@@ -548,7 +548,6 @@ internal fun settingsSearchEntries(
         description = stringResource(Res.string.settings_stream_prefer_matching_titles_desc),
         pageLabel = streamsPage,
         section = playbackStreamSelection,
-        icon = Icons.Rounded.Style,
     )
     addRow(
         page = SettingsPage.Streams,

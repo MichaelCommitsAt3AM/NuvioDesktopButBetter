@@ -280,7 +280,7 @@ object WatchProgressRepository {
     private val metadataEnrichmentAttempts = mutableMapOf<String, Int>()
     private val persistLock = SynchronizedObject()
     private var persistSequence = 0L
-    private var persistedSequence = 0L
+    private val persistedSequences = mutableMapOf<Int, Long>()
     private val pendingPersists = mutableMapOf<Int, PendingWatchProgressPayload>()
     private val providerMetadataOverlay = ProviderProgressMetadataOverlay()
     private val nuvioPullMutex = Mutex()
@@ -1617,8 +1617,8 @@ object WatchProgressRepository {
                 dirtyProgressKeys = pending.dirtyProgressKeys,
             )
             synchronized(persistLock) {
-                if (pending.sequence <= persistedSequence) return@synchronized
-                persistedSequence = pending.sequence
+                if (pending.sequence <= (persistedSequences[profileId] ?: 0L)) return@synchronized
+                persistedSequences[profileId] = pending.sequence
                 WatchProgressStorage.savePayload(profileId, payload)
                 if (pendingPersists[profileId]?.sequence == pending.sequence) {
                     pendingPersists.remove(profileId)

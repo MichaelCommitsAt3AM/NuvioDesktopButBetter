@@ -316,6 +316,27 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         fetchAddonSubtitlesForActiveItem()
     }
 
+    // Add-on results may arrive after the first scan has already settled on None or
+    // a secondary language. Re-evaluate without overriding an explicit user choice.
+    LaunchedEffect(playerController, playbackSnapshot.isLoading, addonSubtitles, isLoadingAddonSubtitles) {
+        if (playerController != null && !playbackSnapshot.isLoading && !isLoadingAddonSubtitles &&
+            addonSubtitles.isNotEmpty() && !isUserExplicitSubtitleSelection
+        ) {
+            refreshTracks()
+        }
+    }
+
+    // Some engines expose embedded tracks only after playback has started. Keep a
+    // short discovery window after startup even if an earlier scan settled on None.
+    LaunchedEffect(playerController, playerControllerSourceUrl, activeSourceUrl) {
+        if (playerController == null || playerControllerSourceUrl != activeSourceUrl) return@LaunchedEffect
+        repeat(20) {
+            delay(500)
+            if (isUserExplicitSubtitleSelection) return@LaunchedEffect
+            if (!playbackSnapshot.isLoading) refreshTracks()
+        }
+    }
+
     LaunchedEffect(playerController, playerControllerSourceUrl, activeSourceUrl, preferredAudioLanguageTargets) {
         if (playerControllerSourceUrl == activeSourceUrl) {
             applyPreferredAudioTrack(preferredAudioLanguageTargets)

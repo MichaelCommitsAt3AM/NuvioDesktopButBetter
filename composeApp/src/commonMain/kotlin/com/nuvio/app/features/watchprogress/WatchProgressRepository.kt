@@ -50,6 +50,7 @@ import kotlinx.coroutines.sync.withPermit
 private const val WATCH_PROGRESS_METADATA_RESOLUTION_CONCURRENCY = 4
 private const val WATCH_PROGRESS_METADATA_RESOLUTION_LIMIT = 64
 private const val WATCH_PROGRESS_METADATA_FETCH_ATTEMPTS = 3
+private const val WATCH_PROGRESS_METADATA_ENRICHMENT_MAX_ATTEMPTS = 3
 private const val WATCH_PROGRESS_METADATA_RETRY_BASE_DELAY_MS = 750L
 // When a resolution pass finishes but some continue-watching entries still lack
 // metadata (e.g. a freshly-synced item whose live meta fetch failed transiently,
@@ -68,6 +69,19 @@ private data class RemoteMetadataResolutionResult(
     val key: WatchProgressMetadataKey,
     val entries: List<WatchProgressEntry>,
     val meta: MetaDetails?,
+)
+
+/**
+ * Snapshot of the state a persist will write. It is kept in memory until the background
+ * write lands so a reload never observes an older file than the state we already have.
+ */
+private data class PendingWatchProgressPayload(
+    val sequence: Long = 0L,
+    val entries: List<WatchProgressEntry>,
+    val lastSuccessfulPushEpochMs: Long,
+    val deltaCursorEventId: Long,
+    val deltaInitialized: Boolean,
+    val dirtyProgressKeys: Set<String>,
 )
 
 private data class MetadataProviderReadiness(
@@ -262,6 +276,12 @@ object WatchProgressRepository {
     private val incompleteMetadataRetryLock = SynchronizedObject()
     private var incompleteMetadataFingerprint: String? = null
     private var incompleteMetadataRetryAttempt = 0
+    private val metadataEnrichmentLock = SynchronizedObject()
+    private val metadataEnrichmentAttempts = mutableMapOf<String, Int>()
+    private val persistLock = SynchronizedObject()
+    private var persistSequence = 0L
+    private var persistedSequence = 0L
+    private val pendingPersists = mutableMapOf<Int, PendingWatchProgressPayload>()
     private val providerMetadataOverlay = ProviderProgressMetadataOverlay()
     private val nuvioPullMutex = Mutex()
     private var lastSuccessfulPushEpochMs = 0L
@@ -337,6 +357,7 @@ object WatchProgressRepository {
         updateActiveSource(WatchProgressSource.NUVIO_SYNC)
         providerMetadataOverlay.clear()
         clearLocalEntries()
+        clearMetadataEnrichmentAttempts()
         lastSuccessfulPushEpochMs = 0L
         deltaCursorEventId = 0L
         deltaInitialized = false
@@ -353,9 +374,18 @@ object WatchProgressRepository {
         hasLoadedNuvioRemoteProgress = false
         providerMetadataOverlay.clear()
         clearLocalEntries()
+        clearMetadataEnrichmentAttempts()
 
+        val pending = synchronized(persistLock) { pendingPersists[profileId] }
         val payload = WatchProgressStorage.loadPayload(profileId).orEmpty().trim()
-        if (payload.isNotEmpty()) {
+        if (pending != null) {
+            // A persist is still in flight: its snapshot is newer than the stored file.
+            lastSuccessfulPushEpochMs = pending.lastSuccessfulPushEpochMs
+            deltaCursorEventId = pending.deltaCursorEventId
+            deltaInitialized = pending.deltaInitialized
+            replaceLocalEntries(pending.entries)
+            replaceDirtyProgressKeys(pending.dirtyProgressKeys)
+        } else if (payload.isNotEmpty()) {
             val storedPayload = WatchProgressCodec.decodePayload(payload)
             lastSuccessfulPushEpochMs = storedPayload.lastSuccessfulPushEpochMs
             deltaCursorEventId = storedPayload.deltaCursorEventId
@@ -985,12 +1015,40 @@ object WatchProgressRepository {
         metadataResolutionJob = null
     }
 
+    private fun isMetadataEnrichmentBackedOff(entry: WatchProgressEntry): Boolean =
+        synchronized(metadataEnrichmentLock) {
+            val attempts = metadataEnrichmentAttempts[entry.videoId] ?: 0
+            attempts >= WATCH_PROGRESS_METADATA_ENRICHMENT_MAX_ATTEMPTS
+        }
+
+    private fun recordMetadataEnrichmentFailure(entries: List<WatchProgressEntry>) {
+        synchronized(metadataEnrichmentLock) {
+            entries.forEach { entry ->
+                val attempts = (metadataEnrichmentAttempts[entry.videoId] ?: 0) + 1
+                metadataEnrichmentAttempts[entry.videoId] = attempts
+            }
+        }
+    }
+
+    private fun recordMetadataEnrichmentSuccess(entries: List<WatchProgressEntry>) {
+        synchronized(metadataEnrichmentLock) {
+            entries.forEach { entry -> metadataEnrichmentAttempts.remove(entry.videoId) }
+        }
+    }
+
+    private fun clearMetadataEnrichmentAttempts() {
+        synchronized(metadataEnrichmentLock) {
+            metadataEnrichmentAttempts.clear()
+        }
+    }
+
     private fun resolveRemoteMetadata() {
         val targetProfileId = currentProfileId
         val targetGeneration = profileGeneration
         val targetSource = activeSource
         val missingMetadataEntries = currentEntries()
             .filter(WatchProgressEntry::needsRemoteMetadataEnrichment)
+            .filterNot { entry -> isMetadataEnrichmentBackedOff(entry) }
         val entriesToResolve = missingMetadataEntries.continueWatchingEntries(
             limit = WATCH_PROGRESS_METADATA_RESOLUTION_LIMIT,
         )
@@ -1033,8 +1091,10 @@ object WatchProgressRepository {
                     if (!isActiveMetadataTarget(targetProfileId, targetGeneration, targetSource)) return@launch
                     val meta = result.meta
                     if (meta == null) {
+                        recordMetadataEnrichmentFailure(result.entries)
                         return@repeat
                     }
+                    recordMetadataEnrichmentSuccess(result.entries)
 
                     val appliedEntries = if (targetSource.providerId == null) {
                         var appliedLocalEntries = 0
@@ -1410,7 +1470,7 @@ object WatchProgressRepository {
         progressProvider?.applyOptimisticProgress(entry)
         publish()
         if (persist) persist()
-        if (entry.needsRemoteMetadataEnrichment()) {
+        if (entry.needsRemoteMetadataEnrichment() && !isMetadataEnrichmentBackedOff(entry)) {
             resolveRemoteMetadata()
         }
         if (syncRemote) {
@@ -1534,16 +1594,37 @@ object WatchProgressRepository {
     }
 
     private fun persist() {
-        WatchProgressStorage.savePayload(
-            currentProfileId,
-            WatchProgressCodec.encodePayload(
-                entries = localEntriesSnapshot(),
-                lastSuccessfulPushEpochMs = lastSuccessfulPushEpochMs,
-                deltaCursorEventId = deltaCursorEventId,
-                deltaInitialized = deltaInitialized,
-                dirtyProgressKeys = dirtyProgressKeysSnapshot(),
-            ),
+        val profileId = currentProfileId
+        val snapshot = PendingWatchProgressPayload(
+            entries = localEntriesSnapshot(),
+            lastSuccessfulPushEpochMs = lastSuccessfulPushEpochMs,
+            deltaCursorEventId = deltaCursorEventId,
+            deltaInitialized = deltaInitialized,
+            dirtyProgressKeys = dirtyProgressKeysSnapshot(),
         )
+        val pending = synchronized(persistLock) {
+            persistSequence += 1
+            snapshot.copy(sequence = persistSequence).also { pendingPersists[profileId] = it }
+        }
+        // The JSON encode and the SharedPreferences write run off the caller's dispatcher:
+        // the player persists progress ticks from the main thread.
+        syncScope.launch {
+            val payload = WatchProgressCodec.encodePayload(
+                entries = pending.entries,
+                lastSuccessfulPushEpochMs = pending.lastSuccessfulPushEpochMs,
+                deltaCursorEventId = pending.deltaCursorEventId,
+                deltaInitialized = pending.deltaInitialized,
+                dirtyProgressKeys = pending.dirtyProgressKeys,
+            )
+            synchronized(persistLock) {
+                if (pending.sequence <= persistedSequence) return@synchronized
+                persistedSequence = pending.sequence
+                WatchProgressStorage.savePayload(profileId, payload)
+                if (pendingPersists[profileId]?.sequence == pending.sequence) {
+                    pendingPersists.remove(profileId)
+                }
+            }
+        }
     }
 
     private fun recordSuccessfulPush(

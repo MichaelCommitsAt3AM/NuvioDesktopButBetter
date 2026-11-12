@@ -292,6 +292,7 @@ export function StreamsPage() {
               {['best_quality', 'data_saver'].map(mode => <button key={mode} role="menuitemradio" aria-checked={mode === (isDataSaver ? 'data_saver' : 'best_quality')} onClick={() => { void setDownloadFilter(mode); setQualityOpen(false); }}>
                 {mode === (isDataSaver ? 'data_saver' : 'best_quality') && <Check size={16} />}{mode === 'best_quality' ? 'Best quality' : 'Data saver'}
               </button>)}
+              <div className="streams-quality-divider" role="separator" />
               <button onClick={() => { setQualityOpen(false); navigate('/settings/downloads'); }}><Settings2 size={16} /> Filter settings</button>
             </div>}
           </div>

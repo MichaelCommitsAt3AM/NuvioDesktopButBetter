@@ -41,6 +41,7 @@
 .streams-quality-menu{position:absolute;z-index:12;top:calc(100% + 7px);right:0;display:grid;min-width:190px;padding:6px;border:1px solid #ffffff18;border-radius:12px;background:#242528;box-shadow:0 12px 36px #0008}
 .streams-quality-menu button{display:flex;align-items:center;gap:8px;min-height:38px;padding:8px 10px;border:0;border-radius:7px;background:transparent;color:#f3f4f6;text-align:left;cursor:pointer}
 .streams-quality-menu button:hover{background:#ffffff12}
+.streams-quality-divider{height:1px;margin:6px 4px;background:#ffffff18}
 .streams-provider-row{position:relative;z-index:2;display:flex;align-items:center;flex:0 0 auto;gap:8px;max-width:100%;padding:0 0 8px}
 .streams-provider-filters{display:flex;align-items:center;gap:8px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
 .streams-provider-filters::-webkit-scrollbar{display:none}

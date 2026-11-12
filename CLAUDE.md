@@ -63,6 +63,8 @@ Cross-device state sync (watch progress, library, settings) goes through `core/s
 
 Unlike the mobile app (which only consumes a hosted Supabase project), this repo version-controls the backend itself under `supabase/` — `functions/` (edge functions, e.g. `delete-account`) and `migrations/` (schema history). Changes to sync/auth/account behavior may need a matching migration or function change here, not just client code.
 
+**Backend repository:** the backend now has its own repository, [nuvio_backend](https://github.com/MichaelCommitsAt3AM/nuvio_backend), shared by this desktop app and `NuvioMobileButBetter` (both use the same hosted Supabase project). It carries the full history of `supabase/` (migrations, the `delete-account` function, pgTAP tests, avatar assets and the avatar upload script). Make new schema/function changes there, as forward migrations, and apply them from that repo. The `supabase/` folder in this repo is the pre-split original and is kept only until the cutover is verified; do not add new migrations here.
+
 ### No dependency-injection framework
 
 There's no Koin/Hilt/Dagger — repositories and services are plain objects/classes wired up directly. Follow the existing pattern in whichever feature you're touching.

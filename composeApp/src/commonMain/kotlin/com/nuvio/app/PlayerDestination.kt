@@ -101,6 +101,7 @@ internal fun PlayerDestination(
         initialPositionMs = launch.initialPositionMs,
         initialProgressFraction = launch.initialProgressFraction,
         contentLanguage = launch.contentLanguage,
+        subtitleExtras = launch.subtitleExtras,
         launchId = route.launchId,
         sourceFilename = launch.sourceFilename,
         stream = launch.stream,
@@ -130,6 +131,7 @@ internal fun PlayerDestination(
                 parentMetaId = launch.parentMetaId,
                 parentMetaType = launch.parentMetaType,
                 initialPositionMs = request.resumePositionMs,
+                subtitleExtras = launch.subtitleExtras,
             )
             onExternalPlayerLaunch(playerLaunch)
             val intentResult = ExternalPlayerPlatform.buildIntent(

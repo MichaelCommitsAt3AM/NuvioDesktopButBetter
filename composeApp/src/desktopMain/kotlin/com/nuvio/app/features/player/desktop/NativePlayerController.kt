@@ -1283,6 +1283,10 @@ internal class NativePlayerController(
         applyPendingSubtitleSettings()
     }
 
+    override fun setSubtitleVisible(visible: Boolean) {
+        handle.takeIf { it != 0L }?.let { NativePlayerBridge.setSubtitleVisible(it, visible) }
+    }
+
     override fun setSubtitleDelayMs(delayMs: Int) {
         val clamped = delayMs.coerceIn(SUBTITLE_DELAY_MIN_MS, SUBTITLE_DELAY_MAX_MS)
         pendingSubtitleDelayMs = clamped
@@ -1600,8 +1604,6 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean, onImageRea
         append(',')
         appendJsonField("subtitleStyleTabLabel", subtitleStyleTabLabel)
         append(',')
-        appendJsonField("customSubtitleStyleLabel", customSubtitleStyleLabel)
-        append(',')
         appendJsonField("forcedLabel", forcedLabel)
         append(',')
         appendJsonField("noneLabel", noneLabel)
@@ -1850,8 +1852,6 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean, onImageRea
         appendJsonField("selectedAddonSubtitleId", selectedAddonSubtitleId)
         append(',')
         appendJsonField("useCustomSubtitles", useCustomSubtitles)
-        append(',')
-        appendJsonField("customSubtitleStylingEnabled", customSubtitleStylingEnabled)
         append(',')
         appendJsonField("subtitleDelayMs", subtitleDelayMs)
         append(',')
@@ -2151,6 +2151,8 @@ private fun StringBuilder.appendSubtitleStyleJson(style: SubtitleStyleState) {
     appendJsonField("textColor", style.textColor.toStorageHexString())
     append(',')
     appendJsonField("outlineColor", style.outlineColor.toStorageHexString())
+    append(',')
+    appendJsonField("backgroundColor", style.backgroundColor.toStorageHexString())
     append(',')
     appendJsonField("outlineEnabled", style.outlineEnabled)
     append(',')

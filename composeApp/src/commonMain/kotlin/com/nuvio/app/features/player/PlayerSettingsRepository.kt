@@ -985,32 +985,37 @@ object PlayerSettingsRepository {
         ensureLoaded()
         if (streamAutoPlayNextEpisodeEnabled == enabled) return
         streamAutoPlayNextEpisodeEnabled = enabled
-        publish()
         PlayerSettingsStorage.saveStreamAutoPlayNextEpisodeEnabled(enabled)
+        // Without a pending marker a cloud pull can overwrite this edit with the old remote value.
+        com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
     }
 
     fun setStreamAutoPlayNextEpisodeFallbackEnabled(enabled: Boolean) {
         ensureLoaded()
         if (streamAutoPlayNextEpisodeFallbackEnabled == enabled) return
         streamAutoPlayNextEpisodeFallbackEnabled = enabled
-        publish()
         PlayerSettingsStorage.saveStreamAutoPlayNextEpisodeFallbackEnabled(enabled)
+        com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
     }
 
     fun setStreamAutoPlayPreferBingeGroup(enabled: Boolean) {
         ensureLoaded()
         if (streamAutoPlayPreferBingeGroup == enabled) return
         streamAutoPlayPreferBingeGroup = enabled
-        publish()
         PlayerSettingsStorage.saveStreamAutoPlayPreferBingeGroup(enabled)
+        com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
     }
 
     fun setStreamAutoPlayReuseBingeGroup(enabled: Boolean) {
         ensureLoaded()
         if (streamAutoPlayReuseBingeGroup == enabled) return
         streamAutoPlayReuseBingeGroup = enabled
-        publish()
         PlayerSettingsStorage.saveStreamAutoPlayReuseBingeGroup(enabled)
+        com.nuvio.app.core.sync.ProfileSettingsSync.markIntegrationPreferencesChanged()
+        publish()
     }
 
     fun setNextEpisodeThresholdMode(mode: NextEpisodeThresholdMode) {

@@ -2,6 +2,7 @@ import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, use
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle2, Compass, MoreHorizontal, RotateCcw, Trash2, Info, Play } from 'lucide-react';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
+import { useTabActivated } from '../../navigation/tabActivity';
 import { EmptyState } from '../../components/EmptyState';
 import { InlineError } from '../../components/Status';
 import { HorizontalRail } from '../../components/HorizontalRail';
@@ -150,6 +151,13 @@ export function HomePage() {
     void refreshFeature('homeWatched', 'details.watched.snapshot').catch(() => {});
     return () => { if (generation.current === current) generation.current++; };
   }, [profileId]);
+  // Home is a retained tab, so it does not remount after the player closes. Progress saved by the player
+  // (an episode finishing) only becomes an Up Next card once the bridge recomputes it.
+  useTabActivated(() => {
+    void refreshFeature<HomeExtras>('homeExtras', 'home.extras.snapshot')
+      .then(() => refreshFeature<HomeExtras>('homeExtras', 'home.extras.refresh'))
+      .catch(() => {});
+  });
   useEffect(() => { setHeroIndex(homeViewPositions.get(viewKey)?.heroIndex??0); }, [viewKey]);
 
   const moveHero = (direction: number) => setHeroIndex((current) => (current + direction + heroItems.length) % heroItems.length);

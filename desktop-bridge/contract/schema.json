@@ -1116,7 +1116,8 @@
             "servers.setLibrary",
             "mdblist.setListVisible",
             "streams.badges.setInPlayer",
-            "streams.badges.setPlayerSource"
+            "streams.badges.setPlayerSource",
+            "home.continueWatching.markWatched"
           ]
         },
         "params": {

@@ -4,6 +4,11 @@ import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.home.HomeRepository
 import com.nuvio.app.features.watched.WatchedRepository
+import com.nuvio.app.features.watching.application.WatchingActions
+import com.nuvio.app.features.watching.application.canMarkWatched
+import com.nuvio.app.features.watching.domain.isReleasedBy
+import com.nuvio.app.features.watchprogress.ContinueWatchingItem
+import com.nuvio.app.features.watchprogress.toContinueWatchingItem
 import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesRepository
 import com.nuvio.app.features.watchprogress.ContinueWatchingSectionStyle
 import com.nuvio.app.features.watchprogress.ContinueWatchingSortMode
@@ -67,6 +72,34 @@ object HomeBridge {
             val id = params.str("parentMetaId")
             WatchProgressRepository.clearProgress(params.str("videoId"), id)
             ContinueWatchingPreferencesRepository.removeDismissedNextUpKeysForContent(id)
+            refreshSnapshot()
+        }
+        "home.continueWatching.markWatched" -> {
+            // Upstream 0.1.35: mark a Continue Watching or Up Next item watched through the
+            // shared WatchingActions path (watched state, progress clearing, series reconcile).
+            val parentMetaId = params.str("parentMetaId")
+            val videoId = params.str("videoId")
+            val item = WatchProgressRepository.uiState.value.entries
+                .firstOrNull { it.parentMetaId == parentMetaId && it.videoId == videoId }
+                ?.toContinueWatchingItem()
+                ?: ContinueWatchingItem(
+                    parentMetaId = parentMetaId,
+                    parentMetaType = params.str("parentMetaType"),
+                    videoId = videoId,
+                    title = params.str("title"),
+                    subtitle = "",
+                    imageUrl = null,
+                    seasonNumber = params.intOrNull("seasonNumber"),
+                    episodeNumber = params.intOrNull("episodeNumber"),
+                    episodeTitle = params["episodeTitle"]?.jsonPrimitive?.contentOrNull,
+                    released = params["released"]?.jsonPrimitive?.contentOrNull,
+                    isNextUp = true,
+                    resumePositionMs = 0L,
+                    durationMs = 0L,
+                    progressFraction = 0f,
+                )
+            require(item.canMarkWatched()) { "This item cannot be marked as watched yet." }
+            WatchingActions.markContinueWatchingWatched(item)
             refreshSnapshot()
         }
         "home.continueWatching.dismissUpNext" -> {
@@ -189,6 +222,7 @@ object HomeBridge {
                 put("lastUpdatedEpochMs", seed.updated)
                 put("resumePositionMs", 0); put("durationMs", 0); put("progressFraction", 0)
                 put("isReleaseAlert", false); put("isNewSeasonRelease", false)
+                put("canMarkWatched", isReleasedBy(now, next.released))
             }
         }
     }
@@ -213,6 +247,7 @@ object HomeBridge {
         put("lastUpdatedEpochMs", entry.lastUpdatedEpochMs); put("isWatched", entry.isEffectivelyCompleted)
         putNullable("providerName", entry.providerName); putNullable("lastStreamTitle", entry.lastStreamTitle)
         putNullable("lastStreamSubtitle", entry.lastStreamSubtitle)
+        put("canMarkWatched", entry.toContinueWatchingItem().canMarkWatched())
     }
 
     private fun episodeSubtitle(entry: WatchProgressEntry): String = when {

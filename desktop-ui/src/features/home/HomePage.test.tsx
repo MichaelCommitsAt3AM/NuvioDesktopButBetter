@@ -293,6 +293,23 @@ describe('Continue Watching snapshot loading', () => {
     expect(screen.queryByRole('button', { name: 'Go to details' })).toBeNull();
   });
 
+  it('offers mark as watched only when Kotlin allows it and calls the bridge', async () => {
+    const { call } = await import('../../bridge');
+    render(<MemoryRouter><HomePage /></MemoryRouter>);
+    await act(async () => {
+      bridge.extras = snapshot([{ ...item, canMarkWatched: true } as typeof item, { ...item, parentMetaId: 'movie-2', videoId: 'movie-2', title: 'Locked movie', canMarkWatched: false } as typeof item]);
+      resolveSnapshot(bridge.extras);
+    });
+    const [allowed, locked] = screen.getAllByRole('button', { name: 'More continue watching actions' });
+    fireEvent.click(locked);
+    expect(await screen.findByRole('button', { name: 'Go to details' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mark as watched' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Go to details' }));
+    fireEvent.click(allowed);
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark as watched' }));
+    await vi.waitFor(() => expect(call).toHaveBeenCalledWith('home.continueWatching.markWatched', expect.objectContaining({ parentMetaId: 'movie-1', parentMetaType: 'movie', videoId: 'movie-1' })));
+  });
+
   it('hides the previous profile progress behind placeholders until the new snapshot settles', async () => {
     const view = render(<MemoryRouter><HomePage /></MemoryRouter>);
     await act(async () => {

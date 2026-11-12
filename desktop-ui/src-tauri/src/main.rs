@@ -344,6 +344,7 @@ const ALLOWED_METHODS: &[&str] = &[
     "mdblist.setListVisible",
     "streams.badges.setInPlayer",
     "streams.badges.setPlayerSource",
+    "home.continueWatching.markWatched",
 ];
 
 fn request_is_allowed(request: &BridgeRequest) -> bool {

@@ -26,6 +26,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- Synced with upstream 0.1.35: Continue Watching and Up Next cards can be marked as watched from their menu, and subtitle add-ons receive the playing file's name, size and hash for better matches.
+
 - Preferred subtitles are rechecked when embedded tracks or add-on results appear late, while manual subtitle choices remain in effect.
 
 - API key changes are retained until they can be synced to your account.

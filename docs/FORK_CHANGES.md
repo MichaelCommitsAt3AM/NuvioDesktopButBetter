@@ -4,6 +4,10 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Upstream 0.1.35-alpha integration — 2026-11-12
+
+The sync branch merges upstream 0.1.35-alpha: subtitle add-on file extras (filename, size and video hash), subtitle hiding through mpv `sub-visibility`, desktop ASS/background styling fixes, Continue Watching "mark as watched", the current-stream marker for reused links, GIF codec lifetime and locale updates. The rewrite's player launch now passes the same subtitle extras as upstream's stream screen (stream hints for torrents, URL filename fallback for direct links). Continue Watching and Up Next cards gain a "Mark as watched" action through the new `home.continueWatching.markWatched` bridge method; snapshots carry Kotlin's `canMarkWatched` so unreleased episodes and cloud items don't offer it. Upstream's in-player "Use custom styling" toggle is gone; the rewrite's libass setting still maps to the retained Kotlin preference. See [the batch report](UPSTREAM_SYNC_2026-11-12.md).
+
 ### Upstream 0.1.34-alpha integration — 2026-11-02
 
 The sync branch merges upstream subtitle appearance, track selection and auto-sync, native player and settings changes, and watch-progress persistence. The rewrite exposes built-in subtitle fonts, background roundness and shadow settings; imported fonts remain available through the native player. Subtitle selection rechecks late embedded and add-on tracks while preserving manual choices. Watch-progress persistence ordering is scoped per profile. See [the batch report](UPSTREAM_SYNC_2026-11-02.md) for validation and real-playback limits.

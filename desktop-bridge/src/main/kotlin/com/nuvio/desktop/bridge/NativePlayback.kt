@@ -16,6 +16,7 @@ import com.nuvio.app.features.debrid.DirectDebridPlaybackResolver
 import com.nuvio.app.features.debrid.DirectDebridPlayableResult
 import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.player.PlayerScreen
+import com.nuvio.app.features.player.SubtitleRequestExtras
 import com.nuvio.app.features.player.desktop.DesktopAppFullscreenController
 import com.nuvio.app.features.player.desktop.DesktopHostOs
 import com.nuvio.app.features.player.desktop.EmbeddedTauriPlayerHost
@@ -249,6 +250,10 @@ class NativePlayback(
                                     torrentFileIdx = playable.p2pFileIdx.takeIf { torrentHash != null },
                                     torrentFilename = playable.behaviorHints.filename.takeIf { torrentHash != null },
                                     torrentTrackers = if (torrentHash != null) playable.p2pTrackers else emptyList(),
+                                    // Upstream 0.1.35: subtitle add-ons receive filename/size/hash extras.
+                                    // Torrents use stream hints only; direct links fall back to the URL filename.
+                                    subtitleExtras = if (torrentHash != null) SubtitleRequestExtras.from(playable.behaviorHints)
+                                    else SubtitleRequestExtras.from(playable.behaviorHints, url),
                                     sourceHeaders = sanitizePlaybackHeaders(playable.behaviorHints.proxyHeaders?.request),
                                     sourceResponseHeaders = sanitizePlaybackResponseHeaders(playable.behaviorHints.proxyHeaders?.response),
                                     externalSubtitles = playable.externalSubtitles,

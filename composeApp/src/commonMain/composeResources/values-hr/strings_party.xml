@@ -9,7 +9,7 @@
     <string name="party_code_label">Kôd grupe</string>
     <string name="party_copy_invite">Kopiraj pozivnicu</string>
     <string name="party_invite_copied">Pozivnica je kopirana</string>
-    <string name="party_invite_message">Pridružite se mom Nuvio zajedničkom gledanju s kôdom %1$s\n%2$s</string>
+    <string name="party_invite_message">Pridružite se mom Nuvio zajedničkom gledanju s kôdom %1$s</string>
     <string name="party_seats">%1$d od %2$d mjesta</string>
     <string name="party_host">Domaćin</string>
     <string name="party_you">Vi</string>

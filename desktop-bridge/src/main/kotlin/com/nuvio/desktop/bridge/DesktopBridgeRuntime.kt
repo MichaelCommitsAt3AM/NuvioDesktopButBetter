@@ -12,6 +12,7 @@ import com.nuvio.desktop.bridge.features.PluginsBridge
 import com.nuvio.desktop.bridge.features.PlaybackSettingsBridge
 import com.nuvio.desktop.bridge.features.MetadataSettingsBridge
 import com.nuvio.desktop.bridge.features.AuthOptionsBridge
+import com.nuvio.desktop.bridge.features.PartyBridge
 import com.nuvio.desktop.bridge.features.IntegrationsBridge
 import com.nuvio.desktop.bridge.features.AboutBridge
 import com.nuvio.desktop.bridge.features.StreamSelectionBridge
@@ -288,6 +289,18 @@ class DesktopBridgeRuntime {
         scope.launch { com.nuvio.app.features.p2p.P2pSettingsRepository.uiState.collect { emit("p2p", PlaybackSettingsBridge.p2pSnapshot()) } }
         scope.launch { com.nuvio.app.features.auth.ServerConnectionController.state.collect { emit("authOptions", AuthOptionsBridge.snapshot()) } }
         scope.launch { com.nuvio.app.core.auth.DeviceLinkAuthRepository.state.collect { emit("authOptions", AuthOptionsBridge.snapshot()) } }
+        scope.launch { com.nuvio.app.features.party.PartyRepository.state.collect { PartyBridge.onState(); emit("party", PartyBridge.snapshot()) } }
+        // The host's link can arrive after the streams page opened: show it and let auto-play pick it up.
+        scope.launch {
+            com.nuvio.app.features.party.PartyRepository.sharedStream.collect {
+                latestRequest["streams"]?.let { id ->
+                    runCatching {
+                        emit("streams", streamsJson(id))
+                        emit("streamSelection", streamSelectionJson())
+                    }
+                }
+            }
+        }
         scope.launch { com.nuvio.app.features.tmdb.TmdbSettingsRepository.uiState.collect { emitIntegrations() } }
         scope.launch { com.nuvio.app.features.mdblist.MdbListSettingsRepository.uiState.collect { emitIntegrations() } }
         scope.launch { com.nuvio.app.features.mdblist.MdbListTracker.auth.state.collect { emitIntegrations() } }
@@ -887,6 +900,7 @@ class DesktopBridgeRuntime {
             ?: MetadataSettingsBridge.dispatch(method, params)
             ?: HomeBridge.dispatch(method, params)
             ?: AuthOptionsBridge.dispatch(method, params)
+            ?: PartyBridge.dispatch(method, params)
             ?: IntegrationsBridge.dispatch(method, params)
             ?: CollectionsBridge.dispatch(method, params)
             ?: AboutBridge.dispatch(method, params)
@@ -922,6 +936,7 @@ class DesktopBridgeRuntime {
             "p2p" -> PlaybackSettingsBridge.p2pSnapshot()
             "home" -> HomeBridge.snapshot()
             "authOptions" -> AuthOptionsBridge.snapshot()
+            "party" -> PartyBridge.snapshot()
             "integrations" -> IntegrationsBridge.snapshot()
             "tmdb" -> IntegrationsBridge.tmdbSnapshot()
             "mdblist" -> IntegrationsBridge.mdbSnapshot()
@@ -1011,6 +1026,7 @@ class DesktopBridgeRuntime {
             "servers" to ServersBridge.snapshot(), "libraryExtras" to LibraryExtrasBridge.snapshot(), "cloud" to LibraryExtrasBridge.cloudSnapshot(),
             "homeExtras" to HomeBridge.snapshot(),
             "authOptions" to AuthOptionsBridge.snapshot(),
+            "party" to PartyBridge.snapshot(),
             "catalog" to CatalogBridge.snapshot("catalog")!!, "discover" to CatalogBridge.snapshot("discover")!!,
             "searchHistory" to CatalogBridge.snapshot("searchHistory")!!,
         ).forEach { (topic, data) ->
@@ -1236,8 +1252,12 @@ class DesktopBridgeRuntime {
         synchronized(streamRegistry) {
             streamRegistry.clear()
             put("loading", state.isAnyLoading); putNullable("error", null as String?)
-            put("groups", JsonArray(groups.map { group -> buildJsonObject {
-                put("id", group.addonId); put("name", group.addonName); put("loading", group.isLoading); putNullable("error", group.error)
+            val (currentMeta, currentVideoId) = requestId?.let(streamContext::get) ?: (lastDetails to loadedVideoId)
+            val shared = partySharedStreamFor(currentMeta?.id, currentVideoId)
+            val rows = listOfNotNull(shared?.let { ShownGroup("party-shared", it.first, false, null, listOf(it.second)) }) +
+                groups.map { ShownGroup(it.addonId, it.addonName, it.isLoading, it.error, it.streams) }
+            put("groups", JsonArray(rows.map { group -> buildJsonObject {
+                put("id", group.id); put("name", group.name); put("loading", group.loading); putNullable("error", group.error)
                 put("streams", JsonArray(group.streams.map { stream ->
                     val digest = MessageDigest.getInstance("SHA-256").digest(stream.toString().toByteArray(Charsets.UTF_8)).take(12).joinToString("") { "%02x".format(it) }
                     val streamId = "s-${requestId ?: epoch}-$digest"
@@ -1257,8 +1277,23 @@ class DesktopBridgeRuntime {
         }
     }
 
+    private class ShownGroup(val id: String, val name: String, val loading: Boolean, val error: String?, val streams: List<StreamItem>)
+
+    /** The host's own link for the title being opened, when this device is a guest of a party watching it. */
+    private fun partySharedStreamFor(metaId: String?, videoId: String?): Pair<String, StreamItem>? {
+        val party = com.nuvio.app.features.party.PartyRepository.state.value.party ?: return null
+        if (party.isHost) return null
+        val shared = com.nuvio.app.features.party.PartyRepository.sharedStream.value ?: return null
+        if (shared.mediaKey != party.media.key || metaId != party.media.metaId) return null
+        if (videoId != null && videoId != (party.media.videoId ?: party.media.metaId)) return null
+        val host = party.members.firstOrNull { it.id == party.hostMemberId }?.displayName
+        return "Shared by ${host ?: "the host"}" to shared.toStreamItem()
+    }
+
     private fun streamSelectionJson(): JsonObject {
-        val candidate = StreamsRepository.uiState.value.autoPlayStream
+        val meta = lastDetails
+        val sharedItem = partySharedStreamFor(meta?.id, loadedVideoId)?.second
+        val candidate = sharedItem ?: StreamsRepository.uiState.value.autoPlayStream
         val id = synchronized(streamRegistry) { streamRegistry.entries.firstOrNull { it.value.stream == candidate }?.key }
         return JsonObject(StreamSelectionBridge.snapshot() + ("autoPlayStreamId" to (id?.let(::JsonPrimitive) ?: JsonNull)))
     }

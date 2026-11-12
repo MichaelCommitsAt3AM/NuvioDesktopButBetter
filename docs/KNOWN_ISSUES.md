@@ -11,10 +11,7 @@ from the `nuvio_backend` repository (`20261113100000_watch_party.sql`), so
 `PartyRepository` also asks `watch_party_enabled()`, so `select public.watch_party_set_enabled(false)`
 on the backend turns the feature off for every client and ends live parties.
 
-Not done on desktop: the React rewrite has no Watch Party screen, join-by-code or invite-link flow
-(`nuvio://party/<code>`). Only the in-player party panel, which is hosted Kotlin/JS, is available, so a
-party can be created from the player but joining needs that React flow. Live Realtime delivery (server
-events and channel policies) has only been checked in CI at the SQL level, not with two real devices.
+Desktop (React): a Watch Party button on Home (left of the fullscreen button) opens a dialog to join by code,or to see the current party, copy its code, open its streams page and leave. The last party is rememberedacross restarts so the dialog can offer Rejoin. A guest opening the party's title auto-plays the host's ownlink. Live Realtime delivery has been tried with one phone and the desktop, not at scale.
 
 Media-server cloud sync is still unavailable: `ServerCapabilities.mediaServerSync` defaults false so
 ordinary profile sync does not call the absent `sync_pull_media_servers` / `sync_push_media_servers`

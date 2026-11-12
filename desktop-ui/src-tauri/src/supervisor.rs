@@ -87,6 +87,7 @@ enum BridgeTopic {
     P2p,
     #[serde(rename = "authOptions")]
     AuthOptions,
+    Party,
     Integrations,
     Tmdb,
     Mdblist,

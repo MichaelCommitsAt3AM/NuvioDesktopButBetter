@@ -9,7 +9,7 @@
     <string name="party_code_label">Mã phòng</string>
     <string name="party_copy_invite">Sao chép lời mời</string>
     <string name="party_invite_copied">Đã sao chép lời mời</string>
-    <string name="party_invite_message">Tham gia phòng xem chung Nuvio của tôi bằng mã %1$s\n%2$s</string>
+    <string name="party_invite_message">Tham gia phòng xem chung Nuvio của tôi bằng mã %1$s</string>
     <string name="party_seats">%1$d trong số %2$d chỗ</string>
     <string name="party_host">Chủ phòng</string>
     <string name="party_you">Bạn</string>

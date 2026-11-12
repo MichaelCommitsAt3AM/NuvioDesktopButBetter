@@ -1325,3 +1325,10 @@ Validation: a browser reproduction showed the original flat edge and the correct
 ### Watch party enabled (2026-11-13)
 
 The watch-party backend now lives in the separate `nuvio_backend` repository (migration `20261113100000_watch_party.sql`: five closed tables, the 14 `watch_party_*` RPCs, server-sent Realtime events, a member-only Realtime policy, a `pg_cron` sweep and the `watch_party_set_enabled` kill switch). Parties hold three people, end when empty or after ten minutes of silence (12-hour cap) and are deleted after 24 hours with their chat. Desktop `officialConfiguration()` now sets `watchParty = true`; the React Watch Party screen and invite flow are still to do (see `KNOWN_ISSUES.md`).
+
+### Watch party outside the player (2026-11-13)
+
+- Desktop React: `PartyButton` on Home opens a join-by-code / party-status dialog backed by a new `PartyBridge` (`party.snapshot|join|rejoin|leave|end`, topic `party`). The last party is saved (`nuvio_party_last_session`) so a restart shows "still in this watch party" with Rejoin/Leave. The Tauri shell's event topic list (`supervisor.rs`) must include `party`, otherwise live updates are dropped.
+- Joining opens the party's streams page; a guest's stream list leads with the host's shared link and auto-plays it (desktop via `streamsJson`/`streamSelectionJson`, mobile via `StreamDestination`). Host stream sharing is on by default.
+- The in-player "Join with a code" option was removed from both apps; joining lives on the Home button (mobile: round icon over the Home hero opening a bottom sheet).
+- The invite text now carries only the code (no link).

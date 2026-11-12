@@ -209,7 +209,8 @@ data class ActiveParty(
     val maxMembers: Int,
     val connected: Boolean,
     val hostOnly: Boolean = false,
-    val sharing: Boolean = false,
+    // On by default: the host's own link keeps everyone on the same stream. The host can turn it off.
+    val sharing: Boolean = true,
 ) {
     val isHost: Boolean
         get() = memberId == hostMemberId

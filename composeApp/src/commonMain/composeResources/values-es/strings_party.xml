@@ -10,7 +10,7 @@
     <string name="party_code_label">Código de grupo</string>
     <string name="party_copy_invite">Copiar invitación</string>
     <string name="party_invite_copied">Invitación copiada</string>
-    <string name="party_invite_message">Únete a mi sesión de Nuvio para ver en grupo con el código %1$s\n%2$s</string>
+    <string name="party_invite_message">Únete a mi sesión de Nuvio para ver en grupo con el código %1$s</string>
     <string name="party_seats">%1$d de %2$d plazas</string>
     <string name="party_host">Anfitrión</string>
     <string name="party_you">Tú</string>

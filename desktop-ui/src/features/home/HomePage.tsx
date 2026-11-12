@@ -8,6 +8,7 @@ import { InlineError } from '../../components/Status';
 import { HorizontalRail } from '../../components/HorizontalRail';
 import { HomeCollections } from '../collections/CollectionsPages';
 import { FullscreenButton } from '../../components/FullscreenButton';
+import { PartyButton } from '../party/PartyButton';
 import type { AppearanceSnapshot } from '../settings/appearanceStore';
 import { HomeActionDialog } from './HomeActionDialog';
 import { ContinueActionHost, ContinueActionPortal, useContinueActionHost } from './ContinueActionHost';
@@ -313,7 +314,7 @@ function HomeActivity({ viewKey, locationKey, resetScroll, heroIndexRef, heroInd
     const timer = setTimeout(() => { if (document.visibilityState === 'visible') setHeroIndex(index => (index + 1) % heroCount); }, 8000);
     return () => clearTimeout(timer);
   }, [visible, heroIndex, heroCount, heroActive, heroDragging, heroKey, settledHero, setHeroIndex]);
-  return visible ? <FullscreenButton onError={onError} /> : null;
+  return visible ? <><PartyButton /><FullscreenButton onError={onError} /></> : null;
 }
 
 function HomeLoadingSkeleton({ showHero }: { showHero: boolean }) {

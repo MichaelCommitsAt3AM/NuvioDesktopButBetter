@@ -17,7 +17,6 @@ import com.nuvio.app.features.party.partyChatRows
 import com.nuvio.app.features.party.behindMs
 import com.nuvio.app.features.party.displayTitle
 import com.nuvio.app.features.party.formatPartyCode
-import com.nuvio.app.features.party.partyInviteLink
 import com.nuvio.app.features.party.presenceState
 import com.nuvio.app.features.party.rememberProfileAvatar
 import com.nuvio.app.features.party.statusRes
@@ -84,7 +83,7 @@ internal fun PlayerScreenRuntime.rememberPartyControlsState(): PlayerControlPart
     val clipboard = LocalClipboardManager.current
     val party = partyState.party
     val invite = party?.let {
-        stringResource(Res.string.party_invite_message, formatPartyCode(it.code), partyInviteLink(it.code))
+        stringResource(Res.string.party_invite_message, formatPartyCode(it.code))
     }
     val copiedLabel = stringResource(Res.string.party_invite_copied)
     SideEffect {

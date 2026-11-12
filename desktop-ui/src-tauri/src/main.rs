@@ -345,6 +345,11 @@ const ALLOWED_METHODS: &[&str] = &[
     "streams.badges.setInPlayer",
     "streams.badges.setPlayerSource",
     "home.continueWatching.markWatched",
+    "party.snapshot",
+    "party.join",
+    "party.leave",
+    "party.end",
+    "party.rejoin",
 ];
 
 fn request_is_allowed(request: &BridgeRequest) -> bool {

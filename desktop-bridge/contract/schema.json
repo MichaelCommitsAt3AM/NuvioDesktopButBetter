@@ -1117,7 +1117,12 @@
             "mdblist.setListVisible",
             "streams.badges.setInPlayer",
             "streams.badges.setPlayerSource",
-            "home.continueWatching.markWatched"
+            "home.continueWatching.markWatched",
+            "party.snapshot",
+            "party.join",
+            "party.leave",
+            "party.end",
+            "party.rejoin"
           ]
         },
         "params": {
@@ -1201,7 +1206,8 @@
             "about",
             "advanced",
             "streamSelection",
-            "servers"
+            "servers",
+            "party"
           ]
         },
         "epoch": {

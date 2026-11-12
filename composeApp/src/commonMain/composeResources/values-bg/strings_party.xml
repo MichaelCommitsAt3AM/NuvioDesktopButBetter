@@ -9,7 +9,7 @@
     <string name="party_code_label">Код на групата</string>
     <string name="party_copy_invite">Копирай покана</string>
     <string name="party_invite_copied">Поканата е копирана</string>
-    <string name="party_invite_message">Присъединете се към моето парти в Nuvio с код %1$s\n%2$s</string>
+    <string name="party_invite_message">Присъединете се към моето парти в Nuvio с код %1$s</string>
     <string name="party_seats">%1$d от %2$d места</string>
     <string name="party_host">Домакин</string>
     <string name="party_you">Вие</string>

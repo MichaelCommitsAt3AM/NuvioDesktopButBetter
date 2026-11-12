@@ -10,7 +10,7 @@
     <string name="party_code_label">Partikód</string>
     <string name="party_copy_invite">Meghívó másolása</string>
     <string name="party_invite_copied">Meghívó másolva</string>
-    <string name="party_invite_message">Csatlakozz a Nuvio Nézőpartimhoz ezzel a kóddal: %1$s\n%2$s</string>
+    <string name="party_invite_message">Csatlakozz a Nuvio Nézőpartimhoz ezzel a kóddal: %1$s</string>
     <string name="party_seats">%1$d / %2$d hely</string>
     <string name="party_host">Házigazda</string>
     <string name="party_you">Te</string>

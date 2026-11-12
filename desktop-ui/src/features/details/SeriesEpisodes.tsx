@@ -13,6 +13,7 @@ import { useSeasonViewTransition } from './useSeasonViewTransition';
 
 type SeasonView = 'posters' | 'text';
 export type Props = {
+  rememberKey?: string;
   progressByVideoId?: Record<string, number>;
   preferredSeason?: number | null;
   videos: Video[];
@@ -31,8 +32,10 @@ export type Props = {
 };
 
 const seasonViewKey = 'nuvio.details.seasonViewMode';
+// Survives leaving the details page (e.g. opening streams and coming back) for the app session.
+const rememberedSeasons = new Map<string, number>();
 
-export function SeriesEpisodes({ videos, preferredSeason, poster, background, seasonPosters, cardStyle, blurUnwatched, showRatings, ratingsVisibility, isWatched, onEpisodeClick, onEpisodeLongPress, onToggleSeason, mutationBusy, progressByVideoId }: Props) {
+export function SeriesEpisodes({ rememberKey, videos, preferredSeason, poster, background, seasonPosters, cardStyle, blurUnwatched, showRatings, ratingsVisibility, isWatched, onEpisodeClick, onEpisodeLongPress, onToggleSeason, mutationBusy, progressByVideoId }: Props) {
   const grouped = useMemo(() => {
     const groups = new Map<number, Video[]>();
     for (const video of videos.filter((item) => item.season != null || item.episode != null)) {
@@ -50,7 +53,11 @@ export function SeriesEpisodes({ videos, preferredSeason, poster, background, se
   // Progress can arrive after episode metadata without overriding manual browsing.
   const defaultSeason = preferredSeason != null && seasons.includes(preferredSeason)
     ? preferredSeason : seasons.find((season) => season > 0) ?? seasons[0] ?? 0;
-  const [chosenSeason, setChosenSeason] = useState<number | null>(null);
+  const [chosenSeason, setChosenSeasonState] = useState<number | null>(() => (rememberKey ? rememberedSeasons.get(rememberKey) ?? null : null));
+  const setChosenSeason = (season: number) => {
+    if (rememberKey) rememberedSeasons.set(rememberKey, season);
+    setChosenSeasonState(season);
+  };
   const currentSeason = chosenSeason != null && seasons.includes(chosenSeason) ? chosenSeason : defaultSeason;
   const [seasonView, setSeasonView] = useState<SeasonView>(() => {
     try { return localStorage.getItem(seasonViewKey) === 'text' ? 'text' : 'posters'; } catch { return 'posters'; }

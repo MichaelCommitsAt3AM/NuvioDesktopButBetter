@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, ChevronRight, Film, FolderPlus, Grid2X2, GripVertical, LoaderCircle, Pencil, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronRight, Film, Grid2X2, LoaderCircle, Menu, Pencil, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { Link, useNavigate, useNavigationType, useParams } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot } from '../../bridge';
 import type { Media, Shelf as ShelfData } from '../../generated/contract';
@@ -17,6 +17,7 @@ import { posterMetrics } from '../../components/posterMetrics';
 import { HorizontalRail } from '../../components/HorizontalRail';
 import { scrollKey, useActiveProfileId, useListScrollRestore } from '../../navigation/scrollStore';
 import './collections.css';
+import './collectionEditor.css';
 
 type Source = { provider?: string; addonId?: string | null; type?: string | null; catalogId?: string | null; genre?: string | null; tmdbSourceType?: string | null; title?: string | null; tmdbId?: number | null; traktListId?: number | null; mediaType?: string | null; sortBy?: string | null; sortHow?: string | null; filters?: Record<string, unknown> | null };
 type Folder = { id: string; title: string; coverImageUrl?: string | null; focusGifUrl?: string | null; focusGifEnabled?: boolean; mobileFocusGifEnabled?: boolean; coverEmoji?: string | null; tileShape?: string; hideTitle?: boolean; sources?: Source[]; catalogSources?: Source[] };
@@ -42,6 +43,8 @@ function sourceName(source: Source) {
   return `${source.addonId || 'Add-on'} · ${source.catalogId || source.type || 'Catalog'}${source.genre ? ` · ${source.genre}` : ''}`;
 }
 
+// Kotlin posterShapeLabel: Poster / Square / Wide.
+function folderShapeLabel(tileShape?: string): string { const shape = folderShape(tileShape, false); return shape === 'landscape' ? 'Wide' : shape === 'square' ? 'Square' : 'Poster'; }
 function resolvedSources(folder: Folder): Source[] { return folder.sources?.length ? folder.sources : folder.catalogSources ?? []; }
 
 export const HomeCollections = memo(function HomeCollections({ shelves }: { shelves: ShelfData[] }) {
@@ -57,14 +60,24 @@ export const HomeCollections = memo(function HomeCollections({ shelves }: { shel
   const rowHeight = Math.ceil(metrics.width / ratio + (cardStyle?.hideLabelsEnabled ? 0 : 44) + 103);
   const rows = [...items.filter(collection => !preferences.some(p => p.collectionId === collection.id && !p.enabled)).map(collection => {
     const setting = preferences.find(p => p.collectionId === collection.id);
-    return { key: `collection:${collection.id}`, order: collection.pinToTop ? -1 : setting?.order ?? Number.MAX_SAFE_INTEGER, content: <section className="shelf home-collection" key={collection.id}><div className="shelf-heading"><h2>{setting?.title ?? collection.title}</h2><Link className="text-button" to={`/collections/${collection.id}/edit`}>Edit collection</Link></div><HorizontalRail label={collection.title}>{collection.folders.map(folder => <HomeFolderTile key={folder.id} collectionId={collection.id} folder={folder} />)}</HorizontalRail></section> };
+    return { key: `collection:${collection.id}`, order: collection.pinToTop ? -1 : setting?.order ?? Number.MAX_SAFE_INTEGER, content: <section className="shelf home-collection" key={collection.id}><div className="shelf-heading"><h2>{setting?.title ?? collection.title}</h2>{/* Temporarily hidden: <Link className="text-button" to={`/collections/${collection.id}/edit`}>Edit collection</Link> */}</div><HorizontalRail label={collection.title}>{collection.folders.map(folder => <HomeFolderTile key={folder.id} collectionId={collection.id} folder={folder} />)}</HorizontalRail></section> };
   }), ...shelves.map((shelf,index) => ({ key: `shelf:${shelf.key}`, order: preferences.find(p => p.key === shelf.key)?.order ?? index, content: <Shelf key={shelf.key} shelf={shelf} /> }))];
   return <>{rows.sort((a,b) => a.order-b.order).map(row => <HomeRow key={row.key} estimatedHeight={rowHeight}>{row.content}</HomeRow>)}</>;
 });
+// Mirrors Kotlin CollectionFolder.posterShape: case-insensitive, "wide" means landscape, unknown means poster.
+function folderShape(tileShape: string | undefined, landscapeMode: boolean): 'poster' | 'landscape' | 'square' {
+  if (landscapeMode) return 'landscape';
+  switch ((tileShape ?? 'poster').toLowerCase()) { case 'landscape': case 'wide': return 'landscape'; case 'square': return 'square'; default: return 'poster'; }
+}
 function HomeFolderTile({ collectionId,folder }: { collectionId: string; folder: Folder }) {
   const [focused,setFocused] = useState(false);
+  const cardStyle = useFeatureSnapshot<AppearanceSnapshot>('appearance')?.cardStyle;
+  const shape = folderShape(folder.tileShape, cardStyle?.catalogLandscapeModeEnabled ?? false);
+  // Kotlin: poster/square use the base poster width, landscape uses base * 180/110.
+  const baseWidth = posterMetrics({ ...cardStyle, catalogLandscapeModeEnabled: false }).width;
+  const width = shape === 'landscape' ? baseWidth * (180 / 110) : baseWidth;
   const artwork = focused && folder.focusGifEnabled && folder.focusGifUrl ? folder.focusGifUrl : folder.coverImageUrl;
-  return <Link className={`home-folder-tile shape-${folder.tileShape ?? 'poster'}`} to={`/collections/${collectionId}/folders/${folder.id}`} onMouseEnter={() => setFocused(true)} onMouseLeave={() => setFocused(false)} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}><span className="home-folder-art">{artwork ? <img src={artwork} alt="" /> : <span>{folder.coverEmoji || <Grid2X2 size={36} />}</span>}</span>{!folder.hideTitle && <strong>{folder.title}</strong>}</Link>;
+  return <Link className={`home-folder-tile shape-${shape}`} style={{ flexBasis: width }} to={`/collections/${collectionId}/folders/${folder.id}`} onMouseEnter={() => setFocused(true)} onMouseLeave={() => setFocused(false)} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}><span className="home-folder-art">{artwork ? <img src={artwork} alt="" /> : <span>{folder.coverEmoji || <Grid2X2 size={36} />}</span>}</span>{!folder.hideTitle && <strong>{folder.title}</strong>}</Link>;
 }
 
 export { CollectionsPage } from './CollectionManagementPage';
@@ -178,19 +191,24 @@ function CollectionEditorContent() {
   if (!editor) return <div className="page collections-page"><div className="loading-block"><LoaderCircle className="spin" size={22} /> Loading collection editor…</div></div>;
   const folder = editor.editingFolder;
   return <div className="page collections-page collection-editor-page">
-    <PageHeader title={editor.isNew ? 'New collection' : 'Edit collection'} subtitle="Set up the collection and its folders." action={<div className="catalog-actions"><button className="button secondary" onClick={() => { void act('collections.editor.cancel').then(() => navigate('/collections')); }}><X size={15} /> Cancel</button><button className="button primary" disabled={busy || editor.isLoading} onClick={() => void save()}><Check size={15} /> {busy ? 'Saving…' : 'Save collection'}</button></div>} />
+    <header className="ce-header"><button type="button" className="back-button ce-back" aria-label="Back" onClick={() => { void act('collections.editor.cancel').then(() => navigate('/collections')); }}><ArrowLeft size={18} /></button><h1>{editor.isNew ? 'New Collection' : 'Edit Collection'}</h1></header>
     {error && <InlineError message={error} />}
-    <section className="collection-editor-card"><h2>Collection</h2><label className="collection-field">Name<DraftInput value={editor.title} onCommit={(title) => commitEditorDraft('collections.editor.setTitle', { title })} placeholder="e.g. Weekend watchlist" aria-label="Collection name" /></label>
-      <label className="collection-field">Backdrop image URL<DraftInput value={editor.backdropImageUrl || ''} onCommit={(url) => commitEditorDraft('collections.editor.setBackdrop', { url })} placeholder="https://…" aria-label="Backdrop image URL" /></label>
+    <div className="ce-stack">
+      <DraftInput className="ce-input" value={editor.title} onCommit={(title) => commitEditorDraft('collections.editor.setTitle', { title })} placeholder="Collection name" aria-label="Collection name" />
+      <DraftInput className="ce-input" value={editor.backdropImageUrl || ''} onCommit={(url) => commitEditorDraft('collections.editor.setBackdrop', { url })} placeholder="Backdrop image URL (optional)" aria-label="Backdrop image URL" />
       {editor.backdropImageUrl && <div className="collection-backdrop-preview" style={{ backgroundImage: `url(${editor.backdropImageUrl})` }} />}
-      <label className="collection-check"><input type="checkbox" checked={editor.pinToTop} onChange={(e) => void act('collections.editor.setPinToTop', { enabled: e.target.checked })} /> Pin collection to the top</label>
-      <label className="collection-field">Folder layout<select value={editor.viewMode} onChange={(e) => void act('collections.editor.setViewMode', { mode: e.target.value })}><option value="TABBED_GRID">Tabbed grid</option><option value="ROWS">Rows</option><option value="FOLLOW_LAYOUT">Follow layout</option></select></label>
-      <label className="collection-check"><input type="checkbox" checked={editor.showAllTab} onChange={(e) => void act('collections.editor.setShowAllTab', { enabled: e.target.checked })} /> Show an “All” tab</label>
-    </section>
-    <section className="collection-editor-card"><div className="collection-editor-heading"><div><h2>Folders</h2><p>Each folder can combine add-on catalogs, TMDB sources, and Trakt lists.</p></div><button className="button secondary" onClick={() => void act('collections.editor.addFolder', { title: `Folder ${editor.folders.length + 1}` })}><FolderPlus size={15} /> Add folder</button></div>
-      {!editor.folders.length && <p className="collection-muted">No folders yet. Add a folder, then choose its sources.</p>}
-      <div className="editor-folder-list" ref={folderListRef}>{editor.folders.map((item, index) => <div className={`editor-folder-row${folderDrag?.id === item.id ? ' dragging' : ''}${folderDrag && folderDrag.id !== item.id && folderDrag.over === index ? ' drop-target' : ''}`} key={item.id} data-folder-id={item.id} style={folderDrag?.id === item.id ? { transform: `translateY(${folderDrag.dy}px)` } : undefined}><button className="collection-drag-handle" type="button" aria-label={`Drag ${item.title} to reorder`} onPointerDown={(event) => beginFolderDrag(event, item.id, index)}><GripVertical size={15} /></button><span className="folder-emoji">{item.coverEmoji || <Grid2X2 size={16} />}</span><div className="editor-folder-copy"><strong>{item.title}</strong><span>{resolvedSources(item).length} sources · {item.tileShape || 'poster'} cards</span></div><button title="Move up" aria-label={`Move ${item.title} up`} disabled={index === 0} onClick={() => void act('collections.editor.moveFolder', { from: index, to: index - 1 })}><ArrowUp size={15} /></button><button title="Move down" aria-label={`Move ${item.title} down`} disabled={index === editor.folders.length - 1} onClick={() => void act('collections.editor.moveFolder', { from: index, to: index + 1 })}><ArrowDown size={15} /></button><button title="Edit folder" onClick={() => void act('collections.editor.editFolder', { id: item.id })}><Pencil size={15} /></button><button title="Remove folder" onClick={() => void act('collections.editor.removeFolder', { id: item.id })}><Trash2 size={15} /></button></div>)}</div>
-    </section>
+      <div className="ce-card ce-toggle-row"><span className="ce-copy"><strong>Pin Above Catalogs</strong><span>Show this collection above all regular home catalogs. Multiple pinned collections follow collection creation order.</span></span><label className="switch" aria-label="Pin Above Catalogs"><input type="checkbox" checked={editor.pinToTop} onChange={(e) => void act('collections.editor.setPinToTop', { enabled: e.target.checked })} /><span /></label></div>
+      <div className="ce-card"><strong className="ce-card-title">View Mode</strong><div className="ce-chips" role="radiogroup" aria-label="View Mode">{([['TABBED_GRID', 'Tabs'], ['ROWS', 'Rows']] as const).map(([mode, label]) => <button type="button" role="radio" aria-checked={editor.viewMode === mode} className={`ce-chip${editor.viewMode === mode ? ' selected' : ''}`} key={mode} onClick={() => void act('collections.editor.setViewMode', { mode })}>{editor.viewMode === mode && <Check size={16} />}{label}</button>)}</div></div>
+      <div className="ce-card ce-toggle-row"><span className="ce-copy"><strong>Show “All” Tab</strong><span>Combine all catalogs into one tab</span></span><label className="switch" aria-label="Show “All” Tab"><input type="checkbox" checked={editor.showAllTab} onChange={(e) => void act('collections.editor.setShowAllTab', { enabled: e.target.checked })} /><span /></label></div>
+      <div className="ce-section-row"><h2 className="ce-section-label">Folders</h2><button type="button" className="ce-text-button" onClick={() => void act('collections.editor.addFolder', { title: 'New Folder' })}><Plus size={18} /> Add Folder</button></div>
+      {!editor.folders.length && <div className="ce-card"><strong className="ce-empty-title">No folders yet</strong><span className="ce-empty-sub">Add one to get started.</span></div>}
+      <div className="editor-folder-list ce-folder-list" ref={folderListRef}>{editor.folders.map((item, index) => <div className={`editor-folder-row ce-card ce-folder${folderDrag?.id === item.id ? ' dragging' : ''}${folderDrag && folderDrag.id !== item.id && folderDrag.over === index ? ' drop-target' : ''}`} key={item.id} data-folder-id={item.id} style={folderDrag?.id === item.id ? { transform: `translateY(${folderDrag.dy}px)` } : undefined}>
+        <div className="ce-folder-main">{item.coverEmoji && <span className="ce-folder-emoji">{item.coverEmoji}</span>}<div className="ce-copy"><strong>{item.title}</strong><span>{resolvedSources(item).length} source(s) · {folderShapeLabel(item.tileShape)}</span></div></div>
+        <div className="ce-folder-actions"><button type="button" className="ce-icon collection-drag-handle" aria-label={`Drag ${item.title} to reorder`} title="Reorder" onPointerDown={(event) => beginFolderDrag(event, item.id, index)}><Menu size={20} /></button>
+          <button type="button" className="ce-sr" title="Move up" aria-label={`Move ${item.title} up`} disabled={index === 0} onClick={() => void act('collections.editor.moveFolder', { from: index, to: index - 1 })}><ArrowUp size={15} /></button><button type="button" className="ce-sr" title="Move down" aria-label={`Move ${item.title} down`} disabled={index === editor.folders.length - 1} onClick={() => void act('collections.editor.moveFolder', { from: index, to: index + 1 })}><ArrowDown size={15} /></button>
+          <span className="ce-spacer" /><button type="button" className="ce-icon ce-edit" title="Edit" aria-label={`Edit ${item.title}`} onClick={() => void act('collections.editor.editFolder', { id: item.id })}><Pencil size={20} /></button><button type="button" className="ce-icon ce-delete" title="Delete" aria-label={`Delete ${item.title}`} onClick={() => void act('collections.editor.removeFolder', { id: item.id })}><Trash2 size={20} /></button></div></div>)}</div>
+    </div>
+    <div className="ce-savebar"><button type="button" className="button primary ce-save" disabled={busy || editor.isLoading || !editor.title.trim()} onClick={() => void save()}>{busy ? 'Saving…' : editor.isNew ? 'Create Collection' : 'Save Changes'}</button></div>
     {editor.showFolderEditor && folder && <FolderEditor editor={editor} act={act} />}
     {editor.showCatalogPicker && <PickerPanel title="Add-on catalogs" onClose={() => void act('collections.editor.hideCatalogPicker')}><div className="catalog-option-list">{editor.availableCatalogs.map((catalog) => <CatalogOption folder={folder} key={`${catalog.addonId}/${catalog.type}/${catalog.catalogId}`} catalog={catalog} selected={(folder ? resolvedSources(folder) : []).some(s => s.addonId === catalog.addonId && s.type === catalog.type && s.catalogId === catalog.catalogId)} act={act} />)}</div></PickerPanel>}
     {editor.showTmdbSourcePicker && <TmdbPicker editor={editor} act={act} />}

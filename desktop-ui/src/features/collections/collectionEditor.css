@@ -1,0 +1,51 @@
+/* Root collection editor, laid out like the Kotlin CollectionEditorScreen:
+   back header, plain inputs, surface cards, folder cards and a bottom save bar. */
+.collection-editor-page{max-width:920px;margin-inline:auto;padding-bottom:calc(96px + 24px)}
+.collection-editor-page .ce-header{display:flex;align-items:center;gap:16px;margin:8px 0 24px}
+.collection-editor-page .ce-header h1{margin:0;font-size:34px;line-height:1.1;font-weight:700;letter-spacing:-.02em}
+.collection-editor-page .ce-back{display:grid;place-items:center;width:40px;height:40px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}
+.collection-editor-page .ce-back:hover{background:#ffffff14}
+.collection-editor-page .ce-stack{display:grid;gap:12px}
+
+.collection-editor-page .ce-input{width:100%;min-height:56px;padding:0 20px;border:1px solid #ffffff10;border-radius:16px;background:var(--settings-surface,#1a1a1a);color:inherit;font:inherit;font-size:16px}
+.collection-editor-page .ce-input::placeholder{color:#8b9097}
+.collection-editor-page .ce-input:focus-visible{outline:2px solid #ffffff55;outline-offset:1px}
+
+.collection-editor-page .ce-card{display:flex;flex-direction:column;gap:8px;padding:18px 20px;border-radius:20px;background:var(--settings-surface,#1a1a1a)}
+.collection-editor-page .ce-card-title,.collection-editor-page .ce-copy strong{font-size:16px;font-weight:500;color:#f2f2f2}
+.collection-editor-page .ce-copy{display:grid;gap:2px;min-width:0}
+.collection-editor-page .ce-copy span{font-size:14px;line-height:1.35;color:#9aa0a6}
+.collection-editor-page .ce-toggle-row{flex-direction:row;align-items:center;justify-content:space-between;gap:16px}
+
+.collection-editor-page .ce-chips{display:flex;flex-wrap:wrap;gap:8px}
+.collection-editor-page .ce-chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;border:1px solid #ffffff2a;border-radius:8px;background:transparent;color:#d6d8db;font:inherit;font-size:14px;font-weight:500;cursor:pointer}
+.collection-editor-page .ce-chip.selected{background:#ffffff1f;border-color:transparent;color:#fff}
+.collection-editor-page .ce-chip:hover{background:#ffffff14}
+
+.collection-editor-page .ce-section-row{display:flex;align-items:center;justify-content:space-between;margin-top:12px}
+.collection-editor-page .ce-section-label{margin:0;font-size:14px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#92969c}
+.collection-editor-page .ce-text-button{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border:0;border-radius:999px;background:transparent;color:#fff;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.collection-editor-page .ce-text-button:hover{background:#ffffff14}
+.collection-editor-page .ce-empty-title{font-size:22px;font-weight:600}
+.collection-editor-page .ce-empty-sub{font-size:16px;color:#9aa0a6}
+
+.collection-editor-page .ce-folder-list{display:grid;gap:12px}
+.collection-editor-page .ce-folder{gap:8px}
+.collection-editor-page .ce-folder.dragging{position:relative;z-index:2;box-shadow:0 8px 24px #0009}
+.collection-editor-page .ce-folder.drop-target{outline:2px dashed #ffffff40;outline-offset:2px}
+.collection-editor-page .ce-folder-main{display:flex;align-items:center;gap:12px;min-width:0}
+.collection-editor-page .ce-folder-main strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.collection-editor-page .ce-folder-emoji{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:8px;background:#ffffff1f;font-size:22px}
+.collection-editor-page .ce-folder-actions{display:flex;align-items:center;gap:4px}
+.collection-editor-page .ce-spacer{flex:1}
+.collection-editor-page .ce-icon{display:grid;place-items:center;width:36px;height:36px;padding:0;border:0;border-radius:50%;background:transparent;color:#9aa0a6;cursor:pointer}
+.collection-editor-page .ce-icon:hover{background:#ffffff14}
+.collection-editor-page .collection-drag-handle{cursor:grab;touch-action:none}
+.collection-editor-page .ce-edit{color:#fff}
+.collection-editor-page .ce-delete{color:#ff6b6b}
+/* Keyboard reorder stays available but only shows while focused. */
+.collection-editor-page .ce-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.collection-editor-page .ce-sr:focus-visible{position:static;width:36px;height:36px;margin:0;overflow:visible;clip:auto;display:grid;place-items:center;border-radius:50%;background:#ffffff1f;color:#fff}
+
+.collection-editor-page .ce-savebar{position:sticky;bottom:0;z-index:5;margin:24px calc(-1 * var(--page-gutter,16px)) 0;padding:12px var(--page-gutter,16px) 16px;background:linear-gradient(to top,#000 72%,#0000)}
+.collection-editor-page .ce-save{width:100%;max-width:920px;display:block;height:56px;margin-inline:auto;border-radius:18px;font-size:16px;font-weight:600}

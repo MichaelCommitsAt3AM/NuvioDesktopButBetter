@@ -71,7 +71,7 @@ it('does not save the collection after its latest title commit failed', async ()
   const input = screen.getByRole('textbox', { name: 'Collection name' });
   act(() => input.focus());
   fireEvent.change(input, { target: { value: 'Latest unsaved title' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save collection' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Create Collection' }));
   await act(async () => new Promise(resolve => setTimeout(resolve, 150)));
   expect(bridge.call.mock.calls.some(([method]) => method === 'collections.editor.save')).toBe(false);
 });

@@ -10,6 +10,7 @@ import { Shelf } from '../../components/Shelf';
 import { EmptyState } from '../../components/EmptyState';
 import { InlineError } from '../../components/Status';
 import { FullscreenButton } from '../../components/FullscreenButton';
+import '../home/homeParity.css';
 import './search.css';
 import { useDiscoverScroll } from './useDiscoverScroll';
 import { useTabActive, useTabActivated } from '../../navigation/tabActivity';

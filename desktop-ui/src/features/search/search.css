@@ -2,7 +2,9 @@
 .main-area:has(.search-page:where([data-tab-active="true"]) .search-discover){overflow-anchor:none;scroll-behavior:auto}
 .search-page{position:relative;isolation:isolate;width:100%;max-width:none;padding-top:calc(18px * var(--ui-scale,1));--ui-scale:1;--desktop-font-scale:1}
 .search-page::before{position:fixed;z-index:11;top:0;left:0;width:100vw;height:calc(150px * var(--ui-scale,1));content:"";background:#000;pointer-events:none}
-.search-sticky-header{position:sticky;z-index:12;top:0;margin:calc(-5px / 1.22) 0 0;padding:0 0 calc(10px / 1.22);background:var(--app-bg,#000)}
+/* The scroller has top padding; stick at its real top edge (not the content edge) and cover that strip,
+   otherwise scrolled results show through the gap above the header. */
+.search-sticky-header{--search-top-gap:calc(112px / 1.22);position:sticky;z-index:12;top:calc(-1 * var(--search-top-gap));margin:calc(-5px / 1.22 - var(--search-top-gap)) 0 0;padding:var(--search-top-gap) 0 calc(10px / 1.22);background:var(--app-bg,#000)}
 .search-sticky-header h1{margin:0 0 calc(10px / 1.22);font-size:calc(32px * var(--ui-scale,1));font-weight:650;line-height:1.22;letter-spacing:-.045em}
 .search-input-wrap{position:relative;width:100%}
 .search-input-wrap input{display:block;width:100%;height:calc(56px / 1.22);padding:0 calc(16px / 1.22);border:1px solid #252a2a;border-radius:calc(12px / 1.22);outline:0;background:#1c1c1e;color:var(--text,#f5f5f5);font:inherit;font-size:calc(15px * var(--ui-scale,1));transition:border-color 150ms,background 150ms}

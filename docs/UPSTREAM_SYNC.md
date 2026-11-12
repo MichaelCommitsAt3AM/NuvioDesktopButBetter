@@ -80,7 +80,7 @@ only after reviewing the upstream delta and explaining why it is inapplicable.
 | Profile/account lifecycle | Preserve fork kids/add-on policies and defaults while adding upstream repository initialization, profile resets and cleanup. |
 | Reactive lifecycle | Compare upstream `MainAppContent` effects with bridge observers. New repositories need subscriptions and refresh/invalidation wiring, not just RPC methods. |
 | Build/release | Preserve the fork Gradle hook, Tauri package matrix, private Java runtime, updater signing and MSI upgrade identity. Review upstream requirements individually. |
-| Versions | Keep the fork's version/build code during the merge. Upstream may have a lower code. Do the normal separate version-bump commit later with `set-version.sh`; never hand-edit version values. |
+| Versions | Keep the fork's version/build code during the merge. Upstream may have a lower code. Do the normal separate version-bump commit later with `set-version.sh` (Linux/macOS) or `scripts/set-version.ps1` (Windows; same arguments); never hand-edit version values. |
 | Supabase | Inventory new RPCs and service dependencies. Missing services require a forward migration or an explicit disabled/deferred capability; never silently invoke absent RPCs during ordinary profile sync. |
 | Mobile targets | Retain upstream changes where appropriate; do not build or repair mobile targets from this desktop-only tree. |
 
@@ -140,6 +140,11 @@ when engine/native binaries change. Keep full logs outside the checkout (for
 example under `$env:TEMP`) and inspect exit codes, not merely the existence of a log.
 PowerShell can continue to the next command after a native executable fails;
 use `if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }` where sequencing matters.
+
+Node may be managed by fnm and absent from a non-interactive shell's PATH; prepend
+`$env:APPDATA\fnm\node-versions\<version>\installation` rather than installing another
+copy. Pipe commit messages to `git commit -F -` from Git Bash, not PowerShell: Windows
+PowerShell 5.1 prefixes piped text with a BOM that ends up in the commit subject.
 
 On Windows, give Python text reads and writes an explicit `encoding="utf-8"`;
 the default code page can corrupt translated labels and punctuation. Verify full

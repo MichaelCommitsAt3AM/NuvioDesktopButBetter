@@ -86,6 +86,8 @@ Two independent versions are tracked, both managed through `scripts/set-version.
 ./scripts/set-version.sh --base 0.2.5 --base-code 76
 ```
 
+Use `set-version.sh` on Linux/macOS. On Windows, use `scripts/set-version.ps1` with the same arguments (e.g. `.\scripts\set-version.ps1 --desktop 0.1.15 --desktop-code 15`): it is a thin wrapper that runs `set-version.sh` through Git for Windows' bash, so the rules live in one script. Don't reimplement the version logic in PowerShell.
+
 `--base-code`/`--desktop-code` must strictly increase versus the currently-recorded value — `set-version.sh` enforces this and hard-errors otherwise, it's not just a convention. This matters beyond Android's install requirements: the Windows MSI's internal `ProductVersion` (`desktopReleasePackageVersion` in `composeApp/build.gradle.kts`) is deliberately `1.0.<desktop VERSION_CODE>`, decoupled entirely from `VERSION_NAME` — because this fork's MSI `UpgradeCode` is pinned across releases, and Windows Installer needs `ProductVersion` to strictly increase every release for the in-app updater's silent upgrade to work. A value derived from `VERSION_NAME` can't guarantee that (its components reset on upstream syncs), so don't change `desktopReleasePackageVersion` to reflect the marketing version without re-solving that problem.
 
 ### Android release automation

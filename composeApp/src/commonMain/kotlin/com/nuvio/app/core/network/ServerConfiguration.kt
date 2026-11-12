@@ -60,8 +60,10 @@ internal fun officialConfiguration() = ServerConfiguration(
         // RPCs + the tv-logins-exchange edge function) is not implemented on this fork's
         // Supabase backend, so the UI stays hidden. Flip back to true if that backend lands.
         tvLogin = false,
-        // This fork does not host the watch_party_* RPCs/realtime backend.
-        watchParty = false,
+        // The watch_party_* RPCs and Realtime policies are deployed from nuvio_backend
+        // (20261113100000_watch_party.sql). PartyRepository also asks watch_party_enabled(), so the
+        // server-side switch (watch_party_set_enabled(false)) turns the feature off for every client.
+        watchParty = true,
     ),
     isCustom = false,
     fallbackBackendUrl = SupabaseConfig.FALLBACK_URL.trim().trimEnd('/').takeIf { it.isNotBlank() },

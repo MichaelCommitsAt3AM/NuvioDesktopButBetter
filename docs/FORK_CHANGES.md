@@ -1321,3 +1321,7 @@ Validation: a browser reproduction showed the original flat edge and the correct
 - Addons: the install confirmation names the addon ("Addon Installed"), and the configure button uses a settings icon.
 - The stream quality menu separates Filter settings from the quality options with a divider.
 - Profile avatars: `supabase/migrations/20261112120000_seed_avatar_catalog.sql` seeds the 41 built-in avatars and the public `avatars` bucket; the artwork is in `supabase/assets/avatars` (copied from the Nuvio self-hosted distribution, Apache-2.0) and `scripts/upload_avatars.sh` uploads it to a project's Storage.
+
+### Watch party enabled (2026-11-13)
+
+The watch-party backend now lives in the separate `nuvio_backend` repository (migration `20261113100000_watch_party.sql`: five closed tables, the 14 `watch_party_*` RPCs, server-sent Realtime events, a member-only Realtime policy, a `pg_cron` sweep and the `watch_party_set_enabled` kill switch). Parties hold three people, end when empty or after ten minutes of silence (12-hour cap) and are deleted after 24 hours with their chat. Desktop `officialConfiguration()` now sets `watchParty = true`; the React Watch Party screen and invite flow are still to do (see `KNOWN_ISSUES.md`).

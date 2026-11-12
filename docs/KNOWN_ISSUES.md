@@ -3,18 +3,24 @@
 Fork-specific issues that are understood well enough to describe but not yet fixed. This is not the
 upstream issue tracker.
 
-## Upstream watch parties and media-server cloud sync are unavailable
+## Watch parties: backend is live, desktop React flow is not built
 
-Recorded 2026-10-18 during the sync to upstream `e808a584` (`0.1.31-alpha`).
-The imported watch-party code needs the upstream `watch_party_*` RPCs and realtime
-service, which this fork does not host. `officialConfiguration().capabilities.watchParty`
-stays false; a React party/invite flow is deferred with that backend dependency.
-Media-server connections work locally, but `ServerCapabilities.mediaServerSync`
-defaults false so ordinary profile sync does not call absent
-`sync_pull_media_servers` / `sync_push_media_servers` RPCs. Do not enable either
-service by simply removing the static RPC exemptions: supply forward migrations,
-authorization/contract tests and the required React/event flows first. The 2026-10-25 sync also retains chat/profile-link/companion RPCs (`watch_party_send_message`, `watch_party_list_messages`, `watch_party_link_profile`) behind the same disabled capability. No production
-migration was deployed by either sync. See `UPSTREAM_SYNC_2026-10-18.md`.
+Updated 2026-11-13. The `watch_party_*` RPCs, Realtime channel policies and cleanup job are deployed
+from the `nuvio_backend` repository (`20261113100000_watch_party.sql`), so
+`officialConfiguration().capabilities.watchParty` is now true on desktop (mobile already was).
+`PartyRepository` also asks `watch_party_enabled()`, so `select public.watch_party_set_enabled(false)`
+on the backend turns the feature off for every client and ends live parties.
+
+Not done on desktop: the React rewrite has no Watch Party screen, join-by-code or invite-link flow
+(`nuvio://party/<code>`). Only the in-player party panel, which is hosted Kotlin/JS, is available, so a
+party can be created from the player but joining needs that React flow. Live Realtime delivery (server
+events and channel policies) has only been checked in CI at the SQL level, not with two real devices.
+
+Media-server cloud sync is still unavailable: `ServerCapabilities.mediaServerSync` defaults false so
+ordinary profile sync does not call the absent `sync_pull_media_servers` / `sync_push_media_servers`
+RPCs. Do not enable it by simply removing the static RPC exemptions: supply forward migrations,
+authorization/contract tests and the required React/event flows first. See
+`UPSTREAM_SYNC_2026-10-18.md` for the original sync note.
 
 ## "Resolve playable links" sometimes turns itself off
 

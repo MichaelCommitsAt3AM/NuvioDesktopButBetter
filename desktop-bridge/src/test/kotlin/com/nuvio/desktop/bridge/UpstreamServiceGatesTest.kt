@@ -10,14 +10,15 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class UpstreamServiceGatesTest {
-    @Test fun undeployedServicesAreDisabledByDefaultAndOnThisFork() {
+    @Test fun undeployedServicesAreDisabledByDefaultAndWatchPartyIsOnForThisBackend() {
         val defaults = ServerCapabilities(emailPasswordAuth = false, tvLogin = false)
         val official = officialConfiguration().capabilities
         assertFalse(defaults.watchParty)
         assertFalse(defaults.mediaServerSync)
-        assertFalse(official.watchParty)
+        assertTrue(official.watchParty)
         assertFalse(official.mediaServerSync)
         assertFalse(official.tvLogin)
     }

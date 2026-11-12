@@ -1309,3 +1309,15 @@ The follow-up user screenshot exposed a selected-pill paint cutoff, which the pr
 Validation: a browser reproduction showed the original flat edge and the corrected rounded end. Pixel checks confirmed fill outside the row boundary and transparency outside the capsule corner. All 28 navigation/jelly tests and the production frontend build passed. The earlier resting hover fixture did not exercise this stretched-pill state.
 
 - Desktop provider credential edits remain pending until account synchronization succeeds, so older account values cannot erase unsynced changes after restart.
+
+## Parity and sync fixes (2026-11-12)
+
+- Auto-play next episode and the binge-group settings now mark a pending local settings edit, so a cloud pull can no longer restore an older value after the user turned the setting off.
+- Home refreshes Up Next whenever the retained Home tab becomes visible again, so a series whose episode just finished (including during the next-episode prompt) shows its next episode in Continue Watching without a restart.
+- Continue Watching cards without artwork show their title once.
+- Search rows use Home's row styling and round hover arrows, and the sticky header covers the padding strip above it so results no longer show through.
+- Home collection folder tiles follow Kotlin's shape rules: case-insensitive tile shape with `wide` meaning landscape, the global Landscape Posters setting, and widths derived from the poster-card width (landscape is 180/110 of it). The "Edit collection" link on Home rows is temporarily hidden.
+- The collection editor follows `CollectionEditorScreen`: back header, plain inputs, Pin Above Catalogs / View Mode / Show "All" Tab cards, folder cards with drag, edit and delete, and a bottom Save Changes / Create Collection button. Keyboard move up/down remain available on focus.
+- Addons: the install confirmation names the addon ("Addon Installed"), and the configure button uses a settings icon.
+- The stream quality menu separates Filter settings from the quality options with a divider.
+- Profile avatars: `supabase/migrations/20261112120000_seed_avatar_catalog.sql` seeds the 41 built-in avatars and the public `avatars` bucket; the artwork is in `supabase/assets/avatars` (copied from the Nuvio self-hosted distribution, Apache-2.0) and `scripts/upload_avatars.sh` uploads it to a project's Storage.

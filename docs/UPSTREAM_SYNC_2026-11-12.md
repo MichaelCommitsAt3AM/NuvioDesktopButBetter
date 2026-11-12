@@ -31,6 +31,8 @@ Audited automatic merges: the new `setSubtitleVisible` JNI declaration has match
 - Windows desktop suite after the bridge adaptation: 1,998 tests, 0 failures, 1 platform skip; staged bridge runtime rebuilt.
 - Frontend: 94 files, 576 tests passed (including a new Mark as watched case); `contract:check` and production build passed.
 - Rust: `cargo fmt --check` and 11 tests passed.
+- Embedded Windows shell (`cargo build --locked --features custom-protocol`) built.
+- CI (Supabase database tests and the all-platform build-only matrix) has not been run yet; the sync branch has not been pushed.
 - Launcher/release tests: 10 passed, 1 explicit host skip.
 
 Not exercised: real subtitle add-on requests with a hash-capable provider, live playback, macOS/Linux playback, provider sign-in, installed upgrade and visual acceptance. No release was published and no version was bumped.

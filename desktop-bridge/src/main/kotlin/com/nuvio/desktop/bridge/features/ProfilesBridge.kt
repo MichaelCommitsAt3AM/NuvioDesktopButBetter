@@ -155,12 +155,6 @@ object ProfilesBridge {
                 throw BridgeFeatureException("PROFILE_CREATED_ADDON_COPY_FAILED", "Profile was created, but add-ons could not be copied. Open All profiles and edit ${created.name} to retry")
             }
         }
-        try {
-            saveSubtitlesChoice(created.profileIndex, params)
-        } catch (error: kotlinx.coroutines.CancellationException) { throw error }
-        catch (error: Exception) {
-            throw BridgeFeatureException("PROFILE_CREATED_ADDON_COPY_FAILED", "Profile was created, but subtitle settings could not be saved. Open All profiles and edit ${created.name} to retry")
-        }
         if (settingsSource != null && settingsSource != ProfileRepository.activeProfileId &&
             settingsSource != created.profileIndex &&
             AuthRepository.state.value.let { it is AuthState.Authenticated && !it.isAnonymous }
@@ -220,7 +214,6 @@ object ProfilesBridge {
         }
         if (params.has("addonSyncProfileId")) ProfileRepository.setAddonProfileLink(index, addonSource)
         if (copiedAddons != null) AddonRepository.importProfileAddons(index, copiedAddons)
-        saveSubtitlesChoice(index, params)
         return snapshot()
     }
 
@@ -235,15 +228,6 @@ object ProfilesBridge {
         val rows = withRecommendedSubtitles(AddonRepository.readProfileAddonSnapshot(source))
         val kids = params.optionalBool("kidsEnabled") == true || target?.let { requireProfile(it).kidsEnabled } == true
         return selectCopiedAddons(rows, urls, kids)
-    }
-
-    private suspend fun saveSubtitlesChoice(profileId: Int, params: JsonObject) {
-        val enabled = params.optionalBool("recommendedSubtitles") ?: return
-        val root = addonGroupRoot(ProfileRepository.state.value.profiles, profileId)
-        val rows = withRecommendedSubtitles(AddonRepository.readProfileAddonSnapshot(root))
-        AddonRepository.saveIndependentProfileAddons(root, rows.map {
-            if (it.url == RECOMMENDED_SUBTITLES_URL) it.copy(enabled = enabled) else it
-        })
     }
 
     internal fun selectCopiedAddons(rows: List<AddonRow>, urls: List<String>, kidsEnabled: Boolean = false): List<AddonRow> {

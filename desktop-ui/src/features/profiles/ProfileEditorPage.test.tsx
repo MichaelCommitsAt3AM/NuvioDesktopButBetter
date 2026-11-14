@@ -157,7 +157,7 @@ it('creates a profile with only the add-ons left selected', async () => {
   await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.create', expect.objectContaining({ addonSyncProfileId: null, addonCopyProfileId: 1, addonCopyUrls: ['https://two/manifest.json'] })));
 });
 it('blocks saving on a failed source load and allows retry', async () => {
-  store.call.mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('Source unavailable'));
+  store.call.mockRejectedValueOnce(new Error('Source unavailable'));
   editor('/profiles/2/edit');
   startImport();
   expect(await screen.findByText('Source unavailable')).toBeInTheDocument();
@@ -273,22 +273,6 @@ it('blocks empty imports and does not unlink when import is cancelled', async ()
   expect(params).not.toHaveProperty('addonSyncProfileId');
 });
 
-it('defaults OpenSubtitles on, labels it Recommended, and saves an opt-out', async () => {
-  editor();
-  const subtitles = screen.getByRole('checkbox', { name: 'OpenSubtitles v3 — Recommended' });
-  expect(subtitles).toBeChecked();
-  fireEvent.click(subtitles);
-  fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'Independent' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Create Profile' }));
-  await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.create', expect.objectContaining({ recommendedSubtitles: false })));
-});
-it('keeps a saved subtitle opt-out when editing', async () => {
-  store.call.mockResolvedValueOnce([{ url: 'https://opensubtitles-v3.strem.io/manifest.json', name: 'OpenSubtitles v3', enabled: false, recommended: true }]);
-  editor('/profiles/2/edit');
-  await waitFor(() => expect(screen.getByRole('checkbox', { name: 'OpenSubtitles v3 — Recommended' })).not.toBeChecked());
-  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
-  await waitFor(() => expect(store.run).toHaveBeenCalledWith('profiles.update', expect.objectContaining({ recommendedSubtitles: false })));
-});
 it('places add-on syncing after kids settings and excludes conflicting catalogs even if already selected', async () => {
   store.call.mockResolvedValue([
     { url: 'https://cinemeta/manifest.json', name: 'Cinemeta', enabled: true, kidsConflicting: true },

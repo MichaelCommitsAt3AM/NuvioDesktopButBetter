@@ -39,11 +39,21 @@ class ManagedProfileAddonsTest {
         }
     }
 
+    @Test fun legacyOpenSubtitlesV3IsReplacedKeepingItsEnabledState() {
+        val legacy = AddonRow("https://opensubtitles-v3.strem.io/manifest.json", "OpenSubtitles v3", enabled = false, sortOrder = 3)
+        val rows = withRecommendedSubtitles(listOf(stream, legacy))
+        assertEquals(2, rows.size)
+        assertEquals(false, rows.single { it.url == RECOMMENDED_SUBTITLES_URL }.enabled)
+        assertEquals(1, withRecommendedSubtitles(listOf(legacy) + withRecommendedSubtitles(emptyList())).count { it.url == RECOMMENDED_SUBTITLES_URL })
+        assertEquals(0, withRecommendedSubtitles(listOf(legacy) + withRecommendedSubtitles(emptyList())).count { it.url.contains("opensubtitles-v3") })
+    }
+
     @Test fun kidsConflictsRecognizeConfiguredUrlsAndCustomNames() {
         assertTrue(isKidsConflictingAddon(AddonRow("https://v3-cinemeta.strem.io/manifest.json", "Renamed")))
         assertTrue(isKidsConflictingAddon(AddonRow("https://aiometadata.elfhosted.com/stremio/config/manifest.json", "Renamed")))
         assertTrue(isKidsConflictingAddon(AddonRow("https://custom.example/manifest.json", "AIOMetadata")))
+        assertTrue(isKidsConflictingAddon(AddonRow("https://catalog.nuvio.tv/manifest.json", "Renamed")))
         assertEquals(false, isKidsConflictingAddon(stream))
-        assertEquals(false, isKidsConflictingAddon(AddonRow(RECOMMENDED_SUBTITLES_URL, "OpenSubtitles v3")))
+        assertEquals(false, isKidsConflictingAddon(AddonRow(RECOMMENDED_SUBTITLES_URL, "OpenSubtitles Pro")))
     }
 }

@@ -294,14 +294,16 @@ object AddonRepository {
     }
 
     /**
-     * Installs the built-in [DEFAULT_ADDON_URLS] for a brand-new main profile so
+     * Installs the built-in [DEFAULT_ADDON_URLS] for a brand-new profile so
      * a fresh account has content without the user adding anything. Runs at most
      * once per profile ([AddonStorage] tracks it), so deliberately removing every
      * add-on is not undone on the next launch.
      */
     suspend fun seedDefaultAddonsIfEmpty(profileId: Int) {
-        if (profileId != MAIN_PROFILE_ID) return
         if (profileId != currentProfileId) return
+        val profile = ProfileRepository.state.value.profiles.find { it.profileIndex == profileId }
+        // Kids profiles get their managed KidsScreen add-on; linked profiles inherit another profile's add-ons.
+        if (profile != null && (profile.kidsEnabled || profile.usesPrimaryAddons || profile.addonSyncProfileId != null)) return
         if (AddonStorage.isAddonDefaultsSeeded(profileId)) return
         val state = _uiState.value
         // Only act once the add-on list is settled: a slow or failed cloud pull
@@ -783,21 +785,14 @@ private const val ADDON_REFRESH_MAX_ATTEMPTS = 6
 private const val ADDON_REFRESH_INITIAL_BACKOFF_MS = 2_000L
 private const val ADDON_REFRESH_MAX_BACKOFF_MS = 30_000L
 private const val MANIFEST_PREFETCH_CONCURRENCY = 4
-private const val MAIN_PROFILE_ID = 1
 
 /**
- * Add-ons installed automatically for a brand-new main profile. Neither needs any
- * user configuration:
- *  - Cinemeta is Stremio's keyless public catalog add-on.
- *  - AIOMetadata is a hosted metadata add-on whose URL embeds a saved configuration
- *    (`/stremio/<config-id>/manifest.json`); a config-free URL does not exist, so this
- *    fork deliberately ships the owner's configuration id
- *    `72194dd9-57a2-4c60-a4b1-462adfd81eae` as the shared default. Replace it here to
- *    point new accounts at a different AIOMetadata configuration.
+ * Add-ons installed automatically for a brand-new, independent, non-kids profile: the
+ * Nuvio catalog add-on, which provides the app's bundled content and needs no
+ * user configuration. Kids profiles get their managed KidsScreen add-on instead.
  */
 private val DEFAULT_ADDON_URLS = listOf(
-    "https://v3-cinemeta.strem.io/manifest.json",
-    "https://aiometadata.elfhosted.com/stremio/72194dd9-57a2-4c60-a4b1-462adfd81eae/manifest.json",
+    "https://catalog.nuvio.tv/manifest.json",
 )
 
 /** Log-safe manifest reference: strips any configuration token in the query. */

@@ -13,7 +13,6 @@ import './profileSharing.css';
 import './profileEditorParity.css';
 
 const defaultColor = '#1E88E5';
-const recommendedSubtitlesUrl = 'https://opensubtitles-v3.strem.io/manifest.json';
 const kidsServiceUrl = 'https://kids-screen.vercel.app';
 type CopyAddon = ProfileAddonChoice;
 
@@ -31,9 +30,6 @@ export function ProfileEditorPage() {
   const [color, setColor] = useState(defaultColor);
   const [backgroundId, setBackgroundId] = useState<string | null>(null);
   const [backgroundUrl, setBackgroundUrl] = useState('');
-  const [recommendedSubtitles, setRecommendedSubtitles] = useState(true);
-  const [subtitlesLoading, setSubtitlesLoading] = useState(isEditing);
-  const [subtitlesError, setSubtitlesError] = useState('');
   const [syncAddons, setSyncAddons] = useState(false);
   const [syncSettings, setSyncSettings] = useState(false);
   const [kidsEnabled, setKidsEnabled] = useState(false);
@@ -102,18 +98,6 @@ export function ProfileEditorPage() {
     return () => { cancelled = true; };
   }, [syncAddons, addonSyncProfileId, copyRetry]);
 
-  useEffect(() => {
-    setSubtitlesError('');
-    if (editingId === null) { setRecommendedSubtitles(true); setSubtitlesLoading(false); return; }
-    let cancelled = false;
-    setSubtitlesLoading(true);
-    void call<CopyAddon[]>('profiles.addons.snapshot', { id: editingId }).then(items => {
-      if (!cancelled) setRecommendedSubtitles(items.find(item => item.url === recommendedSubtitlesUrl)?.enabled ?? true);
-    }).catch(() => { if (!cancelled) setSubtitlesError('Could not load subtitle settings. Reopen this profile to retry.'); })
-      .finally(() => { if (!cancelled) setSubtitlesLoading(false); });
-    return () => { cancelled = true; };
-  }, [editingId]);
-
   function chooseAvatar(avatar: AvatarChoice) {
     if (avatar.memberOnly) return;
     setAvatarId(avatar.id); setAvatarUrl('');
@@ -137,7 +121,6 @@ export function ProfileEditorPage() {
       ...(targetId !== null ? { id: targetId } : {}),
       name: name.trim(),
       kidsEnabled,
-      ...(!isEditing || (!subtitlesLoading && !subtitlesError) ? { recommendedSubtitles } : {}),
       avatarColorHex: color,
       avatarId: safeAvatarUrl ? null : avatarId,
       avatarUrl: safeAvatarUrl || null,
@@ -226,7 +209,6 @@ export function ProfileEditorPage() {
           <p className="muted">Layout, playback, streams, integrations and other synced profile preferences are copied once; future changes are not synced. Add-ons and saved credentials are not copied.</p>
         </>}
       </section>}
-      <section className="settings-section profile-sharing-section"><h2>Subtitles</h2><label className="profile-addon-copy-row"><span><strong>OpenSubtitles v3</strong><small>Recommended</small></span><input type="checkbox" aria-label="OpenSubtitles v3 — Recommended" checked={recommendedSubtitles} disabled={subtitlesLoading} onChange={event => setRecommendedSubtitles(event.target.checked)} /></label><p className="muted">Included for every profile. Turn off to stop using this subtitle provider. Profiles syncing all add-ons share this choice.</p>{subtitlesError && <p role="alert">{subtitlesError}</p>}</section>
       {profile && <section className="settings-section profile-pin-section"><h2>Security</h2><p>{profile.locked ? 'This profile is protected with a PIN.' : 'Add a PIN if you want this profile locked before switching into it.'}</p><button type="button" className="button primary" onClick={() => setPinAction(profile.locked ? 'clear' : 'set')}>{profile.locked ? 'Remove PIN Lock' : 'Set PIN Lock'}</button></section>}
       <div className={`profile-editor-footer${isEditing ? ' is-editing' : ''}`}><button className="button primary" disabled={saving || creationIncomplete || !name.trim() || urlInvalid || !validAddonSource || !validSettingsSource || !copyReady}>{saving ? 'Saving…' : isEditing ? 'Save changes' : 'Create Profile'}</button>{profile && profile.id > 1 && <button type="button" className="button destructive" disabled={saving || deleting} onClick={() => { setDeleteError(''); setConfirmDelete(true); }}>Delete profile</button>}</div>
     </form>

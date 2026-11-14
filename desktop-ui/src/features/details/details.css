@@ -11,8 +11,8 @@
 /* Trailer layered over the viewport backdrop; same darkening-on-scroll and left-column shade. */
 .detail-hero-trailer{position:fixed;z-index:0;inset:0;overflow:hidden;background:#000;opacity:0;pointer-events:none;transition:opacity 600ms ease;filter:brightness(calc(1 - var(--details-scroll, 0) * .3))}
 .detail-hero-trailer.is-ready{opacity:1}
-/* Windows taller than 16:9 would crop the video's sides with `cover` (logos and corner marks get cut off); show the whole frame instead. */
-@media(max-aspect-ratio:16/9){.detail-hero-trailer .hover-trailer{object-fit:contain}}
+/* Never zoom the trailer: always show the whole frame, including the video's own black bezels. `cover` would crop the sides in windowed mode and the top/bottom in fullscreen. Any leftover space is black. */
+.detail-hero-trailer .hover-trailer{object-fit:contain}
 /* Held (scrolled down): fade back to the backdrop artwork underneath; fades in again on return. */
 .detail-hero-trailer.is-ready.is-paused{opacity:0}
 /* Page text faded or hidden: drop the readability shade entirely; it returns with the text. */

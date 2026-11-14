@@ -62,7 +62,7 @@ describe('DetailsHeroTrailer', () => {
     expect(bridge.call).not.toHaveBeenCalled();
     expect(document.querySelector('video')).toBeNull();
   });
-  it('pauses when the window loses focus without fading to the artwork, and resumes on focus', async () => {
+  it('pauses and fades back to the artwork when the window loses focus, and returns on focus', async () => {
     const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     const pause = vi.mocked(HTMLMediaElement.prototype.pause);
     bridge.call.mockResolvedValue({ videoUrl: 'https://v/5.mp4', audioUrl: null });
@@ -74,27 +74,35 @@ describe('DetailsHeroTrailer', () => {
     hasFocus.mockReturnValue(false);
     window.dispatchEvent(new Event('blur'));
     await waitFor(() => expect(pause).toHaveBeenCalled());
-    expect(document.querySelector('.detail-hero-trailer')).not.toHaveClass('is-paused');
+    await waitFor(() => expect(document.querySelector('.detail-hero-trailer')).toHaveClass('is-paused'));
     const play = vi.mocked(HTMLMediaElement.prototype.play);
     play.mockClear();
     hasFocus.mockReturnValue(true);
     window.dispatchEvent(new Event('focus'));
     await waitFor(() => expect(play).toHaveBeenCalled());
+    await waitFor(() => expect(document.querySelector('.detail-hero-trailer')).not.toHaveClass('is-paused'));
   });
-  it('offers a hide-interface toggle that reports the page UI state and restores it', async () => {
+  // The pause button is commented out in DetailsHeroTrailer.tsx; re-enable this with it.
+  it.skip('has a pause button that freezes the frame in place and plays again on a second press', async () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
-    const onUiState = vi.fn();
+    const pause = vi.mocked(HTMLMediaElement.prototype.pause);
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
     bridge.call.mockResolvedValue({ videoUrl: 'https://v/6.mp4', audioUrl: null });
-    render(<DetailsHeroTrailer type="movie" id="tt-ui" enabled onUiState={onUiState} />);
+    render(<DetailsHeroTrailer type="movie" id="tt-pause" enabled />);
     await waitFor(() => expect(document.querySelector('video')).not.toBeNull());
-    document.querySelector('video')!.dispatchEvent(new Event('canplay'));
-    const hide = await screen.findByRole('button', { name: 'Hide interface' });
-    hide.click();
-    await waitFor(() => expect(onUiState).toHaveBeenLastCalledWith('hidden'));
-    await waitFor(() => expect(document.querySelector('.detail-hero-trailer')).toHaveClass('is-immersive'));
-    (await screen.findByRole('button', { name: 'Show interface' })).click();
-    await waitFor(() => expect(onUiState).toHaveBeenLastCalledWith('shown'));
-    expect(document.querySelector('.detail-hero-trailer')).not.toHaveClass('is-immersive');
+    const video = document.querySelector('video')!;
+    Object.defineProperty(video, 'readyState', { value: 4, configurable: true });
+    video.dispatchEvent(new Event('canplay'));
+    const button = await screen.findByRole('button', { name: 'Pause trailer' });
+    expect(screen.queryByRole('button', { name: /interface/i })).toBeNull();
+    pause.mockClear();
+    button.click();
+    await waitFor(() => expect(pause).toHaveBeenCalled());
+    expect(document.querySelector('.detail-hero-trailer')).not.toHaveClass('is-paused');
+    play.mockClear();
+    (await screen.findByRole('button', { name: 'Play trailer' })).click();
+    await waitFor(() => expect(play).toHaveBeenCalled());
+    expect(await screen.findByRole('button', { name: 'Pause trailer' })).toBeInTheDocument();
   });
   it('fades back to the artwork when the trailer ends, then removes the player', async () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
@@ -112,10 +120,33 @@ describe('DetailsHeroTrailer', () => {
     expect(onUiState).toHaveBeenLastCalledWith('shown');
   });
   it('marks the layer paused so CSS can fade back to the artwork', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     bridge.call.mockResolvedValue({ videoUrl: 'https://v/4.mp4', audioUrl: null });
     render(<DetailsHeroTrailer type="movie" id="tt-layer" enabled />);
     await waitFor(() => expect(document.querySelector('.detail-hero-trailer')).not.toBeNull());
     expect(document.querySelector('.detail-hero-trailer')).not.toHaveClass('is-paused');
+  });
+  it('keeps the mute choice for the next title and after the app is reopened', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    localStorage.removeItem('nuvio.details.trailerMuted');
+    bridge.call.mockResolvedValue({ videoUrl: 'https://v/8.mp4', audioUrl: null });
+    const first = render(<DetailsHeroTrailer type="movie" id="tt-keep-1" enabled />);
+    await waitFor(() => expect(document.querySelector('video')).not.toBeNull());
+    document.querySelector('video')!.dispatchEvent(new Event('canplay'));
+    (await screen.findByRole('button', { name: 'Mute trailer' })).click();
+    await screen.findByRole('button', { name: 'Unmute trailer' });
+    first.unmount();
+    // Another title (a fresh page mount, or a full restart reading the same storage): still muted.
+    render(<DetailsHeroTrailer type="movie" id="tt-keep-2" enabled />);
+    await waitFor(() => expect(document.querySelector('video')).not.toBeNull());
+    document.querySelector('video')!.dispatchEvent(new Event('canplay'));
+    expect(await screen.findByRole('button', { name: 'Unmute trailer' })).toBeInTheDocument();
+    expect(document.querySelector('video')!.muted).toBe(true);
+    // Unmuting is remembered the same way.
+    (await screen.findByRole('button', { name: 'Unmute trailer' })).click();
+    await screen.findByRole('button', { name: 'Mute trailer' });
+    expect(localStorage.getItem('nuvio.details.trailerMuted')).toBe('0');
+    localStorage.removeItem('nuvio.details.trailerMuted');
   });
   it('shows a mute toggle once the video can play and remembers the choice', async () => {
     bridge.call.mockResolvedValue({ videoUrl: 'https://v/3.mp4', audioUrl: null });

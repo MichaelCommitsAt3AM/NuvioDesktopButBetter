@@ -11,6 +11,8 @@
 /* Trailer layered over the viewport backdrop; same darkening-on-scroll and left-column shade. */
 .detail-hero-trailer{position:fixed;z-index:0;inset:0;overflow:hidden;background:#000;opacity:0;pointer-events:none;transition:opacity 600ms ease;filter:brightness(calc(1 - var(--details-scroll, 0) * .3))}
 .detail-hero-trailer.is-ready{opacity:1}
+/* Windows taller than 16:9 would crop the video's sides with `cover` (logos and corner marks get cut off); show the whole frame instead. */
+@media(max-aspect-ratio:16/9){.detail-hero-trailer .hover-trailer{object-fit:contain}}
 /* Held (scrolled down): fade back to the backdrop artwork underneath; fades in again on return. */
 .detail-hero-trailer.is-ready.is-paused{opacity:0}
 /* Page text faded or hidden: drop the readability shade entirely; it returns with the text. */
@@ -19,7 +21,7 @@
 .detail-hero-trailer::after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.45);pointer-events:none}
 /* Wide screens: shade only the text column and a soft bottom edge for the cast rail; the right two-thirds stay bright. */
 @media(min-width:1000px){.detail-hero-trailer::after{background:linear-gradient(0deg,rgba(0,0,0,.5) 0%,rgba(0,0,0,0) 30%),linear-gradient(90deg,rgba(0,0,0,.74) 0%,rgba(0,0,0,.64) min(36vw,700px),rgba(0,0,0,.06) min(62vw,1100px),rgba(0,0,0,.03) 100%)}}
-/* While a trailer plays: idle fade (data-trailer-ui="faded") or manual hide ("hidden"). Controls live outside .detail-content-arrive and stay. */
+/* While a trailer plays and the page is idle (data-trailer-ui="faded"), the text fades. Controls live outside .detail-content-arrive and stay. */
 .detail-page :is(.detail-description,.detail-ratings-row,.detail-genres,.detail-meta-line,.detail-actions,.details-extras){transition:opacity 500ms ease}
 .detail-content-arrive>*{transition:opacity 500ms ease}
 .detail-page[data-trailer-ui="faded"] :is(.detail-description,.detail-ratings-row,.detail-genres,.detail-meta-line,.detail-actions,.details-extras){opacity:0}
@@ -30,13 +32,12 @@
 .detail-docked-title.is-visible{opacity:1;transform:translate(0,-50%)}
 .detail-docked-title img{display:block;height:38px;max-width:100%;object-fit:contain;object-position:left center;filter:drop-shadow(0 1px 6px rgba(0,0,0,.55))}
 .detail-docked-title span{color:#fff;font-size:24px;font-weight:800;letter-spacing:-.03em;line-height:1.1;text-shadow:0 1px 8px rgba(0,0,0,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.detail-page[data-trailer-ui="hidden"] .detail-content-arrive>*{opacity:0;pointer-events:none}
-.detail-trailer-ui-toggle{position:fixed;z-index:60;top:max(35px,env(safe-area-inset-top));right:calc(max(32px,env(safe-area-inset-right)) + 96px);display:grid;place-items:center;width:38px;height:38px;padding:0;border:0;border-radius:50%;background:rgba(0,0,0,.35);color:#fff;cursor:pointer;transition:transform 120ms cubic-bezier(.2,.8,.2,1),background-color 180ms ease}
-.detail-trailer-ui-toggle:hover{background:var(--selected-surface,#26384f)}
-.detail-trailer-ui-toggle:active{transform:scale(.94)}
-@media(min-width:1024px){.detail-trailer-ui-toggle{width:42px;height:42px;right:calc(max(32px,env(safe-area-inset-right)) + 104px)}}
-@media(min-width:1440px){.detail-trailer-ui-toggle{width:44px;height:44px;right:calc(max(32px,env(safe-area-inset-right)) + 108px)}}
-@media(prefers-reduced-motion:reduce){.detail-trailer-ui-toggle,.detail-content-arrive>*,.detail-docked-title,.detail-page .detail-logo,.detail-page .detail-main>h1,.detail-page :is(.detail-description,.detail-ratings-row,.detail-genres,.detail-meta-line,.detail-actions,.details-extras){transition:none}}
+.detail-trailer-pause{position:fixed;z-index:60;top:max(35px,env(safe-area-inset-top));right:calc(max(32px,env(safe-area-inset-right)) + 96px);display:grid;place-items:center;width:38px;height:38px;padding:0;border:0;border-radius:50%;background:rgba(0,0,0,.35);color:#fff;cursor:pointer;transition:transform 120ms cubic-bezier(.2,.8,.2,1),background-color 180ms ease}
+.detail-trailer-pause:hover{background:var(--selected-surface,#26384f)}
+.detail-trailer-pause:active{transform:scale(.94)}
+@media(min-width:1024px){.detail-trailer-pause{width:42px;height:42px;right:calc(max(32px,env(safe-area-inset-right)) + 104px)}}
+@media(min-width:1440px){.detail-trailer-pause{width:44px;height:44px;right:calc(max(32px,env(safe-area-inset-right)) + 108px)}}
+@media(prefers-reduced-motion:reduce){.detail-trailer-pause,.detail-content-arrive>*,.detail-docked-title,.detail-page .detail-logo,.detail-page .detail-main>h1,.detail-page :is(.detail-description,.detail-ratings-row,.detail-genres,.detail-meta-line,.detail-actions,.details-extras){transition:none}}
 .detail-trailer-mute{position:fixed;z-index:60;top:max(35px,env(safe-area-inset-top));right:calc(max(32px,env(safe-area-inset-right)) + 48px);display:grid;place-items:center;width:38px;height:38px;padding:0;border:0;border-radius:50%;background:rgba(0,0,0,.35);color:#fff;cursor:pointer;transition:transform 120ms cubic-bezier(.2,.8,.2,1),background-color 180ms ease}
 .detail-trailer-mute:hover{background:var(--selected-surface,#26384f)}
 .detail-trailer-mute:active{transform:scale(.94)}

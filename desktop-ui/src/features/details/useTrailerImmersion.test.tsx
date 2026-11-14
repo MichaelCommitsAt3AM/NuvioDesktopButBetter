@@ -1,17 +1,9 @@
 import { act, cleanup, fireEvent, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { IDLE_FADE_MS, trailerUiState, useTrailerImmersion } from './useTrailerImmersion';
+import { IDLE_FADE_MS, useTrailerImmersion } from './useTrailerImmersion';
 
 beforeEach(() => { vi.useFakeTimers(); });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
-
-describe('trailerUiState', () => {
-  it('lets a manual hide win over the idle fade', () => {
-    expect(trailerUiState(false, false)).toBe('shown');
-    expect(trailerUiState(true, false)).toBe('faded');
-    expect(trailerUiState(true, true)).toBe('hidden');
-  });
-});
 
 describe('useTrailerImmersion', () => {
   it('fades after the idle delay and not before', () => {
@@ -54,25 +46,10 @@ describe('useTrailerImmersion', () => {
     expect(result.current.faded).toBe(false);
   });
 
-  it('a manual hide ignores mouse movement but Escape and the toggle restore it', () => {
-    const { result } = renderHook(() => useTrailerImmersion(true));
-    act(() => { result.current.toggleHidden(); });
-    expect(result.current.state).toBe('hidden');
-    act(() => { fireEvent.mouseMove(window); });
-    expect(result.current.state).toBe('hidden');
-    act(() => { fireEvent.keyDown(window, { key: 'Escape' }); });
-    expect(result.current.state).toBe('shown');
-    act(() => { result.current.toggleHidden(); });
-    expect(result.current.hidden).toBe(true);
-    act(() => { result.current.toggleHidden(); });
-    expect(result.current.hidden).toBe(false);
-  });
-
-  it('resets both modes when the trailer stops playing, and never fades while it is not playing', () => {
+  it('resets when the trailer stops playing and never fades while it is not playing', () => {
     const { result, rerender } = renderHook(({ playing }) => useTrailerImmersion(playing), { initialProps: { playing: true } });
-    act(() => { result.current.toggleHidden(); });
     act(() => { vi.advanceTimersByTime(IDLE_FADE_MS + 10); });
-    expect(result.current.state).toBe('hidden');
+    expect(result.current.state).toBe('faded');
     rerender({ playing: false });
     expect(result.current.state).toBe('shown');
     act(() => { vi.advanceTimersByTime(IDLE_FADE_MS * 3); });

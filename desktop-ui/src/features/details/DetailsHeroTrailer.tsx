@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Eye, EyeOff, Volume2, VolumeX } from 'lucide-react';
+import { Volume2, VolumeX } from 'lucide-react'; // add Pause, Play back when restoring the pause button
 import { useTrailerImmersion, type TrailerUiState } from './useTrailerImmersion';
 import { call } from '../../bridge';
 import { HoverTrailer, type TrailerSource } from '../../components/HoverTrailer';
@@ -85,8 +85,10 @@ export function DetailsHeroTrailer({ type, id, enabled, visible = true, onUiStat
   const [ending, setEnding] = useState(false);
   // Scrolled past the pause line: also fades back to the artwork.
   const [paused, setPaused] = useState(false);
-  // Window deactivated or minimized: freeze in place, resume on return.
+  // Window deactivated or minimized: pause and fade back to the artwork, resume on return.
   const [focused, setFocused] = useState(appIsFocused);
+  // The pause button: freezes the current frame (no fade) until pressed again.
+  const [userPaused, setUserPaused] = useState(false);
   const [muted, setMuted] = useState(readMuted);
 
   useEffect(() => {
@@ -107,6 +109,7 @@ export function DetailsHeroTrailer({ type, id, enabled, visible = true, onUiStat
     setDone(false);
     setReady(false);
     setEnding(false);
+    setUserPaused(false);
     if (!enabled) return;
     let active = true;
     void prefetchHeroTrailer(type, id).then((next) => {
@@ -147,7 +150,7 @@ export function DetailsHeroTrailer({ type, id, enabled, visible = true, onUiStat
   };
 
   // The text fades only while the trailer is genuinely on screen and moving.
-  const immersion = useTrailerImmersion(playing && ready && !paused && focused && !ending);
+  const immersion = useTrailerImmersion(playing && ready && !paused && focused && !ending && !userPaused);
   useEffect(() => {
     if (!ending) return;
     const timer = window.setTimeout(() => setDone(true), END_FADE_MS);
@@ -160,7 +163,7 @@ export function DetailsHeroTrailer({ type, id, enabled, visible = true, onUiStat
 
   if (!playing || !source) return null;
   return createPortal(<>
-    <div className={`detail-hero-trailer${ready ? ' is-ready' : ''}${paused || ending ? ' is-paused' : ''}${immersion.state !== 'shown' ? ' is-immersive' : ''}`} aria-hidden="true">
+    <div className={`detail-hero-trailer${ready ? ' is-ready' : ''}${paused || !focused || ending ? ' is-paused' : ''}${immersion.state !== 'shown' ? ' is-immersive' : ''}`} aria-hidden="true">
       <HoverTrailer
         ownerId={`details-hero:${type}:${id}`}
         type={type}
@@ -168,7 +171,7 @@ export function DetailsHeroTrailer({ type, id, enabled, visible = true, onUiStat
         prefetched={source}
         soundEnabled={!muted}
         startSeconds={0}
-        paused={paused || !focused}
+        paused={paused || !focused || userPaused}
         holdWhenHidden
         onReady={() => setReady(true)}
         onDone={() => setEnding(true)}
@@ -178,9 +181,10 @@ export function DetailsHeroTrailer({ type, id, enabled, visible = true, onUiStat
       <button type="button" className="detail-trailer-mute" aria-label={muted ? 'Unmute trailer' : 'Mute trailer'} aria-pressed={muted} title={muted ? 'Unmute trailer' : 'Mute trailer'} onClick={toggleMuted}>
         {muted ? <VolumeX size={22} /> : <Volume2 size={22} />}
       </button>
-      <button type="button" className="detail-trailer-ui-toggle" aria-label={immersion.hidden ? 'Show interface' : 'Hide interface'} aria-pressed={immersion.hidden} title={immersion.hidden ? 'Show interface' : 'Hide interface'} onClick={immersion.toggleHidden}>
-        {immersion.hidden ? <Eye size={22} /> : <EyeOff size={22} />}
-      </button>
+      {/* Manual pause button, disabled for now. To restore: uncomment this block and the Pause/Play import above.
+      <button type="button" className="detail-trailer-pause" aria-label={userPaused ? 'Play trailer' : 'Pause trailer'} aria-pressed={userPaused} title={userPaused ? 'Play trailer' : 'Pause trailer'} onClick={() => setUserPaused((current) => !current)}>
+        {userPaused ? <Play size={22} /> : <Pause size={22} />}
+      </button> */}
     </>}
   </>, document.body);
 }

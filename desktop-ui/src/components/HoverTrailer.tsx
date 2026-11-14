@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { call } from '../bridge';
 
+/** How long the sound takes to ease from silence to full volume each time playback starts. */
+export const VOLUME_FADE_IN_MS = 900;
+
 export type TrailerSource = { videoUrl: string; audioUrl?: string | null };
 
 // Single-owner policy: only one preview trailer plays at a time. A newly
@@ -56,6 +59,26 @@ export function HoverTrailer({ ownerId, type, id, soundEnabled, startSeconds, on
   holdRef.current = holdWhenHidden;
   const soundRef = useRef(soundEnabled);
   soundRef.current = soundEnabled;
+  // Sound eases in whenever playback (re)starts, so a loud first frame is not abrupt.
+  // Both elements are driven together: the video's volume is only a control value
+  // while a separate audio track plays.
+  const rampRef = useRef(0);
+  const rampVolume = () => {
+    cancelAnimationFrame(rampRef.current);
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!video) return;
+    const started = performance.now();
+    const apply = (level: number) => { video.volume = level; if (audio) audio.volume = level; };
+    apply(0);
+    const step = (now: number) => {
+      const progress = Math.min(1, Math.max(0, (now - started) / VOLUME_FADE_IN_MS));
+      apply(progress * progress);
+      if (progress < 1) rampRef.current = requestAnimationFrame(step);
+    };
+    rampRef.current = requestAnimationFrame(step);
+  };
+  useEffect(() => () => cancelAnimationFrame(rampRef.current), []);
 
   useEffect(() => {
     let active = true;
@@ -112,9 +135,11 @@ export function HoverTrailer({ ownerId, type, id, soundEnabled, startSeconds, on
           try {
             if (audio) {
               audio.currentTime = video.currentTime;
+              rampVolume();
               audio.muted = false;
               await audio.play();
             } else {
+              rampVolume();
               video.muted = false;
               await video.play();
             }
@@ -137,7 +162,7 @@ export function HoverTrailer({ ownerId, type, id, soundEnabled, startSeconds, on
     if (!video || !source) return;
     if (paused) { video.pause(); audioRef.current?.pause(); }
     else if (video.paused && !video.ended && video.readyState >= 2) {
-      if (soundRef.current && !audioRef.current) video.muted = false;
+      if (soundRef.current && !audioRef.current) { rampVolume(); video.muted = false; }
       void video.play().catch(() => { video.muted = true; void video.play().catch(() => {}); });
     }
   }, [paused, source]);
@@ -149,7 +174,11 @@ export function HoverTrailer({ ownerId, type, id, soundEnabled, startSeconds, on
     if (!video || !audio || owner !== ownerId) return;
     if (Math.abs(audio.currentTime - video.currentTime) > 0.25) audio.currentTime = video.currentTime;
     audio.volume = video.volume;
-    if (resume && soundEnabled && !video.paused && audio.paused) {
+    // `video.paused` flips to false the moment play() is called, while the video
+    // may still be buffering. Starting the audio then plays sound with no picture
+    // and the later resync replays its first moments. Wait for real playback.
+    const videoRunning = !video.paused && !video.seeking && video.readyState >= 3;
+    if (resume && soundEnabled && videoRunning && audio.paused) {
       audio.muted = false;
       void audio.play()?.catch(() => { audio.muted = true; audio.pause(); });
     }
@@ -167,7 +196,7 @@ export function HoverTrailer({ ownerId, type, id, soundEnabled, startSeconds, on
       }
     }}
     onCanPlay={() => { setReady(true); readyRef.current(); }}
-    onPlaying={() => alignAudio(true)}
+    onPlaying={() => { if (soundRef.current) rampVolume(); alignAudio(true); }}
     onTimeUpdate={() => alignAudio(false)}
     onSeeked={() => alignAudio(true)}
     onSeeking={() => audioRef.current?.pause()}

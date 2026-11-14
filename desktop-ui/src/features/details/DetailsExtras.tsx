@@ -33,7 +33,7 @@ export type ExtrasMeta = {
   seasonPosters: Record<string, string>; videos: Video[];
   loadingSections?: string[];
 };
-export type DetailsPrimaryAction = { label: string; videoId: string; seasonNumber: number | null; episodeNumber: number | null; episodeTitle: string | null; episodeThumbnail: string | null; resumePositionMs: number | null };
+export type DetailsPrimaryAction = { label: string; videoId: string; seasonNumber: number | null; episodeNumber: number | null; episodeTitle: string | null; episodeThumbnail: string | null; resumePositionMs: number | null; durationMs?: number | null };
 type WatchedSnapshot = { loaded: boolean; episodeProgress?: Record<string, number>; watchedKeys: string[]; watched?: boolean; fullyWatched?: boolean; episodes?: Array<{ season: number | null; episode: number | null; videoId: string | null; key: string }> };
 type DetailComment = { id: number; authorDisplayName: string; authorUsername: string | null; comment: string; spoiler: boolean; containsInlineSpoilers: boolean; review: boolean; likes: number; rating: number | null; createdAt: string | null; updatedAt: string | null };
 type CommentsPage = { enabled: boolean; items: DetailComment[]; currentPage: number; pageCount: number; itemCount: number };

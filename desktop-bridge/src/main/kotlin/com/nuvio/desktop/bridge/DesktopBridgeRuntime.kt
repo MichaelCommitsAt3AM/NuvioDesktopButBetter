@@ -442,6 +442,11 @@ class DesktopBridgeRuntime {
                             requestJobs.remove("playback")?.cancel()
                             KidsBridge.authorize(method, params)
                             dispatch(method, params, id)
+                        } else if (method in unserializedMethods) {
+                            // Slow, read-only lookups must not hold every other RPC
+                            // (details loading, navigation) behind rpcMutex.
+                            KidsBridge.authorize(method, params)
+                            dispatch(method, params, id)
                         } else rpcMutex.withLock {
                             if (requestEpoch != null && requestEpoch != epoch) error("STALE_EPOCH")
                             KidsBridge.authorize(method, params)
@@ -597,6 +602,8 @@ class DesktopBridgeRuntime {
     }
 
     private val epochChangingMethods = setOf("session.signIn", "session.signUp", "session.guest", "session.signOut", "profiles.select", "profiles.delete")
+    /** Pure read-only methods that can take seconds (YouTube extraction) and therefore run outside rpcMutex. */
+    private val unserializedMethods = setOf("trailers.resolveHover")
     private val epochOptionalMethods = setOf("session.snapshot", "session.signIn", "session.signUp", "session.guest", "playback.hostFullscreenChanged")
 
     private suspend fun dispatch(method: String, params: JsonObject, requestId: String): JsonElement = when (method) {

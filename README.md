@@ -26,6 +26,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- Title pages play the trailer behind the artwork as soon as it loads, with a mute button. It pauses when you scroll down to the seasons and can be turned off under Settings → Details page → Hero trailer playback.
+
 - Synced with upstream 0.1.35: Continue Watching and Up Next cards can be marked as watched from their menu, and subtitle add-ons receive the playing file's name, size and hash for better matches.
 
 - Preferred subtitles are rechecked when embedded tracks or add-on results appear late, while manual subtitle choices remain in effect.
@@ -58,7 +60,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - TMDB enrichment preferences follow profiles across devices and platforms, including fresh installations. Kids profiles default to enrichment on, using their existing KidsScreen configuration; explicit opt-outs are preserved.
 
 - Provider accounts and API keys stay separate for each profile, including TorBox and Premiumize. Switching profiles reloads the correct credentials.
-- Every profile includes OpenSubtitles v3, checked by default and marked Recommended, with an option to turn it off. Kids-profile add-on selection disables Cinemeta and AIOMetadata; the add-on sync card follows Kids settings.
+- Every profile automatically includes the OpenSubtitles Pro add-on (no option when creating a profile; it can still be switched off in the add-on list). New independent, non-kids profiles also get the Nuvio catalog add-on. Kids-profile add-on selection disables Cinemeta, AIOMetadata and the Nuvio catalog add-on; the add-on sync card follows Kids settings.
 
 - Settings search finds file size limits and other result filters, handles common wording and small typos, and jumps to the matching control.
 - Cast and trailers stay in horizontal rows in the installed rewrite. Details poster rows use Home’s scroll arrows and rounded hover cards without three-dot buttons; trailer categories use the Kotlin-style menu with video counts.
@@ -72,7 +74,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - Kids profiles can use the separate KidsScreen add-on, a personal TMDB API key. Profile PINs are optional. Home, featured titles, search, library, related titles and playback follow the chosen US rating limit. KidsScreen also excludes Horror movies regardless of rating. Setup uses the hosted KidsScreen service automatically and keeps the personal TMDB key field. This needs the kids-profile database migrations.
 
 - Home keeps shimmering placeholders while a switched profile’s add-ons and catalogs load, showing the empty state only once loading settles.
-- New accounts automatically add Cinemeta and AIOMetadata. Their manifests, movie lists and artwork still need an internet connection on first launch; cached manifests speed up later launches and profile switches. Home shows the first page of cards as soon as it arrives, including in kids profiles, while the rest of each shelf loads in the background. Next Up metadata loads in the background so it cannot hold up Home and navigation.
+- New accounts automatically add the Nuvio catalog add-on (not for kids profiles). Their manifests, movie lists and artwork still need an internet connection on first launch; cached manifests speed up later launches and profile switches. Home shows the first page of cards as soon as it arrives, including in kids profiles, while the rest of each shelf loads in the background. Next Up metadata loads in the background so it cannot hold up Home and navigation.
 - Featured titles get a full eight seconds after their background artwork loads before automatically moving to the next title.
 - Fullscreen/windowed buttons stay in the top-right corner as you scroll on Home, Library, title details, Collections, profile editing and stream loading. Their icon and tooltip show whether they will enter or exit fullscreen.
 - Switching profiles returns to Home. AMOLED Black and List episode cards are the desktop defaults; saved choices are kept.

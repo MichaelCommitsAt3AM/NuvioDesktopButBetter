@@ -54,6 +54,42 @@ class HeroTrailerSelectorTest {
         assertNull(selectHeroTrailer(listOf(trailer(id = "other", site = "Vimeo"))))
     }
 
+    @Test
+    fun `original selector prefers the earliest official trailer over later cuts`() {
+        val trailers = listOf(
+            trailer(id = "international", type = "Trailer", official = true, publishedAt = "2026-04-02T10:00:00.000Z"),
+            trailer(id = "trailer-2", type = "Trailer", official = true, publishedAt = "2026-03-01T10:00:00.000Z"),
+            trailer(id = "original", type = "Trailer", official = true, publishedAt = "2026-01-15T10:00:00.000Z"),
+            trailer(id = "early-teaser", type = "Teaser", official = true, publishedAt = "2025-12-01T10:00:00.000Z"),
+        )
+
+        assertEquals("original", selectOriginalTrailer(trailers)?.id)
+        assertEquals("international", selectHeroTrailer(trailers)?.id)
+    }
+
+    @Test
+    fun `original selector sends undated trailers last and keeps type priority`() {
+        val undated = trailer(id = "undated", type = "Trailer", official = true, publishedAt = null)
+        val dated = trailer(id = "dated", type = "Trailer", official = true, publishedAt = "2026-02-01")
+        assertEquals("dated", selectOriginalTrailer(listOf(undated, dated))?.id)
+        assertEquals("official", selectOriginalTrailer(listOf(
+            trailer(id = "older-unofficial", type = "Trailer", official = false, publishedAt = "2025-01-01"),
+            trailer(id = "official", type = "Trailer", official = true, publishedAt = "2026-01-01"),
+        ))?.id)
+        assertNull(selectOriginalTrailer(emptyList()))
+    }
+
+    @Test
+    fun `original ordering lists oldest first with undated last`() {
+        val sorted = listOf(
+            trailer(id = "c", publishedAt = "2026-03-01"),
+            trailer(id = "none", publishedAt = null),
+            trailer(id = "a", publishedAt = "2026-01-01"),
+            trailer(id = "b", publishedAt = "2026-02-01"),
+        ).sortedWith(originalTrailerFirst).map { it.id }
+        assertEquals(listOf("a", "b", "c", "none"), sorted)
+    }
+
     private fun trailer(
         id: String,
         key: String = id,

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useNavigationType, useParams } from 'react-router-dom';
 import { BackButton } from '../../components/BackButton';
+import { FullscreenButton } from '../../components/FullscreenButton';
 import { Poster } from '../../components/Poster';
 import { PosterLoadingCard } from '../../components/PosterLoadingCard';
 import { HorizontalRail } from '../../components/HorizontalRail';
@@ -128,6 +129,7 @@ export function PersonPage() {
     event.currentTarget.style.setProperty('--person-collapse', String(progress));
   }}>
     <div className="person-controls"><BackButton className="person-back" onClick={back} /></div>
+    <FullscreenButton onError={setError} />
     {error && !person ? <div className="person-error"><h1>Something went wrong</h1><InlineError message={error} onRetry={() => setRetry((value) => value + 1)} /></div> : <div className="person-columns" aria-busy={loading}>
       <aside ref={sidebarRef} className="person-identity" aria-label="Personal information">
         <div className="person-avatar-halo"><div ref={photoRef} className="person-avatar" style={{ transformOrigin: 'top left' }}>

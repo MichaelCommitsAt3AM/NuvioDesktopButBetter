@@ -4,6 +4,7 @@ import { FullscreenButton } from '../../components/FullscreenButton';
 import { Activity, ArrowLeft, Check, Copy, Download, LoaderCircle, RefreshCw, Settings2, Gauge, X } from 'lucide-react';
 import { actions, BridgeError, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { EmptyState } from '../../components/EmptyState';
+import { ResumeBadge } from '../../components/ResumeBadge';
 import { InlineError } from '../../components/Status';
 import { Dialog } from '../../components/Dialog';
 import { notifyDownloadStarted } from '../downloads/DownloadNotifications';
@@ -275,7 +276,7 @@ export function StreamsPage() {
       <section className="streams-glass-panel" aria-label="Available streams">
         <div className="streams-controls-top">
           <div className="streams-resume-slot">
-            {!startFromBeginning && (resumeProgress > 0 || resumePositionMs > 0) && <span className="streams-resume-banner">{resumeProgress > 0 ? `Resume from ${Math.round(resumeProgress * 100)}%` : `Resume from ${formatClock(resumePositionMs)}`}</span>}
+            {!startFromBeginning && (resumeProgress > 0 || resumePositionMs > 0) && <ResumeBadge>{resumeProgress > 0 ? `Resume from ${Math.round(resumeProgress * 100)}%` : `Resume from ${formatClock(resumePositionMs)}`}</ResumeBadge>}
           </div>
         </div>
         <div className="streams-provider-row" aria-label="Stream providers">

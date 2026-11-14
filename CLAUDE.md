@@ -8,6 +8,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Nuvio Desktop is a Kotlin Multiplatform + Compose Multiplatform media hub for Windows, macOS, and Linux. It's built from the same monorepo lineage as the separate NuvioMobile project — Android and iOS targets exist here too (`androidApp/`, `iosApp/`), sharing the same `com.nuvio.app` package and feature set in `composeApp/src/commonMain/`, but the desktop target (`composeApp/src/desktopMain/`) is this repo's primary focus. It's a client for the Stremio addon ecosystem — it does not host or distribute content itself (see README "Legal & DMCA" section before making any change that touches source/addon handling).
 
+## Related projects
+
+- **NuvioMobileButBetter** (`C:\projects\Nuvio\NuvioMobileButBetter`) is the sibling fork for the Android/iOS app. It shares this repo's lineage, the `com.nuvio.app` package, the Kotlin shared code layout and the hosted Supabase backend. When a feature exists on mobile but not here (or the reverse), check that checkout for the reference implementation before building from scratch.
+- **nuvio_backend** is the shared backend repo (see "Supabase backend" below).
+
+## Keeping CLAUDE.md and AGENTS.md in sync
+
+`CLAUDE.md` and `AGENTS.md` must carry the same guidance. Any instruction, note or rule added to or changed in one must be applied to the other in the same change.
+
 ## Commands
 
 ```bash

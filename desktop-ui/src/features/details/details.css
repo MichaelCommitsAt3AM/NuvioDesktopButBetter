@@ -8,6 +8,41 @@
 .detail-viewport-backdrop.detail-dominant-fallback{opacity:.55;filter:saturate(1.2) brightness(calc(1 - var(--details-scroll, 0) * .3))}
 /* Protect the left content column while revealing more artwork on wide screens. */
 @media(min-width:1000px){.detail-viewport-backdrop{--title-backdrop-shade:linear-gradient(90deg,rgba(0,0,0,.72) 0%,rgba(0,0,0,.65) min(65vw,900px),rgba(0,0,0,.1) 100%)}}
+/* Trailer layered over the viewport backdrop; same darkening-on-scroll and left-column shade. */
+.detail-hero-trailer{position:fixed;z-index:0;inset:0;overflow:hidden;background:#000;opacity:0;pointer-events:none;transition:opacity 600ms ease;filter:brightness(calc(1 - var(--details-scroll, 0) * .3))}
+.detail-hero-trailer.is-ready{opacity:1}
+/* Held (scrolled down): fade back to the backdrop artwork underneath; fades in again on return. */
+.detail-hero-trailer.is-ready.is-paused{opacity:0}
+/* Page text faded or hidden: drop the readability shade entirely; it returns with the text. */
+.detail-hero-trailer::after{transition:opacity 500ms ease}
+.detail-hero-trailer.is-immersive::after{opacity:0}
+.detail-hero-trailer::after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.45);pointer-events:none}
+/* Wide screens: shade only the text column and a soft bottom edge for the cast rail; the right two-thirds stay bright. */
+@media(min-width:1000px){.detail-hero-trailer::after{background:linear-gradient(0deg,rgba(0,0,0,.5) 0%,rgba(0,0,0,0) 30%),linear-gradient(90deg,rgba(0,0,0,.74) 0%,rgba(0,0,0,.64) min(36vw,700px),rgba(0,0,0,.06) min(62vw,1100px),rgba(0,0,0,.03) 100%)}}
+/* While a trailer plays: idle fade (data-trailer-ui="faded") or manual hide ("hidden"). Controls live outside .detail-content-arrive and stay. */
+.detail-page :is(.detail-description,.detail-ratings-row,.detail-genres,.detail-meta-line,.detail-actions,.details-extras){transition:opacity 500ms ease}
+.detail-content-arrive>*{transition:opacity 500ms ease}
+.detail-page[data-trailer-ui="faded"] :is(.detail-description,.detail-ratings-row,.detail-genres,.detail-meta-line,.detail-actions,.details-extras){opacity:0}
+/* The in-flow title fades with the rest; a fixed small copy (DockedTitle) takes its place at the top left. */
+.detail-page .detail-logo,.detail-page .detail-main>h1{transition:opacity 500ms ease}
+.detail-page[data-trailer-ui="faded"] .detail-logo,.detail-page[data-trailer-ui="faded"] .detail-main>h1{opacity:0!important}
+.detail-docked-title{position:fixed;z-index:25;transform:translate(-10px,-50%);display:flex;align-items:center;max-width:min(340px,32vw);opacity:0;pointer-events:none;transition:opacity 500ms ease,transform 600ms cubic-bezier(.2,.75,.25,1)}
+.detail-docked-title.is-visible{opacity:1;transform:translate(0,-50%)}
+.detail-docked-title img{display:block;height:38px;max-width:100%;object-fit:contain;object-position:left center;filter:drop-shadow(0 1px 6px rgba(0,0,0,.55))}
+.detail-docked-title span{color:#fff;font-size:24px;font-weight:800;letter-spacing:-.03em;line-height:1.1;text-shadow:0 1px 8px rgba(0,0,0,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.detail-page[data-trailer-ui="hidden"] .detail-content-arrive>*{opacity:0;pointer-events:none}
+.detail-trailer-ui-toggle{position:fixed;z-index:60;top:max(35px,env(safe-area-inset-top));right:calc(max(32px,env(safe-area-inset-right)) + 96px);display:grid;place-items:center;width:38px;height:38px;padding:0;border:0;border-radius:50%;background:rgba(0,0,0,.35);color:#fff;cursor:pointer;transition:transform 120ms cubic-bezier(.2,.8,.2,1),background-color 180ms ease}
+.detail-trailer-ui-toggle:hover{background:var(--selected-surface,#26384f)}
+.detail-trailer-ui-toggle:active{transform:scale(.94)}
+@media(min-width:1024px){.detail-trailer-ui-toggle{width:42px;height:42px;right:calc(max(32px,env(safe-area-inset-right)) + 104px)}}
+@media(min-width:1440px){.detail-trailer-ui-toggle{width:44px;height:44px;right:calc(max(32px,env(safe-area-inset-right)) + 108px)}}
+@media(prefers-reduced-motion:reduce){.detail-trailer-ui-toggle,.detail-content-arrive>*,.detail-docked-title,.detail-page .detail-logo,.detail-page .detail-main>h1,.detail-page :is(.detail-description,.detail-ratings-row,.detail-genres,.detail-meta-line,.detail-actions,.details-extras){transition:none}}
+.detail-trailer-mute{position:fixed;z-index:60;top:max(35px,env(safe-area-inset-top));right:calc(max(32px,env(safe-area-inset-right)) + 48px);display:grid;place-items:center;width:38px;height:38px;padding:0;border:0;border-radius:50%;background:rgba(0,0,0,.35);color:#fff;cursor:pointer;transition:transform 120ms cubic-bezier(.2,.8,.2,1),background-color 180ms ease}
+.detail-trailer-mute:hover{background:var(--selected-surface,#26384f)}
+.detail-trailer-mute:active{transform:scale(.94)}
+@media(min-width:1024px){.detail-trailer-mute{width:42px;height:42px;right:calc(max(32px,env(safe-area-inset-right)) + 52px)}}
+@media(min-width:1440px){.detail-trailer-mute{width:44px;height:44px;right:calc(max(32px,env(safe-area-inset-right)) + 54px)}}
+@media(prefers-reduced-motion:reduce){.detail-hero-trailer,.detail-hero-trailer::after,.detail-trailer-mute{transition:none}}
 .detail-screen-controls{position:sticky;top:0;z-index:20;height:0;pointer-events:none;display:flex;align-items:center}
 .detail-condensed-title{flex:1;min-width:0;margin:0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#f2f3f5;font-size:15px;font-weight:650;opacity:var(--details-scroll, 0);transition:opacity 160ms ease;pointer-events:none}
 .person-page .detail-condensed-title,.entity-page .detail-condensed-title{opacity:1}
@@ -56,6 +91,8 @@
 @keyframes detail-logo-reveal{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.detail-logo-loading,.detail-logo-ready{animation:none}}
 .detail-meta-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:17px;color:#f0f0f0;font-size:14px;transform:translateY(17px)}
+/* Compact variant of the shared resume pill so it sits level with the age rating. */
+.detail-meta-line .resume-badge{min-height:26px;padding:0 10px;border-radius:13px;font-size:13px;font-weight:600}
 .detail-age-rating{display:inline-flex;align-items:center;justify-content:center;flex:none;min-width:26px;padding:3px 7px;border:1px solid #ffffff59;border-radius:7px;color:var(--muted,#989da2);font-size:13px;font-weight:500;line-height:1.2;white-space:nowrap}
 .detail-meta-line>strong{font-size:15px;font-weight:700}.detail-rating{display:flex;align-items:center;gap:5px;padding:3px 7px;border:1px solid #ffffff25;border-radius:7px;background:#ffffff12;font-size:13px}.detail-rating img{width:25px;height:14px;object-fit:contain}.detail-rating strong{color:#f2d34f;font-size:13px}
 .detail-ratings-row{display:flex;align-items:center;gap:16px;min-height:20px;margin-top:12px;transform:translateY(17px)}.detail-external-rating{display:inline-flex;align-items:center;gap:4px;color:#eee;font-size:13px}.detail-external-rating>img{width:25px;height:20px;object-fit:contain}.detail-external-rating>strong{font-size:13px;font-weight:700}.detail-imdb>strong{color:#f2d34f}.detail-tomatoes>strong{color:#ed5454}

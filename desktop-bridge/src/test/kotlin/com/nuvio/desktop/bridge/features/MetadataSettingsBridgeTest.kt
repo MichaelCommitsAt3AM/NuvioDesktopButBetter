@@ -7,18 +7,23 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 
 class MetadataSettingsBridgeTest {
-    @Test fun rewriteDoesNotAdvertiseOrEnableTheMissingHeroTrailerRenderer() = runBlocking {
-        val snapshot = MetadataSettingsBridge.snapshot()
-        assertEquals("false", snapshot["heroTrailerPlaybackSupported"]?.jsonPrimitive?.content)
-        assertEquals("false", snapshot["heroTrailerPlayback"]?.jsonPrimitive?.content)
-        val original = MetaScreenSettingsRepository.uiState.value.heroTrailerPlayback
-        val error = assertFailsWith<BridgeFeatureException> {
-            MetadataSettingsBridge.dispatch("metadataSettings.set", Json.parseToJsonElement("""{"key":"heroTrailerPlayback","value":true}""") as JsonObject)
+    @Test fun heroTrailerAutoplayIsSupportedAndDefaultsOnButStaysIndependentOfTheLegacyFlag() = runBlocking {
+        val original = MetaScreenSettingsRepository.uiState.value.desktopHeroTrailerAutoplay
+        val legacy = MetaScreenSettingsRepository.uiState.value.heroTrailerPlayback
+        try {
+            MetaScreenSettingsRepository.resetToDefaults()
+            val snapshot = MetadataSettingsBridge.snapshot()
+            assertEquals("true", snapshot["heroTrailerPlaybackSupported"]?.jsonPrimitive?.content)
+            assertEquals("true", snapshot["heroTrailerPlayback"]?.jsonPrimitive?.content)
+
+            val off = MetadataSettingsBridge.dispatch("metadataSettings.set", Json.parseToJsonElement("""{"key":"heroTrailerPlayback","value":false}""") as JsonObject) as JsonObject
+            assertEquals("false", off["heroTrailerPlayback"]?.jsonPrimitive?.content)
+            assertEquals(false, MetaScreenSettingsRepository.uiState.value.desktopHeroTrailerAutoplay)
+            assertEquals(legacy, MetaScreenSettingsRepository.uiState.value.heroTrailerPlayback)
+        } finally {
+            MetaScreenSettingsRepository.setDesktopHeroTrailerAutoplay(original)
         }
-        assertEquals("CAPABILITY_UNAVAILABLE", error.code)
-        assertEquals(original, MetaScreenSettingsRepository.uiState.value.heroTrailerPlayback)
     }
 }

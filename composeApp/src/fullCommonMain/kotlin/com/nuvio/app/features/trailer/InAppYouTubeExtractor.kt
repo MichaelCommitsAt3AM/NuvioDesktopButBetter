@@ -15,6 +15,7 @@ internal const val TRAILER_REQUEST_TIMEOUT_MS = 20_000L
 
 private const val EXTRACTOR_TIMEOUT_MS = 30_000L
 private const val PREFERRED_SEPARATE_CLIENT = "visionos"
+private const val WEB_PLAYABLE_MAX_HEIGHT = 1080
 
 private val VIDEO_ID_REGEX = Regex("^[a-zA-Z0-9_-]{11}$")
 private val API_KEY_REGEX = Regex("\"INNERTUBE_API_KEY\":\"([^\"]+)\"")
@@ -142,9 +143,18 @@ class InAppYouTubeExtractor {
     suspend fun extractSingleUrl(youtubeUrl: String): String? =
         extract(youtubeUrl, singleUrl = true)?.videoUrl
 
+    /**
+     * Fork-only: sources a Chromium `<video>` element can play (the React desktop
+     * UI). No HLS manifests and no AV1; H.264 video up to 1080p plus AAC audio,
+     * falling back to the combined progressive stream.
+     */
+    suspend fun extractWebPlayableSource(youtubeUrl: String): TrailerPlaybackSource? =
+        extract(youtubeUrl, singleUrl = false, webPlayable = true)
+
     private suspend fun extract(
         youtubeUrl: String,
         singleUrl: Boolean,
+        webPlayable: Boolean = false,
     ): TrailerPlaybackSource? = withContext(Dispatchers.Default) {
         if (youtubeUrl.isBlank()) {
             TrailerExtractionPlatform.diagnostic("blocked stage=input reason=blank_url")
@@ -153,7 +163,7 @@ class InAppYouTubeExtractor {
 
         runCatching {
             withTimeout(EXTRACTOR_TIMEOUT_MS) {
-                extractPlaybackSourceInternal(youtubeUrl, singleUrl)
+                extractPlaybackSourceInternal(youtubeUrl, singleUrl, webPlayable)
             }
         }.onFailure {
             TrailerExtractionPlatform.diagnostic(
@@ -166,6 +176,7 @@ class InAppYouTubeExtractor {
     private suspend fun extractPlaybackSourceInternal(
         youtubeUrl: String,
         singleUrl: Boolean,
+        webPlayable: Boolean = false,
     ): TrailerPlaybackSource? {
         val videoId = extractVideoId(youtubeUrl)
         if (videoId == null) {
@@ -349,6 +360,23 @@ class InAppYouTubeExtractor {
         }
 
         val bestProgressive = sortCandidates(progressive).firstOrNull()
+        if (webPlayable) {
+            val webVideo = adaptiveVideo
+                .filter { it.ext == "mp4" && it.mimeType.contains("avc1") && it.height in 1..WEB_PLAYABLE_MAX_HEIGHT }
+                .sortedWith(compareByDescending<StreamCandidate> { it.height }.thenByDescending { it.bitrate })
+                .firstOrNull()
+            val webAudio = sortCandidates(adaptiveAudio.filter { it.ext == "m4a" }).firstOrNull()
+            TrailerExtractionPlatform.diagnostic(
+                "web-playable video=${webVideo.diagnosticSummary()} audio=${webAudio.diagnosticSummary()} " +
+                    "progressive=${bestProgressive.diagnosticSummary()}",
+            )
+            return TrailerExtractionPlatform.buildPlaybackSource(
+                bestManifest = null,
+                bestProgressive = bestProgressive,
+                bestVideo = webVideo,
+                bestAudio = webAudio,
+            )
+        }
         if (singleUrl) {
             return singleUrlSource(bestManifest, bestProgressive)
         }

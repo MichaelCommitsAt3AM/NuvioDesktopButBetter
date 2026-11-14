@@ -27,7 +27,7 @@ export function releaseTrailerOwner(id: string): void {
  * loss, hidden window, or unmount tears the player down and reports
  * completion so the caller restores the artwork fallback.
  */
-export function HoverTrailer({ ownerId, type, id, soundEnabled, startSeconds, onReady, onDone }: {
+export function HoverTrailer({ ownerId, type, id, soundEnabled, startSeconds, onReady, onDone, prefetched, paused = false, holdWhenHidden = false }: {
   ownerId: string;
   type: string;
   id: string;
@@ -35,6 +35,12 @@ export function HoverTrailer({ ownerId, type, id, soundEnabled, startSeconds, on
   startSeconds: number;
   onReady: () => void;
   onDone: () => void;
+  /** Already-resolved source (e.g. prefetched by the details hero); skips the bridge call. */
+  prefetched?: TrailerSource;
+  /** Holds playback (e.g. the hero scrolled out of view) without tearing the player down. */
+  paused?: boolean;
+  /** When the window is hidden, only pause (the owner resumes it via `paused`) instead of ending playback. */
+  holdWhenHidden?: boolean;
 }) {
   const [source, setSource] = useState<TrailerSource | null>(null);
   const [ready, setReady] = useState(false);
@@ -44,13 +50,20 @@ export function HoverTrailer({ ownerId, type, id, soundEnabled, startSeconds, on
   doneRef.current = onDone;
   const readyRef = useRef(onReady);
   readyRef.current = onReady;
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
+  const holdRef = useRef(holdWhenHidden);
+  holdRef.current = holdWhenHidden;
+  const soundRef = useRef(soundEnabled);
+  soundRef.current = soundEnabled;
 
   useEffect(() => {
     let active = true;
     takeTrailerOwner(ownerId);
     setSource(null);
     setReady(false);
-    void call<TrailerSource>('trailers.resolveHover', { type, id })
+    if (prefetched) setSource(prefetched);
+    else void call<TrailerSource>('trailers.resolveHover', { type, id })
       .then((result) => {
         if (!active || owner !== ownerId) return;
         if (result?.videoUrl) setSource({ videoUrl: result.videoUrl, audioUrl: result.audioUrl ?? null });
@@ -68,7 +81,7 @@ export function HoverTrailer({ ownerId, type, id, soundEnabled, startSeconds, on
       if (document.visibilityState === 'hidden') {
         videoRef.current?.pause();
         audioRef.current?.pause();
-        doneRef.current();
+        if (!holdRef.current) doneRef.current();
       }
     };
     window.addEventListener('nuvio:trailer-owner', takeover);
@@ -81,7 +94,7 @@ export function HoverTrailer({ ownerId, type, id, soundEnabled, startSeconds, on
       audioRef.current?.pause();
       releaseTrailerOwner(ownerId);
     };
-  }, [ownerId, type, id]);
+  }, [ownerId, type, id, prefetched]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -91,8 +104,10 @@ export function HoverTrailer({ ownerId, type, id, soundEnabled, startSeconds, on
     const start = async () => {
       try {
         video.muted = true;
+        if (pausedRef.current) return;
         await video.play();
         if (cancelled || owner !== ownerId) return;
+        if (!soundEnabled && audio) { audio.muted = true; audio.pause(); }
         if (soundEnabled) {
           try {
             if (audio) {
@@ -115,6 +130,17 @@ export function HoverTrailer({ ownerId, type, id, soundEnabled, startSeconds, on
     void start();
     return () => { cancelled = true; video.pause(); audio?.pause(); };
   }, [source, soundEnabled]);
+
+  // Scroll/visibility hold: pause in place, resume where playback left off.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !source) return;
+    if (paused) { video.pause(); audioRef.current?.pause(); }
+    else if (video.paused && !video.ended && video.readyState >= 2) {
+      if (soundRef.current && !audioRef.current) video.muted = false;
+      void video.play().catch(() => { video.muted = true; void video.play().catch(() => {}); });
+    }
+  }, [paused, source]);
 
   if (!source) return null;
   const alignAudio = (resume: boolean) => {

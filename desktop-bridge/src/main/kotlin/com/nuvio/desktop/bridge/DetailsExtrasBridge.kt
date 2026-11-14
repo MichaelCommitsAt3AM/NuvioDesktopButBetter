@@ -8,7 +8,8 @@ import com.nuvio.app.features.details.MetaPerson
 import com.nuvio.app.features.details.MetaTrailer
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.details.MetaDetailsRepository
-import com.nuvio.app.features.details.selectHeroTrailer
+import com.nuvio.app.features.details.originalTrailerFirst
+import com.nuvio.app.features.details.selectOriginalTrailer
 import com.nuvio.app.features.details.youtubePlaybackUrl
 import com.nuvio.app.features.trailer.TrailerPlaybackResolver
 import com.nuvio.app.features.details.seriesPrimaryAction
@@ -62,9 +63,9 @@ object DetailsExtrasBridge {
             // artwork fallback.
             val meta = MetaDetailsRepository.peek(params.str("type"), params.str("id"))
                 ?: MetaDetailsRepository.fetch(params.str("type"), params.str("id"))
-            val trailer = meta?.let { selectHeroTrailer(it.trailers) }
+            val trailer = meta?.let { selectOriginalTrailer(it.trailers) }
             val source = try {
-                trailer?.let { TrailerPlaybackResolver.resolveFromYouTubeUrl(it.youtubePlaybackUrl()) }
+                trailer?.let { TrailerPlaybackResolver.resolveWebPlayableFromYouTubeUrl(it.youtubePlaybackUrl()) }
             } catch (_: Throwable) { null }
             buildJsonObject {
                 putNullable("videoUrl", source?.videoUrl)
@@ -295,7 +296,7 @@ object DetailsExtrasBridge {
         putNullable("moreLikeThisSource", meta.moreLikeThisSource?.name?.lowercase())
         putNullable("collectionName", meta.collectionName)
         put("collectionItems", JsonArray(meta.collectionItems.map(::mediaJson)))
-        put("trailers", JsonArray(meta.trailers.map(::trailerJson)))
+        put("trailers", JsonArray(meta.trailers.sortedWith(originalTrailerFirst).map(::trailerJson)))
         put("links", JsonArray(meta.links.map(::linkJson)))
         put("seasonPosters", buildJsonObject {
             meta.seasonPosters.forEach { (season, poster) -> put(season.toString(), poster) }
@@ -325,7 +326,15 @@ object DetailsExtrasBridge {
             put("episodeNumber", action?.episodeNumber?.let(::JsonPrimitive) ?: JsonNull)
             putNullable("episodeTitle", action?.episodeTitle)
             putNullable("episodeThumbnail", action?.episodeThumbnail)
-            put("resumePositionMs", (action?.resumePositionMs ?: movieProgress?.lastPositionMs)?.let(::JsonPrimitive) ?: JsonNull)
+            val resumePositionMs = action?.resumePositionMs ?: movieProgress?.lastPositionMs
+            put("resumePositionMs", resumePositionMs?.let(::JsonPrimitive) ?: JsonNull)
+            // Total runtime of the resumable item, so the UI can show the time remaining.
+            val durationMs = if (resumePositionMs != null && resumePositionMs > 0L) {
+                (movieProgress ?: action?.let {
+                    WatchProgressRepository.progressForVideo(it.videoId, meta.id, it.seasonNumber, it.episodeNumber)
+                })?.durationMs?.takeIf { it > 0L }
+            } else null
+            put("durationMs", durationMs?.let(::JsonPrimitive) ?: JsonNull)
         }
     }
 

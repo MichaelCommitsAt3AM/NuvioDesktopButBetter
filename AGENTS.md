@@ -12,6 +12,15 @@ Nuvio Desktop is a Kotlin Multiplatform + Compose Multiplatform media hub for Wi
 
 > **This build is desktop-only.** All work here targets the desktop app (`composeApp/src/desktopMain/`, `desktop-bridge/`, `desktop-ui/`). The Android and iOS targets are shared monorepo lineage and are **not** built, tested, or supported from this working tree — don't spend time compiling, fixing, or verifying `androidApp`/`iosApp`, or the `androidMain`/`iosMain` source sets (they can fail to compile for reasons unrelated to desktop work).
 
+## Related projects
+
+- **NuvioMobileButBetter** (`C:\projects\Nuvio\NuvioMobileButBetter`) is the sibling fork for the Android/iOS app. It shares this repo's lineage, the `com.nuvio.app` package, the Kotlin shared code layout and the hosted Supabase backend. When a feature exists on mobile but not here (or the reverse), check that checkout for the reference implementation before building from scratch.
+- **nuvio_backend** is the shared backend repo (see "Supabase backend" below).
+
+## Keeping CLAUDE.md and AGENTS.md in sync
+
+`CLAUDE.md` and `AGENTS.md` must carry the same guidance. Any instruction, note or rule added to or changed in one must be applied to the other in the same change.
+
 ## Commands
 
 ```bash

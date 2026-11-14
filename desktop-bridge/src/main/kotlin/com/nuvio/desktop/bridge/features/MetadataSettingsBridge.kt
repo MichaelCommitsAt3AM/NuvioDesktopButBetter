@@ -42,10 +42,11 @@ object MetadataSettingsBridge {
                 put("tabGroup", item.tabGroup?.let(::JsonPrimitive) ?: JsonNull)
             } }))
             put("backgroundMode", MetaScreenBackgroundMode.persist(state.backgroundMode))
-            // The React detail hero has no trailer renderer yet, including on
-            // platforms where the original Compose hero supports trailers.
-            put("heroTrailerPlaybackSupported", false)
-            put("heroTrailerPlayback", false)
+            // The React detail hero plays the trailer behind the artwork. It is
+            // backed by the fork-only desktop autoplay flag (default on), not the
+            // legacy Compose `heroTrailerPlayback` flag shared with mobile.
+            put("heroTrailerPlaybackSupported", true)
+            put("heroTrailerPlayback", state.desktopHeroTrailerAutoplay)
             put("tabLayout", state.tabLayout)
             put("episodeCardStyle", MetaEpisodeCardStyle.persist(state.episodeCardStyle))
             put("blurUnwatchedEpisodes", state.blurUnwatchedEpisodes)
@@ -67,11 +68,7 @@ object MetadataSettingsBridge {
                 "dominant_color" -> MetaScreenBackgroundMode.DominantColor
                 else -> invalid(key)
             })
-            "heroTrailerPlayback" -> {
-                val enabled = value.asBool(key)
-                if (enabled) unavailable(key)
-                MetaScreenSettingsRepository.setHeroTrailerPlayback(enabled)
-            }
+            "heroTrailerPlayback" -> MetaScreenSettingsRepository.setDesktopHeroTrailerAutoplay(value.asBool(key))
             "tabLayout" -> MetaScreenSettingsRepository.setTabLayout(value.asBool(key))
             "episodeCardStyle" -> MetaScreenSettingsRepository.setEpisodeCardStyle(when (value.asString(key).lowercase()) {
                 "horizontal" -> MetaEpisodeCardStyle.Horizontal

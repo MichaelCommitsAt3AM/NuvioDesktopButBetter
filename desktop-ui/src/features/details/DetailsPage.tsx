@@ -12,8 +12,22 @@ import { Toast } from '../../components/Toast';
 import { useRetainedDecodedImage } from '../../components/useRetainedDecodedImage';
 import { DetailsExtras, type ExtrasMeta, type DetailsPrimaryAction } from './DetailsExtras';
 import { DetailsTitle } from './DetailsTitle';
+import { DetailsHeroTrailer } from './DetailsHeroTrailer';
+import type { TrailerUiState } from './useTrailerImmersion';
+import { DockedTitle } from './DockedTitle';
+import { ResumeBadge } from '../../components/ResumeBadge';
 import { DetailsRatings } from './DetailsRatings';
 import './details.css';
+
+/** "42 min left" / "1 h 5 min left"; null when there is nothing meaningful to show. */
+function formatTimeLeft(positionMs?: number | null, durationMs?: number | null): string | null {
+  if (!positionMs || !durationMs || positionMs <= 0 || durationMs <= positionMs) return null;
+  const minutes = Math.max(1, Math.round((durationMs - positionMs) / 60_000));
+  if (minutes < 60) return `${minutes} min left`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${hours} h left` : `${hours} h ${rest} min left`;
+}
 
 export function DetailsPage() {
   const { type = '', id = '' } = useParams();
@@ -27,7 +41,7 @@ export function DetailsPage() {
   const [actionError, setActionError] = useState('');
   const [watched, setWatched] = useState<{ loaded: boolean; watched?: boolean; fullyWatched?: boolean; primaryAction?: DetailsPrimaryAction | null; contentKey?: string }>({ loaded: false });
   const homeExtras = useFeatureSnapshot('homeExtras');
-  const metadataSettings = useFeatureSnapshot<{ backgroundMode?: string }>('metadataSettings');
+  const metadataSettings = useFeatureSnapshot<{ backgroundMode?: string; heroTrailerPlayback?: boolean }>('metadataSettings');
   useEffect(() => { if (!metadataSettings) void refreshFeature('metadataSettings').catch(() => {}); }, [metadataSettings]);
   const navigationType = useNavigationType();
   const profileId = useActiveProfileId();
@@ -104,6 +118,7 @@ export function DetailsPage() {
     };
   }, [type, id]);
   const primaryAction = (watched.contentKey === `${type}:${id}` ? watched.primaryAction : null) ?? (extraMeta?.id === id && extraMeta.type === type ? extraMeta.primaryAction : undefined);
+  const timeLeft = formatTimeLeft(primaryAction?.resumePositionMs, primaryAction?.durationMs);
   const saved = savedOverride ?? library.items.some((item) => item.id === id && item.type === type);
   useEffect(() => { setExtraMeta(null); }, [type, id]);
   useEffect(() => {
@@ -176,6 +191,9 @@ export function DetailsPage() {
   // backdrop so the mode switch still has an observable effect).
   const backgroundMode = (metadataSettings?.backgroundMode ?? 'dominant_color').toLowerCase();
   const showBackdrop = backgroundMode !== 'normal';
+  // Default on until the Kotlin snapshot says otherwise.
+  const heroTrailerAutoplay = metadataSettings?.heroTrailerPlayback ?? true;
+  const [trailerUi, setTrailerUi] = useState<TrailerUiState>('shown');
   const [dominant, setDominant] = useState<string | null>(null);
   useEffect(() => {
     const token = { cancelled: false };
@@ -194,7 +212,10 @@ export function DetailsPage() {
   return <>
     <Toast notice={notice?.owner === actionOwner ? notice : null} onDismiss={dismissNotice} />
     {showBackdrop && media && backdrop && createPortal(<div className={`detail-viewport-backdrop${backgroundMode === 'dominant_color' ? ' detail-dominant-fallback' : ''}`} aria-hidden="true" style={{ backgroundImage: backdropImage }} />, document.body)}
-    <div className="detail-page" ref={pageRef}>
+    {/* Mounted from route entry so the slow YouTube resolve overlaps the metadata load; it only shows once the backdrop does. */}
+    <DetailsHeroTrailer type={type} id={id} enabled={heroTrailerAutoplay} visible={showBackdrop && !!media && !!backdrop} onUiState={setTrailerUi} />
+    {media && <DockedTitle logo={media.logo} name={media.name} visible={trailerUi === 'faded'} />}
+    <div className="detail-page" ref={pageRef} data-trailer-ui={trailerUi}>
     <div className="detail-screen-controls">
       <BackButton className="detail-back" onClick={() => navigate(-1)} />
       {media && <FullscreenButton />}
@@ -219,6 +240,7 @@ export function DetailsPage() {
             {(extraMeta?.releaseInfo ?? media.releaseInfo) && <strong>{(extraMeta?.releaseInfo ?? media.releaseInfo)!.slice(0, 4)}</strong>}
             {extraMeta?.runtime && <strong>{formatRuntime(extraMeta.runtime)}</strong>}
             {ageRating && <span className="detail-age-rating" aria-label={`Age certification: ${ageRating}`}>{ageRating}</span>}
+            {timeLeft && <ResumeBadge>{timeLeft}</ResumeBadge>}
           </div>
           <DetailsRatings rating={extraMeta ? extraMeta.rating : media.rating} externalRatings={extraMeta?.externalRatings ?? []} />
           {media.genres.length > 0 && <p className="detail-genres">{media.genres.slice(0, 4).join(' · ')}</p>}

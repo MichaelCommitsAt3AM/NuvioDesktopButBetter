@@ -14,6 +14,24 @@ internal fun selectHeroTrailer(trailers: List<MetaTrailer>): MetaTrailer? =
             ),
         )
 
+/**
+ * Fork-only (React desktop details hero): same candidate set and type/official
+ * priority as [selectHeroTrailer], but the earliest-published trailer wins a
+ * tie, so the original "Official Trailer" beats later "Trailer 2" / international
+ * cuts. Trailers without a publish date sort last.
+ */
+internal fun selectOriginalTrailer(trailers: List<MetaTrailer>): MetaTrailer? =
+    trailers
+        .asSequence()
+        .filter { it.isPlayableYouTubeTrailerCandidate() }
+        .distinctBy { it.key }
+        .sortedWith(compareByDescending<MetaTrailer> { it.heroTrailerPriority() }.then(originalTrailerFirst))
+        .firstOrNull()
+
+/** Oldest first; undated trailers last; name as the stable final tie-break. */
+internal val originalTrailerFirst: Comparator<MetaTrailer> =
+    compareBy<MetaTrailer>({ it.publishedAt.isNullOrBlank() }, { it.publishedAt.orEmpty() }, { it.name })
+
 internal fun MetaTrailer.youtubePlaybackUrl(): String =
     key.takeIf { it.startsWith("http://") || it.startsWith("https://") }
         ?: "https://www.youtube.com/watch?v=$key"

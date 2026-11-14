@@ -28,6 +28,16 @@ describe('shared Kotlin settings rows in Detail Page', () => {
     fireEvent.click(toggle);
     expect(bridge.call).not.toHaveBeenCalled();
   });
+  it('saves the hero trailer autoplay switch through the bridge when supported', async () => {
+    bridge.snapshot.heroTrailerPlaybackSupported = true;
+    bridge.snapshot.heroTrailerPlayback = true;
+    page();
+    const toggle = screen.getByRole('checkbox', { name: 'Hero trailer playback' });
+    expect(toggle).toBeEnabled();
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+    await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('metadataSettings.set', { key: 'heroTrailerPlayback', value: false }));
+  });
   it('uses shared rows with group chips below the summary and saves visibility', async () => {
     page();
     const row = screen.getByLabelText('Show CAST').closest('article')!;

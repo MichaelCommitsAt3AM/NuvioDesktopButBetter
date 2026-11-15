@@ -12,6 +12,15 @@ export type TrailerSource = { videoUrl: string; audioUrl?: string | null };
 // hosts unmount when playback starts).
 let owner: string | null = null;
 
+/** Stops a media element and aborts its network fetch so the connection is freed immediately. */
+function releaseMedia(element: HTMLMediaElement): void {
+  try {
+    element.pause();
+    element.removeAttribute('src');
+    element.load();
+  } catch { /* Best effort: the element is going away regardless. */ }
+}
+
 export function takeTrailerOwner(id: string): void {
   owner = id;
   window.dispatchEvent(new CustomEvent('nuvio:trailer-owner', { detail: id }));
@@ -155,6 +164,22 @@ export function HoverTrailer({ ownerId, type, id, soundEnabled, startSeconds, on
     void start();
     return () => { cancelled = true; video.pause(); audio?.pause(); };
   }, [source, soundEnabled]);
+
+  // Pausing or removing a media element does not close its download; the browser keeps
+  // the connection (and keeps buffering) until the element is garbage-collected. After
+  // enough trailers that starves new ones of connections, so drop the source explicitly.
+  useEffect(() => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!source) return;
+    const videoUrl = source.videoUrl;
+    const audioUrl = source.audioUrl;
+    return () => {
+      // A swapped source already replaced the attribute; only release what is still ours.
+      if (video && video.getAttribute('src') === videoUrl) releaseMedia(video);
+      if (audio && audioUrl && audio.getAttribute('src') === audioUrl) releaseMedia(audio);
+    };
+  }, [source]);
 
   // Scroll/visibility hold: pause in place, resume where playback left off.
   useEffect(() => {

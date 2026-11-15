@@ -8,7 +8,8 @@ export function DetailsTitle({ url, name, owner, loading = false }: { url?: stri
     return <img className="detail-logo detail-logo-ready" src={artwork.url} alt={name} decoding="async" onError={() => setBroken({ owner, url: artwork.url! })} />;
   }
   if (artwork.loading || (!url && loading)) {
+    // Deliberately blank: it holds the logo's space so nothing shifts, then the title fades in.
     return <div className="detail-logo detail-logo-loading" role="status" aria-label="Loading title artwork" aria-busy="true" />;
   }
-  return <h1>{name}</h1>;
+  return <h1 className="detail-title-ready">{name}</h1>;
 }

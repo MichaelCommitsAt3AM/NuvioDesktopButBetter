@@ -18,9 +18,10 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const title = (url: string | null, owner = 'profile:movie:1', loading = false) => <DetailsTitle url={url} name="Movie title" owner={owner} loading={loading} />;
 async function load(image: FakeImage) { await act(async () => { image.onload?.(); }); }
 
-it('shows an animated placeholder until the logo has loaded and decoded, without flashing the text title', async () => {
+it('holds a blank, unanimated space until the logo has loaded and decoded, without flashing the text title', async () => {
   render(title('logo.png'));
   expect(screen.getByRole('status', { name: 'Loading title artwork' })).toHaveClass('detail-logo-loading');
+  expect(screen.getByRole('status')).toBeEmptyDOMElement();
   expect(screen.queryByRole('heading')).toBeNull();
   let finish!: () => void;
   images[0].decode.mockImplementation(() => new Promise<void>(resolve => { finish = resolve; }));
@@ -38,6 +39,7 @@ it('waits for metadata enrichment before choosing the no-logo fallback', () => {
   expect(screen.getByRole('status')).toBeVisible();
   view.rerender(title(null));
   expect(screen.getByRole('heading', { name: 'Movie title' })).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Movie title' })).toHaveClass('detail-title-ready');
   expect(screen.queryByRole('status')).toBeNull();
 });
 

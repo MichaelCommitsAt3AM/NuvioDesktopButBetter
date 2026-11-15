@@ -12,6 +12,7 @@ import { LaunchResumePrompt } from './features/home/LaunchResumePrompt';
 import './features/search/SearchPage';
 import './features/library/LibraryPage';
 import { DetailsPage } from './features/details/DetailsPage';
+import { isDetailsFlowPath, resetFinishedHeroTrailers } from './features/details/DetailsHeroTrailer';
 import { PersonPage } from './features/details/PersonPage';
 import { EntityPage } from './features/details/EntityPage';
 import { StreamsPage } from './features/streams/StreamsPage';
@@ -53,6 +54,8 @@ const Shell = memo(function Shell({ offlineDownloads = false, welcomePending = f
       ? navigationType === 'POP' ? 'route-enter-back' : 'route-enter-forward'
       : '';
   useEffect(() => { previousPath.current = location.pathname; }, [location.pathname]);
+  // Leaving the details flow (Home, Search, ...) ends the visit, so the next trailer plays again.
+  useEffect(() => { if (!isDetailsFlowPath(location.pathname)) resetFinishedHeroTrailers(); }, [location.pathname]);
   const [focusSearch, setFocusSearch] = useState(false);
   const requestSearchFocus = useCallback(() => setFocusSearch(true), []);
   const searchFocusHandled = useCallback(() => setFocusSearch(false), []);

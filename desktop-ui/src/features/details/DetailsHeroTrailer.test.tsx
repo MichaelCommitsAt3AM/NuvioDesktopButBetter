@@ -5,12 +5,13 @@ const bridge = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock('../../bridge', () => ({ call: (...args: unknown[]) => bridge.call(...args) }));
 vi.mock('../../navigation/scrollStore', () => ({ mainScroller: () => null }));
 
-import { DetailsHeroTrailer, PAUSE_VIEWPORT_FRACTION, prefetchHeroTrailer, shouldPauseHeroTrailer } from './DetailsHeroTrailer';
+import { DetailsHeroTrailer, PAUSE_VIEWPORT_FRACTION, prefetchHeroTrailer, shouldPauseHeroTrailer, isDetailsFlowPath, resetFinishedHeroTrailers } from './DetailsHeroTrailer';
 
 beforeEach(() => {
   bridge.call.mockReset();
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
   vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
@@ -39,15 +40,53 @@ describe('prefetchHeroTrailer', () => {
     expect(bridge.call).toHaveBeenCalledTimes(1);
     expect(bridge.call).toHaveBeenCalledWith('trailers.resolveHover', { type: 'series', id: 'tt-share' });
   });
-  it('resolves failures and empty sources to null without caching them', async () => {
-    bridge.call.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce({ videoUrl: null });
+  it('resolves failures and empty sources to null, and does not retry them straight away', async () => {
+    bridge.call.mockRejectedValueOnce(new Error('boom'));
     expect(await prefetchHeroTrailer('movie', 'tt-fail')).toBeNull();
     expect(await prefetchHeroTrailer('movie', 'tt-fail')).toBeNull();
+    bridge.call.mockResolvedValueOnce({ videoUrl: null });
+    expect(await prefetchHeroTrailer('movie', 'tt-empty')).toBeNull();
+    expect(await prefetchHeroTrailer('movie', 'tt-empty')).toBeNull();
     expect(bridge.call).toHaveBeenCalledTimes(2);
+  });
+  it('retries a failed title once the failure memory has expired', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      bridge.call.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce({ videoUrl: 'https://v/retry.mp4' });
+      expect(await prefetchHeroTrailer('movie', 'tt-expire')).toBeNull();
+      vi.setSystemTime(Date.now() + 4 * 60_000);
+      expect((await prefetchHeroTrailer('movie', 'tt-expire'))?.videoUrl).toBe('https://v/retry.mp4');
+      expect(bridge.call).toHaveBeenCalledTimes(2);
+    } finally { vi.useRealTimers(); }
+  });
+});
+
+describe('isDetailsFlowPath', () => {
+  it('treats pages reached from the details page as the same visit', () => {
+    for (const path of ['/details/movie/tt1', '/details/movie/tt1/streams/tt1', '/playback', '/person/5', '/entity/company/9']) expect(isDetailsFlowPath(path)).toBe(true);
+    for (const path of ['/', '/search', '/library', '/settings/playback']) expect(isDetailsFlowPath(path)).toBe(false);
   });
 });
 
 describe('DetailsHeroTrailer', () => {
+  it('does not replay a finished trailer on coming back, until the visit is reset', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    bridge.call.mockResolvedValue({ videoUrl: 'https://v/finished.mp4', audioUrl: null });
+    const first = render(<DetailsHeroTrailer type="movie" id="tt-finished" enabled />);
+    await waitFor(() => expect(document.querySelector('video')).not.toBeNull());
+    document.querySelector('video')!.dispatchEvent(new Event('ended'));
+    await waitFor(() => expect(document.querySelector('video')).toBeNull(), { timeout: 2000 });
+    first.unmount();
+    // Back from the streams page: the page remounts, but the trailer stays finished.
+    render(<DetailsHeroTrailer type="movie" id="tt-finished" enabled />);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(document.querySelector('video')).toBeNull();
+    cleanup();
+    // The user left the details flow and came back: it plays again.
+    resetFinishedHeroTrailers();
+    render(<DetailsHeroTrailer type="movie" id="tt-finished" enabled />);
+    await waitFor(() => expect(document.querySelector('video')).not.toBeNull());
+  });
   it('prefetches immediately, but renders nothing until visible', async () => {
     bridge.call.mockResolvedValue({ videoUrl: 'https://v/2.mp4', audioUrl: null });
     const { rerender } = render(<DetailsHeroTrailer type="movie" id="tt-visible" enabled visible={false} />);

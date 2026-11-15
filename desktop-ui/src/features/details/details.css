@@ -87,10 +87,11 @@
 .detail-main{position:relative;z-index:1;width:min(633px,72vw);padding:0!important;color:#f4f4f4}
 .detail-main>h1{max-width:700px;margin:0;font-size:clamp(36px,4vw,58px);font-weight:800;line-height:1.04;letter-spacing:-.045em}
 .detail-logo{display:block;width:min(466px,60vw);height:100px;object-fit:contain;object-position:left center;transform:translateY(18px)}
-.detail-logo-loading{border-radius:12px;background:linear-gradient(90deg,#ffffff0a,#ffffff17,#ffffff0a);background-size:220% 100%;animation:detail-skeleton-shimmer 2.2s ease-in-out infinite}
+.detail-logo-loading{background:none}
 .detail-logo-ready{animation:detail-logo-reveal 240ms ease both}
+.detail-title-ready{animation:detail-logo-reveal 320ms ease both}
 @keyframes detail-logo-reveal{from{opacity:0}to{opacity:1}}
-@media(prefers-reduced-motion:reduce){.detail-logo-loading,.detail-logo-ready{animation:none}}
+@media(prefers-reduced-motion:reduce){.detail-logo-ready,.detail-title-ready{animation:none}}
 .detail-meta-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:17px;color:#f0f0f0;font-size:14px;transform:translateY(17px)}
 /* Compact variant of the shared resume pill so it sits level with the age rating. */
 .detail-meta-line .resume-badge{min-height:26px;padding:0 10px;border-radius:13px;font-size:13px;font-weight:600}

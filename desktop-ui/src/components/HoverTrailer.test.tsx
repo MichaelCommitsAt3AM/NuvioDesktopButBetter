@@ -5,6 +5,7 @@ import { HoverTrailer, releaseTrailerOwner, takeTrailerOwner } from './HoverTrai
 beforeEach(() => {
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
   vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
 });
 afterEach(() => { cleanup(); releaseTrailerOwner('a'); releaseTrailerOwner('b'); vi.restoreAllMocks(); });
 
@@ -81,5 +82,21 @@ describe('HoverTrailer ownership and lifecycle', () => {
     const video = document.querySelector('video.hover-trailer')!;
     fireEvent(video, new Event('ended'));
     expect(onDone).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('HoverTrailer connection release', () => {
+  it('drops the video and audio sources on unmount so the downloads stop', async () => {
+    bridge.call.mockResolvedValueOnce({ videoUrl: 'https://example.test/video.mp4', audioUrl: 'https://example.test/audio.m4a' });
+    const view = render(<HoverTrailer ownerId="a" type="movie" id="release" soundEnabled={false} startSeconds={0} onReady={() => {}} onDone={() => {}} />);
+    await act(async () => {});
+    const video = document.querySelector('video')!;
+    const audio = document.querySelector('audio')!;
+    const load = vi.mocked(HTMLMediaElement.prototype.load);
+    load.mockClear();
+    view.unmount();
+    expect(video.hasAttribute('src')).toBe(false);
+    expect(audio.hasAttribute('src')).toBe(false);
+    expect(load.mock.contexts).toEqual(expect.arrayContaining([video, audio]));
   });
 });

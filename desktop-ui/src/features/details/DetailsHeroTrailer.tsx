@@ -16,31 +16,54 @@ export const PAUSE_VIEWPORT_FRACTION = 0.6;
 // Slightly longer than the layer's 600ms opacity transition, so it unmounts only once invisible.
 const END_FADE_MS = 700;
 
+// A title that failed to resolve is not retried for this long, so revisiting it
+// (or browsing back and forth) does not hit YouTube again straight away.
+const FAILURE_TTL_MS = 3 * 60_000;
+
 const resolved = new Map<string, { at: number; source: TrailerSource }>();
+const failed = new Map<string, number>();
 const inflight = new Map<string, Promise<TrailerSource | null>>();
 
 /**
  * Starts resolving the hero trailer. Safe to call repeatedly: concurrent calls
- * share one request and a recent success is reused. Failures resolve to null
- * (the artwork simply stays) and are not cached.
+ * share one request, a recent success is reused, and a recent failure is not
+ * retried for a few minutes. Failures resolve to null (the artwork simply stays).
  */
 export function prefetchHeroTrailer(type: string, id: string): Promise<TrailerSource | null> {
   const key = `${type}:${id}`;
   const hit = resolved.get(key);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return Promise.resolve(hit.source);
+  const failedAt = failed.get(key);
+  if (failedAt !== undefined) {
+    if (Date.now() - failedAt < FAILURE_TTL_MS) return Promise.resolve(null);
+    failed.delete(key);
+  }
   const pending = inflight.get(key);
   if (pending) return pending;
   const request = call<TrailerSource>('trailers.resolveHover', { type, id })
     .then((result) => {
-      if (!result?.videoUrl) return null;
+      if (!result?.videoUrl) { failed.set(key, Date.now()); return null; }
       const source = { videoUrl: result.videoUrl, audioUrl: result.audioUrl ?? null };
       resolved.set(key, { at: Date.now(), source });
       return source;
     })
-    .catch(() => null)
+    .catch(() => { failed.set(key, Date.now()); return null; })
     .finally(() => { inflight.delete(key); });
   inflight.set(key, request);
   return request;
+}
+
+// Titles whose trailer has already played to the end during the current visit. Going
+// into the streams page, the player, a cast page, etc. and coming back must not replay
+// it, so this outlives the page. It is cleared only once the user leaves the details
+// flow altogether (see `resetFinishedHeroTrailers`, called by the app shell).
+const finished = new Set<string>();
+
+export function resetFinishedHeroTrailers(): void { finished.clear(); }
+
+/** Routes reached from the details page, and back, that count as the same visit. */
+export function isDetailsFlowPath(pathname: string): boolean {
+  return /^\/(details|person|entity)\//.test(pathname) || pathname === '/playback';
 }
 
 function appIsFocused(): boolean {
@@ -111,6 +134,7 @@ export function DetailsHeroTrailer({ type, id, enabled, visible = true, onUiStat
     setEnding(false);
     setUserPaused(false);
     if (!enabled) return;
+    if (finished.has(`${type}:${id}`)) { setDone(true); return; }
     let active = true;
     void prefetchHeroTrailer(type, id).then((next) => {
       if (!active) return;
@@ -153,9 +177,9 @@ export function DetailsHeroTrailer({ type, id, enabled, visible = true, onUiStat
   const immersion = useTrailerImmersion(playing && ready && !paused && focused && !ending && !userPaused);
   useEffect(() => {
     if (!ending) return;
-    const timer = window.setTimeout(() => setDone(true), END_FADE_MS);
+    const timer = window.setTimeout(() => { finished.add(`${type}:${id}`); setDone(true); }, END_FADE_MS);
     return () => window.clearTimeout(timer);
-  }, [ending]);
+  }, [ending, type, id]);
   const onUiStateRef = useRef(onUiState);
   onUiStateRef.current = onUiState;
   useEffect(() => { onUiStateRef.current?.(immersion.state); }, [immersion.state]);

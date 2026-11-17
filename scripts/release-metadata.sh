@@ -72,7 +72,7 @@ if [[ -z "$current_bump" || -z "$previous_bump" ]]; then
     exit 1
 fi
 
-if [[ ! "$current_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+if [[ ! "$current_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?(-[0-9A-Za-z.-]+)?$ ]]; then
     echo "Invalid release version: ${current_version}" >&2
     exit 1
 fi

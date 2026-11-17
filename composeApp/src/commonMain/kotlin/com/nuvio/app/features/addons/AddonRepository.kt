@@ -316,11 +316,34 @@ object AddonRepository {
         DEFAULT_ADDON_URLS.forEach { url ->
             when (val outcome = addAddon(url)) {
                 is AddAddonResult.Success -> Unit
+                // A default add-on that tracks users is never installed without the user's consent.
+                is AddAddonResult.TrackingConsentRequired -> log.w {
+                    "seedDefaultAddonsIfEmpty() — ${manifestLogLabel(url)} skipped: requires tracking consent"
+                }
                 is AddAddonResult.Error -> log.w {
                     "seedDefaultAddonsIfEmpty() — ${manifestLogLabel(url)} failed: ${outcome.message}"
                 }
             }
         }
+    }
+
+    private val _pendingTrackingConsent = MutableStateFlow<AddonManifest?>(null)
+    val pendingTrackingConsent: StateFlow<AddonManifest?> = _pendingTrackingConsent.asStateFlow()
+
+    fun requestTrackingConsent(manifest: AddonManifest) {
+        _pendingTrackingConsent.value = manifest
+    }
+
+    fun dismissTrackingConsent() {
+        _pendingTrackingConsent.value = null
+    }
+
+    suspend fun installWithTrackingConsent(manifest: AddonManifest): AddAddonResult {
+        _pendingTrackingConsent.value = null
+        if (_uiState.value.addons.any { it.manifestUrl == manifest.transportUrl }) {
+            return AddAddonResult.Error(getString(Res.string.addon_already_installed))
+        }
+        return installManifest(manifest.transportUrl, manifest)
     }
 
     suspend fun addAddon(rawUrl: String): AddAddonResult {
@@ -350,6 +373,13 @@ object AddonRepository {
         }
         manifestPayload?.let { AddonManifestCache.record(manifestUrl, it) }
 
+        if (manifest.isTrackingAddon) {
+            return AddAddonResult.TrackingConsentRequired(manifest)
+        }
+        return installManifest(manifestUrl, manifest)
+    }
+
+    private fun installManifest(manifestUrl: String, manifest: AddonManifest): AddAddonResult {
         _uiState.update { current ->
             current.copy(
                 addons = current.addons + ManagedAddon(

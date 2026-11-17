@@ -31,6 +31,7 @@ import com.nuvio.app.features.simkl.SimklAnimeIdPreference
 import com.nuvio.app.features.simkl.SimklAuthUiState
 import com.nuvio.app.features.simkl.SimklConnectionMode
 import com.nuvio.app.features.tracking.TrackingProviderId
+import com.nuvio.app.features.tracking.TrackingRatings
 import com.nuvio.app.features.tracking.TrackingSettingsRepository
 import com.nuvio.app.features.tracking.TrackingSettingsUiState
 import com.nuvio.app.features.tracking.WatchProgressSource
@@ -79,6 +80,13 @@ import nuvio.composeapp.generated.resources.settings_tracking_anime_id_subtitle
 import nuvio.composeapp.generated.resources.settings_tracking_anime_id_title
 import nuvio.composeapp.generated.resources.settings_tracking_anime_section
 import nuvio.composeapp.generated.resources.settings_tracking_mdblist_section
+import nuvio.composeapp.generated.resources.compose_action_off
+import nuvio.composeapp.generated.resources.settings_tracking_ratings
+import nuvio.composeapp.generated.resources.settings_tracking_ratings_description
+import nuvio.composeapp.generated.resources.settings_tracking_ratings_mdblist_description
+import nuvio.composeapp.generated.resources.settings_tracking_ratings_off_description
+import nuvio.composeapp.generated.resources.settings_tracking_ratings_picker_subtitle
+import nuvio.composeapp.generated.resources.settings_tracking_ratings_simkl_description
 import nuvio.composeapp.generated.resources.settings_mdblist_library_lists
 import nuvio.composeapp.generated.resources.settings_mdblist_library_lists_description
 import nuvio.composeapp.generated.resources.settings_mdblist_library_lists_summary
@@ -196,6 +204,7 @@ private enum class TrackingDataPicker {
     LIBRARY,
     WATCH_PROGRESS,
     MORE_LIKE_THIS,
+    RATINGS,
 }
 
 @Composable
@@ -298,6 +307,25 @@ private fun TrackingDataSources(
                 onClick = { activePickerName = TrackingDataPicker.MORE_LIKE_THIS.name },
             )
         }
+        if (simklConnected || mdblistConnected) {
+            val effectiveRatingSource = settingsUiState.ratingSource?.takeIf { it in connectedProviders }
+            val ratingsFallback = settingsUiState.ratingSource?.takeIf { effectiveRatingSource == null }?.let { source ->
+                stringResource(
+                    Res.string.settings_tracking_source_fallback,
+                    ratingSourceLabel(source),
+                    ratingSourceLabel(null),
+                )
+            }
+            SettingsGroupDivider(isTablet = isTablet)
+            TrackingPreferenceActionRow(
+                title = stringResource(Res.string.settings_tracking_ratings),
+                description = stringResource(Res.string.settings_tracking_ratings_description),
+                value = ratingSourceLabel(effectiveRatingSource),
+                supportingMessage = ratingsFallback,
+                isTablet = isTablet,
+                onClick = { activePickerName = TrackingDataPicker.RATINGS.name },
+            )
+        }
     }
 
     when (activePicker) {
@@ -336,6 +364,15 @@ private fun TrackingDataSources(
             ),
             options = recommendationsSourceOptions(traktConnected),
             onSelected = TrackingSettingsRepository::setMoreLikeThisSource,
+            onDismiss = { activePickerName = null },
+        )
+        TrackingDataPicker.RATINGS -> TrackingAdaptivePicker(
+            isTablet = isTablet,
+            title = stringResource(Res.string.settings_tracking_ratings),
+            subtitle = stringResource(Res.string.settings_tracking_ratings_picker_subtitle),
+            selectedValue = settingsUiState.ratingSource?.takeIf { it in connectedProviders },
+            options = ratingSourceOptions(simklConnected, mdblistConnected),
+            onSelected = TrackingRatings::setSource,
             onDismiss = { activePickerName = null },
         )
         null -> Unit
@@ -594,6 +631,36 @@ private fun recommendationsSourceOptions(
         ),
     )
 }
+
+@Composable
+private fun ratingSourceOptions(
+    simklConnected: Boolean,
+    mdblistConnected: Boolean,
+): List<TrackingPickerOption<TrackingProviderId?>> = listOf(
+    TrackingPickerOption(
+        value = null,
+        title = ratingSourceLabel(null),
+        description = stringResource(Res.string.settings_tracking_ratings_off_description),
+    ),
+    TrackingPickerOption(
+        value = TrackingProviderId.SIMKL,
+        title = ratingSourceLabel(TrackingProviderId.SIMKL),
+        description = stringResource(Res.string.settings_tracking_ratings_simkl_description),
+        enabled = simklConnected,
+        unavailableReason = trackingUnavailableReason(TrackingBrand.SIMKL, simklConnected),
+    ),
+    TrackingPickerOption(
+        value = TrackingProviderId.MDBLIST,
+        title = ratingSourceLabel(TrackingProviderId.MDBLIST),
+        description = stringResource(Res.string.settings_tracking_ratings_mdblist_description),
+        enabled = mdblistConnected,
+        unavailableReason = trackingUnavailableReason(TrackingBrand.MDBLIST, mdblistConnected),
+    ),
+)
+
+@Composable
+private fun ratingSourceLabel(source: TrackingProviderId?): String =
+    source?.displayName ?: stringResource(Res.string.compose_action_off)
 
 @Composable
 private fun trackingUnavailableReason(

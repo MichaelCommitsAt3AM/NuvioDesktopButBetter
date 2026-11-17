@@ -398,6 +398,8 @@ internal fun StreamDestination(
                         bingeGroup = cached.bingeGroup,
                     ),
                 ),
+                sourceFromLinkCache = true,
+                sourceAutoSelected = true,
             )
             if (externalPlayerSupported && playerSettings.externalPlayerEnabled) {
                 openExternalPlayback(playerLaunch)
@@ -571,6 +573,7 @@ internal fun StreamDestination(
             contentLanguage = resolveLaunchContentLanguage(),
             sourceFilename = stream.behaviorHints.filename,
             stream = stream,
+            sourceAutoSelected = true,
         )
         if (externalPlayerSupported && playerSettings.externalPlayerEnabled && stream.serverTarget == null) {
             StreamLoadTimeline.fail("stream sent to external player (not measured)") // STREAM-LOAD-TIMELINE

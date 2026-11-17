@@ -53,11 +53,13 @@ internal object DesktopPlayerPictureInPicture {
         pipWindow?.let { window ->
             if (videoSize.width > 0 && videoSize.height > 0) {
                 val ratio = videoSize.width.toFloat() / videoSize.height.toFloat()
+                if (window.aspectRatio == ratio) return@let
                 window.aspectRatio = ratio
                 runCatching {
                     val windowPointer = AwtNativeViewResolver.resolveNativeViewPointer(window)
                     NativePlayerBridge.setWindowAspectRatio(windowPointer, ratio)
-                }
+                }.onFailure { error -> log.w(error) { "failed to update PiP aspect ratio" } }
+                window.bounds = desktopPipBoundsForAspectRatio(window.bounds, ratio)
                 window.revalidate()
             }
         }
@@ -83,11 +85,13 @@ internal object DesktopPlayerPictureInPicture {
         val window = pipWindow
         pipWindow = null
         isEnabled = false
+        controller?.setPictureInPictureActive(false)
         // Native player shutdown owns disposal of its PiP HWND and video child.
         nativePipEnabled = false
         window?.dispose()
         host = null
         controller = null
+        lastVideoSize = IntSize.Zero
         transition = false
         notifyChanged()
     }
@@ -102,6 +106,7 @@ internal object DesktopPlayerPictureInPicture {
             nativePipEnabled = player.enterNativePictureInPicture(windowTitle, videoAspectRatio())
             isEnabled = nativePipEnabled
             DesktopDiagnostics.record("pip_native_enter", "ok=$nativePipEnabled")
+            if (nativePipEnabled) player.setPictureInPictureActive(true)
             transition = false
             if (isEnabled) notifyChanged()
             return
@@ -155,6 +160,7 @@ internal object DesktopPlayerPictureInPicture {
         // The surface changed homes; force-apply the PiP size instead of
         // trusting whatever the layout cache holds from the main window.
         player.layoutNativeSubviews()
+        player.setPictureInPictureActive(true)
         isEnabled = true
         log.d { "PiP entered" }
         transition = false
@@ -171,6 +177,7 @@ internal object DesktopPlayerPictureInPicture {
             DesktopDiagnostics.record("pip_native_reparent", "ok=$restored stage=restore")
             if (restored) {
                 player.closeNativePictureInPicture()
+                player.setPictureInPictureActive(false)
                 nativePipEnabled = false
                 isEnabled = false
                 player.requestKeyboardFocus()
@@ -195,6 +202,7 @@ internal object DesktopPlayerPictureInPicture {
             player.layoutNativeSubviews()
             player.requestKeyboardFocus()
         }
+        player?.setPictureInPictureActive(false)
         runCatching {
             val windowPointer = AwtNativeViewResolver.resolveNativeViewPointer(window)
             NativePlayerBridge.setWindowResizable(windowPointer, false)
@@ -223,13 +231,12 @@ internal object DesktopPlayerPictureInPicture {
             ?: GraphicsEnvironment.getLocalGraphicsEnvironment().defaultScreenDevice.defaultConfiguration
         val screen = configuration.bounds
         val insets = ToolkitInsets.get(configuration)
-        val width = 480
-        val height = (width / aspectRatio).toInt()
+        val size = desktopPipBoundsForAspectRatio(Rectangle(0, 0, 480, 180), aspectRatio)
         return Rectangle(
-            screen.x + screen.width - insets.right - width - 24,
-            screen.y + screen.height - insets.bottom - height - 24,
-            width,
-            height,
+            screen.x + screen.width - insets.right - size.width - 24,
+            screen.y + screen.height - insets.bottom - size.height - 24,
+            size.width,
+            size.height,
         )
     }
 

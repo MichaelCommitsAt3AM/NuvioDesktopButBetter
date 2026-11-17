@@ -669,12 +669,31 @@ class DesktopBridgeRuntime {
         "addons.snapshot" -> addonsJson()
         "addons.install" -> {
             val raw = params.str("url")
+            val acceptTracking = params["acceptTracking"]?.jsonPrimitive?.booleanOrNull == true
+            var consentNeeded: com.nuvio.app.features.addons.AddonManifest? = null
             when (val outcome = AddonRepository.addAddon(raw)) {
                 is AddAddonResult.Success -> Unit
                 is AddAddonResult.Error -> error(outcome.message)
+                is AddAddonResult.TrackingConsentRequired -> if (acceptTracking) {
+                    when (val installed = AddonRepository.installWithTrackingConsent(outcome.manifest)) {
+                        is AddAddonResult.Error -> error(installed.message)
+                        else -> Unit
+                    }
+                } else {
+                    consentNeeded = outcome.manifest
+                }
             }
             refreshHomeAfterAddonChange()
-            addonsJson()
+            val snapshot = addonsJson()
+            // The install is held until the user accepts; the frontend repeats the call with acceptTracking.
+            consentNeeded?.let { manifest ->
+                buildJsonObject {
+                    snapshot.forEach { (key, value) -> put(key, value) }
+                    put("trackingConsent", buildJsonObject {
+                        put("name", manifest.name); put("manifestUrl", manifest.transportUrl)
+                    })
+                }
+            } ?: snapshot
         }
         "addons.toggle" -> { AddonRepository.setAddonEnabled(params.str("id"), params.bool("enabled")); refreshHomeAfterAddonChange(); addonsJson() }
         "addons.remove" -> { AddonRepository.removeAddon(params.str("id")); refreshHomeAfterAddonChange(); addonsJson() }

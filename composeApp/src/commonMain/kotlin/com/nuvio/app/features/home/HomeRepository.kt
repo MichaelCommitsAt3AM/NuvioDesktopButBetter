@@ -139,13 +139,21 @@ object HomeRepository {
         // expired or missing catalogs, so Home can paint immediately.
         publishCurrentState(isLoading = true, requestKey = requestKey)
         activeJob = scope.launch {
+            val settingsSnapshot = HomeCatalogSettingsRepository.snapshot()
             val prioritizedRequests = prioritizeDefinitions(
                 definitions = requestsToFetch,
-                snapshot = HomeCatalogSettingsRepository.snapshot(),
+                snapshot = settingsSnapshot,
             )
             val loadedSections = linkedMapOf<String, HomeCatalogSection>().apply {
                 putAll(cachedSections)
             }
+            val heroSourceKeys = prioritizedRequests
+                .filter { definition ->
+                    settingsSnapshot.heroEnabled &&
+                        settingsSnapshot.preferences[definition.key]?.heroSourceEnabled != false
+                }
+                .mapTo(mutableSetOf(), HomeCatalogDefinition::cacheKey)
+            val attemptedKeys = mutableSetOf<String>()
             var firstErrorMessage: String? = null
             forEachHomeCatalogUpdate<HomeCatalogDefinition, HomeCatalogUpdate>(prioritizedRequests, HOME_CATALOG_FETCH_BATCH_SIZE, fetch = { request, publish ->
                 try {
@@ -172,9 +180,17 @@ object HomeRepository {
                     }
                 }
                 if (firstErrorMessage == null) firstErrorMessage = result.exceptionOrNull()?.message
+                // A hero source counts as resolved once its full fetch finished
+                // (success or failure), not on a first-page preview.
+                if (complete) attemptedKeys += request.cacheKey
+                val heroSourcesResolved = attemptedKeys.containsAll(heroSourceKeys)
                 cachedSections = loadedSections.toMap()
                 lastErrorMessage = firstErrorMessage
-                publishCurrentState(isLoading = true, requestKey = requestKey)
+                publishCurrentState(
+                    isLoading = true,
+                    requestKey = requestKey,
+                    heroSourcesResolved = heroSourcesResolved,
+                )
             }
 
             if (activeRequestKey != requestKey) return@launch
@@ -231,6 +247,7 @@ object HomeRepository {
     private fun publishCurrentState(
         isLoading: Boolean,
         requestKey: String?,
+        heroSourcesResolved: Boolean = !isLoading,
     ) {
         val snapshot = HomeCatalogSettingsRepository.snapshot()
         val preferences = snapshot.preferences
@@ -288,6 +305,16 @@ object HomeRepository {
                     "disabledByPreference=$disabledByPreferenceCount missingCachedSection=$missingCachedSectionCount " +
                     "emptyCachedSection=$emptyCachedSectionCount isLoading=$isLoading requestKey=$requestKey"
             }
+        }
+
+        if (snapshot.heroEnabled && !heroSourcesResolved) {
+            _uiState.value = HomeUiState(
+                isLoading = isLoading,
+                heroItems = _uiState.value.heroItems,
+                sections = sections,
+                errorMessage = if (sections.isEmpty()) lastErrorMessage else null,
+            )
+            return
         }
 
         val catalogHeroItems = if (snapshot.heroEnabled) {

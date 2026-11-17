@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -399,6 +400,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
     }
     val playerControlsState = PlayerControlsState(
         chapters = controlChapters,
+        chapterTitleEnabled = playerSettingsUiState.chapterTitleEnabled,
         chaptersLabel = stringResource(Res.string.compose_player_chapters),
         chaptersPanelTitle = stringResource(Res.string.compose_player_panel_chapters, chapters.size),
         chapterRemainingTemplate = stringResource(Res.string.compose_player_chapter_remaining, "{time}"),
@@ -604,7 +606,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
             p2pInitialLoadingMessage ?: playerLoadingStatusMessage(
                 showStatus = true,
                 controllerReady = playerController != null,
-                buffering = playbackSnapshot.isLoading,
+                snapshot = playbackSnapshot,
             )
         } else null,
         openingProgress = p2pInitialLoadingProgress,
@@ -670,6 +672,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
                             layoutSize = layoutSize,
                             playbackGesturesEnabled = playbackGesturesEnabled,
                             sideGestureSystemEdgeExclusionPx = sideGestureSystemEdgeExclusionPx,
+                            horizontalSeekSystemEdgeExclusionPx = horizontalSeekSystemEdgeExclusionPx,
                             playerControlsLockedState = gestureCallbacks.playerControlsLocked,
                             touchGesturesEnabledState = gestureCallbacks.touchGesturesEnabled,
                             isHoldToSpeedGestureActiveState = gestureCallbacks.isHoldToSpeedGestureActive,
@@ -690,12 +693,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
     ) {
         val playbackKey = activePlaybackKey
         val sourcePlaybackKey = playbackKey.copy(playbackEngine = null)
-
-        LaunchedEffect(sourcePlaybackKey) {
-            engineFailoverTriggered = false
-            engineFailoverDisarmed = false
-            playbackEngineOverride = null
-        }
+        val initialPositionRequestKey = currentInitialPositionRequestKey()
 
         val resolvedAutoEngineState = remember(sourcePlaybackKey) {
             mutableStateOf<AndroidPlaybackEngine?>(null)
@@ -765,7 +763,10 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
                     }
                 },
                 onError = { message ->
-                    if (message != null && tryRefreshCredentialedSourceAfterError(message)) {
+                    if (message != null && tryRefreshExpiredLinkAfterError(message)) {
+                        return@PlatformPlayerSurface
+                    }
+                    if (message != null && tryFallbackToNextSourceAfterError(message)) {
                         return@PlatformPlayerSurface
                     }
                     if (message != null && !isDesktop && maybeFailoverPlaybackEngine(resolvedAutoEngine)) {
@@ -1995,7 +1996,7 @@ private fun BoxScope.RenderPlaybackOverlays(
                 p2pInitialLoadingMessage ?: playerLoadingStatusMessage(
                     showStatus = true,
                     controllerReady = playerController != null,
-                    buffering = playbackSnapshot.isLoading,
+                    snapshot = playbackSnapshot,
                 )
             } else null,
             p2pInitialLoadingProgress = p2pInitialLoadingProgress,
@@ -2075,6 +2076,17 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
             }
         },
         onAudioModalDismissed = { showAudioModal = false },
+        showAudioDelay = playerController?.supportsAudioDelay == true,
+        audioDelayMs = audioDelayMs,
+        onAudioDelayChanged = { delayMs -> setAudioDelay(delayMs) },
+        showAudioAmplification = playerController?.supportsAudioAmplification == true,
+        audioAmplificationDb = audioAmplificationDb,
+        keepAudioAmplification = playerSettingsUiState.persistAudioAmplification,
+        onAudioAmplificationChanged = { db -> setAudioAmplification(db) },
+        onKeepAudioAmplificationChanged = { keep -> setKeepAudioAmplification(keep) },
+        showCenterMix = centerMixAvailable,
+        centerMixLevelDb = centerMixLevelDb,
+        onCenterMixLevelChanged = { db -> setCenterMixLevel(db) },
         showSubtitleModal = showSubtitleModal,
         subtitleTracks = serverSubtitleTracks.ifEmpty { subtitleTracks },
         selectedSubtitleIndex = if (serverSubtitleTracks.isEmpty()) {

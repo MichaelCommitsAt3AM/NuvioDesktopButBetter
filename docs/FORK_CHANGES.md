@@ -1351,3 +1351,15 @@ The watch-party backend now lives in the separate `nuvio_backend` repository (mi
 - Joining opens the party's streams page; a guest's stream list leads with the host's shared link and auto-plays it (desktop via `streamsJson`/`streamSelectionJson`, mobile via `StreamDestination`). Host stream sharing is on by default.
 - The in-player "Join with a code" option was removed from both apps; joining lives on the Home button (mobile: round icon over the Home hero opening a bottom sheet).
 - The invite text now carries only the code (no link).
+
+## Upstream 0.1.37-alpha integration (2026-11-17)
+
+Synced with upstream `65061186d` (0.1.37-alpha plus two commits); see `UPSTREAM_SYNC_2026-11-17.md` for conflict decisions.
+
+- Stream searches are shared per title and episode (`StreamSearchSessions`), so the stream screen, the player's sources panel and next-episode search reuse one search. The fork's 60 s per-source timeout, generic error text and 20 s debrid-availability timeout are kept inside it.
+- Installing a tracking add-on now needs consent. The bridge's `addons.install` returns `trackingConsent` and the Settings → Addons page shows a consent dialog before repeating the call with `acceptTracking`. Default add-ons that need consent are skipped.
+- Home waits for every hero source's full fetch before replacing the featured titles, on top of the fork's progressive catalog loading.
+- Picture-in-picture keeps the video at Fit on the Windows-native and Swing paths; downloads retry dropped connections and reject truncated files while keeping the fork's throttled progress.
+- Post-credits chapters are skip targets again (`ChapterSkipIntervals.kt` was restored to upstream).
+- Forced subtitles are on by default (upstream); the built-in subtitle selection test sets it off explicitly.
+- Deferred: user ratings (rating chip and sheet), audio amplification/delay/center mix controls in the native overlay, and a review of mpv subtitle auto-sync settings.

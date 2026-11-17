@@ -41,3 +41,13 @@ Where to look if it recurs:
 
 Debugging aid: the local value lives in `%APPDATA%\Nuvio\nuvio_debrid_settings.properties` as
 `debrid_enabled_1`.
+
+## Upstream 0.1.37 features not yet in the React shell
+
+Added 2026-11-17. The Kotlin code is merged and compiled, but these have no bridge or React flow:
+
+- **User ratings.** Upstream's rating chip on the detail hero, the rating sheet and episode ratings (Trakt, Simkl and MDBList) are not shown. Needs bridge snapshot fields and commands over `TrackingRatings`, then a React chip and sheet.
+- **Audio amplification, audio delay and center mix.** The player runtime supports them; the native overlay and React settings were not checked for controls, so assume they are missing.
+- **Mpv subtitle auto-sync.** The coordinator is wired into the desktop player surface; the rewrite's auto-sync settings and result messaging were not re-reviewed against it.
+
+`StreamSearchSessionsTest` lives only in the Android host tests, which this Windows desktop-only tree does not run.

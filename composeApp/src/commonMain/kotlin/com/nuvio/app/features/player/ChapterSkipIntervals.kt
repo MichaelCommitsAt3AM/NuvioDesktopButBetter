@@ -10,7 +10,7 @@ import com.nuvio.app.features.player.skip.segmentCategory
  * the segment label itself (with an optional number suffix) are matched, to avoid
  * false positives on scene-named chapters like "The Opening" or "Alternate Ending".
  *
- * Matched types: OP/Opening, ED/Ending/Credits, Recap/Previously and Intro.
+ * Matched types: OP/Opening, ED/Ending/Credits, Recap/Previously, Intro, Post-Credits.
  * "Intro" is promoted to opening only when no dedicated OP/Opening chapter exists.
  */
 internal object ChapterSkipIntervals {
@@ -25,6 +25,8 @@ internal object ChapterSkipIntervals {
     private val CREDITS_PATTERN = Regex("^\\s*(end|closing)?\\s*credits\\s*$", RegexOption.IGNORE_CASE)
     private val RECAP_PATTERN = Regex("^\\s*(recap|previously(\\s+on.*)?)\\s*$", RegexOption.IGNORE_CASE)
     private val INTRO_PATTERN = Regex("^\\s*intro\\s*$", RegexOption.IGNORE_CASE)
+
+    private val POST_CREDITS_PATTERN = Regex("(post|mid|after)[\\s-]credits", RegexOption.IGNORE_CASE)
 
     fun fromChapters(
         chapters: List<PlayerChapter>,
@@ -62,7 +64,7 @@ internal object ChapterSkipIntervals {
             val endSec = c.endMs / 1000.0
             val duration = endSec - startSec
             if (duration < MIN_DURATION_SEC) return@mapNotNull null
-            if (c.type != ChapterType.CREDITS && duration > MAX_DURATION_SEC) return@mapNotNull null
+            if (c.type != ChapterType.POST_CREDITS && duration > MAX_DURATION_SEC) return@mapNotNull null
             SkipInterval(
                 startTime = startSec,
                 endTime = endSec,
@@ -74,9 +76,10 @@ internal object ChapterSkipIntervals {
 
     private fun classifyTitle(title: String?): ChapterType? {
         if (title.isNullOrBlank()) return null
+        if (POST_CREDITS_PATTERN.containsMatchIn(title)) return ChapterType.POST_CREDITS
         if (OPENING_PATTERN.matches(title)) return ChapterType.OPENING
         if (ENDING_PATTERN.matches(title)) return ChapterType.ENDING
-        if (CREDITS_PATTERN.matches(title)) return ChapterType.CREDITS
+        if (CREDITS_PATTERN.matches(title)) return ChapterType.ENDING
         if (RECAP_PATTERN.matches(title)) return ChapterType.RECAP
         if (INTRO_PATTERN.matches(title)) return ChapterType.INTRO
         return null
@@ -87,7 +90,7 @@ internal object ChapterSkipIntervals {
         ENDING("outro"),
         RECAP("recap"),
         INTRO("intro"),
-        CREDITS("outro"),
+        POST_CREDITS("post-credits"),
     }
 
     private data class ClassifiedChapter(

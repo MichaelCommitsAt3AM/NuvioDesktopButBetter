@@ -98,6 +98,8 @@ Commit the resolved upstream merge before the bridge/React adaptation commits.
 The merge checkpoint can be temporarily incomplete; it must not be promoted to
 the rewrite development branch until subsequent fixes and required checks pass.
 
+After the merge commit, compile the desktop target (`.\gradlew.bat :composeApp:compileKotlinDesktop --no-configuration-cache`) before any adaptation. Both the common code and `desktop-bridge` fail the build on a new sealed-class branch (the 0.1.37 sync found `AddAddonResult.TrackingConsentRequired` this way), which is faster than reading the diff for it. Also compare files upstream did not change in the batch with the target (`git diff <target-sha> HEAD -- <file>`): a previous sync can have left one on an older behavior, and the next upstream test update then fails against it (`ChapterSkipIntervals.kt` in the 0.1.37 sync).
+
 ## 4. Adapt the bridge and React frontend
 
 Use `desktop-bridge/contract/schema.json` as the protocol boundary. Expose explicit

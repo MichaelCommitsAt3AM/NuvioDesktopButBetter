@@ -480,7 +480,7 @@ export const actions = {
   stopPlayback() { return call('playback.stop'); },
   addToLibrary(type: string, id: string) { return call('library.add', { type, id }); },
   removeFromLibrary(type: string, id: string) { return call('library.remove', { type, id }); },
-  installAddon(manifestUrl: string) { return call('addons.install', { url: manifestUrl }); },
+  installAddon(manifestUrl: string, acceptTracking = false) { return call('addons.install', acceptTracking ? { url: manifestUrl, acceptTracking: true } : { url: manifestUrl }); },
   toggleAddon(id: string, enabled: boolean) { return call('addons.toggle', { id, enabled }); },
   removeAddon(id: string) { return call('addons.remove', { id }); },
   setTheme(theme: string) { return call('settings.setTheme', { theme }); },

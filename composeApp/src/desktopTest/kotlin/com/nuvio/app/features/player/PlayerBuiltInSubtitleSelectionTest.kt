@@ -159,7 +159,12 @@ class PlayerBuiltInSubtitleSelectionTest {
         ),
     ).apply {
         scope = this@PlayerBuiltInSubtitleSelectionTest.scope
-        playerSettingsUiState = PlayerSettingsUiState(preferredSubtitleLanguage = "en")
+        // These tests cover normal-language selection; forced-only selection (the default since
+        // upstream 0.1.37) needs an audio track, which the recording controller does not have.
+        playerSettingsUiState = PlayerSettingsUiState(
+            preferredSubtitleLanguage = "en",
+            subtitleStyle = SubtitleStyleState(useForcedSubtitles = false),
+        )
         playerController = controller
     }
 

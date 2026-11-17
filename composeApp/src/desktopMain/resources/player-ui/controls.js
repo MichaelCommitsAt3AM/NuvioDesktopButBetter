@@ -2572,7 +2572,8 @@ const syncSkipPromptPlacement = showSkip => {
     skipPrompt.style.getPropertyValue("--skip-prompt-lift"),
   ) || 0);
   let targetLift = 0;
-  if (showSkip && state.controlsVisible && (title.textContent || episode.textContent)) {
+  // The prompt always sits in the lifted position, whether or not the controls are showing.
+  if (showSkip && (title.textContent || episode.textContent)) {
     const rootTop = root.getBoundingClientRect().top;
     const metadataTop = playbackMetadata.getBoundingClientRect().top - rootTop;
     const promptBottom = skipPrompt.offsetTop + skipPrompt.offsetHeight + currentLift;
@@ -2609,9 +2610,9 @@ const renderNativePlaybackPrompts = () => {
   }
   skipPromptWasDismissed = Boolean(state.skipPromptDismissed);
 
-  const shouldShowSkip = Boolean(state.skipPromptVisible && (!state.skipPromptDismissed || state.controlsVisible));
-  const showSkip = Boolean(shouldShowSkip && (!skipPromptAutoHidden || state.controlsVisible));
-  const showSkipProgress = Boolean(showSkip && !state.controlsVisible && !skipPromptAutoHidden && !state.skipPromptDismissed);
+  // Visibility and the countdown line do not depend on the controls overlay.
+  const showSkip = Boolean(state.skipPromptVisible && !state.skipPromptDismissed && !skipPromptAutoHidden);
+  const showSkipProgress = showSkip;
   skipPromptLabel.textContent = state.skipPromptLabel || "Skip";
   skipPrompt.setAttribute("aria-label", state.skipPromptLabel || "Skip");
   skipPrompt.setAttribute("aria-hidden", showSkip ? "false" : "true");
@@ -2620,7 +2621,7 @@ const renderNativePlaybackPrompts = () => {
   syncSkipPromptPlacement(showSkip);
   if (showSkipProgress) {
     startSkipPromptAutoHide();
-  } else if (!showSkip || state.controlsVisible || state.skipPromptDismissed) {
+  } else if (!showSkip) {
     window.clearTimeout(skipPromptAutoHideTimer);
     skipPromptAutoHideTimer = 0;
     skipPromptAutoHideActive = false;

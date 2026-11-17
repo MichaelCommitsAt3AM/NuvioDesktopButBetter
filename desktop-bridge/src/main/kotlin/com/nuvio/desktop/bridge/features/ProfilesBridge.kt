@@ -8,6 +8,7 @@ import com.nuvio.app.features.membership.ProfileBackgroundRepository
 import com.nuvio.app.features.membership.CosmeticEntitlement
 import com.nuvio.app.features.membership.MemberAccessRepository
 import com.nuvio.app.features.profiles.AvatarRepository
+import com.nuvio.app.features.profiles.avatarImageUrl
 import com.nuvio.app.features.profiles.MAX_PROFILES
 import com.nuvio.app.features.profiles.NuvioProfile
 import com.nuvio.app.features.profiles.ProfilePushPayload
@@ -80,7 +81,7 @@ object ProfilesBridge {
             put("maxProfiles", MAX_PROFILES)
             put("avatars", JsonArray(AvatarRepository.avatars.value.map { avatar -> buildJsonObject {
                 put("id", avatar.id); put("name", avatar.displayName); put("category", avatar.category)
-                putNullable("color", avatar.bgColor); putNullable("url", avatar.localImageUrl ?: avatar.storagePath.takeIf { it.startsWith("http") })
+                putNullable("color", avatar.bgColor); putNullable("url", avatarImageUrl(avatar))
                 put("memberOnly", avatar.memberOnly)
             } }))
             put("backgrounds", JsonArray(ProfileBackgroundRepository.catalog.value.map { background -> buildJsonObject {

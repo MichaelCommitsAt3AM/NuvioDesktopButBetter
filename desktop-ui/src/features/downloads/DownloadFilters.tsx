@@ -7,7 +7,10 @@ import { PageHeader } from '../../components/ui';
 import { SteppedSlider } from '../settings/SteppedSlider';
 import './downloads.css';
 
-export type DownloadFilter = { maxResolution: string; maxSizeBytes: number; showUnknownSizeStreams: boolean; allowedSources: string[]; minMaxSizeBytes: number; maxMaxSizeBytes: number };
+export type DownloadFilter = {
+  maxResolution: string; maxSizeBytes: number; showUnknownSizeStreams: boolean; allowedSources: string[]; minMaxSizeBytes: number; maxMaxSizeBytes: number;
+  bitrateLimitEnabled: boolean; maxBitrateKbps: number; scaleBitrateByCodec: boolean; minMaxBitrateKbps: number; maxMaxBitrateKbps: number;
+};
 type Snapshot = { filter: DownloadFilter };
 const RESOLUTIONS = [
   ['uhd_4k', '2160p (4K)'], ['fhd_1080', '1080p'], ['hd_720', '720p'], ['sd', '480p & below'],
@@ -30,6 +33,7 @@ export function DownloadFiltersPage() {
     finally { setBusy(false); }
   };
   const maxGb = filter ? Math.max(1, Math.min(20, Math.round(filter.maxSizeBytes / GB))) : 8;
+  const maxMbps = filter ? filter.maxBitrateKbps / 1000 : 6;
   return <div className="page settings-page download-filter-page">
     <Link to="/settings" className="back-button settings-page-back" aria-label="Back to Settings"><ArrowLeft /></Link>
     <PageHeader title="Download filter" />
@@ -55,8 +59,27 @@ export function DownloadFiltersPage() {
         </div>
       </section>
       <section className="download-filter-section">
+        <h2>Quality limit (bitrate)</h2>
+        <p>File size alone can’t tell a lean encode from a bloated one, because a long film needs more bytes than a short one. This limit compares each file’s average bitrate (size ÷ runtime) instead. The default of 6 Mbps for 1080p is close to what Netflix streams.</p>
+        <div className="download-filter-group">
+          <label className="download-filter-option download-filter-unknown">
+            <span><strong>Limit by bitrate</strong><small>Needs the title’s runtime. When the runtime is unknown, only the maximum size below applies.</small></span>
+            <input type="checkbox" checked={filter.bitrateLimitEnabled} disabled={busy} onChange={event => void save('downloads.filter.setBitrateLimitEnabled', { enabled: event.target.checked })} />
+          </label>
+          {filter.bitrateLimitEnabled && <>
+            <div className="download-filter-slider">
+              <SteppedSlider title="Maximum bitrate (1080p)" description="Other resolutions scale from this: 720p about 40%, 4K about 2.5×." value={maxMbps} min={filter.minMaxBitrateKbps / 1000} max={filter.maxMaxBitrateKbps / 1000} step={0.5} suffix="Mbps" disabled={busy} onSave={value => void save('downloads.filter.setMaxBitrateKbps', { kbps: Math.round(value * 1000) })} />
+            </div>
+            <label className="download-filter-option download-filter-unknown">
+              <span><strong>Allow less for HEVC / AV1</strong><small>HEVC (x265) and AV1 look as good as H.264 at a lower bitrate, so their limit is 60% / 50% of the setting above.</small></span>
+              <input type="checkbox" checked={filter.scaleBitrateByCodec} disabled={busy} onChange={event => void save('downloads.filter.setScaleBitrateByCodec', { enabled: event.target.checked })} />
+            </label>
+          </>}
+        </div>
+      </section>
+      <section className="download-filter-section">
         <h2>Maximum size</h2>
-        <p>Hide streams larger than this size while Data Saver is on.</p>
+        <p>Hard cap that always applies, whatever the bitrate. Hide streams larger than this size while Data Saver is on.</p>
         <div className="download-filter-group">
           <div className="download-filter-slider">
             <SteppedSlider title="Maximum file size" value={maxGb} min={Math.ceil(filter.minMaxSizeBytes / GB)} max={Math.floor(filter.maxMaxSizeBytes / GB)} suffix="GB" disabled={busy} onSave={value => void save('downloads.filter.setMaxSizeBytes', { bytes: value * GB })} />
@@ -67,7 +90,7 @@ export function DownloadFiltersPage() {
           </label>
         </div>
       </section>
-      <button className="download-filter-reset" disabled={busy} onClick={() => void save('downloads.filter.reset')}><span><strong>Reset to defaults</strong><small>Restore 1080p WEB-DL / WEBRip defaults.</small></span><RotateCcw size={19} /></button>
+      <button className="download-filter-reset" disabled={busy} onClick={() => void save('downloads.filter.reset')}><span><strong>Reset to defaults</strong><small>Restore the Netflix-like 1080p WEB-DL / WEBRip defaults.</small></span><RotateCcw size={19} /></button>
     </>}
   </div>;
 }

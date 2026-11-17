@@ -17,6 +17,12 @@
 .download-filter-slider{display:grid;gap:10px;padding:17px 22px 14px;color:var(--text,#eee)}
 .settings-desktop .download-filter-slider .stepped-slider-row{padding:0}
 .download-filter-slider:has(input:disabled){opacity:.6}
+.download-filter-option+.download-filter-slider{border-top:1px solid #ffffff08}
+.quality-download-options{display:grid;gap:10px;margin:0}
+.quality-download-status{display:flex;align-items:center;gap:10px}
+.quality-download-spinner{animation:quality-download-spin 1s linear infinite}
+@keyframes quality-download-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.quality-download-spinner{animation:none}}
 .download-filter-unknown{min-height:76px}
 .download-filter-unknown>span{display:grid;gap:4px}
 .download-filter-unknown strong,.download-filter-reset strong{font-size:16px;font-weight:400;line-height:22px}

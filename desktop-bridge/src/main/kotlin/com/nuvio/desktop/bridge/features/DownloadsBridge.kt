@@ -70,6 +70,20 @@ object DownloadsBridge {
             DownloadFilterSettingsRepository.setShowUnknownSizeStreams(params.bool("enabled"))
             filterSnapshot()
         }
+        "downloads.filter.setBitrateLimitEnabled" -> {
+            DownloadFilterSettingsRepository.setBitrateLimitEnabled(params.bool("enabled"))
+            filterSnapshot()
+        }
+        "downloads.filter.setMaxBitrateKbps" -> {
+            val kbps = params.long("kbps")
+            if (kbps <= 0L) throw BridgeFeatureException("INVALID_ARGUMENT", "kbps must be positive")
+            DownloadFilterSettingsRepository.setMaxBitrateKbps(kbps.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+            filterSnapshot()
+        }
+        "downloads.filter.setScaleBitrateByCodec" -> {
+            DownloadFilterSettingsRepository.setScaleBitrateByCodec(params.bool("enabled"))
+            filterSnapshot()
+        }
         "downloads.filter.reset" -> {
             DownloadFilterSettingsRepository.resetToDefaults()
             filterSnapshot()
@@ -95,6 +109,11 @@ object DownloadsBridge {
             put("showUnknownSizeStreams", config.showUnknownSizeStreams)
             put("minMaxSizeBytes", DownloadFilterConfig.MIN_MAX_SIZE_BYTES)
             put("maxMaxSizeBytes", DownloadFilterConfig.MAX_MAX_SIZE_BYTES)
+            put("bitrateLimitEnabled", config.bitrateLimitEnabled)
+            put("maxBitrateKbps", config.maxBitrateKbps)
+            put("scaleBitrateByCodec", config.scaleBitrateByCodec)
+            put("minMaxBitrateKbps", DownloadFilterConfig.MIN_MAX_BITRATE_KBPS)
+            put("maxMaxBitrateKbps", DownloadFilterConfig.MAX_MAX_BITRATE_KBPS)
         }
     }
 

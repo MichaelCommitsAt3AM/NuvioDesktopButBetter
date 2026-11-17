@@ -2553,7 +2553,7 @@
     <string name="download_filter_section_sources">Allowed file types</string>
     <string name="download_filter_section_sources_desc">Only show these source types while Data Saver is on.</string>
     <string name="download_filter_reset">Reset to defaults</string>
-    <string name="download_filter_reset_desc">Restore 1080p WEB-DL / WEBRip defaults.</string>
+    <string name="download_filter_reset_desc">Restore the Netflix-like 1080p WEB-DL / WEBRip defaults.</string>
     <string name="download_filter_resolution_2160">2160p (4K)</string>
     <string name="download_filter_resolution_1080">1080p</string>
     <string name="download_filter_resolution_720">720p</string>
@@ -2566,8 +2566,15 @@
     <string name="download_filter_source_bluray">Blu-ray</string>
     <string name="download_filter_source_remux">Remux</string>
     <string name="download_filter_section_size">Maximum size</string>
-    <string name="download_filter_section_size_desc">Hide streams larger than this size while Data Saver is on.</string>
+    <string name="download_filter_section_size_desc">Hard cap that always applies, whatever the bitrate. Hide streams larger than this size while Data Saver is on.</string>
     <string name="download_filter_size_value">Up to %1$d GB</string>
+    <string name="download_filter_section_bitrate">Quality limit (bitrate)</string>
+    <string name="download_filter_section_bitrate_desc">File size alone cannot tell a lean encode from a bloated one, because a long film needs more bytes than a short one. This limit compares each file's average bitrate (size divided by runtime) instead. The default of 6 Mbps for 1080p is close to what Netflix streams.</string>
+    <string name="download_filter_bitrate_enabled_title">Limit by bitrate</string>
+    <string name="download_filter_bitrate_enabled_desc">Needs the title runtime. When the runtime is unknown, only the maximum size below applies.</string>
+    <string name="download_filter_bitrate_value">Up to %1$s Mbps at 1080p</string>
+    <string name="download_filter_bitrate_codec_title">Allow less for HEVC / AV1</string>
+    <string name="download_filter_bitrate_codec_desc">HEVC (x265) and AV1 look as good as H.264 at a lower bitrate, so their limit is 60% / 50% of the setting above. Other resolutions scale from the 1080p value.</string>
     <string name="download_filter_unknown_size_title">Show streams with unknown size</string>
     <string name="download_filter_unknown_size_desc">Off by default. When off, streams that don\'t report a file size are hidden while Data Saver is on.</string>
     <string name="settings_playback_auto_skip_movie_credits">End Credits</string>

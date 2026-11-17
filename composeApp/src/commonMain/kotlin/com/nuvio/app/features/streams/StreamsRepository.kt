@@ -98,7 +98,7 @@ object StreamsRepository {
 
         activeRequestKey = requestKey
         activeJob?.cancel()
-        _uiState.value = StreamsUiState(requestToken = requestToken)
+        _uiState.value = StreamsUiState(requestToken = requestToken, contentVideoId = videoId)
 
         PlayerSettingsRepository.ensureLoaded()
         val playerSettings = PlayerSettingsRepository.uiState.value

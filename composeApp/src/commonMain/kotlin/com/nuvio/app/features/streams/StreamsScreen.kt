@@ -94,7 +94,9 @@ import com.nuvio.app.core.ui.backdropControlColor
 import com.nuvio.app.core.ui.dismissNuvioBottomSheet
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
 import com.nuvio.app.features.downloads.DownloadFilterResult
+import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.downloads.DownloadFilterSettingsRepository
+import com.nuvio.app.features.downloads.DownloadRuntimeResolver
 import com.nuvio.app.features.downloads.DownloadStreamFilter
 import com.nuvio.app.features.downloads.DownloadStreamFilterMode
 import com.nuvio.app.core.ui.featherArtwork
@@ -896,9 +898,13 @@ internal fun StreamList(
         DownloadFilterSettingsRepository.ensureLoaded()
         DownloadFilterSettingsRepository.uiState
     }.collectAsStateWithLifecycle()
-    val filterResult = remember(baseGroups, isDataSaver, downloadFilterConfig) {
+    val metaDetailsState by MetaDetailsRepository.uiState.collectAsStateWithLifecycle()
+    val runtimeSeconds = remember(metaDetailsState.meta, uiState.contentVideoId) {
+        DownloadRuntimeResolver.runtimeSeconds(metaDetailsState.meta, uiState.contentVideoId)
+    }
+    val filterResult = remember(baseGroups, isDataSaver, downloadFilterConfig, runtimeSeconds) {
         if (isDataSaver) {
-            DownloadStreamFilter.apply(baseGroups, downloadFilterConfig)
+            DownloadStreamFilter.apply(baseGroups, downloadFilterConfig, runtimeSeconds)
         } else {
             DownloadFilterResult(baseGroups, 0)
         }

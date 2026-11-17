@@ -51,6 +51,11 @@ export const AppNavigation = memo(function AppNavigation({ onSearchFocus }: { on
   // startup never flashes the compact bar at users who selected extended.
   const navBarStyle = appearance?.navBarStyle ?? 'expanded';
   const selectedProfile = useSelector(current => current.session.profiles.find(profile => profile.id === current.session.activeProfile));
+  // Choosing a profile changes the session epoch, which clears feature snapshots. The avatar photo
+  // comes from the profiles snapshot, so reload it here; otherwise the bar falls back to the initial.
+  const profilesLoaded = useFeatureSnapshot<unknown>('profiles') !== undefined;
+  const activeProfileId = selectedProfile?.id;
+  useEffect(() => { if (activeProfileId !== undefined && !profilesLoaded) void refreshFeature('profiles').catch(() => {}); }, [activeProfileId, profilesLoaded]);
   const clearHold = useCallback(() => { if (holdTimer.current) clearTimeout(holdTimer.current); holdTimer.current = null; }, []);
   useEffect(() => () => clearHold(), []);
   useEffect(() => { setProfileOpen(false); }, [location.pathname]);

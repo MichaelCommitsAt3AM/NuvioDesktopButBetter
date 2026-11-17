@@ -1,5 +1,7 @@
 package com.nuvio.app.features.downloads
 
+import com.nuvio.app.features.details.MetaDetails
+import com.nuvio.app.features.details.parseRuntimeMinutes
 import com.nuvio.app.features.streams.AddonStreamGroup
 import com.nuvio.app.features.streams.StreamBadgeMatcher
 import com.nuvio.app.features.streams.StreamItem
@@ -51,9 +53,31 @@ enum class StreamSourceType {
 }
 
 /**
+ * Video codec detected from a stream's title/metadata. HEVC and AV1 reach the
+ * same visual quality as AVC at a much lower bitrate, so the bitrate ceiling is
+ * scaled by codec (see [bitrateFactor]). [UNKNOWN] is treated like AVC, i.e. the
+ * strictest (unscaled) ceiling.
+ */
+@Serializable
+enum class StreamCodec(val bitrateFactor: Double) {
+    AVC(1.0),
+    HEVC(0.6),
+    AV1(0.5),
+    UNKNOWN(1.0),
+}
+
+/**
  * User-customisable "data saver" rules. A stream passes when its detected
  * resolution is at most [maxResolution], its detected source type is in
- * [allowedSources], and its detected file size is at most [maxSizeBytes].
+ * [allowedSources], its detected file size is at most [maxSizeBytes] and, when
+ * [bitrateLimitEnabled] is on and the title runtime is known, its average
+ * bitrate (size / runtime) is within the [maxBitrateKbps] ceiling.
+ *
+ * [maxBitrateKbps] is the ceiling for a 1080p AVC stream (Netflix streams 1080p
+ * at roughly 5-6 Mbps). It is scaled by resolution tier ([resolutionBitrateFactor])
+ * and, when [scaleBitrateByCodec] is on, by codec. The bitrate check needs a
+ * runtime, so when none is known only the size cap applies.
+ *
  * Undetected resolution/source always pass; undetected size passes only when
  * [showUnknownSizeStreams] is enabled, since size is the primary signal users
  * rely on to gauge whether a download is "safe" and a silent unknown could
@@ -65,8 +89,15 @@ data class DownloadFilterConfig(
     val allowedSources: Set<StreamSourceType> = DEFAULT_ALLOWED_SOURCES,
     val maxSizeBytes: Long = DEFAULT_MAX_SIZE_BYTES,
     val showUnknownSizeStreams: Boolean = false,
+    val bitrateLimitEnabled: Boolean = true,
+    val maxBitrateKbps: Int = DEFAULT_MAX_BITRATE_KBPS,
+    val scaleBitrateByCodec: Boolean = true,
 ) {
-    fun allows(stream: StreamItem): Boolean {
+    /**
+     * @param runtimeSeconds runtime of the title/episode being downloaded, or null
+     * when unknown (the bitrate ceiling is then skipped).
+     */
+    fun allows(stream: StreamItem, runtimeSeconds: Long? = null): Boolean {
         val resolution = StreamQualityClassifier.resolutionOf(stream)
         if (resolution != StreamResolutionTier.UNKNOWN && resolution.rank > maxResolution.rank) {
             return false
@@ -81,7 +112,19 @@ data class DownloadFilterConfig(
         } else if (size > maxSizeBytes) {
             return false
         }
+        if (bitrateLimitEnabled && size != null && runtimeSeconds != null && runtimeSeconds > 0L) {
+            val bitrateKbps = StreamQualityClassifier.bitrateKbps(size, runtimeSeconds)
+            if (bitrateKbps > bitrateCeilingKbps(resolution, StreamQualityClassifier.codecOf(stream))) {
+                return false
+            }
+        }
         return true
+    }
+
+    /** Effective ceiling in kbps for a stream of the given [resolution] and [codec]. */
+    fun bitrateCeilingKbps(resolution: StreamResolutionTier, codec: StreamCodec): Double {
+        val codecFactor = if (scaleBitrateByCodec) codec.bitrateFactor else 1.0
+        return maxBitrateKbps * resolutionBitrateFactor(resolution) * codecFactor
     }
 
     companion object {
@@ -92,7 +135,39 @@ data class DownloadFilterConfig(
         const val MAX_MAX_SIZE_BYTES: Long = 20L * 1024 * 1024 * 1024
         const val DEFAULT_MAX_SIZE_BYTES: Long = 8L * 1024 * 1024 * 1024
 
+        /** Roughly Netflix's 1080p average (about 5-6 Mbps, with headroom). */
+        const val DEFAULT_MAX_BITRATE_KBPS: Int = 6_000
+        const val MIN_MAX_BITRATE_KBPS: Int = 1_000
+        const val MAX_MAX_BITRATE_KBPS: Int = 20_000
+
+        /** How much of the 1080p ceiling each resolution tier gets. */
+        fun resolutionBitrateFactor(tier: StreamResolutionTier): Double = when (tier) {
+            StreamResolutionTier.SD -> 0.35
+            StreamResolutionTier.HD_720 -> 0.4
+            StreamResolutionTier.FHD_1080 -> 1.0
+            StreamResolutionTier.UHD_4K -> 2.5
+            StreamResolutionTier.UNKNOWN -> 1.0
+        }
+
         val DEFAULT = DownloadFilterConfig()
+    }
+}
+
+/**
+ * Looks up the runtime (in seconds) of the movie or episode a stream list is
+ * for, so [DownloadFilterConfig] can derive bitrate from file size.
+ */
+object DownloadRuntimeResolver {
+    /** Episode runtime when the addon provides one, else the title's runtime. */
+    fun runtimeSeconds(meta: MetaDetails?, videoId: String?): Long? {
+        if (meta == null) return null
+        val episodeMinutes = videoId
+            ?.let { id -> meta.videos.firstOrNull { it.id == id } }
+            ?.runtime
+        val minutes = episodeMinutes?.takeIf { it > 0 }
+            ?: parseRuntimeMinutes(meta.runtime)?.takeIf { it > 0 }
+            ?: return null
+        return minutes * 60L
     }
 }
 
@@ -115,6 +190,26 @@ object StreamQualityClassifier {
             ?: stream.clientResolve?.stream?.raw?.folderSize
             ?: stream.debridCacheStatus?.cachedSize
         return size?.takeIf { it > 0L }
+    }
+
+    fun codecOf(stream: StreamItem): StreamCodec =
+        codecOf(haystack(stream))
+
+    /** Average bitrate in kbps for a file of [sizeBytes] lasting [runtimeSeconds]. */
+    fun bitrateKbps(sizeBytes: Long, runtimeSeconds: Long): Double =
+        sizeBytes * 8.0 / runtimeSeconds / 1000.0
+
+    /** True for HDR10 / HDR10+ / HLG / Dolby Vision streams, from the title and metadata. */
+    fun isHdr(stream: StreamItem): Boolean = isHdr(haystack(stream))
+
+    internal fun isHdr(text: String): Boolean =
+        Regex("(\\bhdr10\\+?|\\bhdr\\b|\\bhlg\\b|dolby[ .-]?vision|\\bdv\\b)").containsMatchIn(text)
+
+    internal fun codecOf(text: String): StreamCodec = when {
+        Regex("(\\bx265\\b|\\bh\\.?265\\b|\\bhevc\\b)").containsMatchIn(text) -> StreamCodec.HEVC
+        Regex("\\bav1\\b").containsMatchIn(text) -> StreamCodec.AV1
+        Regex("(\\bx264\\b|\\bh\\.?264\\b|\\bavc\\b)").containsMatchIn(text) -> StreamCodec.AVC
+        else -> StreamCodec.UNKNOWN
     }
 
     internal fun resolutionOf(text: String): StreamResolutionTier = when {
@@ -155,11 +250,12 @@ object DownloadStreamFilter {
     fun apply(
         groups: List<AddonStreamGroup>,
         config: DownloadFilterConfig,
+        runtimeSeconds: Long? = null,
     ): DownloadFilterResult {
         var hidden = 0
         val filtered = groups.map { group ->
             val kept = group.streams.filter { stream ->
-                val keep = config.allows(stream)
+                val keep = config.allows(stream, runtimeSeconds)
                 if (!keep) hidden++
                 keep
             }

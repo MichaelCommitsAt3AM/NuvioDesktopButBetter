@@ -73,6 +73,28 @@ object DownloadFilterSettingsRepository {
         update(_uiState.value.copy(showUnknownSizeStreams = enabled))
     }
 
+    fun setBitrateLimitEnabled(enabled: Boolean) {
+        ensureLoaded()
+        if (_uiState.value.bitrateLimitEnabled == enabled) return
+        update(_uiState.value.copy(bitrateLimitEnabled = enabled))
+    }
+
+    fun setMaxBitrateKbps(kbps: Int) {
+        ensureLoaded()
+        val clamped = kbps.coerceIn(
+            DownloadFilterConfig.MIN_MAX_BITRATE_KBPS,
+            DownloadFilterConfig.MAX_MAX_BITRATE_KBPS,
+        )
+        if (_uiState.value.maxBitrateKbps == clamped) return
+        update(_uiState.value.copy(maxBitrateKbps = clamped))
+    }
+
+    fun setScaleBitrateByCodec(enabled: Boolean) {
+        ensureLoaded()
+        if (_uiState.value.scaleBitrateByCodec == enabled) return
+        update(_uiState.value.copy(scaleBitrateByCodec = enabled))
+    }
+
     fun resetToDefaults() {
         ensureLoaded()
         if (_uiState.value == DownloadFilterConfig.DEFAULT) return

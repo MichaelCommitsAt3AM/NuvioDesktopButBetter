@@ -945,8 +945,41 @@ New feature on every platform (`features/downloads/DownloadFilter*.kt`, `Streams
   empty state appears when everything was filtered out. The limits are:
   - max resolution (default 1080p)
   - allowed source types (default WEB-DL + WEBRIP; also REMUX, BluRay, HDTV, DVD, CAM)
-  - max file size (1–20 GB, default 8 GB)
+  - max file size (1–20 GB, default 8 GB), a hard cap that always applies
+  - max bitrate (1–20 Mbps for 1080p, default 6 Mbps, roughly Netflix's 1080p average), see below
   - whether streams of unknown size are shown (default: hidden)
+- **Bitrate limit.** File size alone can't tell a lean encode from a bloated one, since a 3-hour film needs more bytes
+  than a 90-minute one. The filter now also compares each stream's average bitrate (size ÷ runtime) with a ceiling:
+  - The setting is the ceiling for 1080p H.264. 720p gets 40% of it, SD 35% and 4K 2.5×.
+  - HEVC/x265 gets 60% and AV1 50% of the ceiling, because they match H.264 quality at a lower bitrate
+    (switch: *Allow less for HEVC / AV1*). Codec is read from the title/filename like resolution and source.
+  - The runtime comes from the episode's runtime when the addon gives one, else the title's runtime
+    (`DownloadRuntimeResolver`). With no runtime, or no size, the bitrate check is skipped and only the size cap applies.
+  - On by default, so existing profiles pick it up (stored configs without the new fields decode to the defaults).
+    *Reset to defaults* restores the Netflix-like settings. Rewrite bridge methods:
+    `downloads.filter.setBitrateLimitEnabled`, `setMaxBitrateKbps`, `setScaleBitrateByCodec`.
+  - `StreamsUiState.contentVideoId` carries the requested video id so the Compose streams list can look up the runtime.
+  - Covered by `DownloadFilterBitrateTest`. Not yet done: showing each stream's bitrate in the list, a minimum
+    bitrate band, and ranking survivors by closeness to the target.
+- **One-tap Download button (movie details).** For people who find the streams list complicated, the rewrite's movie
+  details page has a **Download** button next to Play. It searches the title's streams, then offers only the
+  qualities that exist (4K, 1080p, 720p) and starts the download straight away, without opening the streams page.
+  - The shared logic lives in `commonMain` so mobile can reuse it: `DownloadQualityOptionsLoader` (search + pick) and
+    `DownloadQualityPicker` (the choice). Per quality it keeps streams of exactly that resolution that pass the user's
+    bitrate budget (a lower bitrate is always fine, which suits old or low-detail titles) and takes the best
+    codec-adjusted bitrate, so an efficient HEVC encode beats a bloated H.264 one.
+  - Sources: everything except cam/telesync is allowed (the bitrate ceiling already removes remuxes), and the size cap
+    scales with the tier so 4K is not blocked by a 1080p cap. With no runtime, 100 minutes is assumed.
+  - Bridge: `downloads.qualityOptions` (search and pick) and `downloads.startQuality` (enqueue the chosen option, with
+    the same replace-existing confirmation as the streams page). If nothing fits the limits, the dialog offers
+    *Browse all streams*.
+  - The 4K option reads **4K HDR** when that particular file is HDR (HDR10, HDR10+, HLG or Dolby Vision, from the
+    title/filename); a standard-range 4K file stays plain **4K**. HDR is not called out on 1080p/720p.
+  - Movies only for now. Covered by `DownloadQualityPickerTest` and `QualityDownloadButton.test.tsx`. Mobile has the
+    same flow as a bottom sheet (`QualityDownloadSheet`, opened from an icon after the "more" button in
+    `DetailActions`) with the same labels (4K Ultra HD / 1080p Full HD / 720p HD), order and size-only subtitle.
+    Unlike desktop it replaces an existing download without asking, as mobile's streams screen already does, and
+    when nothing fits it points to long-pressing Play instead of offering a button.
 - Resolution and source are classified from the stream title/filename/metadata. Size comes from addon hints or
   debrid cache info. Streams with an undetected resolution or source are never hidden for that reason.
 - Settings live on a new **Download filter settings** page. You open it from the Downloads screen (tune icon),
@@ -1363,3 +1396,9 @@ Synced with upstream `65061186d` (0.1.37-alpha plus two commits); see `UPSTREAM_
 - Post-credits chapters are skip targets again (`ChapterSkipIntervals.kt` was restored to upstream).
 - Forced subtitles are on by default (upstream); the built-in subtitle selection test sets it off explicitly.
 - Deferred: user ratings (rating chip and sheet), audio amplification/delay/center mix controls in the native overlay, and a review of mpv subtitle auto-sync settings.
+
+## Rewrite fixes and shared UI (2026-11-17)
+
+- **Top-bar profile photo.** Choosing a profile resets the client's feature snapshots (a session epoch change), which cleared the `profiles` snapshot the avatar photo comes from, so the top bar showed the profile's first letter instead of its picture. `AppNavigation` now reloads that snapshot when the active profile has no snapshot yet.
+- **Reusable `BottomSheet` (`desktop-ui/src/components/BottomSheet.tsx`).** The desktop counterpart of mobile's `NuvioModalBottomSheet`: bottom-aligned with a drag handle, enter/exit motion, drag-to-dismiss, scrim and Escape. It supplies the shared look (22px title, 14px body, 16px rounded rows, error line) through `nuvio-bottom-sheet-*` classes in `bottomSheet.css`. The movie Download dialog uses it; other sheets (such as the episode actions sheet) still use their own markup and can move over later.
+- **Mobile download notifications.** Android downloads already run as user-initiated jobs (Android 14+) or a foreground worker with a progress notification, but nothing ever asked for the notification permission, so on Android 13+ the notification was hidden. Starting a download now requests it when it is not granted (`DownloadsPlatformDownloader.android.kt`, via the existing `EpisodeReleaseNotificationPlatform` request flow).

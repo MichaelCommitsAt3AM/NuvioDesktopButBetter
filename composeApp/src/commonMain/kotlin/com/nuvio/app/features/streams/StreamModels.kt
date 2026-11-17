@@ -329,6 +329,8 @@ data class StreamsUiState(
     val isDirectAutoPlayFlow: Boolean = false,
     val showDirectAutoPlayOverlay: Boolean = false,
     val overlayMessage: String? = null,
+    /** Video id the current stream request is for; used to look up the runtime for bitrate filtering. */
+    val contentVideoId: String? = null,
 ) {
     val filteredGroups: List<AddonStreamGroup>
         get() = if (selectedFilter == null) groups

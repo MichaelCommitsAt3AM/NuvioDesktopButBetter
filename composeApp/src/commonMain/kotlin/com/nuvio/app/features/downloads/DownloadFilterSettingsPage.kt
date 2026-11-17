@@ -23,7 +23,14 @@ import com.nuvio.app.features.settings.SettingsNavigationRow
 import com.nuvio.app.features.settings.SettingsSection
 import com.nuvio.app.features.settings.SettingsSwitchRow
 import nuvio.composeapp.generated.resources.Res
+import nuvio.composeapp.generated.resources.download_filter_bitrate_codec_desc
+import nuvio.composeapp.generated.resources.download_filter_bitrate_codec_title
+import nuvio.composeapp.generated.resources.download_filter_bitrate_enabled_desc
+import nuvio.composeapp.generated.resources.download_filter_bitrate_enabled_title
+import nuvio.composeapp.generated.resources.download_filter_bitrate_value
 import nuvio.composeapp.generated.resources.download_filter_header_desc
+import nuvio.composeapp.generated.resources.download_filter_section_bitrate
+import nuvio.composeapp.generated.resources.download_filter_section_bitrate_desc
 import nuvio.composeapp.generated.resources.download_filter_reset
 import nuvio.composeapp.generated.resources.download_filter_reset_desc
 import nuvio.composeapp.generated.resources.download_filter_resolution_1080
@@ -71,6 +78,14 @@ private val sourceOptions: List<StreamSourceType> = listOf(
 private const val BYTES_PER_GB = 1024L * 1024L * 1024L
 private val minSizeGb = (DownloadFilterConfig.MIN_MAX_SIZE_BYTES / BYTES_PER_GB).toInt()
 private val maxSizeGb = (DownloadFilterConfig.MAX_MAX_SIZE_BYTES / BYTES_PER_GB).toInt()
+
+// The bitrate slider moves in 0.5 Mbps steps, so it works in half-Mbps units.
+private const val KBPS_PER_HALF_MBPS = 500
+private val minHalfMbps = DownloadFilterConfig.MIN_MAX_BITRATE_KBPS / KBPS_PER_HALF_MBPS
+private val maxHalfMbps = DownloadFilterConfig.MAX_MAX_BITRATE_KBPS / KBPS_PER_HALF_MBPS
+
+private fun formatMbps(halfMbps: Int): String =
+    if (halfMbps % 2 == 0) "${halfMbps / 2}" else "${halfMbps / 2}.5"
 
 internal fun LazyListScope.downloadFilterSettingsContent(
     config: DownloadFilterConfig,
@@ -130,6 +145,61 @@ internal fun LazyListScope.downloadFilterSettingsContent(
                         selected = checked,
                         multiSelect = true,
                         onClick = { DownloadFilterSettingsRepository.setSourceAllowed(source, !checked) },
+                    )
+                }
+            }
+        }
+    }
+
+    item {
+        SettingsSection(
+            title = stringResource(Res.string.download_filter_section_bitrate),
+            isTablet = isTablet,
+        ) {
+            Text(
+                text = stringResource(Res.string.download_filter_section_bitrate_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+            )
+            SettingsGroup(isTablet = isTablet) {
+                SettingsSwitchRow(
+                    title = stringResource(Res.string.download_filter_bitrate_enabled_title),
+                    description = stringResource(Res.string.download_filter_bitrate_enabled_desc),
+                    checked = config.bitrateLimitEnabled,
+                    isTablet = isTablet,
+                    onCheckedChange = DownloadFilterSettingsRepository::setBitrateLimitEnabled,
+                )
+                if (config.bitrateLimitEnabled) {
+                    SettingsGroupDivider(isTablet = isTablet)
+                    val halfMbps = (config.maxBitrateKbps / KBPS_PER_HALF_MBPS).coerceIn(minHalfMbps, maxHalfMbps)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                    ) {
+                        Text(
+                            text = stringResource(Res.string.download_filter_bitrate_value, formatMbps(halfMbps)),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Slider(
+                            value = halfMbps.toFloat(),
+                            onValueChange = { value ->
+                                DownloadFilterSettingsRepository.setMaxBitrateKbps(value.toInt() * KBPS_PER_HALF_MBPS)
+                            },
+                            valueRange = minHalfMbps.toFloat()..maxHalfMbps.toFloat(),
+                            steps = (maxHalfMbps - minHalfMbps - 1).coerceAtLeast(0),
+                        )
+                    }
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.download_filter_bitrate_codec_title),
+                        description = stringResource(Res.string.download_filter_bitrate_codec_desc),
+                        checked = config.scaleBitrateByCodec,
+                        isTablet = isTablet,
+                        onCheckedChange = DownloadFilterSettingsRepository::setScaleBitrateByCodec,
                     )
                 }
             }

@@ -824,6 +824,12 @@ class DesktopBridgeRuntime {
             buildJsonObject { putNullable("url", url) }
         }
         "downloads.enqueue" -> enqueueDownload(params)
+        "downloads.qualityOptions" -> qualityOptions(params)
+        "downloads.startQuality" -> {
+            val record = synchronized(qualityRegistry) { qualityRegistry[params.str("optionId")] }
+                ?: error("This download option is no longer available. Open the download menu again.")
+            enqueueRecord(record, params["replaceConfirmed"]?.jsonPrimitive?.booleanOrNull == true)
+        }
         "cloud.play" -> {
             val (item, file) = LibraryExtrasBridge.target(params.str("itemKey"), params.str("fileKey"))
             // Cloud files have no verified movie/series identity. Keep the
@@ -880,6 +886,42 @@ class DesktopBridgeRuntime {
 
     private suspend fun enqueueDownload(params: JsonObject): JsonObject {
         val record = synchronized(streamRegistry) { streamRegistry[params.str("streamId")] } ?: error("Stream is no longer available")
+        return enqueueRecord(record, params["replaceConfirmed"]?.jsonPrimitive?.booleanOrNull == true)
+    }
+
+    /** Streams chosen for the details-page Download button, keyed by the option ids returned to the UI. */
+    private val qualityRegistry = mutableMapOf<String, StreamRecord>()
+
+    /**
+     * Loads the title's streams and returns, for each of 4K / 1080p / 720p, the best stream within the user's
+     * bitrate budget. Qualities with no suitable stream are omitted. Nothing is downloaded here.
+     */
+    private suspend fun qualityOptions(params: JsonObject): JsonObject {
+        val type = params.str("type"); val id = params.str("id")
+        val videoId = params.optionalStr("videoId") ?: id
+        KidsBridge.requireMedia(type, id)
+        val loaded = com.nuvio.app.features.downloads.DownloadQualityOptionsLoader.load(type, id, videoId)
+        return synchronized(qualityRegistry) {
+            qualityRegistry.clear()
+            buildJsonObject {
+                put("loadedStreams", loaded.loadedStreams)
+                put("runtimeKnown", loaded.runtimeKnown)
+                put("options", JsonArray(loaded.options.map { option ->
+                    val optionId = "q-$epoch-${option.tier.name.lowercase()}"
+                    qualityRegistry[optionId] = StreamRecord(option.stream, loaded.meta, videoId)
+                    buildJsonObject {
+                        put("id", optionId); put("tier", option.tier.name.lowercase())
+                        put("sizeBytes", option.sizeBytes?.let(::JsonPrimitive) ?: JsonNull)
+                        put("bitrateKbps", option.bitrateKbps?.let(::JsonPrimitive) ?: JsonNull)
+                        put("codec", option.codec.name.lowercase()); put("source", option.source.name.lowercase())
+                        put("hdr", option.hdr)
+                    }
+                }))
+            }
+        }
+    }
+
+    private suspend fun enqueueRecord(record: StreamRecord, replaceConfirmed: Boolean): JsonObject {
         val meta = record.meta ?: error("Load title details before downloading")
         KidsBridge.requireMedia(meta.type, meta.id)
         val video = meta.videos.firstOrNull { it.id == record.videoId }
@@ -887,7 +929,7 @@ class DesktopBridgeRuntime {
             val result = DirectDebridPlaybackResolver.resolveToPlayableStream(record.stream, video?.season, video?.episode)
             (result as? DirectDebridPlayableResult.Success)?.stream ?: error("The stream could not be resolved for download")
         }
-        return when (val result = DownloadsBridge.enqueue(stream, meta, video, params["replaceConfirmed"]?.jsonPrimitive?.booleanOrNull == true)) {
+        return when (val result = DownloadsBridge.enqueue(stream, meta, video, replaceConfirmed)) {
             is DownloadEnqueueBridgeResult.RequiresReplacementConfirmation -> buildJsonObject { put("requiresConfirmation", true); put("existing", result.existingDownload) }
             is DownloadEnqueueBridgeResult.Enqueued -> {
                 when (result.result) {
@@ -1273,7 +1315,12 @@ class DesktopBridgeRuntime {
         put("requestId", requestId ?: "idle-${epoch}")
         val state = StreamsRepository.uiState.value
         val groups = if (state.downloadFilterMode == com.nuvio.app.features.downloads.DownloadStreamFilterMode.DATA_SAVER) {
-            com.nuvio.app.features.downloads.DownloadStreamFilter.apply(state.groups, com.nuvio.app.features.downloads.DownloadFilterSettingsRepository.snapshot()).groups
+            val (filterMeta, filterVideoId) = requestId?.let(streamContext::get) ?: (lastDetails to loadedVideoId)
+            com.nuvio.app.features.downloads.DownloadStreamFilter.apply(
+                state.groups,
+                com.nuvio.app.features.downloads.DownloadFilterSettingsRepository.snapshot(),
+                com.nuvio.app.features.downloads.DownloadRuntimeResolver.runtimeSeconds(filterMeta, filterVideoId),
+            ).groups
         } else state.groups
         synchronized(streamRegistry) {
             streamRegistry.clear()

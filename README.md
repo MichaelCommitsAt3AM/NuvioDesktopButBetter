@@ -218,7 +218,9 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - New **Data saver** mode on the streams list hides very large files (like 4K remuxes). You set the maximum quality, source type and file size.
   The rewrite’s quality switch uses the same Kotlin filter and correctly handles switching to Data saver and back.
   Movie pages also get a one-tap **Download** button that offers only the qualities available (4K, 1080p, 720p) and starts the download without opening the streams list.
+  Episodes can be downloaded the same way from their right-click / hold menu. While something downloads, its Download button (on the movie page, or on the right of the episode card) fills with a progress ring and opens the Downloads page when clicked.
   It also limits each file's bitrate (size divided by runtime, about Netflix's 1080p level by default), so very large 1080p encodes are hidden while long films with sensible encodes still show.
+  If every 1080p or 720p version is above that limit, the smallest one is still offered, marked as a large file. 4K skips suspiciously small "4K" files and offers the leanest genuine one.
 
 **Watching**
 - Subtitles are ready when playback starts, so the first subtitle switch no longer freezes the video.

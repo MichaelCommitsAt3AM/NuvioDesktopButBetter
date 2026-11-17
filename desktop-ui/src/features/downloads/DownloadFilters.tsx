@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, RotateCcw } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot } from '../../bridge';
 import { InlineError } from '../../components/Status';
 import { PageHeader } from '../../components/ui';
@@ -20,7 +20,11 @@ const SOURCES = [
 ] as const;
 const GB = 1024 ** 3;
 
+/** Pages that open the filter (Downloads, Streams) pass `{ returnTo }` so Back leads there instead of Settings. */
+export type DownloadFiltersLocationState = { returnTo?: string };
+
 export function DownloadFiltersPage() {
+  const returnTo = (useLocation().state as DownloadFiltersLocationState | null)?.returnTo;
   const snapshot = useFeatureSnapshot<Snapshot>('downloads');
   const filter = snapshot?.filter;
   const [error, setError] = useState('');
@@ -35,7 +39,7 @@ export function DownloadFiltersPage() {
   const maxGb = filter ? Math.max(1, Math.min(20, Math.round(filter.maxSizeBytes / GB))) : 8;
   const maxMbps = filter ? filter.maxBitrateKbps / 1000 : 6;
   return <div className="page settings-page download-filter-page">
-    <Link to="/settings" className="back-button settings-page-back" aria-label="Back to Settings"><ArrowLeft /></Link>
+    <Link to={returnTo ?? '/settings'} className="back-button settings-page-back" aria-label={returnTo ? 'Back' : 'Back to Settings'}><ArrowLeft /></Link>
     <PageHeader title="Download filter" />
     <p className="download-filter-intro">Data Saver filters the streams list down to smaller, download-friendly files. Customize what counts as data-friendly below.</p>
     {error && <InlineError message={error} />}
@@ -68,7 +72,7 @@ export function DownloadFiltersPage() {
           </label>
           {filter.bitrateLimitEnabled && <>
             <div className="download-filter-slider">
-              <SteppedSlider title="Maximum bitrate (1080p)" description="Other resolutions scale from this: 720p about 40%, 4K about 2.5×." value={maxMbps} min={filter.minMaxBitrateKbps / 1000} max={filter.maxMaxBitrateKbps / 1000} step={0.5} suffix="Mbps" disabled={busy} onSave={value => void save('downloads.filter.setMaxBitrateKbps', { kbps: Math.round(value * 1000) })} />
+              <SteppedSlider title="Maximum bitrate (1080p)" description="Other resolutions scale from this: 720p about 40%, 4K about 4.5×." value={maxMbps} min={filter.minMaxBitrateKbps / 1000} max={filter.maxMaxBitrateKbps / 1000} step={0.5} suffix="Mbps" disabled={busy} onSave={value => void save('downloads.filter.setMaxBitrateKbps', { kbps: Math.round(value * 1000) })} />
             </div>
             <label className="download-filter-option download-filter-unknown">
               <span><strong>Allow less for HEVC / AV1</strong><small>HEVC (x265) and AV1 look as good as H.264 at a lower bitrate, so their limit is 60% / 50% of the setting above.</small></span>

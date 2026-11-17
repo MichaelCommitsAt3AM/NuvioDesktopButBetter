@@ -13,20 +13,32 @@ data class QualityDownloadOption(
     val source: StreamSourceType,
     /** True for HDR10 / HDR10+ / HLG / Dolby Vision files. The UI labels the 4K option with it. */
     val hdr: Boolean = false,
+    /**
+     * True when every stream of this quality is over the user's bitrate budget and this is the smallest of them,
+     * offered anyway so the quality is not lost. The UI marks it as a large file.
+     */
+    val overBudget: Boolean = false,
 )
 
 /**
  * Picks, for each of 4K / 1080p / 720p, the stream a user should download without
  * looking at the streams list: the best-looking file that is still within the
- * user's [DownloadFilterConfig] bitrate budget for that resolution. A tier with no
- * suitable stream is simply absent from the result, so the UI never offers a
- * quality that cannot be downloaded.
+ * user's [DownloadFilterConfig] bitrate budget for that resolution. When every stream
+ * of a tier is over that budget, the smallest one is offered anyway and marked
+ * [QualityDownloadOption.overBudget] (it must still fit the size cap and have a known
+ * size). A tier with no stream within the size cap is absent from the result, so the
+ * UI never offers a quality that cannot be downloaded.
  *
  * Lower bitrates are always fine (old or low-detail titles encode small); the
  * ceiling only removes bloated files. Among the streams that fit, the highest
  * codec-adjusted bitrate wins, so an HEVC file at 3.4 Mbps and an AVC file at
  * 5.8 Mbps compare as roughly equal quality and the larger budget use is not
  * automatically preferred over a more efficient encode.
+ *
+ * 4K is picked differently (see [pick4k]): someone choosing 4K has accepted a large
+ * file, and a bitrate ceiling there rewards fake or starved "4K" files (a 1.6 GB
+ * "2160p" episode next to 9 GB Apple TV releases). So 4K skips implausibly small
+ * files and takes the leanest genuine one.
  */
 object DownloadQualityPicker {
     val TIERS: List<StreamResolutionTier> = listOf(
@@ -46,7 +58,47 @@ object DownloadQualityPicker {
     ): List<QualityDownloadOption> {
         val runtime = runtimeSeconds?.takeIf { it > 0L } ?: ASSUMED_RUNTIME_SECONDS
         val downloadable = streams.filter(isDownloadable)
-        return TIERS.mapNotNull { tier -> pickForTier(downloadable, tier, config, runtime) }
+        val options = TIERS.mapNotNull { tier -> pickForTier(downloadable, tier, config, runtime) }
+        // A real 4K file is never smaller than the 1080p one offered beside it.
+        val fhdSize = options.firstOrNull { it.tier == StreamResolutionTier.FHD_1080 }?.sizeBytes
+        return options.filterNot { option ->
+            option.tier == StreamResolutionTier.UHD_4K && fhdSize != null &&
+                option.sizeBytes != null && option.sizeBytes < fhdSize
+        }
+    }
+
+    /** Below this average bitrate (HEVC; scaled for other codecs) a "4K" file is treated as fake or starved. */
+    const val MIN_4K_HEVC_KBPS: Double = 8_000.0
+
+    /** With at least [MIN_4K_PEERS] sized 4K copies, one under this share of their median size is skipped. */
+    const val MIN_4K_SHARE_OF_MEDIAN: Double = 0.5
+    const val MIN_4K_PEERS: Int = 3
+
+    /**
+     * 4K: no bitrate ceiling (the tier's size cap still keeps remuxes out), but skip implausible files, those under
+     * [MIN_4K_HEVC_KBPS] or, among enough copies, under half the median size, then take the leanest that remains.
+     * Files without a known size are skipped, since they cannot be checked. Returns null when nothing is plausible.
+     */
+    private fun pick4k(
+        streams: List<StreamItem>,
+        tierConfig: DownloadFilterConfig,
+        config: DownloadFilterConfig,
+        runtimeSeconds: Long,
+    ): QualityDownloadOption? {
+        val sizeOnly = tierConfig.copy(bitrateLimitEnabled = false)
+        val sized = streams
+            .filter { StreamQualityClassifier.sizeOf(it) != null && sizeOnly.allows(it, runtimeSeconds) }
+            .map { stream -> candidate(stream, StreamResolutionTier.UHD_4K, config, runtimeSeconds) }
+        val median = sized.mapNotNull { it.option.sizeBytes }.sorted().takeIf { it.size >= MIN_4K_PEERS }
+            ?.let { sizes -> if (sizes.size % 2 == 1) sizes[sizes.size / 2].toDouble() else (sizes[sizes.size / 2 - 1] + sizes[sizes.size / 2]) / 2.0 }
+        return sized
+            // The floor scales with the file's codec (AVC needs about 13 Mbps, AV1 about 6.7), whatever the user's
+            // codec-scaling setting: this judges whether the file is plausible, not whether it suits the user.
+            // An untagged 4K file is assumed HEVC, as 4K releases nearly always are.
+            .filter { (it.option.bitrateKbps ?: 0) >= MIN_4K_HEVC_KBPS * fourKCodec(it.option.codec).bitrateFactor / StreamCodec.HEVC.bitrateFactor }
+            .filter { median == null || it.option.sizeBytes!! >= median * MIN_4K_SHARE_OF_MEDIAN }
+            .minByOrNull { it.score }
+            ?.option
     }
 
     private fun pickForTier(
@@ -61,17 +113,28 @@ object DownloadQualityPicker {
         val tierConfig = config.copy(
             maxResolution = tier,
             allowedSources = StreamSourceType.entries.toSet() - StreamSourceType.CAM,
-            maxSizeBytes = (config.maxSizeBytes * DownloadFilterConfig.resolutionBitrateFactor(tier))
+            maxSizeBytes = (config.maxSizeBytes * DownloadFilterConfig.resolutionSizeFactor(tier))
                 .toLong().coerceAtLeast(config.maxSizeBytes),
             bitrateLimitEnabled = true,
         )
-        return streams
-            .filter { StreamQualityClassifier.resolutionOf(it) == tier }
+        val ofTier = streams.filter { StreamQualityClassifier.resolutionOf(it) == tier }
+        if (tier == StreamResolutionTier.UHD_4K) return pick4k(ofTier, tierConfig, config, runtimeSeconds)
+        ofTier
             .filter { tierConfig.allows(it, runtimeSeconds) }
             .map { stream -> candidate(stream, tier, config, runtimeSeconds) }
             .maxWithOrNull(compareBy<Candidate> { it.hasSize }.thenBy { it.score })
-            ?.option
+            ?.let { return it.option }
+        // Nothing fits the bitrate budget (e.g. Apple TV 4K at 25-30 Mbps): offer the smallest file that still
+        // passes the size cap and source rules, marked as over budget so the user can choose it knowingly.
+        val sizeOnly = tierConfig.copy(bitrateLimitEnabled = false)
+        return ofTier
+            .filter { StreamQualityClassifier.sizeOf(it) != null && sizeOnly.allows(it, runtimeSeconds) }
+            .map { stream -> candidate(stream, tier, config, runtimeSeconds) }
+            .minByOrNull { it.score }
+            ?.option?.copy(overBudget = true)
     }
+
+    private fun fourKCodec(codec: StreamCodec) = if (codec == StreamCodec.UNKNOWN) StreamCodec.HEVC else codec
 
     private class Candidate(val option: QualityDownloadOption, val hasSize: Boolean, val score: Double)
 

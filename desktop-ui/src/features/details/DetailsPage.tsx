@@ -253,7 +253,7 @@ export function DetailsPage() {
               <span className="detail-inline-action-slot"><button className={`detail-inline-action ${saved ? 'active' : ''}`} type="button" aria-label={saved ? 'Remove from library' : 'Add to library'} title={saved ? 'Remove from library' : 'Add to library'} disabled={savedBusy} onClick={() => void toggleSaved()}>{saved ? <Check size={21} /> : <Plus size={21} />}</button></span>
               <button className="detail-more" type="button" aria-label="More title actions" aria-expanded={actionsOpen} onClick={() => setActionsOpen((open) => !open)}><MoreHorizontal size={22} /></button>
             </div>
-            {type === 'movie' && <QualityDownloadButton type={type} id={id} onBrowseStreams={() => openStreams(true)} />}
+            {type === 'movie' && <QualityDownloadButton type={type} id={id} onBrowseStreams={() => openStreams(true)} onOpenDownloads={() => navigate('/library/downloads')} />}
           </div>
           {actionError && <p className="detail-action-error" role="alert">{actionError}</p>}
         </div>

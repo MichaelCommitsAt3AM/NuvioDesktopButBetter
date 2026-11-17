@@ -151,7 +151,7 @@ export function ProfileEditorPage() {
   }
   const visibleAvatarUrl = safeAvatarUrl || selectedAvatar?.url || null;
 
-  if (loading && !snapshot) return <div className="loading-block"><span className="spin" /> Loading profile settingsâ€¦</div>;
+  if (loading && !snapshot) return <div className="loading-block"><span className="spin" /> Loading profile settings…</div>;
   if (editingId !== null && snapshot && !profile) return <div className="page profiles-page"><PageHeader title="Profile not found" action={<Link className="button secondary" to="/profiles"><ArrowLeft size={15} /> Profiles</Link>} /><p className="muted">This profile may have been removed.</p></div>;
 
   return <div className="page profile-editor-page">

@@ -950,7 +950,7 @@ New feature on every platform (`features/downloads/DownloadFilter*.kt`, `Streams
   - whether streams of unknown size are shown (default: hidden)
 - **Bitrate limit.** File size alone can't tell a lean encode from a bloated one, since a 3-hour film needs more bytes
   than a 90-minute one. The filter now also compares each stream's average bitrate (size ÷ runtime) with a ceiling:
-  - The setting is the ceiling for 1080p H.264. 720p gets 40% of it, SD 35% and 4K 2.5×.
+  - The setting is the ceiling for 1080p H.264. 720p gets 40% of it, SD 35% and 4K 4.5× (raised from 2.5×; see "Large-file fallback" below).
   - HEVC/x265 gets 60% and AV1 50% of the ceiling, because they match H.264 quality at a lower bitrate
     (switch: *Allow less for HEVC / AV1*). Codec is read from the title/filename like resolution and source.
   - The runtime comes from the episode's runtime when the addon gives one, else the title's runtime
@@ -975,9 +975,55 @@ New feature on every platform (`features/downloads/DownloadFilter*.kt`, `Streams
     *Browse all streams*.
   - The 4K option reads **4K HDR** when that particular file is HDR (HDR10, HDR10+, HLG or Dolby Vision, from the
     title/filename); a standard-range 4K file stays plain **4K**. HDR is not called out on 1080p/720p.
-  - Movies only for now. Covered by `DownloadQualityPickerTest` and `QualityDownloadButton.test.tsx`. Mobile has the
-    same flow as a bottom sheet (`QualityDownloadSheet`, opened from an icon after the "more" button in
+  - The details-page button is movies only. Covered by `DownloadQualityPickerTest` and `QualityDownloadButton.test.tsx`.
+    Mobile has the same flow as a bottom sheet (`QualityDownloadSheet`, opened from an icon after the "more" button in
     `DetailActions`) with the same labels (4K Ultra HD / 1080p Full HD / 720p HD), order and size-only subtitle.
+- **Large-file fallback and a realistic 4K allowance (one-tap Download).** 4K web releases were never offered: 4K
+  got 2.5x the 1080p ceiling, then HEVC's 60%, so a 4K HEVC file was held to 9 Mbps while real ones run 15-30 Mbps
+  (Apple TV 4K episodes about 27 Mbps).
+  - `resolutionBitrateFactor` for 4K is now 4.5x (6 Mbps x 4.5 x 0.6 = about 16 Mbps, Netflix's 4K level). This also
+    applies to the streams-list data saver. The picker's 4K size cap keeps its old 2.5x (`resolutionSizeFactor`, 20 GB
+    at the default 8 GB), so the larger bitrate allowance does not let 36 GB remuxes through.
+  - When every stream of a quality is over the bitrate budget, `DownloadQualityPicker` offers the smallest one anyway,
+    flagged `overBudget` (it must still have a known size, fit the size cap and not be a cam rip). The sheet labels
+    it *Large file* in amber, e.g. "4K HDR · Ultra HD · Large file · 8.2 GB". Bridge field: `overBudget` on each
+    `downloads.qualityOptions` option. Mobile shows the same label (`download_quality_large_file`).
+  - **4K is picked by plausibility, not bitrate** (`pick4k`). With a ceiling, the only 4K files "within budget" were
+    fake or starved ones (a 1.6 GB "2160p" episode beside 9.5 GB Apple TV copies, smaller than the 1080p option).
+    4K now has no bitrate ceiling (the 20 GB size cap still applies) and skips files that are under 8 Mbps
+    (`MIN_4K_HEVC_KBPS`, scaled by the file's own codec, untagged counts as HEVC), or, among 3+ sized copies, under
+    half the median size. Files without a size are skipped. The leanest remaining copy is offered, and a 4K option
+    smaller than the 1080p option is dropped. So the *Large file* fallback now only appears for 1080p and 720p.
+  - The desktop download sheet now animates like mobile's `AnimatedContent` when the options arrive: the sheet grows
+    to the new height (300ms) and the options fade in (220ms after 90ms) instead of snapping (`AnimatedPhase`).
+- **Episode downloads and download progress rings.** The same quality sheet downloads a single episode, and the
+  Download buttons show progress:
+  - The episode actions sheet (right-click or hold an episode) has a **Download** row, shown for released, available
+    episodes. It opens the quality sheet with the episode's video id (`downloads.qualityOptions` already accepted
+    `videoId`), titled with the episode code and name. It reads *Download again* for a downloaded episode and *View in
+    Downloads* while one is running. `QualityDownloadSheet` is a standalone export; `QualityDownloadButton` wraps it.
+  - The movie Download button doubles as the download indicator (`useTitleDownload`, `downloadStateView`): a ring
+    fills around it while downloading (dimmed when paused), it turns white once downloaded and red if it failed.
+  - An episode with a download gets the same ringed download button on the right of its card (bottom-right on
+    horizontal cards); the downloads snapshot is matched on parent title + `videoId` (`useDownloadsByVideoId`).
+  - While a download is running (downloading or paused), clicking its ringed button, or the menu row, opens the
+    Downloads page (`/library/downloads`) instead of the quality sheet; otherwise it opens the sheet (to download, or
+    to replace a finished or failed download).
+  - Mobile (NuvioMobileButBetter) matches it: the Download row in `EpisodeWatchedActionSheet` and the zoomed episode
+    overlay, the ring on the movie button (`DetailIconAction`), `EpisodeDownloadButton` on list and horizontal
+    episode cards, and `MetaDetailsScreen(onOpenDownloads)` routing to `DownloadsRoute`
+    (`features/downloads/DownloadProgressBadge.kt`).
+  - Not done: downloading a whole season, and a Download button for the series' next episode on the details page.
+- **Downloads page matches the Kotlin app.** The rewrite's Downloads page (`DownloadsPage.tsx`) now has the Kotlin
+  `DownloadsScreen` layout instead of its own tabs, search box, type dropdown, posters and collapsible groups:
+  - Header icon buttons for the download filter (`/settings/downloads`) and the downloads folder.
+  - **Active** (downloading, paused and failed), **Movies** and **Shows** sections of compact rows: title, episode line
+    (`S1 E2 • episode • show`), status text (`Downloading • 1.2 GB / 3 GB`, `Completed • 2 GB`, or the error) and icon
+    actions (pause / resume / retry / play, delete), with a thin progress bar while downloading. Clicking a finished
+    row plays it.
+  - A show row (with its downloaded-episode count) opens `/library/downloads/show/:showId`, which lists that show's
+    finished episodes by season; Back returns to Downloads.
+  - Delete asks the Kotlin "Delete?" / Yes / No question. Sizes are truncated to one decimal like Kotlin.
     Unlike desktop it replaces an existing download without asking, as mobile's streams screen already does, and
     when nothing fits it points to long-pressing Play instead of offering a button.
 - Resolution and source are classified from the stream title/filename/metadata. Size comes from addon hints or

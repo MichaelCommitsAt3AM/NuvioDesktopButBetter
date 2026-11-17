@@ -10,3 +10,12 @@
 .series-season-options{padding:6px 4px 8px}
 
 .series-episode-unavailable{position:absolute;z-index:2;right:8px;bottom:8px;padding:3px 6px;border-radius:4px;background:#5d4037cc;color:#fff;font-size:11px;font-weight:600;text-transform:uppercase}.series-episode-card:has(.series-episode-progress) .series-episode-unavailable{bottom:20px}
+/* Episode download state, on the right of the card; styled like the movie Download button. */
+.series-episode-download{position:relative;z-index:2;display:grid;flex:none;place-items:center;width:42px;height:42px;margin-right:18px;border-radius:50%;background:#ffffff14;color:#f5f5f5;cursor:pointer;transition:background .16s ease}
+.series-episode-download:hover{background:#ffffff26}
+.series-episode-download .download-ring{--download-ring-width:6}
+.series-episode-download.paused>svg:last-child{opacity:.7}
+.series-episode-download.downloaded{background:#f5f5f5;color:#111}
+.series-episode-download.failed{color:#ff8a8a}
+.horizontal-style .series-episode-download{position:absolute;right:14px;bottom:14px;margin:0;background:#000000a0}
+.horizontal-style .series-episode-card:has(.series-episode-download) .series-episode-copy{padding-right:68px}

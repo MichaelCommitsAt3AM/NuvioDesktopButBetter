@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { FullscreenButton } from '../../components/FullscreenButton';
 import { Activity, ArrowLeft, Check, Copy, Download, LoaderCircle, RefreshCw, Settings2, Gauge, X } from 'lucide-react';
 import { actions, BridgeError, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
@@ -73,6 +73,7 @@ export function StreamsPage() {
     void call('playback.stop').catch(() => {});
   }, []);
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const manual = searchParams.get('manual') === '1';
   const startFromBeginning = searchParams.get('fromStart') === '1';
@@ -294,7 +295,7 @@ export function StreamsPage() {
                 {mode === (isDataSaver ? 'data_saver' : 'best_quality') && <Check size={16} />}{mode === 'best_quality' ? 'Best quality' : 'Data saver'}
               </button>)}
               <div className="streams-quality-divider" role="separator" />
-              <button onClick={() => { setQualityOpen(false); navigate('/settings/downloads'); }}><Settings2 size={16} /> Filter settings</button>
+              <button onClick={() => { setQualityOpen(false); navigate('/settings/downloads', { state: { returnTo: `${location.pathname}${location.search}` } }); }}><Settings2 size={16} /> Filter settings</button>
             </div>}
           </div>
         </div>

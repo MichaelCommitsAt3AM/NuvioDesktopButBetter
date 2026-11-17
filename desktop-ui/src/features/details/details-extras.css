@@ -23,3 +23,4 @@
 .detail-page .details-extras-person,.detail-page .details-extras-company,.detail-page .details-extras-trailer{animation:details-card-appear .24s ease-out both}
 @keyframes details-card-appear{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.details-fade-image{transition:none;opacity:1}.detail-page .details-extras-person,.detail-page .details-extras-company,.detail-page .details-extras-trailer{animation:none}}
+.episode-action-row .episode-action-download-state{margin-left:auto;flex:none}

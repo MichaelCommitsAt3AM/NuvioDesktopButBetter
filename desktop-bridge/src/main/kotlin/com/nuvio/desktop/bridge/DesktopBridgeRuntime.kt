@@ -915,6 +915,7 @@ class DesktopBridgeRuntime {
                         put("bitrateKbps", option.bitrateKbps?.let(::JsonPrimitive) ?: JsonNull)
                         put("codec", option.codec.name.lowercase()); put("source", option.source.name.lowercase())
                         put("hdr", option.hdr)
+                        put("overBudget", option.overBudget)
                     }
                 }))
             }

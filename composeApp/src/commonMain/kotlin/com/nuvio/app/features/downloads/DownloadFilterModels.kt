@@ -140,13 +140,27 @@ data class DownloadFilterConfig(
         const val MIN_MAX_BITRATE_KBPS: Int = 1_000
         const val MAX_MAX_BITRATE_KBPS: Int = 20_000
 
-        /** How much of the 1080p ceiling each resolution tier gets. */
+        /**
+         * How much of the 1080p ceiling each resolution tier gets. 4K gets 4.5x because 4K files are nearly always
+         * HEVC, which then takes the codec cut: 6 Mbps x 4.5 x 0.6 is about 16 Mbps, Netflix's 4K level. (At 2.5x
+         * a 4K HEVC file was held to 9 Mbps and real 4K web releases, typically 15-30 Mbps, never fit.)
+         */
         fun resolutionBitrateFactor(tier: StreamResolutionTier): Double = when (tier) {
             StreamResolutionTier.SD -> 0.35
             StreamResolutionTier.HD_720 -> 0.4
             StreamResolutionTier.FHD_1080 -> 1.0
-            StreamResolutionTier.UHD_4K -> 2.5
+            StreamResolutionTier.UHD_4K -> 4.5
             StreamResolutionTier.UNKNOWN -> 1.0
+        }
+
+        /**
+         * How much of the size cap each tier gets in the one-tap Download picker, so 4K is not blocked by a 1080p
+         * cap (8 GB becomes 20 GB). Kept separate from [resolutionBitrateFactor] so the larger 4K bitrate allowance
+         * does not also let 36 GB remuxes through.
+         */
+        fun resolutionSizeFactor(tier: StreamResolutionTier): Double = when (tier) {
+            StreamResolutionTier.UHD_4K -> 2.5
+            else -> 1.0
         }
 
         val DEFAULT = DownloadFilterConfig()

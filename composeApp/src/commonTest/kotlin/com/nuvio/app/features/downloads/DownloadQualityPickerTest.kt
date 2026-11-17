@@ -72,12 +72,69 @@ class DownloadQualityPickerTest {
     }
 
     @Test
-    fun fourKGetsAScaledSizeCapAndBitrateCeiling() {
-        // 8.5 GB over 90 minutes is about 12.6 Mbps, within the 15 Mbps 4K ceiling and the scaled size cap.
-        val ok = stream("Movie.2160p.WEB-DL.x264", 8_500_000_000L)
-        assertSame(ok, pick(ok).single().stream)
-        // 12 GB is about 17.8 Mbps, above the ceiling.
-        assertTrue(pick(stream("Movie.2160p.WEB-DL.x264", 12_000_000_000L)).isEmpty())
+    fun fourKHasNoBitrateCeilingButKeepsTheSizeCap() {
+        // 18 GB over 90 minutes is about 26.7 Mbps: far over any data saver ceiling, still offered as normal 4K.
+        val big = stream("Movie.2160p.ATVP.WEB-DL.DV.x265", 18_000_000_000L)
+        val option = pick(big).single()
+        assertSame(big, option.stream)
+        assertFalse(option.overBudget)
+        // The 4K size cap is 2.5x the 8 GB cap (20 GiB): a 25 GB remux is never offered.
+        assertTrue(pick(stream("Movie.2160p.BluRay.Remux.x265", 25_000_000_000L)).isEmpty())
+    }
+
+    @Test
+    fun fourKSkipsAnOutlierFarBelowTheOtherCopies() {
+        // Screenshot case: ten Apple TV copies at about 11 GB and one "2160p" file at 2.4 GB.
+        val runtime = 58L * 60
+        val typical = (0 until 10).map { stream("Show.S01E01.2160p.ATVP.WEB-DL.DV.x265.$it", 11_000_000_000L + it * 50_000_000L) }
+        val tiny = stream("Show.S01E01.2160p.WEB-DL.x265.Tiny", 2_400_000_000L)
+        val option = DownloadQualityPicker.pick(typical + tiny, config, runtime).single()
+        assertSame(typical.first(), option.stream) // the leanest genuine copy
+    }
+
+    @Test
+    fun fourKBelowThePlausibilityFloorIsDropped() {
+        // Screenshot case: 1.6 GB over 47.5 minutes is about 4.5 Mbps, below the 8 Mbps HEVC floor. The 9-10 GB
+        // copies are fine and the leanest of them is chosen.
+        val runtime = 47L * 60 + 30
+        val fake = stream("Lucky.S01E01.2160p.WEB-DL.x265.Small", 1_600_000_000L)
+        val lean = stream("Lucky.S01E01.2160p.ATVP.WEB-DL.DV.x265.A", 9_550_000_000L)
+        val big = stream("Lucky.S01E01.2160p.ATVP.WEB-DL.DV.x265.B", 9_880_000_000L)
+        assertSame(lean, DownloadQualityPicker.pick(listOf(fake, big, lean), config, runtime).single().stream)
+        // With only the fake one there is no 4K option at all.
+        assertTrue(DownloadQualityPicker.pick(listOf(fake), config, runtime).isEmpty())
+    }
+
+    @Test
+    fun theFloorScalesWithTheFilesCodec() {
+        // 6 GB over 90 minutes is about 8.9 Mbps: plausible for HEVC (floor 8) but not for AVC (floor about 13.3).
+        assertEquals(1, pick(stream("Movie.2160p.WEB-DL.x265", 6_000_000_000L)).size)
+        assertTrue(pick(stream("Movie.2160p.WEB-DL.x264", 6_000_000_000L)).isEmpty())
+        // An untagged 4K file is judged as HEVC.
+        assertEquals(1, pick(stream("Movie.2160p.WEB-DL", 6_000_000_000L)).size)
+    }
+
+    @Test
+    fun fourKIsNeverSmallerThanThe1080pOption() {
+        val fourK = stream("Movie.2160p.WEB-DL.x265", 6_000_000_000L) // about 8.9 Mbps, plausible on its own
+        val fhd = stream("Movie.1080p.BluRay.x264", 6_500_000_000L, ) // about 9.6 Mbps
+        val result = pick(fourK, fhd, cfg = config.copy(maxBitrateKbps = 10_000))
+        assertEquals(listOf(StreamResolutionTier.FHD_1080), result.map { it.tier })
+    }
+
+    @Test
+    fun overBudget1080pIsOfferedAsALargeFile() {
+        // Every 1080p copy is over the 6 Mbps ceiling (about 9.6 Mbps): the smallest is offered, marked large.
+        val smaller = stream("Movie.1080p.WEB-DL.x264.A", 6_500_000_000L)
+        val option = pick(stream("Movie.1080p.WEB-DL.x264.B", 7_500_000_000L), smaller).single()
+        assertSame(smaller, option.stream)
+        assertTrue(option.overBudget)
+    }
+
+    @Test
+    fun theFallbackNeedsAKnownSize() {
+        val unknown = stream("Movie.1080p.WEB-DL.x264", null)
+        assertTrue(pick(unknown).isEmpty())
     }
 
     @Test
@@ -120,10 +177,10 @@ class DownloadQualityPickerTest {
 
     @Test
     fun flagsHdrFilesOnly() {
-        // 5 GB over 90 minutes is about 7.4 Mbps, inside the 9 Mbps HEVC ceiling for 4K.
-        assertTrue(pick(stream("Movie.2160p.WEB-DL.HDR10.x265", 5_000_000_000L)).single().hdr)
-        assertTrue(pick(stream("Movie.2160p.WEB-DL.DV.HDR.x265", 5_000_000_000L)).single().hdr)
-        assertFalse(pick(stream("Movie.2160p.WEB-DL.x265", 5_000_000_000L)).single().hdr)
+        // 6 GB over 90 minutes is about 8.9 Mbps, above the 8 Mbps 4K HEVC floor.
+        assertTrue(pick(stream("Movie.2160p.WEB-DL.HDR10.x265", 6_000_000_000L)).single().hdr)
+        assertTrue(pick(stream("Movie.2160p.WEB-DL.DV.HDR.x265", 6_000_000_000L)).single().hdr)
+        assertFalse(pick(stream("Movie.2160p.WEB-DL.x265", 6_000_000_000L)).single().hdr)
         // "HDRip" is a rip type, not HDR.
         assertFalse(pick(stream("Movie.1080p.HDRip.x264", 3_000_000_000L)).single().hdr)
     }
@@ -139,9 +196,10 @@ class DownloadQualityPickerTest {
     }
 
     @Test
-    fun hevcOverItsScaledCeilingIsRejectedEvenThoughAvcWouldPass() {
-        // 2.7 GB over 90 minutes is 4000 kbps: fine for AVC (6000) but above the HEVC ceiling (3600).
-        assertTrue(pick(stream("Movie.1080p.WEB-DL.x265", 2_700_000_000L)).isEmpty())
+    fun hevcOverItsScaledCeilingIsOverBudgetEvenThoughAvcWouldPass() {
+        // 2.7 GB over 90 minutes is 4000 kbps: fine for AVC (6000) but above the HEVC ceiling (3600), so it is only
+        // offered as the over-budget fallback.
+        assertTrue(pick(stream("Movie.1080p.WEB-DL.x265", 2_700_000_000L)).single().overBudget)
         val unscaled = pick(stream("Movie.1080p.WEB-DL.x265", 2_700_000_000L), cfg = config.copy(scaleBitrateByCodec = false))
         assertEquals(4000, unscaled.single().bitrateKbps)
     }

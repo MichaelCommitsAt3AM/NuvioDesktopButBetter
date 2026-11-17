@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { DetailsExtras, type ExtrasMeta } from './DetailsExtras';
 
-const bridge = vi.hoisted(() => ({ details: {} as unknown, call: vi.fn(), settings: undefined as unknown }));
+const bridge = vi.hoisted(() => ({ details: {} as unknown, call: vi.fn(), settings: undefined as unknown, downloads: undefined as unknown }));
 vi.mock('../../bridge', () => ({
   useSelector: (select: (state: any) => unknown) => select({ details: bridge.details, library: { items: [] } }),
-  useFeatureSnapshot: (topic: string) => topic === 'metadataSettings' ? bridge.settings : undefined,
+  useFeatureSnapshot: (topic: string) => topic === 'metadataSettings' ? bridge.settings : topic === 'downloads' ? bridge.downloads : undefined,
   refreshFeature: vi.fn(async () => ({})),
   call: (...args: unknown[]) => bridge.call(...args),
 }));
@@ -28,6 +28,7 @@ beforeEach(() => {
     { key: 'TRAILERS', enabled: true, order: 1, tabGroup: null },
   ] };
   bridge.call.mockReset();
+  bridge.downloads = undefined;
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
@@ -172,4 +173,52 @@ it('does not show a placeholder from a stale title event', async () => {
   render(view());
   await screen.findByRole('button', { name: /Refresh details/ });
   expect(document.querySelector('[data-loading-section="CAST"]')).toBeNull();
+});
+
+it('shows episode download progress and downloads an episode from its actions sheet', async () => {
+  const episode = (n: number) => ({ id: `show:1:${n}`, title: `Episode title ${n}`, season: 1, episode: n, released: '2020-01-01', thumbnail: null, overview: null, available: true, runtime: null, rating: null, seasonPoster: null });
+  const series = { ...meta('show'), type: 'series', videos: [episode(1), episode(2)] } as unknown as ExtrasMeta;
+  bridge.details = { media: { id: 'show', type: 'series' } };
+  bridge.settings = { items: [{ key: 'EPISODES', enabled: true, order: 0, tabGroup: null }] };
+  bridge.downloads = { items: [{ parentMetaType: 'series', parentMetaId: 'show', videoId: 'show:1:1', status: 'downloading', progress: 0.25 }] };
+  bridge.call.mockImplementation(async (method: string) => method === 'details.extras' ? series
+    : method === 'downloads.qualityOptions' ? { loadedStreams: 3, runtimeKnown: true, options: [{ id: 'q1', tier: 'fhd_1080', sizeBytes: 1024 ** 3, bitrateKbps: 4000, codec: 'hevc', source: 'webdl' }] }
+      : {});
+  render(<MemoryRouter><DetailsExtras type="series" id="show" /></MemoryRouter>);
+  expect(await screen.findByRole('img', { name: 'Episode title 1: Downloading 25%' })).toHaveClass('in-progress');
+
+  fireEvent.contextMenu((await screen.findByText('Episode title 2')).closest('button')!);
+  fireEvent.click(await screen.findByRole('button', { name: 'Download' }));
+  await screen.findByRole('group', { name: 'Download quality' });
+  expect(bridge.call).toHaveBeenCalledWith('downloads.qualityOptions', { type: 'series', id: 'show', videoId: 'show:1:2' });
+  expect(screen.getByText('S1 E2 · Episode title 2')).toBeInTheDocument();
+});
+
+it('opens the quality sheet from the download control on an episode card', async () => {
+  const episode = { id: 'show:1:1', title: 'Pilot', season: 1, episode: 1, released: '2020-01-01', thumbnail: null, overview: null, available: true, runtime: null, rating: null, seasonPoster: null };
+  bridge.details = { media: { id: 'show', type: 'series' } };
+  bridge.settings = { items: [{ key: 'EPISODES', enabled: true, order: 0, tabGroup: null }] };
+  bridge.downloads = { items: [{ parentMetaType: 'series', parentMetaId: 'show', videoId: 'show:1:1', status: 'paused', progress: 0.5 }] };
+  bridge.call.mockImplementation(async (method: string) => method === 'details.extras' ? { ...meta('show'), type: 'series', videos: [episode] }
+    : method === 'downloads.qualityOptions' ? { loadedStreams: 0, runtimeKnown: true, options: [] } : {});
+  bridge.downloads = { items: [{ parentMetaType: 'series', parentMetaId: 'show', videoId: 'show:1:1', status: 'failed', progress: 0.5 }] };
+  render(<MemoryRouter><DetailsExtras type="series" id="show" /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('img', { name: 'Pilot: Download failed' }));
+  await screen.findByText(/No streams were found/);
+  expect(bridge.call).toHaveBeenCalledWith('downloads.qualityOptions', { type: 'series', id: 'show', videoId: 'show:1:1' });
+});
+
+it('opens the Downloads page from an episode that is still downloading', async () => {
+  const episode = { id: 'show:1:1', title: 'Pilot', season: 1, episode: 1, released: '2020-01-01', thumbnail: null, overview: null, available: true, runtime: null, rating: null, seasonPoster: null };
+  bridge.details = { media: { id: 'show', type: 'series' } };
+  bridge.settings = { items: [{ key: 'EPISODES', enabled: true, order: 0, tabGroup: null }] };
+  bridge.downloads = { items: [{ parentMetaType: 'series', parentMetaId: 'show', videoId: 'show:1:1', status: 'downloading', progress: 0.5 }] };
+  bridge.call.mockImplementation(async (method: string) => method === 'details.extras' ? { ...meta('show'), type: 'series', videos: [episode] } : {});
+  render(<MemoryRouter initialEntries={['/details/series/show']}><Routes>
+    <Route path="/details/series/show" element={<DetailsExtras type="series" id="show" />} />
+    <Route path="/library/downloads" element={<p>Downloads page</p>} />
+  </Routes></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('img', { name: 'Pilot: Downloading 50%' }));
+  expect(await screen.findByText('Downloads page')).toBeInTheDocument();
+  expect(bridge.call).not.toHaveBeenCalledWith('downloads.qualityOptions', expect.anything());
 });

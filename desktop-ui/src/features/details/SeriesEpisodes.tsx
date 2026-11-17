@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Check } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type SyntheticEvent } from 'react';
+import { Check, Download } from 'lucide-react';
 import { FallbackImage } from '../../components/FallbackImage';
 import { HorizontalRail } from '../../components/HorizontalRail';
 import { useFeatureSnapshot } from '../../bridge';
@@ -10,11 +10,15 @@ import '../../theme/cardDepth.css';
 import type { Video } from './DetailsExtras';
 import './series-episodes.css';
 import { useSeasonViewTransition } from './useSeasonViewTransition';
+import { downloadStateView, type DownloadBadgeState } from '../downloads/DownloadProgressBadge';
 
 type SeasonView = 'posters' | 'text';
 export type Props = {
   rememberKey?: string;
   progressByVideoId?: Record<string, number>;
+  downloadsByVideoId?: Record<string, DownloadBadgeState>;
+  /** Opens the quality sheet for an episode, from the download button on its card. */
+  onEpisodeDownload?: (video: Video) => void;
   preferredSeason?: number | null;
   videos: Video[];
   poster: string | null;
@@ -35,7 +39,7 @@ const seasonViewKey = 'nuvio.details.seasonViewMode';
 // Survives leaving the details page (e.g. opening streams and coming back) for the app session.
 const rememberedSeasons = new Map<string, number>();
 
-export function SeriesEpisodes({ rememberKey, videos, preferredSeason, poster, background, seasonPosters, cardStyle, blurUnwatched, showRatings, ratingsVisibility, isWatched, onEpisodeClick, onEpisodeLongPress, onToggleSeason, mutationBusy, progressByVideoId }: Props) {
+export function SeriesEpisodes({ rememberKey, videos, preferredSeason, poster, background, seasonPosters, cardStyle, blurUnwatched, showRatings, ratingsVisibility, isWatched, onEpisodeClick, onEpisodeLongPress, onToggleSeason, mutationBusy, progressByVideoId, downloadsByVideoId, onEpisodeDownload }: Props) {
   const grouped = useMemo(() => {
     const groups = new Map<number, Video[]>();
     for (const video of videos.filter((item) => item.season != null || item.episode != null)) {
@@ -121,16 +125,18 @@ export function SeriesEpisodes({ rememberKey, videos, preferredSeason, poster, b
       </div></div>
     </div>}
     <div className={`series-episode-content ${cardStyle === 'list' ? 'list-style' : 'horizontal-style'}`}>
-      {outgoingSeason != null && <div className="series-episode-season outgoing" aria-hidden="true" style={{ '--season-direction': `${direction * -1 * 20}px` } as CSSProperties}><EpisodeCollection progressByVideoId={progressByVideoId} episodes={oldEpisodes} season={outgoingSeason} cardStyle={cardStyle} fallbackImage={fallbackImage} blurUnwatched={blurUnwatched} showRatings={showRatings} ratingsVisibility={ratingsVisibility} isWatched={isWatched} onEpisodeClick={onEpisodeClick} onEpisodeLongPress={onEpisodeLongPress} onToggleSeason={onToggleSeason} mutationBusy={mutationBusy} /></div>}
+      {outgoingSeason != null && <div className="series-episode-season outgoing" aria-hidden="true" style={{ '--season-direction': `${direction * -1 * 20}px` } as CSSProperties}><EpisodeCollection progressByVideoId={progressByVideoId} downloadsByVideoId={downloadsByVideoId} onEpisodeDownload={onEpisodeDownload} episodes={oldEpisodes} season={outgoingSeason} cardStyle={cardStyle} fallbackImage={fallbackImage} blurUnwatched={blurUnwatched} showRatings={showRatings} ratingsVisibility={ratingsVisibility} isWatched={isWatched} onEpisodeClick={onEpisodeClick} onEpisodeLongPress={onEpisodeLongPress} onToggleSeason={onToggleSeason} mutationBusy={mutationBusy} /></div>}
       <div className="series-episode-season incoming" key={currentSeason} style={{ '--season-direction': `${direction * 20}px` } as CSSProperties}>
-        <EpisodeCollection progressByVideoId={progressByVideoId} episodes={currentEpisodes} season={currentSeason} cardStyle={cardStyle} fallbackImage={fallbackImage} blurUnwatched={blurUnwatched} showRatings={showRatings} ratingsVisibility={ratingsVisibility} isWatched={isWatched} onEpisodeClick={onEpisodeClick} onEpisodeLongPress={onEpisodeLongPress} onToggleSeason={onToggleSeason} mutationBusy={mutationBusy} />
+        <EpisodeCollection progressByVideoId={progressByVideoId} downloadsByVideoId={downloadsByVideoId} onEpisodeDownload={onEpisodeDownload} episodes={currentEpisodes} season={currentSeason} cardStyle={cardStyle} fallbackImage={fallbackImage} blurUnwatched={blurUnwatched} showRatings={showRatings} ratingsVisibility={ratingsVisibility} isWatched={isWatched} onEpisodeClick={onEpisodeClick} onEpisodeLongPress={onEpisodeLongPress} onToggleSeason={onToggleSeason} mutationBusy={mutationBusy} />
       </div>
     </div>
   </section>;
 }
 
-function EpisodeCollection({ episodes, season, cardStyle, fallbackImage, blurUnwatched, showRatings, ratingsVisibility, isWatched, onEpisodeClick, onEpisodeLongPress, onToggleSeason, mutationBusy, progressByVideoId }: {
+function EpisodeCollection({ episodes, season, cardStyle, fallbackImage, blurUnwatched, showRatings, ratingsVisibility, isWatched, onEpisodeClick, onEpisodeLongPress, onToggleSeason, mutationBusy, progressByVideoId, downloadsByVideoId, onEpisodeDownload }: {
   progressByVideoId?: Record<string, number>;
+  downloadsByVideoId?: Record<string, DownloadBadgeState>;
+  onEpisodeDownload?: Props['onEpisodeDownload'];
   episodes: Video[]; season: number; cardStyle: Props['cardStyle']; fallbackImage: string | null; blurUnwatched: boolean; showRatings: boolean; ratingsVisibility: Props['ratingsVisibility']; isWatched: Props['isWatched']; onEpisodeClick: Props['onEpisodeClick']; onEpisodeLongPress: Props['onEpisodeLongPress']; onToggleSeason: Props['onToggleSeason']; mutationBusy: boolean;
 }) {
   const episodeLongPressTimer = useRef<number | null>(null);
@@ -151,6 +157,7 @@ function EpisodeCollection({ episodes, season, cardStyle, fallbackImage, blurUnw
         const releaseTime = video.released ? Date.parse(video.released) : NaN;
         const unavailable = !video.available || (Number.isFinite(releaseTime) && releaseTime > Date.now());
         const progress = progressByVideoId?.[video.id] ?? 0;
+        const download = downloadsByVideoId?.[video.id];
         const showRating = showRatings && (ratingsVisibility === 'show_all' || (ratingsVisibility === 'hide_unwatched_episodes' && watched));
         const click = () => video.available && onEpisodeClick(video);
         return <button type="button" key={video.id} className={`series-episode-card ${video.available ? '' : 'unavailable'} ${depthOn?'has-card-depth':''}`} style={depthStyle} aria-disabled={!video.available} onPointerDown={(event) => {
@@ -167,10 +174,25 @@ function EpisodeCollection({ episodes, season, cardStyle, fallbackImage, blurUnw
         }} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); if (episodeLongPressTimer.current != null) window.clearTimeout(episodeLongPressTimer.current); episodeLongPressTimer.current = null; longPressTriggered.current = true; onEpisodeLongPress(video); }} title={video.available ? 'Click to find streams · Right-click or hold for episode actions' : 'Right-click or hold for episode actions'}>
           <span className={`series-episode-art ${depthOn?'depth-frame':''}`}><FallbackImage sources={[video.thumbnail, fallbackImage]} style={{ filter: blurUnwatched && !watched ? 'blur(18px)' : undefined }} /><span className="series-episode-code">{episodeCode(video)}</span>{unavailable && <span className="series-episode-unavailable">{t("episodes_unavailable")}</span>}{watched && <span className="series-episode-watched"><Check size={14} /></span>}{!watched && Number.isFinite(progress) && progress > 0 && progress < 1 && <span className="series-episode-progress" role="progressbar" aria-label={`${video.title} playback progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}><span style={{ width: `${progress * 100}%` }} /></span>}</span>
           <span className="series-episode-copy"><strong>{displayTitle}</strong><small>{formatReleaseDate(video.released)}{showRating && video.rating != null && video.rating > 0 && <span className="series-episode-rating"><span aria-hidden="true"> · </span><ImdbLogo /><span><span className="sr-only">IMDb </span>{video.rating.toFixed(1)}</span></span>}{video.runtime && cardStyle === 'horizontal' ? ` · ${video.runtime} min` : ''}</small>{video.overview && <span className="series-episode-overview">{video.overview}</span>}</span>
+          {download && <EpisodeDownloadControl video={video} state={download} onOpen={onEpisodeDownload} />}
         </button>;
       })}
     </EpisodeTrack>
   </>;
+}
+
+/**
+ * The episode's download state on the right of its card, styled like the movie Download button. It sits inside
+ * the card's button, so it stops its own pointer events and opens the episode's quality sheet when clicked.
+ */
+function EpisodeDownloadControl({ video, state, onOpen }: { video: Video; state: DownloadBadgeState; onOpen?: (video: Video) => void }) {
+  const { status, className, ring } = downloadStateView(state);
+  const stop = (event: SyntheticEvent) => event.stopPropagation();
+  return <span className={`series-episode-download ${className}`.trim()} role="img" aria-label={`${video.title}: ${status}`} title={status}
+    onPointerDown={stop} onPointerUp={stop} onContextMenu={stop}
+    onClick={(event) => { event.stopPropagation(); event.preventDefault(); onOpen?.(video); }}>
+    {ring}<Download size={18} />
+  </span>;
 }
 
 function EpisodeTrack({ horizontal, label, children }: { horizontal: boolean; label: string; children: ReactNode }) {

@@ -63,6 +63,12 @@ class DownloadFilterBitrateTest {
     }
 
     @Test
+    fun fourKHevcCeilingMatchesNetflix4k() {
+        // 6 Mbps x 4.5 (4K) x 0.6 (HEVC) = 16.2 Mbps.
+        assertEquals(16_200.0, config.bitrateCeilingKbps(StreamResolutionTier.UHD_4K, StreamCodec.HEVC), 0.001)
+    }
+
+    @Test
     fun unknownRuntimeFallsBackToTheSizeCapOnly() {
         val huge = stream("Movie.1080p.WEB-DL.x264", 7_900_000_000L)
         assertTrue(config.allows(huge, null))

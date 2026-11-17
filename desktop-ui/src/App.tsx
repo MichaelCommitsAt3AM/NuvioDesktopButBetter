@@ -90,6 +90,7 @@ const Shell = memo(function Shell({ offlineDownloads = false, welcomePending = f
         <Route path="/search" element={null} />
         <Route path="/library" element={null} />
         <Route path="/library/downloads" element={<DownloadsPage />} />
+        <Route path="/library/downloads/show/:showId" element={<DownloadsPage />} />
         <Route path="/downloads" element={<Navigate to="/library/downloads" replace />} />
         <Route path="/collections" element={<CollectionsPage />} />
         <Route path="/collections/:collectionId/edit" element={<CollectionEditorPage />} />
@@ -141,7 +142,7 @@ function AppContent() {
       setOfflineStartup(false);
     }
   }, [offlineStartup, state.status, state.session.status, state.session.networkCondition, navigate]);
-  const offlineDownloads = state.session.status !== 'loading' && offlineStartup === true && (location.pathname === '/library/downloads' || location.pathname === '/playback');
+  const offlineDownloads = state.session.status !== 'loading' && offlineStartup === true && (location.pathname === '/library/downloads' || location.pathname.startsWith('/library/downloads/') || location.pathname === '/playback');
   useEffect(()=>{
     if(state.session.status==='signedOut'){setLaunchPicker(null);return;}
     if(offlineDownloads||state.session.status!=='signedIn'||launchPicker!==null)return;

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent } from 'react';
-import { Building2, CheckCircle, ChevronLeft, ChevronRight, CircleCheck, LoaderCircle, ListChecks, Play, RotateCw } from 'lucide-react';
+import { Building2, CheckCircle, ChevronLeft, ChevronRight, CircleCheck, Download, LoaderCircle, ListChecks, Play, RotateCw } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import type { Media } from '../../generated/contract';
@@ -11,6 +11,8 @@ import { PosterLoadingCard } from '../../components/PosterLoadingCard';
 import { HorizontalRail } from '../../components/HorizontalRail';
 import { DropdownChip } from '../../components/DropdownChip';
 import { SeriesEpisodes } from './SeriesEpisodes';
+import { QualityDownloadSheet } from '../downloads/QualityDownloadButton';
+import { DownloadProgressBadge, isDownloadInProgress, useDownloadsByVideoId } from '../downloads/DownloadProgressBadge';
 import { useActiveProfileId } from '../../navigation/scrollStore';
 import { isReturningPersonAvatar } from './personAvatarMotion';
 import { mediaKey, stableKeys } from '../../components/keys';
@@ -89,6 +91,8 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
   const [selectedComment, setSelectedComment] = useState<number | null>(null);
   const [selectedTrailerCategory, setSelectedTrailerCategory] = useState('Trailer');
   const [selectedEpisode, setSelectedEpisode] = useState<Video | null>(null);
+  const [downloadEpisode, setDownloadEpisode] = useState<Video | null>(null);
+  const downloadsByVideoId = useDownloadsByVideoId(type, id);
   const afterSheetExit = useRef<(() => void) | null>(null);
   const visibleAnchors = useRef<Array<{ key: string; top: number }>>([]);
 
@@ -246,7 +250,7 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
     finally { if (loadGeneration.current === generation) setCommentsLoading(false); }
   };
 
-  if (loading && !meta) return <section style={sectionStyle}><div className="loading-block"><LoaderCircle className="spin" size={20} /><span>Loading cast, episodes, and related detailsâ€¦</span></div></section>;
+  if (loading && !meta) return <section style={sectionStyle}><div className="loading-block"><LoaderCircle className="spin" size={20} /><span>Loading cast, episodes, and related details…</span></div></section>;
   if (error && !meta) return <section style={sectionStyle}><InlineError message={error} onRetry={() => { setError(null); setLoading(true); void call<ExtrasMeta>('details.extras', { type, id }).then(setMeta).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause))).finally(() => setLoading(false)); }} /></section>;
   if (!meta) return null;
 
@@ -301,15 +305,17 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
       ratingsVisibility={settings?.episodeRatingsVisibility ?? 'show_all'}
       isWatched={watchedVideo}
       progressByVideoId={watched?.episodeProgress}
+      downloadsByVideoId={downloadsByVideoId}
+      onEpisodeDownload={(video) => { if (isDownloadInProgress(downloadsByVideoId[video.id])) navigate('/library/downloads'); else setDownloadEpisode(video); }}
       onEpisodeClick={(video) => navigate(`/details/${encodeURIComponent(meta.type)}/${encodeURIComponent(meta.id)}/streams/${encodeURIComponent(video.id)}`)}
       onEpisodeLongPress={setSelectedEpisode}
       onToggleSeason={(season) => void toggleSeason(season)}
       mutationBusy={mutationBusy}
     /> : null,
     COMMENTS: (comments.length > 0 || commentsLoading || commentsError) ? <section style={sectionStyle}><div style={headingStyle}><h2>Comments & reviews</h2><button className="text-button" disabled={commentsLoading} onClick={() => void loadMoreComments(true)}><RotateCw size={13} /> Refresh</button></div>
-      {commentsError && <InlineError message={commentsError} onRetry={() => void loadMoreComments(true)} />}{commentsLoading && comments.length === 0 && <div className="loading-block"><LoaderCircle className="spin" size={18} /><span>Loading commentsâ€¦</span></div>}
+      {commentsError && <InlineError message={commentsError} onRetry={() => void loadMoreComments(true)} />}{commentsLoading && comments.length === 0 && <div className="loading-block"><LoaderCircle className="spin" size={18} /><span>Loading comments…</span></div>}
       <div className="details-extras-comments">{comments.map((comment, index) => { const isSpoiler = comment.spoiler || comment.containsInlineSpoilers; const revealed = revealedSpoilers.has(comment.id); return <article className={`details-extras-comment ${isSpoiler && !revealed ? 'spoiler-hidden' : ''}`} key={comment.id}>
-        <header><strong>{comment.authorDisplayName}</strong><span>{comment.review ? 'Review' : 'Comment'}{comment.rating != null ? ` Â· ${comment.rating}/10` : ''}{comment.likes ? ` Â· ${comment.likes} likes` : ''}</span>{comment.createdAt && <time>{comment.createdAt.slice(0, 10)}</time>}<button className="text-button" type="button" onClick={() => setSelectedComment(index)}>Details</button></header>
+        <header><strong>{comment.authorDisplayName}</strong><span>{comment.review ? 'Review' : 'Comment'}{comment.rating != null ? ` · ${comment.rating}/10` : ''}{comment.likes ? ` · ${comment.likes} likes` : ''}</span>{comment.createdAt && <time>{comment.createdAt.slice(0, 10)}</time>}<button className="text-button" type="button" onClick={() => setSelectedComment(index)}>Details</button></header>
         {isSpoiler && !revealed ? <button className="text-button" onClick={() => setRevealedSpoilers((previous) => new Set(previous).add(comment.id))}>Reveal spoiler</button> : <p>{comment.comment.replace(/\[\/?spoiler\]/gi, '')}</p>}
       </article>; })}</div>
       {selectedComment != null && comments[selectedComment] && <CommentDetailSheet comment={comments[selectedComment]} position={selectedComment} total={comments.length} revealed={revealedSpoilers.has(comments[selectedComment].id)} onReveal={() => setRevealedSpoilers((previous) => new Set(previous).add(comments[selectedComment].id))} onPrevious={() => setSelectedComment((current) => current != null && current > 0 ? current - 1 : current)} onNext={() => setSelectedComment((current) => current != null && current < comments.length - 1 ? current + 1 : current)} onClose={() => setSelectedComment(null)} />}
@@ -353,16 +359,27 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
     {selectedEpisode && <Dialog label={`Actions for ${selectedEpisode.title}`} onClose={() => setSelectedEpisode(null)} className="episode-actions-dialog">
       <div className="episode-actions-sheet">
         <span className="episode-actions-handle" aria-hidden="true" />
-        <header><strong>{selectedEpisode.title}</strong><span>{actionEpisodeCode(selectedEpisode)}{selectedEpisode.season != null ? ` â€¢ Season ${selectedEpisode.season}` : ' â€¢ Specials'}</span></header>
+        <header><strong>{selectedEpisode.title}</strong><span>{actionEpisodeCode(selectedEpisode)}{selectedEpisode.season != null ? ` • Season ${selectedEpisode.season}` : ' • Specials'}</span></header>
         <div className="episode-actions-divider" />
         <button type="button" className="episode-action-row" disabled={mutationBusy} onClick={() => void toggleEpisode(selectedEpisode)}><span className="episode-action-icon"><CheckCircle size={20} /></span><span>{watchedVideo(selectedEpisode) ? 'Mark as unwatched' : 'Mark as watched'}</span></button>
         {previousEpisodes.length > 0 && <button type="button" className="episode-action-row" disabled={mutationBusy} onClick={() => void togglePreviousEpisodes(selectedEpisode)}><span className="episode-action-icon"><ListChecks size={20} /></span><span>Mark previous episodes {previousEpisodesWatched ? 'unwatched' : 'watched'}</span></button>}
         {selectedSeasonEpisodes.length > 0 && <button type="button" className="episode-action-row" disabled={mutationBusy} onClick={() => { setSelectedEpisode(null); void toggleSeason(selectedEpisode.season ?? 0); }}><span className="episode-action-icon"><CircleCheck size={20} /></span><span>Mark Season {selectedEpisode.season ?? 0} as {selectedSeasonWatched ? 'unwatched' : 'watched'}</span></button>}
         <button type="button" className="episode-action-row" disabled={mutationBusy || !selectedEpisode.available} onClick={() => { const episode = selectedEpisode; afterSheetExit.current = () => navigate(`/details/${encodeURIComponent(meta.type)}/${encodeURIComponent(meta.id)}/streams/${encodeURIComponent(episode.id)}?manual=1`); setSelectedEpisode(null); }}><span className="episode-action-icon"><Play size={20} fill="currentColor" /></span><span>Play manually</span></button>
+        <button type="button" className="episode-action-row" disabled={!selectedEpisode.available || !isReleased(selectedEpisode.released)} onClick={() => { const episode = selectedEpisode; const inProgress = isDownloadInProgress(downloadsByVideoId[episode.id]); afterSheetExit.current = () => { if (inProgress) navigate('/library/downloads'); else setDownloadEpisode(episode); }; setSelectedEpisode(null); }}><span className="episode-action-icon"><Download size={20} /></span><span>{downloadActionLabel(downloadsByVideoId[selectedEpisode.id]?.status)}</span>{downloadsByVideoId[selectedEpisode.id] && <DownloadProgressBadge state={downloadsByVideoId[selectedEpisode.id]} label={selectedEpisode.title} className="episode-action-download-state" />}</button>
       </div>
     </Dialog>}
     </BottomSheetPresence>
+    <QualityDownloadSheet type={meta.type} id={meta.id} videoId={downloadEpisode?.id} subtitle={downloadEpisode ? `${actionEpisodeCode(downloadEpisode)} · ${downloadEpisode.title}` : undefined}
+      open={downloadEpisode != null} onClose={() => setDownloadEpisode(null)}
+      onBrowseStreams={() => { if (downloadEpisode) navigate(`/details/${encodeURIComponent(meta.type)}/${encodeURIComponent(meta.id)}/streams/${encodeURIComponent(downloadEpisode.id)}`); }} />
   </div>;
+}
+
+/** The episode sheet's download row names what tapping it will do for an episode that is already downloading or done. */
+function downloadActionLabel(status: string | undefined) {
+  if (status === 'completed') return 'Download again';
+  if (status === 'downloading' || status === 'paused') return 'View in Downloads';
+  return 'Download';
 }
 
 export function CommentDetailSheet({ comment, position, total, revealed, onReveal, onPrevious, onNext, onClose }: {
@@ -381,8 +398,8 @@ export function CommentDetailSheet({ comment, position, total, revealed, onRevea
           <button className="icon-button" type="button" aria-label="Next comment" disabled={position >= total - 1} onClick={onNext}><ChevronRight size={20} /></button>
         </div>
       </div>
-      {comment.review && <p className="comment-detail-badge">Review{comment.rating != null ? ` Â· ${comment.rating}/10` : ''}</p>}
-      {!comment.review && <p className="muted">{[comment.rating != null ? `${comment.rating}/10` : '', comment.likes ? `${comment.likes} likes` : '', comment.createdAt?.slice(0, 10)].filter(Boolean).join(' Â· ')}</p>}
+      {comment.review && <p className="comment-detail-badge">Review{comment.rating != null ? ` · ${comment.rating}/10` : ''}</p>}
+      {!comment.review && <p className="muted">{[comment.rating != null ? `${comment.rating}/10` : '', comment.likes ? `${comment.likes} likes` : '', comment.createdAt?.slice(0, 10)].filter(Boolean).join(' · ')}</p>}
       {hidden
         ? <button className="text-button" type="button" onClick={onReveal}>Reveal spoiler</button>
         : <p className="comment-detail-body">{comment.comment.replace(/\[\/?spoiler\]/gi, '')}</p>}

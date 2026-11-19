@@ -1006,6 +1006,18 @@ New feature on every platform (`features/downloads/DownloadFilter*.kt`, `Streams
     fills around it while downloading (dimmed when paused), it turns white once downloaded and red if it failed.
   - An episode with a download gets the same ringed download button on the right of its card (bottom-right on
     horizontal cards); the downloads snapshot is matched on parent title + `videoId` (`useDownloadsByVideoId`).
+- **480p smaller-file option (one-tap Download).** When 1080p is the best quality on offer (no 4K option, including
+  when a fake 4K file was dropped), the picker also offers **480p · SD** as a smaller download. With 4K available
+  the sheet keeps exactly 4K / 1080p / 720p.
+  - `DownloadQualityPicker.TIERS` now includes `StreamResolutionTier.SD`; `withoutSurplusSd` drops it unless 1080p
+    is the top option, and drops it when it is not smaller than every higher option of known size.
+  - The SD tier tries line counts in order: 480p, then the closest lower (360p, 240p), then files tagged only
+    "SD"/"DVDRip", then 540p/576p (`StreamQualityClassifier.sdHeightOf`). Every group is tried within the bitrate
+    budget (SD gets 35% of the 1080p ceiling, 2.1 Mbps by default) before the *Large file* fallback, so a lean 360p
+    beats a bloated 480p. With no SD stream the option is absent.
+  - Bridge tier id `sd`; the desktop sheet labels it 480p / SD (`QualityDownloadButton`). Mobile's
+    `QualityDownloadSheet` shows the same (`download_quality_tier_sd`). Covered by `DownloadQualityPickerTest` and
+    `QualityDownloadButton.test.tsx`.
   - While a download is running (downloading or paused), clicking its ringed button, or the menu row, opens the
     Downloads page (`/library/downloads`) instead of the quality sheet; otherwise it opens the sheet (to download, or
     to replace a finished or failed download).

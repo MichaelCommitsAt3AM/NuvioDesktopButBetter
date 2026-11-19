@@ -21,7 +21,7 @@ data class QualityDownloadOption(
 )
 
 /**
- * Picks, for each of 4K / 1080p / 720p, the stream a user should download without
+ * Picks, for each of 4K / 1080p / 720p (plus 480p, see below), the stream a user should download without
  * looking at the streams list: the best-looking file that is still within the
  * user's [DownloadFilterConfig] bitrate budget for that resolution. When every stream
  * of a tier is over that budget, the smallest one is offered anyway and marked
@@ -39,13 +39,23 @@ data class QualityDownloadOption(
  * file, and a bitrate ceiling there rewards fake or starved "4K" files (a 1.6 GB
  * "2160p" episode next to 9 GB Apple TV releases). So 4K skips implausibly small
  * files and takes the leanest genuine one.
+ *
+ * 480p ([StreamResolutionTier.SD]) is a smaller-file option offered only when 1080p is
+ * the best quality on offer (no 4K option), and only when it is smaller than every
+ * higher option. It prefers files tagged 480p, then the closest lower resolution
+ * (360p, then 240p), then untagged SD / DVD rips, and only then 540p / 576p. When no
+ * SD stream fits, the option is simply absent.
  */
 object DownloadQualityPicker {
     val TIERS: List<StreamResolutionTier> = listOf(
         StreamResolutionTier.UHD_4K,
         StreamResolutionTier.FHD_1080,
         StreamResolutionTier.HD_720,
+        StreamResolutionTier.SD,
     )
+
+    /** Preference order of tagged SD line counts for the 480p option; null is a file tagged only "SD" / "DVDRip". */
+    private val SD_HEIGHT_PREFERENCE: List<Int?> = listOf(480, 360, 240, null, 540, 576)
 
     /** Used for the bitrate maths when the title's runtime is unknown. */
     const val ASSUMED_RUNTIME_SECONDS: Long = 100L * 60
@@ -61,10 +71,24 @@ object DownloadQualityPicker {
         val options = TIERS.mapNotNull { tier -> pickForTier(downloadable, tier, config, runtime) }
         // A real 4K file is never smaller than the 1080p one offered beside it.
         val fhdSize = options.firstOrNull { it.tier == StreamResolutionTier.FHD_1080 }?.sizeBytes
-        return options.filterNot { option ->
+        val withoutFake4k = options.filterNot { option ->
             option.tier == StreamResolutionTier.UHD_4K && fhdSize != null &&
                 option.sizeBytes != null && option.sizeBytes < fhdSize
         }
+        return withoutSurplusSd(withoutFake4k)
+    }
+
+    /**
+     * 480p only appears when 1080p is the top option (no 4K), and only as a genuinely smaller file: it is dropped
+     * when it is not smaller than every higher option of known size.
+     */
+    private fun withoutSurplusSd(options: List<QualityDownloadOption>): List<QualityDownloadOption> {
+        val sd = options.firstOrNull { it.tier == StreamResolutionTier.SD } ?: return options
+        val higher = options.filter { it.tier != StreamResolutionTier.SD }
+        val fhdIsTop = higher.firstOrNull()?.tier == StreamResolutionTier.FHD_1080
+        val smallestHigher = higher.mapNotNull { it.sizeBytes }.minOrNull()
+        val notSmaller = sd.sizeBytes != null && smallestHigher != null && sd.sizeBytes >= smallestHigher
+        return if (!fhdIsTop || notSmaller) higher else options
     }
 
     /** Below this average bitrate (HEVC; scaled for other codecs) a "4K" file is treated as fake or starved. */
@@ -119,15 +143,41 @@ object DownloadQualityPicker {
         )
         val ofTier = streams.filter { StreamQualityClassifier.resolutionOf(it) == tier }
         if (tier == StreamResolutionTier.UHD_4K) return pick4k(ofTier, tierConfig, config, runtimeSeconds)
-        ofTier
-            .filter { tierConfig.allows(it, runtimeSeconds) }
-            .map { stream -> candidate(stream, tier, config, runtimeSeconds) }
-            .maxWithOrNull(compareBy<Candidate> { it.hasSize }.thenBy { it.score })
-            ?.let { return it.option }
-        // Nothing fits the bitrate budget (e.g. Apple TV 4K at 25-30 Mbps): offer the smallest file that still
-        // passes the size cap and source rules, marked as over budget so the user can choose it knowingly.
+        // 480p tries each SD line count in preference order, so a real 480p file beats a 576p one. All groups are
+        // tried within budget before any over-budget fallback, so an in-budget 360p beats an over-budget 480p.
+        val groups = if (tier != StreamResolutionTier.SD) listOf(ofTier) else {
+            val byHeight = ofTier.groupBy { StreamQualityClassifier.sdHeightOf(it) }
+            SD_HEIGHT_PREFERENCE.mapNotNull { byHeight[it] }
+        }
+        groups.firstNotNullOfOrNull { pickWithinBudget(it, tier, tierConfig, config, runtimeSeconds) }?.let { return it }
+        return groups.firstNotNullOfOrNull { pickOverBudget(it, tier, tierConfig, config, runtimeSeconds) }
+    }
+
+    private fun pickWithinBudget(
+        streams: List<StreamItem>,
+        tier: StreamResolutionTier,
+        tierConfig: DownloadFilterConfig,
+        config: DownloadFilterConfig,
+        runtimeSeconds: Long,
+    ): QualityDownloadOption? = streams
+        .filter { tierConfig.allows(it, runtimeSeconds) }
+        .map { stream -> candidate(stream, tier, config, runtimeSeconds) }
+        .maxWithOrNull(compareBy<Candidate> { it.hasSize }.thenBy { it.score })
+        ?.option
+
+    /**
+     * Nothing fits the bitrate budget (e.g. Apple TV 4K at 25-30 Mbps): offer the smallest file that still passes the
+     * size cap and source rules, marked as over budget so the user can choose it knowingly.
+     */
+    private fun pickOverBudget(
+        streams: List<StreamItem>,
+        tier: StreamResolutionTier,
+        tierConfig: DownloadFilterConfig,
+        config: DownloadFilterConfig,
+        runtimeSeconds: Long,
+    ): QualityDownloadOption? {
         val sizeOnly = tierConfig.copy(bitrateLimitEnabled = false)
-        return ofTier
+        return streams
             .filter { StreamQualityClassifier.sizeOf(it) != null && sizeOnly.allows(it, runtimeSeconds) }
             .map { stream -> candidate(stream, tier, config, runtimeSeconds) }
             .minByOrNull { it.score }

@@ -14,6 +14,8 @@ const TIER_LABELS: Record<string, [string, string]> = {
   uhd_4k: ['4K', 'Ultra HD'],
   fhd_1080: ['1080p', 'Full HD'],
   hd_720: ['720p', 'HD'],
+  // Only sent when 1080p is the top quality (no 4K), as a smaller-file choice.
+  sd: ['480p', 'SD'],
 };
 
 export function formatDownloadSize(bytes: number | null) {

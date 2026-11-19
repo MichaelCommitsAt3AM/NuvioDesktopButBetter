@@ -226,6 +226,15 @@ object StreamQualityClassifier {
         else -> StreamCodec.UNKNOWN
     }
 
+    /**
+     * The tagged line count of a standard-definition stream (576, 540, 480, 360 or 240), or null when the file is
+     * only tagged "SD" / "DVDRip" or is not SD at all. Lets the 480p download option prefer real 480p files.
+     */
+    fun sdHeightOf(stream: StreamItem): Int? = sdHeightOf(haystack(stream))
+
+    internal fun sdHeightOf(text: String): Int? =
+        Regex("(576|540|480|360|240)p").find(text)?.groupValues?.get(1)?.toInt()
+
     internal fun resolutionOf(text: String): StreamResolutionTier = when {
         Regex("(2160p|\\b4k\\b|\\buhd\\b|\\b4320p|8k\\b)").containsMatchIn(text) -> StreamResolutionTier.UHD_4K
         Regex("(1080p|1080i|\\bfhd\\b)").containsMatchIn(text) -> StreamResolutionTier.FHD_1080

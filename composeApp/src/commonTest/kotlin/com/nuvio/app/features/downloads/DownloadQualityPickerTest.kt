@@ -196,6 +196,114 @@ class DownloadQualityPickerTest {
     }
 
     @Test
+    fun offers480pWhen1080pIsTheTopQuality() {
+        val result = pick(
+            stream("Movie.1080p.WEB-DL.x264", 3_000_000_000L),
+            stream("Movie.720p.WEB-DL.x264", 1_500_000_000L),
+            stream("Movie.480p.WEB-DL.x264", 700_000_000L),
+        )
+        assertEquals(
+            listOf(StreamResolutionTier.FHD_1080, StreamResolutionTier.HD_720, StreamResolutionTier.SD),
+            result.map { it.tier },
+        )
+    }
+
+    @Test
+    fun doesNotOffer480pWhen4kIsAvailable() {
+        val result = pick(
+            stream("Movie.2160p.WEB-DL.x265", 6_000_000_000L),
+            stream("Movie.1080p.WEB-DL.x264", 3_000_000_000L),
+            stream("Movie.720p.WEB-DL.x264", 1_500_000_000L),
+            stream("Movie.480p.WEB-DL.x264", 700_000_000L),
+        )
+        assertEquals(
+            listOf(StreamResolutionTier.UHD_4K, StreamResolutionTier.FHD_1080, StreamResolutionTier.HD_720),
+            result.map { it.tier },
+        )
+    }
+
+    @Test
+    fun offers480pWhenTheOnly4kWasDroppedAsFake() {
+        // The "4K" file is smaller than the 1080p one, so it is dropped and 1080p becomes the top quality.
+        val result = pick(
+            stream("Movie.2160p.WEB-DL.x265", 6_000_000_000L),
+            stream("Movie.1080p.BluRay.x264", 6_500_000_000L),
+            stream("Movie.480p.WEB-DL.x264", 700_000_000L),
+            cfg = config.copy(maxBitrateKbps = 10_000),
+        )
+        assertEquals(listOf(StreamResolutionTier.FHD_1080, StreamResolutionTier.SD), result.map { it.tier })
+    }
+
+    @Test
+    fun doesNotOffer480pWithout1080p() {
+        val result = pick(
+            stream("Movie.720p.WEB-DL.x264", 1_500_000_000L),
+            stream("Movie.480p.WEB-DL.x264", 700_000_000L),
+        )
+        assertEquals(listOf(StreamResolutionTier.HD_720), result.map { it.tier })
+        assertTrue(pick(stream("Movie.480p.WEB-DL.x264", 700_000_000L)).isEmpty())
+    }
+
+    @Test
+    fun noSdStreamMeansNo480pOption() {
+        val result = pick(
+            stream("Movie.1080p.WEB-DL.x264", 3_000_000_000L),
+            stream("Movie.720p.WEB-DL.x264", 1_500_000_000L),
+        )
+        assertEquals(listOf(StreamResolutionTier.FHD_1080, StreamResolutionTier.HD_720), result.map { it.tier })
+    }
+
+    @Test
+    fun prefersReal480pOverOtherSdResolutions() {
+        val fhd = stream("Movie.1080p.WEB-DL.x264", 3_000_000_000L)
+        val sd576 = stream("Movie.576p.WEB-DL.x264", 1_100_000_000L)
+        val sd480 = stream("Movie.480p.WEB-DL.x264", 700_000_000L)
+        val sd360 = stream("Movie.360p.WEB-DL.x264", 400_000_000L)
+        val untagged = stream("Movie.DVDRip.x264", 800_000_000L)
+        assertSame(sd480, pick(fhd, sd576, sd360, untagged, sd480).last().stream)
+        // Without a 480p file the closest lower resolution wins over higher and untagged SD.
+        assertSame(sd360, pick(fhd, sd576, untagged, sd360).last().stream)
+        // Then an untagged SD / DVD rip, and 576p only as a last resort.
+        assertSame(untagged, pick(fhd, sd576, untagged).last().stream)
+        assertSame(sd576, pick(fhd, sd576).last().stream)
+    }
+
+    @Test
+    fun anInBudgetLowerSdFileBeatsAnOverBudget480p() {
+        // 480p ceiling is 6000 x 0.35 = 2100 kbps for AVC. 2 GB over 90 minutes is about 2963 kbps: over budget.
+        val fhd = stream("Movie.1080p.WEB-DL.x264", 3_000_000_000L)
+        val bloated480 = stream("Movie.480p.WEB-DL.x264", 2_000_000_000L)
+        val lean360 = stream("Movie.360p.WEB-DL.x264", 500_000_000L)
+        val option = pick(fhd, bloated480, lean360).last()
+        assertSame(lean360, option.stream)
+        assertFalse(option.overBudget)
+        // With only the bloated 480p file it is still offered, marked as a large file.
+        val fallback = pick(fhd, bloated480).last()
+        assertSame(bloated480, fallback.stream)
+        assertTrue(fallback.overBudget)
+    }
+
+    @Test
+    fun drops480pWhenItIsNotSmallerThanTheHigherOptions() {
+        // An over-budget 480p file at 2 GB is larger than the 1.5 GB 720p option, so it is no smaller-file choice.
+        val result = pick(
+            stream("Movie.1080p.WEB-DL.x264", 3_000_000_000L),
+            stream("Movie.720p.WEB-DL.x264", 1_500_000_000L),
+            stream("Movie.480p.WEB-DL.x264", 2_000_000_000L),
+        )
+        assertEquals(listOf(StreamResolutionTier.FHD_1080, StreamResolutionTier.HD_720), result.map { it.tier })
+    }
+
+    @Test
+    fun readsSdLineCounts() {
+        assertEquals(480, StreamQualityClassifier.sdHeightOf("movie 480p web-dl"))
+        assertEquals(576, StreamQualityClassifier.sdHeightOf("movie 576p"))
+        assertEquals(360, StreamQualityClassifier.sdHeightOf("movie 360p"))
+        assertNull(StreamQualityClassifier.sdHeightOf("movie dvdrip"))
+        assertNull(StreamQualityClassifier.sdHeightOf("movie 2160p"))
+    }
+
+    @Test
     fun hevcOverItsScaledCeilingIsOverBudgetEvenThoughAvcWouldPass() {
         // 2.7 GB over 90 minutes is 4000 kbps: fine for AVC (6000) but above the HEVC ceiling (3600), so it is only
         // offered as the over-budget fallback.

@@ -33,6 +33,18 @@ it('loads the streams for the title and only offers the qualities that exist', a
   expect(screen.queryByRole('button', { name: /4K/ })).toBeNull();
 });
 
+it('labels the 480p option sent when 1080p is the top quality', async () => {
+  bridge.call.mockResolvedValueOnce(options([['fhd_1080', 3 * GB], ['hd_720', 1.4 * GB], ['sd', 700 * 1024 ** 2]]));
+  bridge.call.mockResolvedValueOnce({ requiresConfirmation: false, snapshot: {} });
+  render(button());
+  open();
+  const sd = await screen.findByRole('button', { name: /480p/ });
+  expect(sd).toHaveTextContent('SD');
+  expect(sd).toHaveTextContent('700 MB');
+  fireEvent.click(sd);
+  await waitFor(() => expect(bridge.call).toHaveBeenLastCalledWith('downloads.startQuality', { optionId: 'q-sd', replaceConfirmed: false }));
+});
+
 it('labels only an HDR 4K option as HDR', async () => {
   const result = options([['uhd_4k', 9 * GB], ['fhd_1080', 3 * GB]]);
   result.options[0].hdr = true;

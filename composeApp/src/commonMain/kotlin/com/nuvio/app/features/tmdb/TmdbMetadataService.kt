@@ -4,9 +4,11 @@ import com.nuvio.app.isDesktop
 
 import co.touchlab.kermit.Logger
 import com.nuvio.app.features.addons.httpGetText
+import com.nuvio.app.core.time.parseEpisodeReleaseEpochMs
 import com.nuvio.app.features.details.MetaCompany
 import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.details.MetaPerson
+import com.nuvio.app.features.details.MetaReleaseWindow
 import com.nuvio.app.features.details.MetaTrailer
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.details.MoreLikeThisSource
@@ -822,6 +824,7 @@ object TmdbMetadataService {
             releaseInfo = enrichment.releaseInfo,
             lastAirDate = enrichment.lastAirDate,
             status = enrichment.status,
+            tmdbReleaseWindow = enrichment.releaseWindow,
             imdbRating = enrichment.rating?.formatRating(),
             ageRating = enrichment.ageRating,
             runtime = enrichment.runtimeMinutes?.formatRuntime(),
@@ -871,6 +874,7 @@ object TmdbMetadataService {
         if (enrichment != null && settings.useDetails) {
             updated = updated.copy(
                 status = enrichment.status ?: updated.status,
+                tmdbReleaseWindow = enrichment.releaseWindow ?: updated.tmdbReleaseWindow,
                 ageRating = enrichment.ageRating ?: updated.ageRating,
                 runtime = enrichment.runtimeMinutes?.formatRuntime() ?: updated.runtime,
                 country = enrichment.countries.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: updated.country,
@@ -1049,14 +1053,17 @@ object TmdbMetadataService {
                     query = mapOf("include_image_language" to includeImageLanguage),
                 )
             }
+            val movieReleaseDates = async {
+                if (!settings.useDetails || mediaType == "tv") null else fetch<TmdbMovieReleaseDatesResponse>(
+                    endpoint = "movie/$numericId/release_dates",
+                )?.results
+            }
             val ageRating = async {
                 if (!settings.useDetails) null else when (mediaType) {
                     "tv" -> fetch<TmdbTvContentRatingsResponse>(
                         endpoint = "tv/$numericId/content_ratings",
                     )?.results.orEmpty().selectTvAgeRating(normalizedLanguage)
-                    else -> fetch<TmdbMovieReleaseDatesResponse>(
-                        endpoint = "movie/$numericId/release_dates",
-                    )?.results.orEmpty().selectMovieAgeRating(normalizedLanguage)
+                    else -> movieReleaseDates.await().orEmpty().selectMovieAgeRating(normalizedLanguage)
                 }
             }
             val moreLikeThis = async {
@@ -1087,6 +1094,11 @@ object TmdbMetadataService {
                 third = images.await(),
                 fourth = EnrichmentPayload(
                     ageRating = ageRating.await(),
+                    releaseWindow = when {
+                        !settings.useDetails -> null
+                        mediaType == "tv" -> MetaReleaseWindow()
+                        else -> movieReleaseDates.await()?.selectReleaseWindow(normalizedLanguage)
+                    },
                     moreLikeThis = moreLikeThis.await(),
                     trailers = trailers.await(),
                 ),
@@ -1147,6 +1159,7 @@ object TmdbMetadataService {
             rating = details.voteAverage,
             runtimeMinutes = details.runtime ?: details.episodeRunTime.firstOrNull(),
             ageRating = response.fourth.ageRating,
+            releaseWindow = response.fourth.releaseWindow,
             status = details.status?.trim()?.takeIf(String::isNotBlank),
             countries = details.productionCountries
                 .mapNotNull { it.iso31661?.trim()?.takeIf(String::isNotBlank) }
@@ -1537,6 +1550,8 @@ internal data class TmdbEnrichment(
     val runtimeMinutes: Int?,
     val ageRating: String?,
     val status: String?,
+    /** Non-null only when TMDB details enrichment ran; see [MetaReleaseWindow]. */
+    val releaseWindow: MetaReleaseWindow? = null,
     val countries: List<String>,
     val language: String?,
     val productionCompanies: List<MetaCompany>,
@@ -1574,6 +1589,7 @@ internal data class TmdbEnrichment(
 
 private data class EnrichmentPayload(
     val ageRating: String?,
+    val releaseWindow: MetaReleaseWindow?,
     val moreLikeThis: List<MetaPreview>,
     val trailers: List<MetaTrailer>,
 )
@@ -1915,6 +1931,27 @@ private fun List<TmdbMovieReleaseDateCountry>.selectMovieAgeRating(normalizedLan
         .firstOrNull(String::isNotBlank)
 }
 
+private val cinemaReleaseTypes = setOf(2, 3)
+private val atHomeReleaseTypes = setOf(4, 5, 6)
+
+/**
+ * Cinema date from the first preferred region that has one (else the earliest anywhere), and
+ * the earliest at-home date from any region: once a film is digital anywhere, it counts as out
+ * for streaming even if the user's own region only lists a cinema release.
+ */
+internal fun List<TmdbMovieReleaseDateCountry>.selectReleaseWindow(normalizedLanguage: String): MetaReleaseWindow {
+    fun List<TmdbReleaseDate>.earliest(types: Set<Int>): String? =
+        filter { it.type in types }
+            .mapNotNull { it.releaseDate?.trim()?.takeIf(String::isNotBlank) }
+            .minByOrNull { parseEpisodeReleaseEpochMs(it) ?: Long.MAX_VALUE }
+    val all = flatMap { it.releaseDates }
+    val byRegion = associateBy { it.iso31661?.uppercase() }
+    val theatrical = preferredAgeRatingRegions(normalizedLanguage).firstNotNullOfOrNull { region ->
+        byRegion[region]?.releaseDates?.earliest(cinemaReleaseTypes)
+    } ?: all.earliest(cinemaReleaseTypes)
+    return MetaReleaseWindow(theatrical = theatrical, digital = all.earliest(atHomeReleaseTypes))
+}
+
 private fun List<TmdbTvContentRating>.selectTvAgeRating(normalizedLanguage: String): String? {
     val preferredRegions = preferredAgeRatingRegions(normalizedLanguage)
     val byRegion = associateBy { it.iso31661?.uppercase() }
@@ -2112,14 +2149,17 @@ private data class TmdbMovieReleaseDatesResponse(
 )
 
 @Serializable
-private data class TmdbMovieReleaseDateCountry(
+internal data class TmdbMovieReleaseDateCountry(
     @SerialName("iso_3166_1") val iso31661: String? = null,
     @SerialName("release_dates") val releaseDates: List<TmdbReleaseDate> = emptyList(),
 )
 
 @Serializable
-private data class TmdbReleaseDate(
+internal data class TmdbReleaseDate(
     val certification: String? = null,
+    /** 1 premiere, 2 limited cinema, 3 cinema, 4 digital, 5 physical, 6 TV. */
+    val type: Int? = null,
+    @SerialName("release_date") val releaseDate: String? = null,
 )
 
 @Serializable

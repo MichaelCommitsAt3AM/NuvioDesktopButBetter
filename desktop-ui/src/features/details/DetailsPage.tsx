@@ -30,6 +30,8 @@ function formatTimeLeft(positionMs?: number | null, durationMs?: number | null):
   return rest === 0 ? `${hours} h left` : `${hours} h ${rest} min left`;
 }
 
+const RELEASE_STATE_LABELS = { unreleased: 'UNRELEASED', in_cinemas: 'IN CINEMAS', released: 'RELEASED' } as const;
+
 export function DetailsPage() {
   const { type = '', id = '' } = useParams();
   const details = useSelector((current) => current.details);
@@ -82,6 +84,10 @@ export function DetailsPage() {
   useEffect(() => () => { if (playHoldTimer.current !== null) window.clearTimeout(playHoldTimer.current); }, []);
   const media = details.media?.id === id && details.media.type === type ? details.media : null;
   const ageRating = (extraMeta?.id === id && extraMeta.type === type ? extraMeta.ageRating?.trim() : '') || media?.ageRating?.trim();
+  // Kotlin's release state from TMDB release data; absent when TMDB enrichment is off.
+  const releaseState = extraMeta?.id === id && extraMeta.type === type ? extraMeta.releaseState : undefined;
+  const releaseLabel = releaseState ? RELEASE_STATE_LABELS[releaseState] : null;
+  const certificationLabel = [ageRating && `Age certification: ${ageRating}`, releaseLabel && releaseLabel.charAt(0) + releaseLabel.slice(1).toLowerCase()].filter(Boolean).join(', ');
   // TMDB recommendations can resolve to an add-on's canonical IMDb identity.
   // Only follow results belonging to this route's request, never the previous title.
   useEffect(() => {
@@ -240,7 +246,11 @@ export function DetailsPage() {
           <div className="detail-meta-line">
             {(extraMeta?.releaseInfo ?? media.releaseInfo) && <strong>{(extraMeta?.releaseInfo ?? media.releaseInfo)!.slice(0, 4)}</strong>}
             {extraMeta?.runtime && <strong>{formatRuntime(extraMeta.runtime)}</strong>}
-            {ageRating && <span className="detail-age-rating" aria-label={`Age certification: ${ageRating}`}>{ageRating}</span>}
+            {(ageRating || releaseLabel) && <span className="detail-age-rating" aria-label={certificationLabel}>
+              {ageRating && <span>{ageRating}</span>}
+              {ageRating && releaseLabel && <span className="detail-age-rating-divider" aria-hidden="true" />}
+              {releaseLabel && <span className="detail-release-state">{releaseLabel}</span>}
+            </span>}
             {timeLeft && <ResumeBadge>{timeLeft}</ResumeBadge>}
           </div>
           <DetailsRatings rating={extraMeta ? extraMeta.rating : media.rating} externalRatings={extraMeta?.externalRatings ?? []} />

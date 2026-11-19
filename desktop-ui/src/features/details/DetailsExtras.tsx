@@ -28,6 +28,8 @@ export type Video = { id: string; title: string; released: string | null; availa
 export type ExtrasMeta = {
   primaryAction?: DetailsPrimaryAction;
   id: string; type: string; name: string; poster: string | null; background: string | null; logo: string | null; description: string | null; releaseInfo: string | null; lastAirDate: string | null; status: string | null;
+  /** Kotlin's release state from TMDB release data; null when TMDB enrichment is off or it can't tell. */
+  releaseState?: 'unreleased' | 'in_cinemas' | 'released' | null;
   imdbId: string | null; rating: string | null; ageRating: string | null; runtime: string | null; country: string | null; awards: string | null; language: string | null; website: string | null;
   externalRatings: Array<{ source: string; value: number; certified: boolean }>;
   genres: string[]; director: string[]; writer: string[]; cast: Person[]; productionCompanies: Company[]; networks: Company[];
@@ -142,16 +144,20 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
     const scroller = document.querySelector<HTMLElement>('.main-area');
     if (!scroller) { visibleAnchors.current = []; return; }
     const top = scroller.getBoundingClientRect().top;
-    const bottom = top + scroller.clientHeight;
-    visibleAnchors.current = [...document.querySelectorAll<HTMLElement>('[data-details-anchor]')]
-      .map((node) => ({ key: node.dataset.detailsAnchor ?? '', top: node.getBoundingClientRect().top }))
-      .filter((anchor) => anchor.key && anchor.top >= top - 48 && anchor.top <= bottom)
-      .slice(0, 12)
-      .map((anchor) => ({ ...anchor, top: anchor.top + scroller.scrollTop }));
+    // Hold position only once the reader has scrolled into a section (its box
+    // spans the viewport's top edge). Otherwise, such as at the top of the page,
+    // enrichment simply pushes the content below it down, as on Android.
+    const reading = [...document.querySelectorAll<HTMLElement>('[data-details-anchor]')].find((node) => {
+      const rect = node.getBoundingClientRect();
+      return !!node.dataset.detailsAnchor && rect.height > 0 && rect.top <= top + 1 && rect.bottom > top;
+    });
+    visibleAnchors.current = reading
+      ? [{ key: reading.dataset.detailsAnchor!, top: reading.getBoundingClientRect().top + scroller.scrollTop }]
+      : [];
   };
-  // Keep the topmost visible stable section at the same viewport position when
-  // enrichment inserts or removes sections. This runs in the same commit as the
-  // DOM change (before paint), so there is no visible jump to the top.
+  // Keep the section being read at the same viewport position when enrichment
+  // inserts or removes content above it. This runs in the same commit as the
+  // DOM change (before paint), so there is no visible jump.
   useLayoutEffect(() => {
     const scroller = document.querySelector<HTMLElement>('.main-area');
     if (scroller) {
@@ -519,13 +525,34 @@ function ConfiguredSections({ items, contents, tabLayout, episodeList }: {
   const processed = new Set<number>();
   return <div className="details-configured-sections">{items.map((item) => {
     const group = item.key === 'EPISODES' && episodeList ? null : item.tabGroup;
-    if (!tabLayout || group == null) return <div key={item.key} data-details-anchor={item.key}>{contents[item.key]}</div>;
+    if (!tabLayout || group == null) return <ArrivingSection key={item.key} anchor={item.key}>{contents[item.key]}</ArrivingSection>;
     if (processed.has(group)) return null;
     processed.add(group);
     const members = items.filter((candidate) => (candidate.key === 'EPISODES' && episodeList ? null : candidate.tabGroup) === group);
-    if (members.length < 2) return <div key={item.key} data-details-anchor={item.key}>{contents[item.key]}</div>;
+    if (members.length < 2) return <ArrivingSection key={item.key} anchor={item.key}>{contents[item.key]}</ArrivingSection>;
     return <div key={`group-${group}`} data-details-anchor={`group-${group}`}><DetailSectionTabs members={members} contents={contents} /></div>;
   })}</div>;
+}
+
+/**
+ * A configured section that expands open when its content arrives after the page
+ * first rendered (progressive TMDB enrichment), pushing the sections below it down
+ * smoothly instead of popping in. Content present on first render shows as is.
+ */
+function ArrivingSection({ anchor, children }: { anchor: string; children: ReactNode }) {
+  const present = children != null && children !== false;
+  const presentOnMount = useRef(present);
+  const node = useRef<HTMLDivElement>(null);
+  const [arriving, setArriving] = useState(false);
+  useEffect(() => {
+    if (!present || presentOnMount.current) return;
+    presentOnMount.current = true;
+    // Above the reader the scroll anchor already absorbed the insertion; growing
+    // it gradually there would drift the page, so only animate on or below screen.
+    const scrollerTop = document.querySelector<HTMLElement>('.main-area')?.getBoundingClientRect().top ?? 0;
+    if ((node.current?.getBoundingClientRect().top ?? 0) >= scrollerTop) setArriving(true);
+  }, [present]);
+  return <div ref={node} data-details-anchor={anchor} className={arriving ? 'details-section-arrive' : undefined} onAnimationEnd={(event) => { if (event.target === event.currentTarget) setArriving(false); }}>{children}</div>;
 }
 
 function DetailSectionTabs({ members, contents }: {

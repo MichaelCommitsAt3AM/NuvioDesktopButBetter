@@ -49,11 +49,38 @@ it('preserves a touchpad scroll between enrichment capture and commit while comp
   try {
     const rendered = render(renderView(), { container: main });
     expect(await screen.findByText('1h 30m')).toBeInTheDocument();
+    // The reader has scrolled into a section: its box spans the viewport's top edge.
+    main.scrollTop = 120;
     bridge.details = { ...bridge.details as object };
     rendered.rerender(renderView());
     await act(async () => {});
     expect(updates).toBe(2);
-    expect(main.scrollTop).toBe(200);
+    expect(main.scrollTop).toBe(320);
+  } finally { bounds.mockRestore(); main.remove(); }
+});
+
+it('lets enrichment push content down at the top of the page instead of scrolling it', async () => {
+  let updates = 0;
+  let shift = 0;
+  const main = document.createElement('main');
+  main.className = 'main-area';
+  Object.defineProperty(main, 'clientHeight', { value: 1000 });
+  document.body.appendChild(main);
+  const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const top = this.hasAttribute('data-details-anchor') ? 400 + shift - main.scrollTop : 0;
+    return { top, bottom: top + 40, left: 0, right: 100, width: 100, height: 40 } as DOMRect;
+  });
+  bridge.call.mockImplementation(async (method: string) => method === 'details.extras' ? { ...meta(), runtime: '90m' } : { loaded: true });
+  const onMetaLoaded = () => { if (++updates === 2) shift = 80; };
+  const renderView = () => <MemoryRouter><DetailsExtras type="movie" id="movie" onMetaLoaded={onMetaLoaded} /></MemoryRouter>;
+  try {
+    const rendered = render(renderView(), { container: main });
+    expect(await screen.findByText('1h 30m')).toBeInTheDocument();
+    bridge.details = { ...bridge.details as object };
+    rendered.rerender(renderView());
+    await act(async () => {});
+    expect(updates).toBe(2);
+    expect(main.scrollTop).toBe(0);
   } finally { bounds.mockRestore(); main.remove(); }
 });
 

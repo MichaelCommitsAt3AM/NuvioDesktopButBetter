@@ -57,7 +57,7 @@
 .details-rail-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
 .details-rail-heading h2{margin:0}
 @media (prefers-reduced-motion: reduce){.detail-condensed-title{transition:none}}
-.detail-content-arrive{animation:detail-content-reveal 280ms cubic-bezier(.2,.75,.25,1) both}
+.detail-content-arrive{animation:detail-content-reveal 280ms cubic-bezier(.2,.75,.25,1) both;overflow-anchor:none}
 .detail-loading-hero{background-image:linear-gradient(90deg,transparent,rgba(255,255,255,.035),transparent)!important;background-size:220% 100%;animation:detail-skeleton-shimmer 2.2s ease-in-out infinite}
 .detail-loading-placeholder{display:flex;width:min(633px,72vw);flex-direction:column;align-items:flex-start;gap:13px}
 .detail-loading-placeholder>span{display:block;border-radius:8px;background:linear-gradient(90deg,#ffffff0a,#ffffff17,#ffffff0a);background-size:220% 100%;animation:detail-skeleton-shimmer 2.2s ease-in-out infinite}
@@ -95,7 +95,8 @@
 .detail-meta-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:17px;color:#f0f0f0;font-size:14px;transform:translateY(17px)}
 /* Compact variant of the shared resume pill so it sits level with the age rating. */
 .detail-meta-line .resume-badge{min-height:26px;padding:0 10px;border-radius:13px;font-size:13px;font-weight:600}
-.detail-age-rating{display:inline-flex;align-items:center;justify-content:center;flex:none;min-width:26px;padding:3px 7px;border:1px solid #ffffff59;border-radius:7px;color:var(--muted,#989da2);font-size:13px;font-weight:500;line-height:1.2;white-space:nowrap}
+.detail-age-rating{display:inline-flex;align-items:center;justify-content:center;gap:8px;flex:none;min-width:26px;padding:3px 7px;border:1px solid #ffffffa6;border-radius:7px;color:#f1f2f4;font-size:13px;font-weight:600;line-height:1.2;white-space:nowrap}
+.detail-age-rating-divider{flex:none;width:1px;height:12px;background:#ffffffa6}.detail-release-state{letter-spacing:.02em}
 .detail-meta-line>strong{font-size:15px;font-weight:700}.detail-rating{display:flex;align-items:center;gap:5px;padding:3px 7px;border:1px solid #ffffff25;border-radius:7px;background:#ffffff12;font-size:13px}.detail-rating img{width:25px;height:14px;object-fit:contain}.detail-rating strong{color:#f2d34f;font-size:13px}
 .detail-ratings-row{display:flex;align-items:center;gap:16px;min-height:20px;margin-top:12px;transform:translateY(17px)}.detail-external-rating{display:inline-flex;align-items:center;gap:4px;color:#eee;font-size:13px}.detail-external-rating>img{width:25px;height:20px;object-fit:contain}.detail-external-rating>strong{font-size:13px;font-weight:700}.detail-imdb>strong{color:#f2d34f}.detail-tomatoes>strong{color:#ed5454}
 .detail-genres{margin:11px 0 0;color:#c7c9cc;font-size:13px;line-height:1.4;transform:translateY(9px)}

@@ -15,6 +15,10 @@ data class MetaDetails(
     val releaseInfo: String? = null,
     /** TV: ISO last air date from TMDB (or addon) for year-range display. */
     val lastAirDate: String? = null,
+    /** Exact first release date from the add-on's `released` field, when it sends one. */
+    val released: String? = null,
+    /** TMDB release dates; non-null only when TMDB details enrichment was applied. */
+    val tmdbReleaseWindow: MetaReleaseWindow? = null,
     val status: String? = null,
     val imdbRating: String? = null,
     val ageRating: String? = null,
@@ -118,3 +122,13 @@ enum class MetaDetailsSection {
     COLLECTION,
     MORE_LIKE_THIS,
 }
+
+/**
+ * Cinema and at-home release dates for the user's region, from TMDB `release_dates`.
+ * `theatrical` is the earliest cinema release (types 2-3); `digital` the earliest digital,
+ * physical or TV release (types 4-6). Both are null for series or when TMDB has no dates.
+ */
+data class MetaReleaseWindow(
+    val theatrical: String? = null,
+    val digital: String? = null,
+)

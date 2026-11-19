@@ -3,6 +3,7 @@ package com.nuvio.desktop.bridge
 import com.nuvio.app.features.details.MetaCompany
 import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.details.MetaExternalRating
+import com.nuvio.app.features.details.releaseState
 import com.nuvio.app.features.details.MetaLink
 import com.nuvio.app.features.details.MetaPerson
 import com.nuvio.app.features.details.MetaTrailer
@@ -276,6 +277,7 @@ object DetailsExtrasBridge {
         putNullable("releaseInfo", meta.releaseInfo)
         putNullable("lastAirDate", meta.lastAirDate)
         putNullable("status", meta.status)
+        put("releaseState", meta.releaseState(CurrentDateProvider.todayIsoDate())?.name?.lowercase()?.let(::JsonPrimitive) ?: JsonNull)
         putNullable("rating", meta.imdbRating)
         putNullable("ageRating", meta.ageRating)
         putNullable("runtime", meta.runtime)

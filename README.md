@@ -26,6 +26,10 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- Title pages no longer jump while extra details load: new information smoothly pushes the rest of the page down.
+
+- With TMDB enrichment on, title pages show UNRELEASED, IN CINEMAS or RELEASED next to the age rating (for example "PG-13 | IN CINEMAS"), like the mobile app. RELEASED means it is out for streaming or at home in at least one country.
+
 - Title pages play the trailer behind the artwork as soon as it loads, with a mute button. It pauses when you scroll down to the seasons and can be turned off under Settings → Details page → Hero trailer playback.
 
 - Synced with upstream 0.1.35: Continue Watching and Up Next cards can be marked as watched from their menu, and subtitle add-ons receive the playing file's name, size and hash for better matches.

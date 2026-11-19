@@ -4,6 +4,16 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Details enrichment pushes content down — 2026-11-19
+
+When progressive TMDB enrichment fills in the details page, new content now pushes what's below it down instead of scrolling the page. `DetailsExtras` previously held the topmost *visible* section at a fixed viewport position, so at the top of the page a growing hero or newly inserted section made the page scroll itself. `captureAnchors` now anchors only the section whose box spans the viewport's top edge (the reader has scrolled into it); otherwise no scroll correction happens. Chromium's native scroll anchoring is off for the details content (`overflow-anchor:none` on `.detail-content-arrive`) so it can't reintroduce the shift. Sections whose content arrives after first render expand open via `ArrivingSection` (`.details-section-arrive`: a 340ms height/opacity expand using `interpolate-size:allow-keywords`, disabled for reduced motion); a section arriving above the reader appears instantly, since the scroll anchor already absorbed it.
+
+### Release state beside the details age rating — 2026-11-19
+
+The details hero's age-rating box matches the mobile hero's `DetailHeroMetaBadge`: the age rating on the left, a 1px divider, and UNRELEASED, IN CINEMAS or RELEASED on the right, inside one outlined box (`.detail-age-rating`, `.detail-age-rating-divider`, `.detail-release-state` in `details.css`; near-white text and a 65% white border so it reads against artwork). `details.extras` returns `releaseState` (`unreleased`, `in_cinemas`, `released` or `null`) from `MetaDetails.releaseState()` (`details/MetaDetailsReleaseStatus.kt`).
+
+The state appears only when TMDB details enrichment ran; without it the box shows just the age rating. The movie `release_dates` request TMDB enrichment already made for the age rating now also keeps each entry's `type` and `release_date`: `selectReleaseWindow` picks the earliest cinema date (types 2-3) from the first preferred region that has one (the age-rating regions: language region, then US, then GB), else the earliest anywhere, and the earliest at-home date (digital, physical or TV, types 4-6) from any region, since a digital release anywhere means the film is out for streaming even when the user's own region lists only a cinema release (e.g. The Mongoose: US cinema-only, Prime Video in Germany and Brazil). It stores them as `MetaDetails.tmdbReleaseWindow` (series get an empty window so the gate still opens). For movies: a past at-home date means RELEASED; a past cinema date with a future at-home date means IN CINEMAS; a past cinema date with no at-home date recorded means IN CINEMAS for 120 days (`CINEMA_ONLY_WINDOW_MS`) and RELEASED after that, since TMDB's community-entered digital dates are often missing for older films; a future cinema date means UNRELEASED. Series, and movies without TMDB dates, fall back to `isUnreleased()`: the add-on's exact `released` date (now parsed into `MetaDetails.released`), any already-aired episode, the TMDB status (Planned, Rumored, In Production, Post Production, Pilot vs. Released, Returning Series, Ended, Canceled), then the `releaseInfo` year; a bare current year is unknown. Movie cards carry no release state: catalog items usually send only a year, and checking them would need a details/TMDB fetch per card.
+
 ### Trailer resolving no longer floods YouTube — 2026-11-15
 
 Browsing many titles made trailers stop playing or drop to 360p: each resolve costs about four YouTube requests from one IP, and bursts trigger bot checks that leave only the combined 360p stream (or nothing). The details page remembers failed titles for 3 minutes (an earlier 600ms pre-resolve delay was removed again; it was not needed). On the Kotlin side `TrailerPlaybackResolver.resolveWebPlayableFromYouTubeUrl` runs at most two extractions at once and uses `TrailerResolveGuard`: a failed title is not retried for 3 minutes, and three failed or degraded results in a row pause all extraction for 90 seconds. A degraded result (no separate audio, i.e. the 360p fallback) still plays but is cached for 2 minutes instead of 10, so quality recovers once YouTube relaxes. `HoverTrailer` now drops the `src` of its video and audio elements on unmount (`removeAttribute('src')` plus `load()`), since pausing or removing an element leaves its download connection open until garbage collection. The details title no longer shows a shimmering placeholder while the logo loads: it holds blank space, then the logo or text title fades in. A trailer that has played to the end is not replayed when the user returns from the streams page, the player, or any other page opened from the details page (`finished` set in `DetailsHeroTrailer.tsx`); it is cleared by the app shell once the user navigates outside the details flow (`isDetailsFlowPath`: details, streams, playback, person and entity routes), so entering the title again from Home or Search plays it again. To diagnose resolve problems, run with `NUVIO_TRAILER_DEBUG=1`.
@@ -996,16 +1006,6 @@ New feature on every platform (`features/downloads/DownloadFilter*.kt`, `Streams
     smaller than the 1080p option is dropped. So the *Large file* fallback now only appears for 1080p and 720p.
   - The desktop download sheet now animates like mobile's `AnimatedContent` when the options arrive: the sheet grows
     to the new height (300ms) and the options fade in (220ms after 90ms) instead of snapping (`AnimatedPhase`).
-- **Episode downloads and download progress rings.** The same quality sheet downloads a single episode, and the
-  Download buttons show progress:
-  - The episode actions sheet (right-click or hold an episode) has a **Download** row, shown for released, available
-    episodes. It opens the quality sheet with the episode's video id (`downloads.qualityOptions` already accepted
-    `videoId`), titled with the episode code and name. It reads *Download again* for a downloaded episode and *View in
-    Downloads* while one is running. `QualityDownloadSheet` is a standalone export; `QualityDownloadButton` wraps it.
-  - The movie Download button doubles as the download indicator (`useTitleDownload`, `downloadStateView`): a ring
-    fills around it while downloading (dimmed when paused), it turns white once downloaded and red if it failed.
-  - An episode with a download gets the same ringed download button on the right of its card (bottom-right on
-    horizontal cards); the downloads snapshot is matched on parent title + `videoId` (`useDownloadsByVideoId`).
 - **480p smaller-file option (one-tap Download).** When 1080p is the best quality on offer (no 4K option, including
   when a fake 4K file was dropped), the picker also offers **480p · SD** as a smaller download. With 4K available
   the sheet keeps exactly 4K / 1080p / 720p.
@@ -1018,6 +1018,16 @@ New feature on every platform (`features/downloads/DownloadFilter*.kt`, `Streams
   - Bridge tier id `sd`; the desktop sheet labels it 480p / SD (`QualityDownloadButton`). Mobile's
     `QualityDownloadSheet` shows the same (`download_quality_tier_sd`). Covered by `DownloadQualityPickerTest` and
     `QualityDownloadButton.test.tsx`.
+- **Episode downloads and download progress rings.** The same quality sheet downloads a single episode, and the
+  Download buttons show progress:
+  - The episode actions sheet (right-click or hold an episode) has a **Download** row, shown for released, available
+    episodes. It opens the quality sheet with the episode's video id (`downloads.qualityOptions` already accepted
+    `videoId`), titled with the episode code and name. It reads *Download again* for a downloaded episode and *View in
+    Downloads* while one is running. `QualityDownloadSheet` is a standalone export; `QualityDownloadButton` wraps it.
+  - The movie Download button doubles as the download indicator (`useTitleDownload`, `downloadStateView`): a ring
+    fills around it while downloading (dimmed when paused), it turns white once downloaded and red if it failed.
+  - An episode with a download gets the same ringed download button on the right of its card (bottom-right on
+    horizontal cards); the downloads snapshot is matched on parent title + `videoId` (`useDownloadsByVideoId`).
   - While a download is running (downloading or paused), clicking its ringed button, or the menu row, opens the
     Downloads page (`/library/downloads`) instead of the quality sheet; otherwise it opens the sheet (to download, or
     to replace a finished or failed download).

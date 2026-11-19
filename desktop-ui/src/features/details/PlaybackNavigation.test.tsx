@@ -7,6 +7,7 @@ import { StreamsPage } from '../streams/StreamsPage';
 const bridge = vi.hoisted(() => ({
   state: {} as any,
   primaryAction: null as any,
+  extras: null as any,
   call: vi.fn(),
   loadStreams: vi.fn(),
   addToLibrary: vi.fn(),
@@ -22,7 +23,13 @@ vi.mock('../../bridge', () => ({
   actions: { loadDetails: vi.fn(async () => {}), loadStreams: (...args: unknown[]) => bridge.loadStreams(...args), addToLibrary: (...args: unknown[]) => bridge.addToLibrary(...args), removeFromLibrary: (...args: unknown[]) => bridge.removeFromLibrary(...args) },
   BridgeError: class extends Error {},
 }));
-vi.mock('./DetailsExtras', () => ({ DetailsExtras: () => null }));
+vi.mock('./DetailsExtras', async () => {
+  const React = await import('react');
+  return { DetailsExtras: ({ onMetaLoaded }: { onMetaLoaded?: (meta: unknown) => void }) => {
+    React.useEffect(() => { const timer = setTimeout(() => { if (bridge.extras) onMetaLoaded?.(bridge.extras); }, 0); return () => clearTimeout(timer); }, []);
+    return null;
+  } };
+});
 // These tests check which title owns the artwork; decode timing is covered by StreamsArtwork.test.
 vi.mock('../../components/useDecodedImage', () => ({ useDecodedImage: (url?: string) => ({ ready: !!url, failed: false }) }));
 
@@ -40,6 +47,7 @@ function renderStreams(query = '') {
   </Routes></MemoryRouter>);
 }
 beforeEach(() => {
+  bridge.extras = null;
   bridge.state = { details: { media: media('ted'), episodes: [], loading: false }, library: { items: [] }, streams: { groups: [], loading: true }, playback: {}, session: { activeProfile: 7 } };
   bridge.primaryAction = { label: 'Resume', videoId: 'ted', seasonNumber: null, episodeNumber: null, resumePositionMs: 25_000 };
   bridge.call.mockReset();
@@ -169,4 +177,27 @@ it('keeps the details page and backdrop mounted when enrichment updates the same
   expect(view.container.querySelector('.detail-content-arrive')).toBe(hero);
   expect(document.querySelector('.detail-viewport-backdrop')).toBe(backdrop);
   expect(screen.queryByRole('status', { name: 'Loading title details' })).toBeNull();
+});
+
+it('shows the release state beside the age rating inside one outlined badge', async () => {
+  bridge.extras = { id: 'ted', type: 'movie', name: 'ted', releaseInfo: '2026', status: 'Post Production', ageRating: 'PG-13', releaseState: 'unreleased', externalRatings: [] };
+  const view = renderDetails();
+  const badge = await screen.findByLabelText('Age certification: PG-13, Unreleased');
+  expect(badge).toHaveClass('detail-age-rating');
+  expect(badge).toHaveTextContent('PG-13UNRELEASED');
+  expect(badge.querySelector('.detail-age-rating-divider')).not.toBeNull();
+  view.unmount();
+  bridge.extras = { id: 'ted', type: 'movie', name: 'ted', releaseInfo: '2012', status: 'Released', ageRating: 'R', releaseState: 'released', externalRatings: [] };
+  const released = renderDetails();
+  expect(await screen.findByLabelText('Age certification: R, Released')).toHaveTextContent('RRELEASED');
+  released.unmount();
+  bridge.extras = { id: 'ted', type: 'movie', name: 'ted', releaseInfo: '2026', status: 'Released', ageRating: 'PG-13', releaseState: 'in_cinemas', externalRatings: [] };
+  const cinemas = renderDetails();
+  expect(await screen.findByLabelText('Age certification: PG-13, In cinemas')).toHaveTextContent('PG-13IN CINEMAS');
+  cinemas.unmount();
+  bridge.extras = { id: 'ted', type: 'movie', name: 'ted', releaseInfo: '2026', status: null, ageRating: 'PG', releaseState: null, externalRatings: [] };
+  renderDetails();
+  const ratingOnly = await screen.findByLabelText('Age certification: PG');
+  expect(ratingOnly).toHaveTextContent(/^PG$/);
+  expect(ratingOnly.querySelector('.detail-age-rating-divider')).toBeNull();
 });

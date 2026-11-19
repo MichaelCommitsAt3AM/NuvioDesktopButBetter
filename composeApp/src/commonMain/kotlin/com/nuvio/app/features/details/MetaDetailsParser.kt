@@ -41,6 +41,7 @@ internal object MetaDetailsParser {
             description = meta.string("description"),
             releaseInfo = meta.string("releaseInfo"),
             lastAirDate = meta.string("lastAirDate"),
+            released = meta.string("released")?.trim()?.takeIf(String::isNotEmpty),
             status = meta.string("status"),
             imdbRating = meta.string("imdbRating"),
             ageRating = meta.ageRating(),

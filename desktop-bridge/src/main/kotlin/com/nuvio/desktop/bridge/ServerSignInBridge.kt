@@ -39,11 +39,11 @@ import java.net.URI
 internal object ServerSignInBridge {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val lock = Any()
-    private var plex: PlexSignInFlow? = null
-    private var silo: SiloSignInFlow? = null
+    @Volatile private var plex: PlexSignInFlow? = null
+    @Volatile private var silo: SiloSignInFlow? = null
     private var watcher: Job? = null
-    private var profileId: Int? = null
-    private var connectedName: String? = null
+    @Volatile private var profileId: Int? = null
+    @Volatile private var connectedName: String? = null
 
     private val mutableRevision = MutableStateFlow(0L)
     /** Bumps whenever the visible sign-in state changes, so the runtime re-emits the servers snapshot. */
@@ -131,6 +131,7 @@ internal object ServerSignInBridge {
             plex?.close(); plex = null
             silo?.close(); silo = null
             profileId = null
+            connectedName = null
         }
         bump()
     }
@@ -155,7 +156,8 @@ internal object ServerSignInBridge {
         val url = openPageUrl() ?: error("No sign-in page")
         val uri = URI(url)
         require(uri.scheme?.lowercase() in setOf("http", "https") && !uri.host.isNullOrBlank() && uri.userInfo == null) { "Expected a web URL" }
-        java.awt.Desktop.getDesktop().browse(uri)
+        // Opening the browser can block; keep it off the RPC thread (requests are serialized behind it).
+        scope.launch(Dispatchers.IO) { runCatching { java.awt.Desktop.getDesktop().browse(uri) } }
     }
 
     private fun plexFlow() = plex ?: error("No Plex sign-in")

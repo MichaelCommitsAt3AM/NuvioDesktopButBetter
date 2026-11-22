@@ -60,7 +60,8 @@ it('shows live speed, watch state and the custom poster from Kotlin', () => {
     { ...base, id: 'active', title: 'Moon Documentary', parentMetaId: 'documentary', status: 'downloading', downloadedBytes: GB / 2, playable: false, progress: 0.25, bytesPerSecond: 3 * 1024 ** 2 },
   ] };
   const { container } = render(page());
-  expect(screen.getByRole('article', { name: 'Moon Documentary' })).toHaveTextContent('3 MB/s');
+  // 1.5 GB left at 3 MB/s is 512 s, shown rounded up to whole minutes.
+  expect(screen.getByRole('article', { name: 'Moon Documentary' })).toHaveTextContent('3 MB/s • 9m left');
   expect(screen.getByRole('article', { name: 'Moon Movie' })).toHaveTextContent('Watched');
   expect(screen.getByRole('progressbar', { name: 'Half Film watch progress' })).toHaveAttribute('value', '0.4');
   expect(container.querySelector('img[src="https://img.test/custom.jpg"]')).not.toBeNull();

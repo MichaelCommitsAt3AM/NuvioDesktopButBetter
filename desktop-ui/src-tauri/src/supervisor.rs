@@ -104,6 +104,7 @@ enum BridgeTopic {
     Advanced,
     #[serde(rename = "streamSelection")]
     StreamSelection,
+    Servers,
 }
 
 #[derive(Clone, Debug)]
@@ -1332,6 +1333,40 @@ mod tests {
             r#"{"topic":"session","epoch":1,"revision":2,"data":{},"secret":"x"}"#
         )
         .is_err());
+    }
+
+    #[test]
+    fn event_parser_accepts_every_contract_topic() {
+        // A topic missing here is dropped silently (servers was, until the 0.1.38 sync).
+        let schema: Value =
+            serde_json::from_str(include_str!("../../../desktop-bridge/contract/schema.json"))
+                .expect("contract schema");
+        fn topics(value: &Value, out: &mut Vec<String>) {
+            match value {
+                Value::Object(map) => {
+                    if let Some(list) = map
+                        .get("topic")
+                        .and_then(|topic| topic.get("enum"))
+                        .and_then(Value::as_array)
+                    {
+                        out.extend(list.iter().filter_map(Value::as_str).map(str::to_owned));
+                    }
+                    map.values().for_each(|child| topics(child, out));
+                }
+                Value::Array(items) => items.iter().for_each(|child| topics(child, out)),
+                _ => {}
+            }
+        }
+        let mut names = Vec::new();
+        topics(&schema, &mut names);
+        assert!(names.contains(&"servers".to_owned()));
+        for name in names {
+            let event = format!(r#"{{"topic":"{name}","epoch":1,"revision":1,"data":{{}}}}"#);
+            assert!(
+                serde_json::from_str::<BridgeEvent>(&event).is_ok(),
+                "topic {name} is in the contract but not accepted"
+            );
+        }
     }
 
     #[test]

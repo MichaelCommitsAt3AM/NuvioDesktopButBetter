@@ -50,7 +50,13 @@ export function MediaServersSettings() {
     }
   }, [guided, guidedState?.step]);
   const sendGuided = async (method: string, params: Record<string, unknown> = {}) => {
-    try { await call(method, params); return true; } catch { setError('The server operation failed. Check the server address, connection and sign-in details.'); return false; }
+    const current = generation.current;
+    try {
+      await call(method, params);
+      // Events carry later steps (e.g. Plex approval); refreshing here keeps each click's result visible even if one is missed.
+      if (current === generation.current) await refreshFeature('servers', 'servers.snapshot');
+      return true;
+    } catch { if (current === generation.current) setError('The server operation failed. Check the server address, connection and sign-in details.'); return false; }
   };
   const openGuided = (id: string) => {
     setError(''); setGuided(id); guidedOpen.current = true;

@@ -17,7 +17,8 @@ body .dialog-surface.media-server-signin{width:min(560px,calc(100vw - 40px));pad
 .media-server-secret button{position:absolute;right:10px;top:10px;display:grid;place-items:center;width:40px;height:40px;border:0;background:none;color:var(--text)}
 .media-server-signin .button.primary{width:100%;min-height:60px;margin-top:8px;border-radius:30px}
 .media-server-identity{display:grid;gap:4px;padding:17.28px 21.6px!important}.media-server-identity strong{font-size:18px;font-weight:600}.media-server-identity span{font-size:16px;color:#989da2}.media-server-identity small{font-size:14px;color:#92969c}.media-server-details .media-library-description{padding:0;margin:0 0 10.8px}.media-server-details .settings-group-title{margin-bottom:10.8px}
-.guided-server-signin{position:relative}
+/* Dialog puts the class on its fixed backdrop; only the surface may be positioned here. */
+.guided-server-signin>.dialog-surface{position:relative;width:min(560px,calc(100vw - 40px));padding:26px;border-radius:30px;background:var(--settings-surface,var(--app-surface));color:var(--text)}
 .guided-server-signin .guided-signin-back{position:absolute;top:22px;right:22px}
 .guided-signin-body{display:grid;gap:13px}
 .guided-signin-body>p{margin:0;color:var(--text);font-size:16px;line-height:24px}

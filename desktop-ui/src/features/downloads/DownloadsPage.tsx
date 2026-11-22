@@ -46,6 +46,14 @@ const posterFallback = (item: DownloadItem) => (event: { currentTarget: HTMLImag
   if (item.customPoster && item.poster && event.currentTarget.src !== item.poster) event.currentTarget.src = item.poster;
 };
 
+/** "1h 12m left" / "6m left", rounded up so a nearly finished download never says 0m. */
+export function formatTimeLeft(seconds: number, t: T) {
+  const minutes = Math.max(1, Math.ceil(seconds / 60));
+  return minutes >= 60
+    ? t('home_continue_watching_hours_minutes_left', [Math.floor(minutes / 60), minutes % 60])
+    : t('home_continue_watching_minutes_left', [minutes]);
+}
+
 function statusText(item: DownloadItem, t: T) {
   const size = item.totalBytes != null && item.totalBytes > 0
     ? `${formatDownloadBytes(item.downloadedBytes)} / ${formatDownloadBytes(item.totalBytes)}`
@@ -53,7 +61,10 @@ function statusText(item: DownloadItem, t: T) {
   switch (item.status) {
     case 'downloading': {
       const status = t('downloads_status_downloading', [size]);
-      return item.bytesPerSecond != null && item.bytesPerSecond > 0 ? `${status}${SEPARATOR}${t('downloads_speed', [formatDownloadBytes(item.bytesPerSecond)])}` : status;
+      if (item.bytesPerSecond == null || item.bytesPerSecond <= 0) return status;
+      const speed = `${status}${SEPARATOR}${t('downloads_speed', [formatDownloadBytes(item.bytesPerSecond)])}`;
+      const remaining = item.totalBytes != null && item.totalBytes > item.downloadedBytes ? (item.totalBytes - item.downloadedBytes) / item.bytesPerSecond : null;
+      return remaining == null ? speed : `${speed}${SEPARATOR}${formatTimeLeft(remaining, t)}`;
     }
     case 'paused': return t('downloads_status_paused', [size]);
     case 'completed': return formatDownloadBytes(item.totalBytes ?? item.downloadedBytes);

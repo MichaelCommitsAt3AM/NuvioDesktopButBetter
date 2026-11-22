@@ -48,6 +48,8 @@ data class DownloadItem(
     val status: DownloadStatus,
     val downloadedBytes: Long = 0L,
     val totalBytes: Long? = null,
+    /** The size the stream advertised (`behaviorHints.videoSize`), used to reject placeholder clips. Fork-only. */
+    val expectedBytes: Long? = null,
     val errorMessage: String? = null,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,

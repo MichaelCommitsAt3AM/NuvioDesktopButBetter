@@ -31,6 +31,15 @@ Audited automatic merges: the typealias `NativePlayerCreate`, `NativePlayerBridg
 - **Deferred:** gamepad navigation in the React shell. Upstream's controller engine targets Compose focus; the rewrite has keyboard navigation but no gamepad input. Recorded in `KNOWN_ISSUES.md`.
 - **Locales:** regenerated (29 locales); only the English table changed in this batch.
 
+## Follow-up fixes from testing
+
+- **Servers events never reached React.** The Tauri shell's `BridgeTopic` enum had no `servers` variant, so every `servers` event was dropped (the old Jellyfin/Emby flow hid this by re-fetching after each action). The guided dialog therefore never opened. Added the variant, a Rust test that every contract topic parses, and a snapshot refresh after each guided call.
+- **Guided dialog layout.** `Dialog` puts its `className` on the fixed backdrop; a `position: relative` rule on that class pushed the dialog into the page flow. The rule now targets `.dialog-surface`.
+- **Placeholder downloads marked complete (pre-existing).** A TorBox source through StremThru advertised 3.1 GB but returned an 18 KB "placeholder" MP4 with a matching `Content-Length`, which passed the truncation check. Downloads now store the advertised `behaviorHints.videoSize` (`expectedBytes`); if at least 100 MB was advertised and under 1% (and under 20 MB) arrived, the file is removed and the download fails with "The source sent a short placeholder clip instead of the video". Covered by `PlaceholderDownloadTest`.
+
+- **Review hardening.** The sign-in adapter opens the browser off the RPC thread, clears a leftover "connected" result on cancel, and marks its flow fields `@Volatile`.
+- **Download time left** (requested while testing): active rows show "6m left" / "1h 12m left" from the remaining bytes and the smoothed speed, reusing the translated Continue Watching strings.
+
 ## Validation
 
 - Supabase RPC contract tests and scanner: passed (42 client RPCs, 50 migration functions). The batch adds no client RPC.

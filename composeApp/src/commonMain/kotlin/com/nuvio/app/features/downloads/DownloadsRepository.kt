@@ -199,6 +199,7 @@ object DownloadsRepository {
             status = DownloadStatus.Downloading,
             downloadedBytes = 0L,
             totalBytes = null,
+            expectedBytes = stream.behaviorHints.videoSize?.takeIf { it > 0L },
             errorMessage = null,
             createdAtEpochMs = now,
             updatedAtEpochMs = now,
@@ -342,7 +343,27 @@ object DownloadsRepository {
             },
             onSuccess = { localFileUri, totalBytes ->
                 activeHandles.remove(item.id)
-                mutateItem(item.id) { current ->
+                val finished = _uiState.value.items.firstOrNull { it.id == item.id }
+                val finishedBytes = totalBytes?.takeIf { it > 0L } ?: finished?.downloadedBytes ?: 0L
+                val placeholder = finished != null && isPlaceholderDownload(finishedBytes, finished.expectedBytes)
+                if (placeholder) {
+                    // Debrid proxies (StremThru, AIOStreams, ...) answer an uncached or failed link with a short
+                    // "downloading/failed" clip and its own Content-Length, which would otherwise look complete.
+                    DownloadsPlatformDownloader.removeFile(localFileUri)
+                    val message = runBlocking { getString(Res.string.download_failed_placeholder) }
+                    mutateItem(item.id) { current ->
+                        if (current.status != DownloadStatus.Downloading) current
+                        else current.copy(
+                            status = DownloadStatus.Failed,
+                            localFileUri = null,
+                            downloadedBytes = 0L,
+                            totalBytes = null,
+                            errorMessage = message,
+                            updatedAtEpochMs = DownloadsClock.nowEpochMs(),
+                        )
+                    }
+                }
+                if (!placeholder) mutateItem(item.id) { current ->
                     if (current.status != DownloadStatus.Downloading) return@mutateItem current
                     current.copy(
                         status = DownloadStatus.Completed,
@@ -591,4 +612,14 @@ private fun String.isSupportedDownloadUrl(): Boolean {
     if (normalized.endsWith(".mpd") || normalized.contains(".mpd?")) return false
     if (normalized.endsWith(".torrent") || normalized.contains(".torrent?")) return false
     return normalized.startsWith("http://") || normalized.startsWith("https://")
+}
+
+/**
+ * True when a finished download is a placeholder clip rather than the advertised video: the stream promised at least
+ * 100 MB, but under 1% of that (and under 20 MB) arrived. Fork-only.
+ */
+internal fun isPlaceholderDownload(finishedBytes: Long, expectedBytes: Long?): Boolean {
+    val expected = expectedBytes ?: return false
+    if (expected < 100L * 1024 * 1024 || finishedBytes <= 0L) return false
+    return finishedBytes < 20L * 1024 * 1024 && finishedBytes * 100 < expected
 }

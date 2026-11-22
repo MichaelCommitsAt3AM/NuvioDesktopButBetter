@@ -31,4 +31,22 @@ class UpstreamServiceGatesTest {
         }
         assertEquals("The server operation failed. Check the server address, connection and sign-in details.", error.message)
     }
+
+    @Test fun plexAndSiloNeverAcceptPasswordsThroughTheGenericConnect() = runBlocking {
+        for (provider in listOf("plex", "silo")) {
+            val error = assertFailsWith<BridgeFeatureException> {
+                ServersBridge.dispatch("servers.connect", buildJsonObject {
+                    put("provider", provider); put("address", "https://server.test"); put("username", "user"); put("password", "private-password")
+                })
+            }
+            assertFalse(error.message.orEmpty().contains("private-password"))
+        }
+    }
+
+    @Test fun guidedSignInRequiresAStartedFlowAndExposesNoState() = runBlocking {
+        assertFailsWith<BridgeFeatureException> {
+            ServersBridge.dispatch("servers.signIn.pin", buildJsonObject { put("pin", "1234") })
+        }
+        assertEquals(kotlinx.serialization.json.JsonNull, ServerSignInBridge.snapshot())
+    }
 }

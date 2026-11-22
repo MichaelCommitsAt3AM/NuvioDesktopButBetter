@@ -12,6 +12,12 @@ import com.nuvio.app.features.downloads.StreamResolutionTier
 import com.nuvio.app.features.downloads.StreamSourceType
 import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.downloads.DownloadsPlatformDownloader
+import com.nuvio.app.features.downloads.posterArtwork
+import com.nuvio.app.features.downloads.watchStatus
+import com.nuvio.app.core.poster.CustomPosterScreen
+import com.nuvio.app.core.poster.CustomPosterUrlRepository
+import com.nuvio.app.core.poster.CustomPosterUrlResolver
+import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -39,6 +45,8 @@ object DownloadsBridge {
         "downloads.retry" -> mutate(params.str("id"), setOf(DownloadStatus.Failed), "retry")
         "downloads.cancel" -> mutate(params.str("id"), setOf(DownloadStatus.Downloading, DownloadStatus.Paused, DownloadStatus.Failed), "cancel")
         "downloads.remove" -> mutate(params.str("id"), null, "remove")
+        "downloads.pauseAll" -> { DownloadsRepository.pauseActiveDownloads(); snapshot() }
+        "downloads.resumeAll" -> { DownloadsRepository.resumePausedDownloads(); snapshot() }
         "downloads.markSeen" -> {
             DownloadsRepository.ensureLoaded()
             DownloadsRepository.markCompletedSeen()
@@ -94,7 +102,11 @@ object DownloadsBridge {
     fun snapshot(): JsonObject {
         DownloadsRepository.ensureLoaded()
         return buildJsonObject {
-            put("items", JsonArray(DownloadsRepository.uiState.value.items.map(::itemJson)))
+            val items = DownloadsRepository.uiState.value.items
+            updateSpeeds(items)
+            val progressState = WatchProgressRepository.uiState.value
+            val posterPattern = libraryPosterPattern()
+            put("items", JsonArray(items.map { item -> itemJson(item, progressState, posterPattern) }))
             put("hasUnseenCompleted", DownloadsRepository.hasUnseenCompleted.value)
             put("filter", filterSnapshot())
         }
@@ -198,7 +210,11 @@ object DownloadsBridge {
         return snapshot()
     }
 
-    private fun itemJson(item: DownloadItem) = buildJsonObject {
+    private fun itemJson(
+        item: DownloadItem,
+        progressState: com.nuvio.app.features.watchprogress.WatchProgressUiState = WatchProgressRepository.uiState.value,
+        posterPattern: String = libraryPosterPattern(),
+    ) = buildJsonObject {
         put("id", item.id); put("contentType", item.contentType); put("parentMetaId", item.parentMetaId)
         put("parentMetaType", item.parentMetaType); put("videoId", item.videoId); put("title", item.title)
         putNullable("logo", item.logo); putNullable("poster", item.poster); putNullable("background", item.background)
@@ -210,6 +226,45 @@ object DownloadsBridge {
         put("progress", item.progressFraction.toDouble()); putNullable("error", item.errorMessage)
         put("createdAtEpochMs", item.createdAtEpochMs); put("updatedAtEpochMs", item.updatedAtEpochMs)
         put("playable", item.isPlayable)
+        // Upstream 0.1.38 downloads redesign: live speed, watch state and the library custom-poster setting.
+        putNullable("bytesPerSecond", synchronized(speedLock) { speeds[item.id] })
+        val watch = item.watchStatus(progressState)
+        put("watched", watch.isWatched); put("watchProgress", watch.progress.toDouble()); put("remainingMs", watch.remainingMs)
+        putNullable("customPoster", customPosterUrl(item, posterPattern))
+    }
+
+    private val speedLock = Any()
+    private val speedSamples = mutableMapOf<String, Pair<Long, Long>>()
+    private val speeds = mutableMapOf<String, Long>()
+
+    /** Same smoothing as upstream's DownloadSpeedTracker, sampled whenever the downloads state is published. */
+    private fun updateSpeeds(items: List<DownloadItem>) = synchronized(speedLock) {
+        val downloading = items.filter { it.status == DownloadStatus.Downloading }
+        downloading.forEach { item ->
+            val previous = speedSamples.put(item.id, item.downloadedBytes to item.updatedAtEpochMs) ?: return@forEach
+            val elapsedMs = item.updatedAtEpochMs - previous.second
+            val receivedBytes = item.downloadedBytes - previous.first
+            if (elapsedMs <= 0L || receivedBytes < 0L) return@forEach
+            val bytesPerSecond = receivedBytes * 1_000L / elapsedMs
+            speeds[item.id] = speeds[item.id]?.let { (it * 7L + bytesPerSecond * 3L) / 10L } ?: bytesPerSecond
+        }
+        val ids = downloading.mapTo(mutableSetOf()) { it.id }
+        speedSamples.keys.retainAll(ids)
+        speeds.keys.retainAll(ids)
+    }
+
+    private fun libraryPosterPattern(): String {
+        CustomPosterUrlRepository.ensureLoaded()
+        return CustomPosterUrlRepository.pattern.value.takeIf { CustomPosterScreen.LIBRARY in CustomPosterUrlRepository.enabledScreens.value }.orEmpty()
+    }
+
+    private fun customPosterUrl(item: DownloadItem, pattern: String): String? {
+        if (pattern.isBlank()) return null
+        return CustomPosterUrlResolver.resolve(
+            pattern = pattern,
+            ids = CustomPosterUrlResolver.extractIds(item.parentMetaId),
+            type = if (item.parentMetaType.equals("movie", ignoreCase = true)) "movie" else "series",
+        )?.takeIf { it != item.posterArtwork() }
     }
 
     private inline fun <reified T : Enum<T>> enumValue(value: String): T = enumValues<T>().firstOrNull { it.name.equals(value, true) }

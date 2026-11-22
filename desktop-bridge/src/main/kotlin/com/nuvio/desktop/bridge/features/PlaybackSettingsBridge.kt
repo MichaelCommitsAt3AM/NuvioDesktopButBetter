@@ -148,6 +148,7 @@ object PlaybackSettingsBridge {
             put("preloadNextEpisodeSources", state.preloadNextEpisodeSources)
             put("useLibass", state.useLibass)
             put("nvidiaRtxSuperResolutionEnabled", state.nvidiaRtxSuperResolutionEnabled)
+            put("nvidiaRtxHdrEnabled", state.nvidiaRtxHdrEnabled)
             put("nvidiaRtxSuperResolutionSupported", isWindows)
         }
     }
@@ -266,6 +267,7 @@ object PlaybackSettingsBridge {
             "preloadNextEpisodeSources" -> PlayerSettingsRepository.setPreloadNextEpisodeSources(value.asBool(key))
             "useLibass" -> PlayerSettingsRepository.setUseLibass(value.asBool(key))
             "nvidiaRtxSuperResolutionEnabled" -> PlayerSettingsRepository.setNvidiaRtxSuperResolutionEnabled(value.asBool(key))
+            "nvidiaRtxHdrEnabled" -> PlayerSettingsRepository.setNvidiaRtxHdrEnabled(value.asBool(key))
             else -> throw BridgeFeatureException("UNKNOWN_SETTING", "Unknown playback setting: $key")
         }
         return snapshot()

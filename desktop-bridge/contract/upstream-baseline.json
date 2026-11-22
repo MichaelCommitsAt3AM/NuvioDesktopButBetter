@@ -1,8 +1,8 @@
 {
-  "upstreamCommit": "65061186dde35fc0a0f90b05d380f2318133f227",
-  "previousUpstreamCommit": "a81a207bb2a3139683c638a46615b9d7a15af016",
-  "upstreamVersion": "0.1.37-alpha",
-  "rewriteBaseCommit": "fab96d7f4f61efa04aa232199ebaddd008cc759a",
-  "mergeCommit": "4ff9ac568ad7ec7c8d90f51dbbb22cb814e4e31c",
-  "report": "docs/UPSTREAM_SYNC_2026-11-17.md"
+  "upstreamCommit": "35bdb2a77ca86b4141588832a3fc3ca0c80bfc4d",
+  "previousUpstreamCommit": "65061186dde35fc0a0f90b05d380f2318133f227",
+  "upstreamVersion": "0.1.38-alpha",
+  "rewriteBaseCommit": "de28048cc7668bae85196ff6973f2a401aa68c63",
+  "mergeCommit": "9c6e7afa10eabbf11139838ca2acca4a5fded9d8",
+  "report": "docs/UPSTREAM_SYNC_2026-11-22.md"
 }

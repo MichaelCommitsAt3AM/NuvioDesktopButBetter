@@ -22,8 +22,10 @@ const page = (path = '/library/downloads') => <MemoryRouter initialEntries={[pat
   <Route path="/library/downloads" element={<DownloadsPage />} />
   <Route path="/library/downloads/show/:showId" element={<DownloadsPage />} />
   <Route path="/library" element={<h1>Library destination</h1>} />
+  <Route path="/details/:type/:id" element={<h1>Details destination</h1>} />
 </Routes></MemoryRouter>;
 const section = (name: string) => screen.getByRole('heading', { name }).closest('section')!;
+const DETAILS = { name: 'Details destination' };
 
 it('formats sizes like the Kotlin screen', () => {
   expect(formatDownloadBytes(0)).toBe('0 B');
@@ -38,22 +40,54 @@ it('uses the details-style back button and returns to Library even on a direct l
   expect(screen.getByRole('heading', { name: 'Library destination' })).toBeInTheDocument();
 });
 
-it('groups downloads into Active, Movies and Shows sections', () => {
+it('groups downloads into Active and Downloaded sections like the redesigned Kotlin screen', () => {
   render(page());
   expect(screen.getByRole('heading', { level: 1, name: 'Downloads' })).toBeInTheDocument();
+  expect(screen.getByText('4 titles • 8.5 GB')).toBeInTheDocument();
   const active = section('Active');
   expect(within(active).getByRole('article', { name: 'Moon Documentary' })).toHaveTextContent('512 MB / 2 GB');
   expect(within(active).getByRole('progressbar', { name: 'Moon Documentary download progress' })).toHaveAttribute('value', '0.25');
   expect(within(active).getByRole('article', { name: 'Broken Film' })).toHaveTextContent('Network lost');
-  expect(within(section('Movies')).getByRole('article', { name: 'Moon Movie' })).toBeInTheDocument();
-  const show = within(section('Shows')).getByRole('button', { name: /Avatar/ });
-  expect(show).toHaveTextContent('2 downloaded episode(s)');
+  const downloaded = section('Downloaded');
+  expect(within(downloaded).getByRole('article', { name: 'Moon Movie' })).toBeInTheDocument();
+  expect(within(downloaded).getByRole('button', { name: /Avatar/ })).toHaveTextContent('2 episodes • 4 GB');
+});
+
+it('shows live speed, watch state and the custom poster from Kotlin', () => {
+  bridge.snapshot = { items: [
+    { ...base, id: 'film', title: 'Moon Movie', poster: 'https://img.test/poster.jpg', customPoster: 'https://img.test/custom.jpg', watched: true },
+    { ...base, id: 'half', title: 'Half Film', parentMetaId: 'half', watchProgress: 0.4 },
+    { ...base, id: 'active', title: 'Moon Documentary', parentMetaId: 'documentary', status: 'downloading', downloadedBytes: GB / 2, playable: false, progress: 0.25, bytesPerSecond: 3 * 1024 ** 2 },
+  ] };
+  const { container } = render(page());
+  expect(screen.getByRole('article', { name: 'Moon Documentary' })).toHaveTextContent('3 MB/s');
+  expect(screen.getByRole('article', { name: 'Moon Movie' })).toHaveTextContent('Watched');
+  expect(screen.getByRole('progressbar', { name: 'Half Film watch progress' })).toHaveAttribute('value', '0.4');
+  expect(container.querySelector('img[src="https://img.test/custom.jpg"]')).not.toBeNull();
+});
+
+it('pauses or resumes every active download from the section header', async () => {
+  bridge.snapshot = { items: [
+    { ...base, id: 'a', title: 'A', parentMetaId: 'a', status: 'downloading', playable: false },
+    { ...base, id: 'b', title: 'B', parentMetaId: 'b', status: 'paused', playable: false },
+  ] };
+  render(page());
+  fireEvent.click(within(section('Active')).getByRole('button', { name: 'Pause all' }));
+  await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('downloads.pauseAll', {}));
+});
+
+it('opens the title details from a row', () => {
+  render(page());
+  fireEvent.click(screen.getByRole('button', { name: 'Go to details Moon Movie' }));
+  expect(screen.getByRole('heading', DETAILS)).toBeInTheDocument();
+  expect(bridge.call).not.toHaveBeenCalledWith('downloads.play', expect.anything());
 });
 
 it('confirms before deleting a download', () => {
   render(page());
   fireEvent.click(screen.getByRole('button', { name: 'Delete Moon Movie' }));
-  const dialog = screen.getByRole('dialog', { name: 'Delete?' });
+  const dialog = screen.getByRole('dialog', { name: 'Delete Moon Movie?' });
+  expect(dialog).toHaveTextContent('This frees 2 GB on this device.');
   expect(bridge.call).not.toHaveBeenCalledWith('downloads.remove', expect.anything());
   fireEvent.click(within(dialog).getByRole('button', { name: 'Yes' }));
   expect(bridge.call).toHaveBeenCalledWith('downloads.remove', { id: 'film' });
@@ -73,9 +107,10 @@ it('runs the row action for each state', async () => {
 
 it('opens a show and lists its downloaded episodes by season', () => {
   render(page());
-  fireEvent.click(within(section('Shows')).getByRole('button', { name: /Avatar/ }));
+  fireEvent.click(within(section('Downloaded')).getByRole('button', { name: /Avatar/ }));
   expect(screen.getByRole('heading', { level: 1, name: 'Avatar' })).toBeInTheDocument();
-  expect(within(section('Season 1')).getByRole('article', { name: 'The Boy in the Iceberg' })).toHaveTextContent('S1 E1 • Avatar');
+  expect(screen.getByText('2 episodes • 4 GB')).toBeInTheDocument();
+  expect(within(section('Season 1')).getByRole('article', { name: 'The Boy in the Iceberg' })).toHaveTextContent('S1 E1');
   expect(within(section('Season 2')).getByRole('article', { name: 'Return to Omashu' })).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Back' }));
   expect(screen.getByRole('heading', { level: 1, name: 'Downloads' })).toBeInTheDocument();
@@ -85,6 +120,7 @@ it('shows the empty state when nothing is downloaded', () => {
   bridge.snapshot = { items: [] };
   render(page());
   expect(screen.getByText('No downloads yet')).toBeInTheDocument();
+  expect(screen.getByText(/choose Download file/)).toBeInTheDocument();
 });
 
 it('opens the managed downloads folder and reports platform failure honestly', async () => {

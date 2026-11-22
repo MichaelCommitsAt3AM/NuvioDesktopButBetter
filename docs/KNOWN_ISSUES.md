@@ -42,6 +42,13 @@ Where to look if it recurs:
 Debugging aid: the local value lives in `%APPDATA%\Nuvio\nuvio_debrid_settings.properties` as
 `debrid_enabled_1`.
 
+## Upstream 0.1.38 features not yet in the React shell
+
+Added 2026-11-22.
+
+- **Gamepad navigation.** Upstream 0.1.38 adds spatial keyboard/gamepad navigation, focus rings, a controller hint toolbar and navigation sounds, all built on Compose focus (`composeApp/.../controller/`, `NuvioFocusable.kt`, `PlatformKeyboardNavigation.desktop.kt`). The React shell has its own keyboard navigation but reads no gamepad input. A port would use the browser Gamepad API in `desktop-ui` and map it to the existing focus handling; Compose's engine cannot be reused.
+- **Plex and Silo sign-in were not tried against real servers.** The guided dialog drives upstream's unchanged sign-in flows and is covered by unit tests only. Check a real plex.tv approval, Plex Home PIN and a Silo code/password sign-in before relying on it.
+
 ## Upstream 0.1.37 features not yet in the React shell
 
 Added 2026-11-17. The Kotlin code is merged and compiled, but these have no bridge or React flow:

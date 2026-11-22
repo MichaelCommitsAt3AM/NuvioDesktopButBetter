@@ -82,3 +82,21 @@
 .quality-download-phase-content{display:grid;gap:10px;animation:quality-download-phase-in 220ms 90ms ease-out backwards}
 @keyframes quality-download-phase-in{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.quality-download-phase{transition:none}.quality-download-phase-content{animation:none}}
+/* Upstream 0.1.38 downloads redesign: artwork, summary line and section headers with bulk actions. */
+.downloads-summary{margin:0 0 4px;color:#a9adb4;font-size:14px;line-height:20px}
+.downloads-section-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.downloads-section-header small{color:#8d9197;font-size:12px}
+.downloads-section-header .downloads-bulk{padding:4px 8px;font-size:13px;font-weight:600}
+.downloads-row-main{align-items:center}
+.downloads-art{position:relative;display:grid;flex:none;place-items:center;overflow:hidden;border-radius:8px;background:#2a2b30;color:#8d9197}
+.downloads-art.poster{width:48px;aspect-ratio:2/3}
+.downloads-art.landscape{width:96px;aspect-ratio:16/9}
+.downloads-art img{width:100%;height:100%;object-fit:cover}
+.downloads-watch-progress{position:absolute;right:4px;bottom:4px;left:4px;width:auto;height:3px;border:0;border-radius:999px;overflow:hidden;appearance:none;background:#00000080}
+.downloads-watch-progress::-webkit-progress-bar{background:#00000080}
+.downloads-watch-progress::-webkit-progress-value{border-radius:999px;background:var(--app-accent,#fff)}
+.downloads-show{justify-content:flex-start}
+.downloads-show .downloads-row-copy{flex:1}
+.downloads-empty{display:grid;gap:6px;padding:40px 20px;text-align:center}
+.downloads-empty .downloads-empty-text{padding:0}
+.downloads-empty-message{margin:0;color:#8d9197;font-size:14px}

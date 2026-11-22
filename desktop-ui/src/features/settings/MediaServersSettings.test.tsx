@@ -72,3 +72,60 @@ it('shows the Kotlin empty state and provider-specific sign-in dialog', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Show password' }));
   expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'text');
 });
+
+it('starts Plex sign-in in Kotlin instead of asking for a password', async () => {
+  bridge.snapshot = { ...bridge.snapshot, providers: [{ id: 'jellyfin', name: 'Jellyfin' }, { id: 'plex', name: 'Plex', guided: true }], signIn: null };
+  const view = render(page());
+  fireEvent.click(screen.getByRole('button', { name: /Plex.*Sign in with your Plex account/ }));
+  await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('servers.signIn.start', { provider: 'plex' }));
+  bridge.snapshot = { ...bridge.snapshot, signIn: { provider: 'plex', step: 'CODE', mode: 'LINK', codePhase: 'WAITING', code: 'AB12', linkHost: 'plex.tv/link', canOpenPage: true } };
+  view.rerender(page());
+  expect(screen.getByLabelText('Sign-in code')).toHaveTextContent('AB12');
+  expect(screen.queryByLabelText('Password')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Sign in on this device' }));
+  await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('servers.signIn.plexMode', { mode: 'BROWSER' }));
+  expect(bridge.call).not.toHaveBeenCalledWith('servers.connect', expect.anything());
+});
+
+it('picks Plex servers and users by id and clears the PIN after sending it', async () => {
+  bridge.snapshot = { ...bridge.snapshot, providers: [{ id: 'plex', name: 'Plex', guided: true }], signIn: null };
+  const view = render(page());
+  fireEvent.click(screen.getByRole('button', { name: /Plex/ }));
+  bridge.snapshot = { ...bridge.snapshot, signIn: { provider: 'plex', step: 'SERVERS', accountName: 'Sam', serversLoading: false, servers: [
+    { id: 'm1', name: 'Living room', owned: true, reach: 'LOCAL', selectable: true },
+    { id: 'm2', name: 'Away', owned: false, reach: 'OFFLINE', selectable: false },
+  ] } };
+  view.rerender(page());
+  expect(screen.getByRole('button', { name: /Away/ })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: /Living room/ }));
+  await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('servers.signIn.plexServer', { id: 'm1' }));
+  bridge.snapshot = { ...bridge.snapshot, signIn: { provider: 'plex', step: 'PIN', pinFor: 'Kid', pinWrong: false } };
+  view.rerender(page());
+  fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '1234' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+  await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('servers.signIn.pin', { pin: '1234' }));
+  expect(screen.getByLabelText('PIN')).toHaveValue('');
+});
+
+it('closes the guided dialog when Kotlin reports the connection and cancels when dismissed', async () => {
+  bridge.snapshot = { ...bridge.snapshot, providers: [{ id: 'silo', name: 'Silo', guided: true }], signIn: null };
+  const view = render(page());
+  fireEvent.click(screen.getByRole('button', { name: /Silo/ }));
+  bridge.snapshot = { ...bridge.snapshot, signIn: { provider: 'silo', step: 'ADDRESS' } };
+  view.rerender(page());
+  fireEvent.change(screen.getByLabelText('Server address'), { target: { value: ' https://silo.test ' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+  await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('servers.signIn.siloAddress', { address: 'https://silo.test' }));
+  bridge.snapshot = { ...bridge.snapshot, signIn: { step: 'CONNECTED', serverName: 'Silo home' } };
+  view.rerender(page());
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(bridge.call).toHaveBeenCalledWith('servers.signIn.acknowledge', {});
+
+  bridge.snapshot = { ...bridge.snapshot, signIn: null };
+  view.rerender(page());
+  fireEvent.click(screen.getByRole('button', { name: /Silo/ }));
+  bridge.snapshot = { ...bridge.snapshot, signIn: { provider: 'silo', step: 'ADDRESS' } };
+  view.rerender(page());
+  fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+  await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('servers.signIn.cancel', {}));
+});

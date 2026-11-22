@@ -355,6 +355,23 @@ const ALLOWED_METHODS: &[&str] = &[
     "party.leave",
     "party.end",
     "party.rejoin",
+    "servers.signIn.start",
+    "servers.signIn.cancel",
+    "servers.signIn.acknowledge",
+    "servers.signIn.openPage",
+    "servers.signIn.plexMode",
+    "servers.signIn.plexServer",
+    "servers.signIn.plexUser",
+    "servers.signIn.back",
+    "servers.signIn.pin",
+    "servers.signIn.siloAddress",
+    "servers.signIn.siloNewCode",
+    "servers.signIn.siloUseCode",
+    "servers.signIn.siloUsePassword",
+    "servers.signIn.siloPassword",
+    "servers.signIn.siloProfile",
+    "downloads.pauseAll",
+    "downloads.resumeAll",
 ];
 
 fn request_is_allowed(request: &BridgeRequest) -> bool {

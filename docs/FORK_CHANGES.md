@@ -4,6 +4,10 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Upstream 0.1.38-alpha integration — 2026-11-22
+
+The sync branch merges upstream 0.1.38-alpha: Plex and Silo media servers, NVIDIA RTX Video HDR, exact desktop seeks and resume, a downloads redesign, keyboard/gamepad navigation for the Compose app, Windows touch scrolling, the hand cursor and episode-rating alignment. The native player's JNI `create` carries both the fork's language/subtitles-off startup arguments and upstream's RTX HDR flag. A new `ServerSignInBridge` hosts upstream's Plex/Silo sign-in state machines for a guided React dialog; tokens, device codes and sign-in URLs stay in Kotlin, and `servers.connect` refuses those providers so no password is sent for them. Playback settings expose RTX Video HDR. The downloads snapshot adds speed, watch status and the Library custom poster, with `downloads.pauseAll`/`resumeAll`, and the React Downloads page follows the redesigned layout. Compose-only controller navigation is reference; gamepad input in the React shell is deferred. See [the batch report](UPSTREAM_SYNC_2026-11-22.md).
+
 ### Details production chips and company pages use light logo backgrounds — 2026-11-22
 
 The Details Production section follows Kotlin `DetailProductionSection`: series show their networks (or companies when there are none) under "Networks", and movies their companies (or networks) under "Production", preferring entries with a logo. Up to six chips wrap instead of scrolling, each a #F5F5F5 (90%) chip with 12px corners showing just the logo (72x26, fit), or the name in 12px semibold #333 when there is no logo. The company/network page puts its logo in a white 184x104 box with 18px corners, as the Kotlin desktop `TmdbEntityBrowseScreen` does. TMDB logos are drawn for light backgrounds, so dark ones such as Apple TV's were nearly invisible on the old dark cards.

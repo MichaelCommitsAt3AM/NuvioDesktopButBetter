@@ -75,7 +75,7 @@ class WindowsPlayerPresentationTest {
             }.array())
             handle = NativePlayerBridge.create(
                 Pointer.nativeValue(hwnd), wav.toUri().toString(), emptyArray(), "", "", true,
-                false, 0L, NativePlayerBridge.controlsPageUrl, 2, false,
+                false, 0L, NativePlayerBridge.controlsPageUrl, 2, false, false,
                 NativePlayerEventSink { type, value ->
                     if (type.startsWith("bridgeControls") || type.startsWith("nativeControls")) events.add("$type=$value")
                     if (type == "nativeControlsPresented") presented.complete(true)
@@ -160,7 +160,7 @@ class WindowsPlayerPresentationTest {
             }
             handle = NativePlayerBridge.create(
                 Pointer.nativeValue(hwnd), wav.toUri().toString(), emptyArray(), "", "", true,
-                false, 0L, NativePlayerBridge.controlsPageUrl, 2, false,
+                false, 0L, NativePlayerBridge.controlsPageUrl, 2, false, false,
                 NativePlayerEventSink { type, value ->
                     if (type == "nativeControlsPresented") presented.complete(true)
                     if (type == "nativeControlsFailed") presented.complete(false)

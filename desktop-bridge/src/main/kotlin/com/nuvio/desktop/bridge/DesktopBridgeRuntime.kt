@@ -319,6 +319,7 @@ class DesktopBridgeRuntime {
         scope.launch { com.nuvio.app.features.collection.CollectionEditorRepository.uiState.collect { emit("collectionEditor", CollectionsBridge.snapshot("collectionEditor")!!) } }
         scope.launch { com.nuvio.app.features.collection.FolderDetailRepository.uiState.collect { emit("folderDetail", CollectionsBridge.snapshot("folderDetail")!!) } }
         scope.launch { com.nuvio.app.features.servers.ServerRepository.uiState.collect { emit("servers", ServersBridge.snapshot()) } }
+        scope.launch { ServerSignInBridge.revision.collect { emit("servers", ServersBridge.snapshot()) } }
         scope.launch { LibraryExtrasBridge.changes.collect { emit("libraryExtras", LibraryExtrasBridge.snapshot()) } }
         scope.launch { LibraryRepository.uiState.collect { emit("library", libraryJson()) } }
         scope.launch { LibraryRepository.uiState.collect { emit("libraryExtras", LibraryExtrasBridge.snapshot()) } }
@@ -379,6 +380,9 @@ class DesktopBridgeRuntime {
         scope.launch { SearchHistoryRepository.uiState.collect { emit("searchHistory", CatalogBridge.snapshot("searchHistory")!!) } }
         scope.launch { SearchHistoryRepository.enabled.collect { emit("searchHistory", CatalogBridge.snapshot("searchHistory")!!) } }
         scope.launch { DownloadsRepository.uiState.collect { emit("downloads", DownloadsBridge.snapshot()) } }
+        // Download rows show watch progress/watched marks (upstream 0.1.38), so republish when those change.
+        scope.launch { WatchProgressRepository.uiState.collect { if (DownloadsRepository.uiState.value.items.isNotEmpty()) emit("downloads", DownloadsBridge.snapshot()) } }
+        scope.launch { com.nuvio.app.features.watched.WatchedRepository.uiState.collect { if (DownloadsRepository.uiState.value.items.isNotEmpty()) emit("downloads", DownloadsBridge.snapshot()) } }
         if (AppFeaturePolicy.pluginsEnabled) scope.launch { PluginRepository.uiState.collect { emit("plugins", PluginsBridge.snapshot()) } }
         scope.launch { SearchRepository.uiState.collect { latestRequest["search"]?.let { id -> emit("search", searchJson(id, requestQueries["search"].orEmpty())) } } }
         scope.launch { MetaDetailsRepository.uiState.collect { latestRequest["details"]?.let { id -> emit("details", detailsJson(id)) } } }

@@ -3,13 +3,18 @@ import { ArrowLeft, Server, RefreshCw, LockKeyhole, Eye, EyeOff } from 'lucide-r
 import { Dialog } from '../../components/Dialog';
 import jellyfinLogo from '../../assets/servers/jellyfin.png';
 import embyLogo from '../../assets/servers/emby.svg';
+import plexLogo from '../../assets/servers/plex.svg';
+import siloLogo from '../../assets/servers/silo.svg';
+import { GuidedServerSignIn, type GuidedSignIn } from './GuidedServerSignIn';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { PageHeader } from '../../components/ui';
 import { InlineError } from '../../components/Status';
 
 type Connection = { id: string; provider?: string; name: string; address: string; username: string; enabled: boolean; useCatalogMetadata: boolean; importWatchState: boolean; libraries: { id: string; name: string; selected: boolean }[] };
-type Servers = { cloudSync: boolean; providers: { id: string; name: string }[]; connections: Connection[] };
+type Servers = { cloudSync: boolean; providers: { id: string; name: string; guided?: boolean }[]; connections: Connection[]; signIn?: GuidedSignIn | null };
+const providerLogos: Record<string, string> = { jellyfin: jellyfinLogo, emby: embyLogo, plex: plexLogo, silo: siloLogo };
+const providerDescription = (item: { id: string; name: string }) => item.id === 'plex' ? 'Sign in with your Plex account.' : item.id === 'silo' ? 'Sign in with your Silo account.' : `Sign in with your server address and ${item.name} user.`;
 
 export function MediaServersSettings() {
   const snapshot = useFeatureSnapshot<Servers>('servers');
@@ -24,13 +29,37 @@ export function MediaServersSettings() {
   const [signIn, setSignIn] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [guided, setGuided] = useState<string | null>(null);
+  const guidedOpen = useRef(false);
   const generation = useRef(0);
   useEffect(() => {
     const current = ++generation.current;
-    setPassword(''); setAddress(''); setUsername(''); setError(''); setBusy(false); setRemoving(null); setSignIn(false); setSelected(null);
+    setPassword(''); setAddress(''); setUsername(''); setError(''); setBusy(false); setRemoving(null); setSignIn(false); setSelected(null); setGuided(null);
     void refreshFeature('servers', 'servers.snapshot').catch(() => { if (current === generation.current) setError('Could not load media servers.'); });
-    return () => { generation.current++; };
+    return () => {
+      generation.current++;
+      // Leaving the page or switching profile ends any Plex/Silo sign-in still in progress.
+      if (guidedOpen.current) { guidedOpen.current = false; void call('servers.signIn.cancel', {}).catch(() => {}); }
+    };
   }, [profileId]);
+  const guidedState = snapshot?.signIn ?? null;
+  useEffect(() => {
+    if (guided && guidedState?.step === 'CONNECTED') {
+      guidedOpen.current = false; setGuided(null);
+      void call('servers.signIn.acknowledge', {}).catch(() => {});
+    }
+  }, [guided, guidedState?.step]);
+  const sendGuided = async (method: string, params: Record<string, unknown> = {}) => {
+    try { await call(method, params); return true; } catch { setError('The server operation failed. Check the server address, connection and sign-in details.'); return false; }
+  };
+  const openGuided = (id: string) => {
+    setError(''); setGuided(id); guidedOpen.current = true;
+    void sendGuided('servers.signIn.start', { provider: id });
+  };
+  const closeGuided = () => {
+    guidedOpen.current = false; setGuided(null);
+    void call('servers.signIn.cancel', {}).catch(() => {});
+  };
   const run = async (method: string, params: Record<string, unknown>) => {
     const current = generation.current;
     setBusy(true); setError('');
@@ -70,9 +99,9 @@ export function MediaServersSettings() {
         </section>
         <h2 className="settings-group-title">ADD SERVER</h2>
         <section className="settings-nav-card">
-          {snapshot.providers.map(item => <button className="settings-nav-row" key={item.id} onClick={() => openSignIn(item.id)}>
-            <span className="settings-nav-icon media-provider-logo">{item.id === 'jellyfin' || item.id === 'emby' ? <img src={item.id === 'jellyfin' ? jellyfinLogo : embyLogo} alt="" /> : <Server />}</span>
-            <span className="settings-nav-copy"><strong>{item.name}</strong><span>Sign in with your server address and {item.name} user.</span></span>
+          {snapshot.providers.map(item => <button className="settings-nav-row" key={item.id} onClick={() => item.guided ? openGuided(item.id) : openSignIn(item.id)}>
+            <span className="settings-nav-icon media-provider-logo">{providerLogos[item.id] ? <img src={providerLogos[item.id]} alt="" /> : <Server />}</span>
+            <span className="settings-nav-copy"><strong>{item.name}</strong><span>{providerDescription(item)}</span></span>
           </button>)}
         </section>
       </>}
@@ -87,7 +116,7 @@ export function MediaServersSettings() {
         <h2 className="settings-group-title">LIBRARIES</h2><p className="media-library-description">{server.libraries.length ? "Selected libraries appear in home rows, search, and stream results." : "No movie or series libraries are available to this user."}</p>
         <section className="settings-section">{server.libraries.map(library => <label className="settings-control-row" key={library.id}><strong>{library.name}</strong><span className="switch"><input type="checkbox" checked={library.selected} disabled={busy || !server.enabled} onChange={event => void run('servers.setLibrary', { id: server.id, libraryId: library.id, selected: event.target.checked })} /><span /></span></label>)}
         </section>
-        <div className="media-server-actions settings-nav-card"><button className="settings-nav-row" disabled={busy || !server.enabled} onClick={() => void run('servers.refresh', { id: server.id })}><RefreshCw />Refresh libraries</button><button className="settings-nav-row" disabled={busy} onClick={() => openSignIn(server.provider ?? snapshot.providers[0]?.id ?? provider, server)}><LockKeyhole />Sign in again</button><button className="button secondary" disabled={busy} onClick={() => setRemoving(server)}>Remove server</button></div>
+        <div className="media-server-actions settings-nav-card"><button className="settings-nav-row" disabled={busy || !server.enabled} onClick={() => void run('servers.refresh', { id: server.id })}><RefreshCw />Refresh libraries</button><button className="settings-nav-row" disabled={busy} onClick={() => { const id = server.provider ?? snapshot.providers[0]?.id ?? provider; if (snapshot.providers.find(item => item.id === id)?.guided) openGuided(id); else openSignIn(id, server); }}><LockKeyhole />Sign in again</button><button className="button secondary" disabled={busy} onClick={() => setRemoving(server)}>Remove server</button></div>
       </div>)}
     </>}
     {signIn && <Dialog label={`Sign in to ${providerName}`} className="media-server-signin" onClose={() => { if (!busy) { setSignIn(false); setPassword(''); setError(''); } }}>
@@ -101,6 +130,7 @@ export function MediaServersSettings() {
         <button className="button primary" type="submit" disabled={busy || !address.trim() || !username.trim()}>{busy ? 'Connecting…' : 'Connect'}</button>
       </fieldset></form>
     </Dialog>}
+    {guided && guidedState && guidedState.step !== 'CONNECTED' && <GuidedServerSignIn state={guidedState} providerName={snapshot?.providers.find(item => item.id === guided)?.name ?? guided} send={sendGuided} onClose={closeGuided} />}
     {removing && <div className="consent-backdrop"><div className="consent-card" role="dialog" aria-modal="true" aria-label="Remove server"><h2>Remove {removing.name}?</h2><div className="dialog-actions"><button className="button secondary" disabled={busy} onClick={() => setRemoving(null)}>Cancel</button><button className="button primary" disabled={busy} onClick={() => void run('servers.remove', { id: removing.id }).then(ok => { if (ok) { setRemoving(null); setSelected(null); } })}>Remove</button></div></div></div>}
   </div>;
 }

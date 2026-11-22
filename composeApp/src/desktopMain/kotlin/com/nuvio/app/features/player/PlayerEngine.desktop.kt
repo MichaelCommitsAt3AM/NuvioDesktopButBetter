@@ -189,6 +189,7 @@ private fun NativePlayerSurface(
     val playerSettings by PlayerSettingsRepository.uiState.collectAsState()
     val decoderPriority = playerSettings.decoderPriority
     val nvidiaRtxSuperResolutionEnabled = playerSettings.nvidiaRtxSuperResolutionEnabled
+    val nvidiaRtxHdrEnabled = playerSettings.nvidiaRtxHdrEnabled
     // The offscreen Compose window used by the Tauri shell intentionally keeps
     // its Swing host at 1dp. Once its peer exists, create mpv directly under the
     // real Tauri HWND instead of waiting for a full-size paint from this host.
@@ -262,6 +263,7 @@ private fun NativePlayerSurface(
         subtitlesDisabledAtStartup,
         decoderPriority,
         nvidiaRtxSuperResolutionEnabled,
+        nvidiaRtxHdrEnabled,
         playerSurfaceReady,
         initialPositionMs,
         initialPositionRequestKey,
@@ -282,6 +284,7 @@ private fun NativePlayerSurface(
             initialPositionMs = initialPositionMs,
             decoderPriority = decoderPriority,
             nvidiaRtxSuperResolutionEnabled = nvidiaRtxSuperResolutionEnabled,
+            nvidiaRtxHdrEnabled = nvidiaRtxHdrEnabled,
             onError = { message ->
                 StreamLoadTimeline.fail("player error before playback: $message") // STREAM-LOAD-TIMELINE
                 latestOnError.value(message)

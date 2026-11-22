@@ -29,6 +29,7 @@ import com.nuvio.app.core.diagnostics.SentryInitializer
 import com.nuvio.app.core.ui.NuvioFrameTimeProbe
 import com.nuvio.app.core.ui.NuvioTheme
 import com.nuvio.app.core.ui.ProvideDesktopWindowInsets
+import com.nuvio.app.core.ui.platformTouchScroll
 import com.nuvio.app.features.discordrpc.DiscordPresenceManager
 import com.nuvio.app.features.p2p.P2pStreamingEngine
 import com.nuvio.app.features.plugins.configureDesktopQuickJsLibrary
@@ -217,6 +218,7 @@ fun main(args: Array<String>) {
                 window.minimumSize = NuvioDesktopMinimumWindowSize
                 applyNativeDesktopWindowChrome(window)
                 installLinuxExtendedMouseButtons()
+                installWindowsTouchScroll()
                 // Windows fullscreen is emulated natively and isn't reflected by
                 // WindowPlacement, so it must be re-applied once the window peer exists.
                 fullscreenController.applyRestoredFullscreenState(window, windowState, wasFullscreenOnLastExit)
@@ -299,9 +301,11 @@ fun main(args: Array<String>) {
 
             if (smokePlayerUrl == null) {
                 NuvioFrameTimeProbe()
+                ClickableHandCursor(window)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .platformTouchScroll()
                         .macosTitleBarDoubleClick(window = window, windowState = windowState),
                 ) {
                     ProvideDesktopWindowInsets(

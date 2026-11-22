@@ -97,6 +97,9 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
   const downloadsByVideoId = useDownloadsByVideoId(type, id);
   const afterSheetExit = useRef<(() => void) | null>(null);
   const visibleAnchors = useRef<Array<{ key: string; top: number }>>([]);
+  // Sections that had content on this title's first render. Any other section mounts
+  // later (progressive enrichment) and expands open instead of popping in.
+  const initialSections = useRef<{ title: string; keys: Set<string> } | null>(null);
 
   const commentsSettingEnabled = !!settings?.items.some((item) => item.key === 'COMMENTS' && item.enabled);
   useEffect(() => {
@@ -292,19 +295,19 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
     // Mirrors Kotlin DetailProductionSection: series show their networks (else companies) under
     // "Networks", movies their companies (else networks) under "Production"; movies prefer the
     // entries that have a logo. Up to six light chips wrap, each a logo or, without one, its name.
-    PRODUCTION: (meta.productionCompanies.length > 0 || meta.networks.length > 0 || skeletonSections.has('PRODUCTION')) ? (() => {
+    // Fork: no loading placeholder, since many titles never return companies. When they
+    // arrive after the first render, ArrivingSection grows the section open instead.
+    PRODUCTION: (meta.productionCompanies.length > 0 || meta.networks.length > 0) ? (() => {
       const seriesLike = ['series', 'tv', 'show', 'tvshow'].includes(meta.type.toLowerCase());
       const source = seriesLike ? (meta.networks.length ? meta.networks : meta.productionCompanies) : (meta.productionCompanies.length ? meta.productionCompanies : meta.networks);
       const kind = seriesLike && meta.networks.length ? 'network' : 'company';
       const withLogos = source.filter(company => !!company.logo);
       const items = (seriesLike || withLogos.length === 0 ? source : withLogos).slice(0, 6);
       const title = seriesLike ? 'Networks' : 'Production';
-      const loading = skeletonSections.has('PRODUCTION') && items.length === 0;
-      return <section style={sectionStyle} data-loading-section={loading ? 'PRODUCTION' : undefined} aria-busy={loading ? true : undefined}>
+      return <section style={sectionStyle}>
         <div style={headingStyle}><h2>{title}</h2></div>
-        <div className="details-production-chips">{loading
-          ? Array.from({ length: 4 }, (_, index) => <span key={index} className="details-production-chip details-production-chip-loading poster-loading-shimmer" aria-hidden="true" />)
-          : items.map((company, index) => <button className="details-production-chip" key={`${company.name}:${company.tmdbId ?? index}`} type="button" title={company.name} aria-label={company.name} disabled={company.tmdbId == null} onClick={() => void openEntity(kind, company, meta.type)}>{company.logo ? <FadeImage src={company.logo} /> : <span>{company.name}</span>}</button>)}
+        <div className="details-production-chips">
+          {items.map((company, index) => <button className="details-production-chip" key={`${company.name}:${company.tmdbId ?? index}`} type="button" title={company.name} aria-label={company.name} disabled={company.tmdbId == null} onClick={() => void openEntity(kind, company, meta.type)}>{company.logo ? <FadeImage src={company.logo} /> : <span>{company.name}</span>}</button>)}
         </div>
       </section>;
     })() : null,
@@ -359,6 +362,10 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
     { key: 'MORE_LIKE_THIS', title: 'More like this', enabled: true, order: 7, tabGroup: null },
   ]).filter((item) => item.enabled && sectionContents[item.key]).sort((a, b) => a.order - b.order);
 
+  if (initialSections.current?.title !== `${type}:${id}`) {
+    initialSections.current = { title: `${type}:${id}`, keys: new Set(configuredSections.map((item) => item.key)) };
+  }
+
   const isReleased = (date: string | null) => !date || date.slice(0, 10) <= new Date().toISOString().slice(0, 10);
   const selectedSeasonEpisodes = selectedEpisode ? meta.videos.filter((video) => video.season === selectedEpisode.season && video.available && isReleased(video.released)) : [];
   const releasedEpisodes = meta.videos.filter((video) => video.available && isReleased(video.released)).sort(compareEpisodes);
@@ -371,7 +378,7 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
 
 
     {error && <InlineError message={error} />}
-    <ConfiguredSections items={configuredSections} contents={sectionContents} tabLayout={settings?.tabLayout ?? false} episodeList={(settings?.episodeCardStyle ?? 'list') === 'list'} />
+    <ConfiguredSections items={configuredSections} contents={sectionContents} initialKeys={initialSections.current!.keys} allowArrive={visibleAnchors.current.length === 0} tabLayout={settings?.tabLayout ?? false} episodeList={(settings?.episodeCardStyle ?? 'list') === 'list'} />
 
     <button className="text-button details-extras-retry" data-details-anchor="RETRY" type="button" onClick={() => { setLoading(true); void call<ExtrasMeta>('details.extras', { type, id }).then((result) => { captureAnchors(); setMeta((previous) => mergeExtras(previous, result)); setSkeletonSections(new Set(loadingSectionsRef.current)); onMetaLoaded?.(result); }).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause))).finally(() => setLoading(false)); }}><RotateCw size={14} /> Refresh details</button>
     <BottomSheetPresence onExitComplete={() => { const action = afterSheetExit.current; afterSheetExit.current = null; action?.(); }}>
@@ -526,20 +533,25 @@ function mergeExtras(previous: ExtrasMeta | null, next: ExtrasMeta): ExtrasMeta 
   };
 }
 
-function ConfiguredSections({ items, contents, tabLayout, episodeList }: {
+function ConfiguredSections({ items, contents, initialKeys, allowArrive, tabLayout, episodeList }: {
   items: Array<{ key: string; title: string; order: number; tabGroup: number | null }>;
   contents: Record<string, ReactNode>;
+  /** Sections that had content on the title's first render; the others arrived later. */
+  initialKeys: Set<string>;
+  /** False while the reader is scrolled into a section (the scroll anchor absorbs insertions). */
+  allowArrive: boolean;
   tabLayout: boolean;
   episodeList: boolean;
 }) {
   const processed = new Set<number>();
+  const section = (key: string) => <ArrivingSection key={key} anchor={key} arriveOnMount={allowArrive && !initialKeys.has(key)}>{contents[key]}</ArrivingSection>;
   return <div className="details-configured-sections">{items.map((item) => {
     const group = item.key === 'EPISODES' && episodeList ? null : item.tabGroup;
-    if (!tabLayout || group == null) return <ArrivingSection key={item.key} anchor={item.key}>{contents[item.key]}</ArrivingSection>;
+    if (!tabLayout || group == null) return section(item.key);
     if (processed.has(group)) return null;
     processed.add(group);
     const members = items.filter((candidate) => (candidate.key === 'EPISODES' && episodeList ? null : candidate.tabGroup) === group);
-    if (members.length < 2) return <ArrivingSection key={item.key} anchor={item.key}>{contents[item.key]}</ArrivingSection>;
+    if (members.length < 2) return section(item.key);
     return <div key={`group-${group}`} data-details-anchor={`group-${group}`}><DetailSectionTabs members={members} contents={contents} /></div>;
   })}</div>;
 }
@@ -548,12 +560,14 @@ function ConfiguredSections({ items, contents, tabLayout, episodeList }: {
  * A configured section that expands open when its content arrives after the page
  * first rendered (progressive TMDB enrichment), pushing the sections below it down
  * smoothly instead of popping in. Content present on first render shows as is.
+ * Empty sections are not rendered at all, so a late section usually mounts with its
+ * content already there: `arriveOnMount` starts the expansion from its first paint.
  */
-function ArrivingSection({ anchor, children }: { anchor: string; children: ReactNode }) {
+function ArrivingSection({ anchor, arriveOnMount, children }: { anchor: string; arriveOnMount: boolean; children: ReactNode }) {
   const present = children != null && children !== false;
   const presentOnMount = useRef(present);
   const node = useRef<HTMLDivElement>(null);
-  const [arriving, setArriving] = useState(false);
+  const [arriving, setArriving] = useState(() => present && arriveOnMount);
   useEffect(() => {
     if (!present || presentOnMount.current) return;
     presentOnMount.current = true;

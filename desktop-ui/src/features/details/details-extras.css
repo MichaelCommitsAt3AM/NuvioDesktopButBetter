@@ -35,7 +35,6 @@
 .details-production-chip:hover:not(:disabled){background:#fff}
 .details-production-chip:disabled{cursor:default}
 .details-production-chip img{display:block;width:72px;height:26px;object-fit:contain}
-.details-production-chip-loading{width:72px;background:rgba(245,245,245,.18);animation:none}
 @media(max-width:1023px){.details-production-chip{height:40px}.details-production-chip img{width:68px;height:24px}}
 @media(max-width:719px){.details-production-chip{height:36px}.details-production-chip img{width:64px;height:22px}}
 @media(prefers-reduced-motion:reduce){.details-production-chip{animation:none}}

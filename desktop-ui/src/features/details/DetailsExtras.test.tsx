@@ -193,6 +193,34 @@ it('removes pending placeholders when enrichment finishes empty or fails', async
   expect(document.querySelector('[data-loading-section]')).toBeNull();
 });
 
+it('shows no Production placeholder and grows the section open when companies arrive', async () => {
+  let payload = meta();
+  bridge.call.mockImplementation(async (method: string) => method === 'details.extras' ? payload : { loaded: true });
+  bridge.settings = { items: [{ key: 'PRODUCTION', enabled: true, order: 0, tabGroup: null }] };
+  bridge.details = { media: { id: 'movie', type: 'movie' }, loadingSections: ['PRODUCTION'] };
+  const rendered = render(view());
+  await screen.findByRole('button', { name: /Refresh details/ });
+  expect(screen.queryByRole('heading', { name: 'Production' })).toBeNull();
+  expect(document.querySelector('[data-loading-section]')).toBeNull();
+
+  payload = { ...payload, productionCompanies: [{ name: 'Toho', logo: null, tmdbId: 882 }] };
+  bridge.details = { media: { id: 'movie', type: 'movie' }, loadingSections: [] };
+  rendered.rerender(view());
+  expect(await screen.findByRole('heading', { name: 'Production' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Toho' })).toBeInTheDocument();
+  expect(document.querySelector('[data-details-anchor="PRODUCTION"]')).toHaveClass('details-section-arrive');
+});
+
+it('shows a Production section that is there from the first render without expanding it', async () => {
+  bridge.call.mockImplementation(async (method: string) => method === 'details.extras'
+    ? { ...meta(), productionCompanies: [{ name: 'Toho', logo: null, tmdbId: 882 }] }
+    : { loaded: true });
+  bridge.settings = { items: [{ key: 'PRODUCTION', enabled: true, order: 0, tabGroup: null }] };
+  render(view());
+  expect(await screen.findByRole('button', { name: 'Toho' })).toBeInTheDocument();
+  expect(document.querySelector('[data-details-anchor="PRODUCTION"]')).not.toHaveClass('details-section-arrive');
+});
+
 it('does not show a placeholder from a stale title event', async () => {
   bridge.call.mockImplementation(async (method: string) => method === 'details.extras' ? meta() : { loaded: true });
   bridge.settings = { items: [{ key: 'CAST', enabled: true, order: 0, tabGroup: null }] };

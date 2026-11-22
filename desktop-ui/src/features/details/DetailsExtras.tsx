@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent } from 'react';
-import { Building2, CheckCircle, ChevronLeft, ChevronRight, CircleCheck, Download, LoaderCircle, ListChecks, Play, RotateCw } from 'lucide-react';
+import { CheckCircle, ChevronLeft, ChevronRight, CircleCheck, Download, LoaderCircle, ListChecks, Play, RotateCw } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import type { Media } from '../../generated/contract';
@@ -289,12 +289,25 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
         </>}
       </div>
     </section>,
-    PRODUCTION: (meta.productionCompanies.length > 0 || meta.networks.length > 0 || skeletonSections.has('PRODUCTION')) ? <section style={sectionStyle} data-loading-section={skeletonSections.has('PRODUCTION') ? 'PRODUCTION' : undefined} aria-busy={skeletonSections.has('PRODUCTION') ? true : undefined}>
-      <div style={headingStyle}><h2>Production</h2></div>
-      {skeletonSections.has('PRODUCTION') && meta.productionCompanies.length === 0 && meta.networks.length === 0
-        ? <HorizontalRail label="Production" className="details-extras-companies">{Array.from({ length: 5 }, (_, index) => <ProductionLoadingCard key={index} />)}</HorizontalRail>
-        : [['Companies', meta.productionCompanies, 'company'], ['Networks', meta.networks, 'network']].map(([heading, companies, kind]) => Array.isArray(companies) && companies.length > 0 && <div key={heading as string} className="details-extras-company-group"><h3>{heading as string}</h3><HorizontalRail label={heading as string} className="details-extras-companies">{(companies as Company[]).map((company, index) => <button className="details-extras-company" key={`${company.name}:${company.tmdbId ?? index}`} type="button" disabled={company.tmdbId == null} onClick={() => void openEntity(kind as string, company, meta.type)}>{company.logo ? <FadeImage src={company.logo} /> : <Building2 size={18} />}<span>{company.name}</span></button>)}</HorizontalRail></div>)}
-    </section> : null,
+    // Mirrors Kotlin DetailProductionSection: series show their networks (else companies) under
+    // "Networks", movies their companies (else networks) under "Production"; movies prefer the
+    // entries that have a logo. Up to six light chips wrap, each a logo or, without one, its name.
+    PRODUCTION: (meta.productionCompanies.length > 0 || meta.networks.length > 0 || skeletonSections.has('PRODUCTION')) ? (() => {
+      const seriesLike = ['series', 'tv', 'show', 'tvshow'].includes(meta.type.toLowerCase());
+      const source = seriesLike ? (meta.networks.length ? meta.networks : meta.productionCompanies) : (meta.productionCompanies.length ? meta.productionCompanies : meta.networks);
+      const kind = seriesLike && meta.networks.length ? 'network' : 'company';
+      const withLogos = source.filter(company => !!company.logo);
+      const items = (seriesLike || withLogos.length === 0 ? source : withLogos).slice(0, 6);
+      const title = seriesLike ? 'Networks' : 'Production';
+      const loading = skeletonSections.has('PRODUCTION') && items.length === 0;
+      return <section style={sectionStyle} data-loading-section={loading ? 'PRODUCTION' : undefined} aria-busy={loading ? true : undefined}>
+        <div style={headingStyle}><h2>{title}</h2></div>
+        <div className="details-production-chips">{loading
+          ? Array.from({ length: 4 }, (_, index) => <span key={index} className="details-production-chip details-production-chip-loading poster-loading-shimmer" aria-hidden="true" />)
+          : items.map((company, index) => <button className="details-production-chip" key={`${company.name}:${company.tmdbId ?? index}`} type="button" title={company.name} aria-label={company.name} disabled={company.tmdbId == null} onClick={() => void openEntity(kind, company, meta.type)}>{company.logo ? <FadeImage src={company.logo} /> : <span>{company.name}</span>}</button>)}
+        </div>
+      </section>;
+    })() : null,
     CAST: meta.cast.length > 0 ? <section style={sectionStyle}><div style={headingStyle}><h2>Cast</h2></div><HorizontalRail label="Cast" className="details-extras-people">{meta.cast.map((member, index) => <button className="details-extras-person" key={`${member.name}:${member.tmdbId ?? index}`} type="button" disabled={member.tmdbId == null} onClick={(event) => { if (member.tmdbId != null) openPerson(member.tmdbId, member.name, member.role, event.currentTarget.querySelector('img') ?? event.currentTarget); }}><span data-person-avatar-key={`${profileId}:${location.pathname}:${member.tmdbId}:${index}`} className={`details-extras-person-art ${isReturningPersonAvatar(`${profileId}:${location.pathname}:${member.tmdbId}:${index}`) ? 'person-avatar-return-target' : ''} ${castDepthOn?'has-card-depth depth-frame':''}`} style={castDepthOn ? depthStyle : undefined}>{member.photo ? <FadeImage src={member.photo} /> : <span className="details-extras-placeholder">{initials(member.name)}</span>}</span><span><strong>{member.name}</strong>{member.role && member.role.toLowerCase() !== 'cast' && <small>{member.role}</small>}</span></button>)}</HorizontalRail></section> : skeletonSections.has('CAST') ? <section style={sectionStyle} data-loading-section="CAST" aria-busy="true"><div style={headingStyle}><h2>Cast</h2></div><HorizontalRail label="Cast" className="details-extras-people">{Array.from({ length: 7 }, (_, index) => <CastLoadingCard key={index} />)}</HorizontalRail></section> : null,
     TRAILERS: meta.trailers.length > 0 ? <section style={sectionStyle} className="details-extras-trailer-section"><div style={headingStyle}><h2>Trailers</h2><DropdownChip className="details-trailer-category" menuClassName="details-trailer-category-menu" ariaLabel="Trailer category" label={selectedTrailerCategory} selectedKey={selectedTrailerCategory} options={[...new Set(meta.trailers.map((trailer) => trailer.type || 'Trailer'))].map((category) => ({ key: category, label: `${category} (${meta.trailers.filter((trailer) => (trailer.type || 'Trailer') === category).length})` }))} onSelect={(option) => setSelectedTrailerCategory(option.key)} /></div><HorizontalRail label="Trailers" className="details-extras-trailers">{meta.trailers.filter((trailer) => (trailer.type || 'Trailer') === selectedTrailerCategory).map((trailer) => <button className="details-extras-trailer" type="button" key={trailer.id} onClick={() => void openTrailer(trailer.youtubeUrl)}><span className={`details-extras-trailer-image ${trailersDepthOn?'has-card-depth depth-frame':''}`} style={trailersDepthOn ? depthStyle : undefined}><FadeImage src={`https://img.youtube.com/vi/${trailer.key}/hqdefault.jpg`} onError={(event) => { event.currentTarget.style.display = 'none'; }} /><Play size={22} fill="currentColor" /></span><span><strong>{trailer.displayName ?? trailer.name}</strong></span></button>)}</HorizontalRail>{trailerError && <InlineError message={trailerError} />}</section> : skeletonSections.has('TRAILERS') ? <section style={sectionStyle} className="details-extras-trailer-section" data-loading-section="TRAILERS" aria-busy="true"><div style={headingStyle}><h2>Trailers</h2></div><HorizontalRail label="Trailers" className="details-extras-trailers"><TrailerLoadingCard /></HorizontalRail></section> : null,
     EPISODES: groupedVideos.length > 0 ? <SeriesEpisodes
@@ -437,9 +450,6 @@ function CastLoadingCard() {
   </span>;
 }
 
-function ProductionLoadingCard() {
-  return <span className="details-skeleton-company" aria-hidden="true"><span className="details-skeleton-company-logo poster-loading-shimmer" /><span className="details-skeleton-company-name poster-loading-shimmer" /></span>;
-}
 
 function TrailerLoadingCard() {
   return <span className="details-skeleton-trailer" aria-hidden="true">

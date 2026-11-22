@@ -28,3 +28,14 @@
 .details-section-arrive{interpolate-size:allow-keywords;overflow:clip;animation:details-section-expand 340ms cubic-bezier(.2,0,0,1) both}
 @keyframes details-section-expand{from{height:0;opacity:0}to{height:auto;opacity:1}}
 @media(prefers-reduced-motion:reduce){.details-section-arrive{animation:none}}
+
+/* Kotlin ProductionChip: #F5F5F5 at 90% with 12px corners, a 72x26 logo (fit) or 12px semibold #333 name. */
+.details-production-chips{display:flex;flex-wrap:wrap;gap:8px}
+.details-production-chip{display:grid;place-items:center;box-sizing:content-box;height:44px;min-width:44px;padding:8px 12px;border:0;border-radius:12px;background:rgba(245,245,245,.9);color:#333;font:inherit;font-size:12px;font-weight:600;cursor:pointer;animation:details-card-appear .24s ease-out both;transition:background .16s ease}
+.details-production-chip:hover:not(:disabled){background:#fff}
+.details-production-chip:disabled{cursor:default}
+.details-production-chip img{display:block;width:72px;height:26px;object-fit:contain}
+.details-production-chip-loading{width:72px;background:rgba(245,245,245,.18);animation:none}
+@media(max-width:1023px){.details-production-chip{height:40px}.details-production-chip img{width:68px;height:24px}}
+@media(max-width:719px){.details-production-chip{height:36px}.details-production-chip img{width:64px;height:22px}}
+@media(prefers-reduced-motion:reduce){.details-production-chip{animation:none}}

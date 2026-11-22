@@ -20,28 +20,29 @@ Status: **pending** = not implemented; **partial** = real subset, remaining orig
 | Details | Artwork/metadata/ratings, play/manual/resume, save/watched/tracking, seasons/episodes, trailers, cast/crew/production/related | built |
 | People/entities | Person biography/credits/cast transition, company/network browsing | built |
 | Comments | Only original enabled provider-backed comments/detail sheets; preserve fork disabled gates | built |
-| Shuffle | Watched inclusion, reroll, manual play, resume, launch context | partial |
+| Shuffle | Watched inclusion, reroll, manual play, resume, launch context | built (Details episode shuffle; Continue Watching shows the shuffled episode with the shuffle badge via `HomeBridge.applyEpisodeShuffle`, 2026-11-22) |
 | Saved Library | Sources/lists/manage dialogs, horizontal/vertical, type/section/sort filters, poster actions/fallback/errors | built |
-| Cloud Library | Provider selection, browsing/search/refresh, file choice, playback | partial |
-| Collections | Management screen matches Kotlin count/create/cards, empty state, clipboard export, validated import, confirmed delete and pointer/keyboard reorder. Editor, folder details and source pickers remain available. | built (editor/source-picker visual parity remains) |
+| Cloud Library | Provider selection, browsing/search/refresh, file choice, playback | built (provider/type filters, search, refresh, file picker and `cloud.play`) |
+| Collections | Management screen matches Kotlin count/create/cards, empty state, clipboard export, validated import, confirmed delete and pointer/keyboard reorder. Folder tiles and editor layout match Kotlin (2026-11-12); folder details match `FolderDetailScreen` with back header, underlined tabs, poster grid and cover backdrop (2026-11-22). | built (TMDB/Trakt/add-on source-picker visuals not yet compared) |
 | Streams | Source filtering, partial/reload/errors, rich badges/artwork, data saver, matching/order, autoplay/regex/scope/cache/downloads | built |
-| Native player | Existing native/web controls, full source/episode/subtitle/audio panels, keyboard/touch, next/skip, progress/PiP/fullscreen | partial |
-| P2P | Consent, torrent launch/context, stats/cache/options/teardown | partial |
+| Native player | Existing native/web controls, full source/episode/subtitle/audio panels, keyboard/touch, next/skip, progress/PiP/fullscreen | built (the Kotlin player window itself is reused, so its panels and controls are the original; start/stop, PiP restore and host fullscreen sync are bridged; interactive acceptance pending) |
+| P2P | Consent, torrent launch/context, stats/cache/options/teardown | built (stream consent, enable/uploads/hide stats, streaming profile, cache size and clear cache; in-player overlays come from the Kotlin player) |
 | Downloads | Movie/show grouping, enqueue/file choice, live state, pause/resume/retry/delete/play, filters/subtitles/restart recovery | built |
 | Settings root | Categories, nested navigation, settings search, original defaults/dependencies/persistence/scope | built |
 | Appearance | Themes/AMOLED/custom editor/language/icons, navigation settings and all child pages | built |
 | Poster/hover | Size/shape/labels/depth, previews/delay/trailer sound/start | built (inline playback pending supported-platform runtime) |
 | Home/meta/CW preferences | Every original row and its actual effect on corresponding screen | built |
-| Playback preferences | Gesture/hold/audio/subtitles/style/reuse/autoplay/engine/native/P2P settings, supported platform predicates | partial |
-| Addons | Install/check/configure/toggle/refresh/reorder/remove/status feedback | partial |
-| Plugins | All enabled desktop install/config/status/actions/order | partial |
-| Integrations | TMDB/MDBList/debrid provider auth/API keys/preferences/connection state/resolver/cloud selection | partial |
+| Playback preferences | Gesture/hold/audio/subtitles/style/reuse/autoplay/engine/native/P2P settings, supported platform predicates | built (chapter title, remember audio delay and source fallback added 2026-11-22; Audio downmix intentionally omitted because only the Android engine applies it) |
+| Addons | Install/check/configure/toggle/refresh/reorder/remove/status feedback | built (overview counts, install with checking/success dialogs and tracking consent, configure, enable, refresh, move, confirmed delete, resource/catalog/ID-rule details) |
+| Plugins | All enabled desktop install/config/status/actions/order | built (every `PluginsSettingsScreen` action: global enable, group by repository, add/refresh/remove repository, provider toggle and test, plus scraper settings) |
+| Integrations | TMDB/MDBList/debrid provider auth/API keys/preferences/connection state/resolver/cloud selection | built (TMDB/MDBList keys and options, MDBList connect/resume/cancel/disconnect/sync, debrid device login and key validation, media servers) |
 | Tracking | Kotlin provider cards, inline auth/approval/cancel/copy, sync/confirmation/help, source pickers/fallback/refresh retry and anime preferences; Trakt auth stays disabled. Live account and visual acceptance pending. | built |
 | Advanced/About | Remember profile/renderer/diagnostics/cache, membership/credits/privacy/licenses | built |
 | Updates/delivery | Stable signed feed, progress/download/verified install/relaunch, bundled Java/native resources and rewrite CI for MSI/DMG/AppImage/DEB/RPM/Flatpak. Real installed-app upgrade/rollback and hosted builds still need acceptance. | built |
-| OS integration | Deep links/single instance/foreground/native dialogs/icons/multi-monitor/window geometry | partial |
+| OS integration | Deep links/single instance/foreground/native dialogs/icons/multi-monitor/window geometry | partial (single instance, refocus and window size/position/maximized memory are built; `nuvio://`/`stremio://` links are not handled because the single-instance callback ignores its arguments) |
 | Motion audit | Token timings, sidebar/jelly/profile/hero/poster/shared transitions/shimmer/reorder/removal/player panels/reduced motion | built (jelly/spring curves approximated with documented easings) |
 | Localization | Generated locale catalogs, translated chrome/shared/settings, fallback/plurals/RTL, device first launch | built (feature-screen bodies remain English; see inventory) |
+| Watch party | Join/rejoin from Home, follow the host's link | built (2026-11-12; live multi-user acceptance pending) |
 | Inline trailers | Hover trailer playback on supported desktop platforms via backend extraction; Windows stays external | built (macOS/Linux native playback runtime pending) |
 
 ## Acceptance gates for every applicable inventory entry
@@ -53,6 +54,17 @@ Status: **pending** = not implemented; **partial** = real subset, remaining orig
 - Preserve keyboard/focus/right-click/back and provide touch equivalents for essential hover actions.
 - Compare layout/motion/scroll restoration at small, normal, maximized and ultrawide windows.
 - Record build checks and user acceptance separately.
+
+## Parity audit — 2026-11-22
+
+Every area previously marked partial was rechecked against the current code: the bridge contract, the React screens, and the Kotlin screens' actions and desktop platform gates (`isDesktop`, `AppFeaturePolicy.desktop.kt`). Addons, Plugins, Integrations, Cloud Library, P2P and Native player are now **built**. Every Kotlin route and desktop-visible settings page has a rewrite counterpart; Notifications and Playback buffer are hidden on desktop in Kotlin too. This was a source comparison, not a side-by-side visual check. Later the same day, the playback settings rows, Continue Watching shuffle and window geometry were implemented (see FORK_CHANGES.md); Audio downmix stays out because only the Android engine applies it.
+
+Rarely visited screens, dialogs and sheets still need a layout comparison against Kotlin; the checklist is [DESKTOP_NICHE_SCREENS_AUDIT.md](DESKTOP_NICHE_SCREENS_AUDIT.md).
+
+Still open:
+
+1. **Deep links:** `nuvio://` and `stremio://` (add-on install, party links) aren't registered or forwarded to `AppUrlBridge`. Deferred by the user on 2026-11-22.
+2. **Smaller deferred items:** 13 native `<select>` elements and browser-`title` tooltips (Shared components); English-only feature-screen bodies (Localization); collection source-picker visuals.
 
 ## Platform exclusions to preserve
 

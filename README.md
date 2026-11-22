@@ -26,6 +26,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- The desktop window now reopens at the size and position you left it. Shuffled series show a random episode in Continue Watching, and Playback settings gained chapter titles, per-device audio delay and fallback to the next source.
+- Collection folders (like Streaming Services or Genres) now load catalogs that your metadata add-on serves but doesn't list, instead of showing "Addon not found", give them readable names like "Netflix" instead of IDs like streaming.nfx, and the folder page has a back button.
 - Title pages no longer jump while extra details load: new information smoothly pushes the rest of the page down.
 
 - With TMDB enrichment on, title pages show UNRELEASED, IN CINEMAS or RELEASED next to the age rating (for example "PG-13 | IN CINEMAS"), like the mobile app. RELEASED means it is out for streaming or at home in at least one country.
@@ -97,6 +99,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 - The top-bar bubble keeps its original movement speed while the screen switches concurrently. Its browser-run animation can continue through screen-rendering pauses.
 
 - Home Layout and Detail Page sections share Kotlin-style rows with visibility switches and drag reordering. Home catalogs follow addon and collection updates, with catalog renaming, locked pinned collections, and hero source selection.
+- If changing add-ons leaves no hero catalog selected (0 of 2), the first Home catalog is selected automatically so the featured carousel keeps working. Nothing is selected when there are no catalogs.
 - Playback sliders show their selectable stops. Skip Segments follows Kotlin's separate detection switch, automatic-skipping dialog, and AnimeSkip/IntroDB credential dialogs, including IntroDB key verification.
 
 **React/Tauri desktop interface**

@@ -83,6 +83,13 @@ object PlaybackSettingsBridge {
         AutoSyncPreferencesRepository.ensureLoaded()
         return buildJsonObject {
             put("chaptersEnabled", state.androidExoChaptersEnabled)
+            put("chapterTitleEnabled", state.chapterTitleEnabled)
+            put("rememberAudioDelayPerDevice", state.rememberAudioDelayPerDevice)
+            put("streamAutoPlayFallbackOnFailure", state.streamAutoPlayFallbackOnFailure)
+            put("streamAutoPlayFallbackMaxSources", state.streamAutoPlayFallbackMaxSources)
+            put("streamAutoPlayFallbackStartupTimeoutSeconds", state.streamAutoPlayFallbackStartupTimeoutSeconds)
+            // Kotlin locks the fallback switch while the (Android-only) engine switch on error is on.
+            put("streamAutoPlayFallbackBlockedByEngineSwitch", state.autoSwitchPlaybackEngineOnError && !state.streamAutoPlayFallbackOnFailure)
             put("subtitleAutoSync", buildJsonObject {
                 put("enabled", AutoSyncPreferencesRepository.preferredSubtitleAutoSyncOnStart.value)
                 put("aggressiveMode", AutoSyncPreferencesRepository.aggressiveMode.value)
@@ -171,6 +178,21 @@ object PlaybackSettingsBridge {
         val value = params["value"] ?: throw BridgeFeatureException("INVALID_ARGUMENT", "value is required")
         when (key) {
             "chaptersEnabled" -> PlayerSettingsRepository.setAndroidExoChaptersEnabled(value.asBool(key))
+            "chapterTitleEnabled" -> PlayerSettingsRepository.setChapterTitleEnabled(value.asBool(key))
+            "rememberAudioDelayPerDevice" -> PlayerSettingsRepository.setRememberAudioDelayPerDevice(value.asBool(key))
+            "streamAutoPlayFallbackOnFailure" -> PlayerSettingsRepository.setStreamAutoPlayFallbackOnFailure(value.asBool(key))
+            "streamAutoPlayFallbackMaxSources" -> {
+                val count = value.asInt(key)
+                if (count !in com.nuvio.app.features.player.SOURCE_FALLBACK_MAX_SOURCES_RANGE) invalid(key)
+                PlayerSettingsRepository.setStreamAutoPlayFallbackMaxSources(count)
+            }
+            "streamAutoPlayFallbackStartupTimeoutSeconds" -> {
+                val seconds = value.asInt(key)
+                if (seconds !in com.nuvio.app.features.player.SOURCE_STARTUP_TIMEOUT_SECONDS_RANGE ||
+                    seconds % com.nuvio.app.features.player.SOURCE_STARTUP_TIMEOUT_SECONDS_STEP != 0
+                ) invalid(key)
+                PlayerSettingsRepository.setStreamAutoPlayFallbackStartupTimeoutSeconds(seconds)
+            }
             "subtitleAutoSyncEnabled" -> AutoSyncPreferencesRepository.setPreferredSubtitleAutoSyncOnStart(value.asBool(key))
             "subtitleAutoSyncAggressiveMode" -> AutoSyncPreferencesRepository.setAggressiveMode(value.asBool(key))
             "subtitleAutoSyncToleranceMs" -> {

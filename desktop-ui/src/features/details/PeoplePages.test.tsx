@@ -6,6 +6,14 @@ import { EntityPage } from './EntityPage';
 
 afterEach(cleanup);
 
+/** Reports every observed element as visible at once, so an entity rail's end loads its next page. */
+class VisibleObserver {
+  constructor(private readonly callback: (entries: Array<{ isIntersecting: boolean }>) => void) {}
+  observe() { this.callback([{ isIntersecting: true }]); }
+  unobserve() {}
+  disconnect() {}
+}
+
 const media = (id: string) => ({ id, type: 'movie', name: `Title ${id}`, poster: null, background: null, logo: null, description: null, releaseInfo: null, rating: null, genres: [] });
 const person = { tmdbId: 7, name: 'Ada Actor', biography: 'A life on screen.', birthday: '1970-01-01', deathday: null, placeOfBirth: 'Lagos', profilePhoto: null, knownFor: 'Acting', movieCredits: [media('m1')], tvCredits: [media('t1')], popularCredits: [media('m1'), media('t1')], latestCredits: [media('m1')], upcomingCredits: [media('t1')], creditSummary: '2 titles · since 2001' };
 const entity = { header: { id: 3, kind: 'company', name: 'Studio One', logo: null, originCountry: 'US', secondaryLabel: null, description: 'Makes films.' }, rails: [{ mediaType: 'movie', railType: 'popular', currentPage: 1, hasMore: true, loading: false, items: [media('e1')] }] };
@@ -70,6 +78,9 @@ describe('PersonPage', () => {
 
 describe('EntityPage', () => {
   it('loads rails and paginates without duplicating titles', async () => {
+    const previousObserver = globalThis.IntersectionObserver;
+    globalThis.IntersectionObserver = VisibleObserver as unknown as typeof IntersectionObserver;
+    try {
     bridge.call.mockImplementation(async (method: string) => {
       if (method === 'details.entity') return entity;
       return { page: 2, hasMore: false, items: [media('e1'), media('e2')] };
@@ -77,8 +88,9 @@ describe('EntityPage', () => {
     render(<MemoryRouter initialEntries={['/entity/company/3']}><Routes><Route path="/entity/:kind/:entityId" element={<EntityPage />} /></Routes></MemoryRouter>);
     expect(await screen.findByRole('heading', { name: 'Studio One' })).toBeInTheDocument();
     expect(screen.getByText('Makes films.')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    // Reaching the end of a rail loads the next page, as Kotlin rails have no Load more button.
     await waitFor(() => expect(screen.getAllByRole('button', { name: 'Open Title e2' })).toHaveLength(1));
     expect(screen.getAllByRole('button', { name: 'Open Title e1' })).toHaveLength(1);
+    } finally { globalThis.IntersectionObserver = previousObserver; }
   });
 });

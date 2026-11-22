@@ -200,7 +200,7 @@ object FolderDetailRepository {
                     add(
                         FolderTab(
                             label = folderCatalogTabLabel(
-                                catalogName = catalog?.name ?: catalogSource.catalogId,
+                                catalogName = catalog?.name ?: readableCatalogName(catalogSource.catalogId),
                                 typeLabel = typeLabel,
                                 genre = catalogSource.genre,
                                 showCatalogType = showCatalogType,

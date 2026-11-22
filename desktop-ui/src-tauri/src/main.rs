@@ -545,7 +545,23 @@ fn main() {
                 let _ = window.set_focus();
             }
         }))
+        // Remember the window's size, position and maximized state between launches, like the
+        // Kotlin app's DesktopWindowModeStorage. Fullscreen stays with the app's own fullscreen
+        // control, and visibility with the startup code below.
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::SIZE
+                        | tauri_plugin_window_state::StateFlags::POSITION
+                        | tauri_plugin_window_state::StateFlags::MAXIMIZED,
+                )
+                .build(),
+        )
         .setup(|app| {
+            // The main window starts hidden so the saved geometry is applied before it appears.
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+            }
             let bridge = Arc::new(BridgeManager::new(app.handle().clone())?);
             app.manage(bridge.clone());
             let startup = bridge.clone();

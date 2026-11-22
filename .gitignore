@@ -28,6 +28,7 @@ Docs
 docs/*
 !docs/DESKTOP_UI_REWRITE.md
 !docs/DESKTOP_UI_PARITY.md
+!docs/DESKTOP_NICHE_SCREENS_AUDIT.md
 !docs/FORK_CHANGES.md
 !docs/KNOWN_ISSUES.md
 !docs/UPSTREAM_SYNC*.md

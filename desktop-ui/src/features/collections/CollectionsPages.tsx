@@ -1,12 +1,13 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronRight, Film, Grid2X2, LoaderCircle, Menu, Pencil, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Check, Film, Grid2X2, LoaderCircle, Menu, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { Link, useNavigate, useNavigationType, useParams } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot } from '../../bridge';
 import type { Media, Shelf as ShelfData } from '../../generated/contract';
 import type { AppearanceSnapshot } from '../settings/appearanceStore';
-import { EmptyState } from '../../components/EmptyState';
 import { InlineError } from '../../components/Status';
-import { PageHeader } from '../../components/ui';
+import { BackButton } from '../../components/BackButton';
+import { FullscreenButton } from '../../components/FullscreenButton';
+import { useLocale } from '../../i18n/strings';
 import { Poster } from '../../components/Poster';
 import { Dialog } from '../../components/Dialog';
 import { DraftInput, DraftScope, useDraftController } from '../../components/DraftInput';
@@ -16,6 +17,7 @@ import { HomeRow } from '../home/HomeRow';
 import { posterMetrics } from '../../components/posterMetrics';
 import { HorizontalRail } from '../../components/HorizontalRail';
 import { scrollKey, useActiveProfileId, useListScrollRestore } from '../../navigation/scrollStore';
+import '../home/homeParity.css';
 import './collections.css';
 import './collectionEditor.css';
 
@@ -25,7 +27,7 @@ type Collection = { id: string; title: string; backdropImageUrl?: string | null;
 type CatalogOption = { addonId: string; addonName: string; type: string; catalogId: string; catalogName: string; genreOptions: string[]; genreRequired: boolean };
 type Result = { traktListId: number; title: string; subtitle: string; coverImageUrl?: string | null; sortBy?: string | null; sortHow?: string | null };
 type Editor = { isNew: boolean; collectionId: string | null; title: string; backdropImageUrl: string | null; pinToTop: boolean; viewMode: string; showAllTab: boolean; folders: Folder[]; isLoading: boolean; availableCatalogs: CatalogOption[]; editingFolder: Folder | null; showFolderEditor: boolean; showCatalogPicker: boolean; showTmdbSourcePicker: boolean; showTraktSourcePicker: boolean; editingTraktSourceIndex: number | null; genrePickerSourceIndex: number | null; tmdbBuilderMode: string; tmdbInput: string; tmdbTitleInput: string; tmdbMediaType: string; tmdbMediaBoth: boolean; tmdbSortBy: string; tmdbPresets: { label: string; source: Source }[]; tmdbFilters: Record<string, any>; tmdbCompanyResults: any[]; tmdbCollectionResults: any[]; tmdbSearchError: string | null; traktInput: string; traktTitleInput: string; traktMediaType: string; traktMediaBoth: boolean; traktSortBy: string; traktSortHow: string; traktSearchResults: Result[]; traktTrendingResults: Result[]; traktPopularResults: Result[]; traktSearchError: string | null };
-type FolderTab = { label: string; typeLabel: string; type: string; catalogId: string; items: Media[]; isLoading: boolean; isLoadingMore: boolean; canLoadMore: boolean; error?: string | null; source?: Source | null };
+type FolderTab = { isAllTab?: boolean; label: string; typeLabel: string; type: string; catalogId: string; items: Media[]; isLoading: boolean; isLoadingMore: boolean; canLoadMore: boolean; error?: string | null; source?: Source | null };
 type FolderDetail = { folder: Folder | null; collectionTitle: string; viewMode: string; selectedTabIndex: number; isLoading: boolean; showAllTab: boolean; tabs: FolderTab[] };
 
 async function commitEditorDraft(method: string, params: Record<string, unknown>) {
@@ -279,19 +281,43 @@ export function CollectionFolderPage() {
   const { collectionId = '', folderId = '' } = useParams(); const navigate = useNavigate();
   const navigationType = useNavigationType();
   const profileId = useActiveProfileId();
+  const { t } = useLocale();
   const snapshot = useFeatureSnapshot<FolderDetail>('folderDetail'); const [error, setError] = useState('');
   const key = `${collectionId}/${folderId}`; const active = useRef('');
   useListScrollRestore(scrollKey(profileId, `/collections/${collectionId}/folders/${folderId}`, String(snapshot?.selectedTabIndex ?? 0)), navigationType, !!snapshot?.tabs.length);
   useEffect(() => { if (active.current === key) return; active.current = key; void featureAction('collections.folder.open', { collectionId, folderId }, 'folderDetail').catch((e)=>setError(String(e))); return ()=>{active.current='';}; }, [key]);
   const run = async (method: string, params: Record<string, unknown> = {}) => { setError(''); try { await featureAction(method, params, 'folderDetail'); } catch(e) { setError(e instanceof Error ? e.message : String(e)); } };
-  useEffect(() => { const state = snapshot; if (!state) return; const selected = state.tabs[state.selectedTabIndex]; if (!selected?.canLoadMore || selected.isLoadingMore) return; const sentinel = document.querySelector('.folder-load-sentinel'); if (!sentinel) return; const observer = new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)) void run('collections.folder.loadMore');},{rootMargin:'650px'}); observer.observe(sentinel); return ()=>observer.disconnect(); }, [snapshot?.selectedTabIndex, snapshot?.tabs.map(t=>t.items.length).join(',')]);
-  if (!snapshot) return <div className="page collections-page">{error ? <InlineError message={error} /> : <div className="loading-block"><LoaderCircle className="spin" size={22}/> Loading folder…</div>}</div>;
-  const selected = snapshot.tabs[snapshot.selectedTabIndex];
-  return <div className="page folder-detail-page"><PageHeader title={snapshot.folder?.title || 'Folder'} subtitle={`${snapshot.collectionTitle}${selected?.label ? ` · ${selected.label}` : ''}`} action={<div className="catalog-actions"><button className="button secondary" onClick={()=>navigate(`/collections/${collectionId}/edit`)}><Pencil size={14}/> Edit collection</button><button className="button secondary" onClick={()=>void run('collections.folder.refresh',{collectionId,folderId})}><RefreshCw size={14}/> Refresh</button></div>}/>
+  const selected = snapshot?.tabs[snapshot.selectedTabIndex];
+  const selectedCanLoadMore = selected?.isAllTab ? !!snapshot?.tabs.some(tab => !tab.isAllTab && tab.canLoadMore) : !!selected?.canLoadMore;
+  const selectedLoadingMore = selected?.isAllTab ? !!snapshot?.tabs.some(tab => !tab.isAllTab && tab.isLoadingMore) : !!selected?.isLoadingMore;
+  useEffect(() => { if (!selectedCanLoadMore || selectedLoadingMore) return; const sentinel = document.querySelector('.folder-load-sentinel'); if (!sentinel) return; const observer = new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)) void run('collections.folder.loadMore');},{rootMargin:'650px'}); observer.observe(sentinel); return ()=>observer.disconnect(); }, [snapshot?.selectedTabIndex, selectedCanLoadMore, selectedLoadingMore, snapshot?.tabs.map(t=>t.items.length).join(',')]);
+  const cover = snapshot?.folder?.coverImageUrl?.trim();
+  const title = snapshot?.folder?.title || snapshot?.collectionTitle || '';
+  const loading = <div className="folder-state"><LoaderCircle className="spin" size={32}/></div>;
+  const message = (text: string, isError = false) => <div className={`folder-state folder-message${isError ? ' error' : ''}`}>{text}</div>;
+  let content: React.ReactNode;
+  if (!snapshot) content = error ? null : loading;
+  else if (!snapshot.folder && !snapshot.isLoading) content = message(t('collections_folder_not_found'));
+  else if (snapshot.viewMode !== 'TABBED_GRID') {
+    const rows = snapshot.tabs.filter(tab => !tab.isAllTab && tab.items.length);
+    content = rows.length ? <div className="folder-rows">{rows.map((tab,index) => <Shelf key={`${tab.catalogId}-${index}`} shelf={{ key: tab.catalogId, title: tab.label, subtitle: tab.typeLabel, items: tab.items, hasMore: false }} />)}</div> : snapshot.isLoading ? loading : message(t('collections_folder_empty_items'));
+  } else {
+    content = <>
+      {snapshot.tabs.length>1 && <div className="folder-tabs" role="tablist">{snapshot.tabs.map((tab,index)=><button key={`${tab.label}-${index}`} type="button" role="tab" aria-selected={index===snapshot.selectedTabIndex} className={index===snapshot.selectedTabIndex?'active':''} title={tab.label} onClick={()=>void run('collections.folder.selectTab',{index})}><span>{tab.isAllTab ? t('collections_tab_all') : tab.label}</span></button>)}</div>}
+      {!selected ? null : selected.isLoading && !selected.items.length ? loading : selected.error && !selected.items.length ? message(selected.error, true) : !selected.items.length ? message(t('collections_folder_empty_items')) : <>
+        <div className="folder-grid">{stableKeys(selected.items, (item) => mediaKey(item.type, item.id)).map((itemKey, index) => <Poster key={itemKey} item={selected.items[index]} />)}</div>
+        <div className="folder-load-sentinel" />
+        {selectedLoadingMore && <div className="folder-loading-more"><LoaderCircle className="spin" size={28}/></div>}
+      </>}
+    </>;
+  }
+  return <div className="page folder-detail-page">
+    {cover && <div className="folder-cover-backdrop" aria-hidden="true"><img src={cover} alt="" /></div>}
+    <FullscreenButton onError={setError} />
+    {/* Fixed like the Details/Catalog back button, so it stays put while the folder scrolls. */}
+    <BackButton className="folder-back" onClick={() => navigate(-1)} />
+    <div className="page-heading folder-heading"><div className="folder-title"><h1>{title}</h1></div></div>
     {error && <InlineError message={error} onRetry={()=>void run('collections.folder.refresh',{collectionId,folderId})}/>}
-    {snapshot.tabs.length>1 && <div className="folder-tabs">{snapshot.tabs.map((tab,index)=><button key={`${tab.label}-${index}`} className={index===snapshot.selectedTabIndex?'active':''} onClick={()=>void run('collections.folder.selectTab',{index})}>{tab.label}</button>)}</div>}
-    {selected?.error && <InlineError message={selected.error} onRetry={()=>void run('collections.folder.refresh',{collectionId,folderId})}/>}
-    {snapshot.isLoading && !selected?.items.length ? <div className="loading-block"><LoaderCircle className="spin" size={22}/> Loading {selected?.label || 'folder'}…</div> : selected?.items.length ? <>{snapshot.viewMode === 'ROWS' ? snapshot.tabs.filter(tab => tab.items.length).map((tab,index) => <Shelf key={`${tab.catalogId}-${index}`} shelf={{ key: tab.catalogId, title: tab.label, subtitle: tab.typeLabel, items: tab.items, hasMore: false }} />) : <div className="media-grid">{stableKeys(selected.items, (item) => mediaKey(item.type, item.id)).map((itemKey, index) => <Poster key={itemKey} item={selected.items[index]} />)}</div>}<div className="folder-load-sentinel" />{selected.isLoadingMore && <div className="loading-block"><LoaderCircle className="spin" size={18}/> Loading more…</div>}{selected.canLoadMore && <button className="button secondary load-more-button" onClick={()=>void run('collections.folder.loadMore')}><ChevronDownIcon/> Load more</button>}</> : <EmptyState icon={<Film />} title="Nothing here yet" message="This folder has no available titles for the selected source."/>}
+    {content}
   </div>;
 }
-function ChevronDownIcon(){return <ChevronRight size={15}/>}

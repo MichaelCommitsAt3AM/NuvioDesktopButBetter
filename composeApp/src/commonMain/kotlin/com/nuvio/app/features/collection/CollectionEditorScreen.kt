@@ -2315,7 +2315,7 @@ private fun FolderCatalogSourceCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        text = matchingCatalog?.catalogName ?: source.catalogId,
+                        text = matchingCatalog?.catalogName ?: readableCatalogName(source.catalogId),
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface,

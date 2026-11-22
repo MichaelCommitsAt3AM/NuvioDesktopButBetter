@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CheckCircle2, Compass, MoreHorizontal, RotateCcw, Trash2, Info, Play } from 'lucide-react';
+import { CheckCircle2, Compass, MoreHorizontal, RotateCcw, Shuffle, Trash2, Info, Play } from 'lucide-react';
 import { actions, call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { useTabActivated } from '../../navigation/tabActivity';
 import { EmptyState } from '../../components/EmptyState';
@@ -44,7 +44,7 @@ type ContinueItem = {
   parentMetaId: string; parentMetaType: string; videoId: string; title: string; subtitle: string;
   imageUrl?: string | null; poster?: string | null; background?: string | null; logo?: string | null;
   seasonNumber?: number | null; episodeNumber?: number | null; episodeTitle?: string | null;
-  episodeThumbnail?: string | null; pauseDescription?: string | null; isNextUp?: boolean;
+  episodeThumbnail?: string | null; pauseDescription?: string | null; isNextUp?: boolean; shufflePlayback?: boolean;
   nextUpSeedSeasonNumber?: number | null; nextUpSeedEpisodeNumber?: number | null;
   resumePositionMs: number; durationMs: number; progressFraction: number; progressPercent?: number;
   released?: string | null; canMarkWatched?: boolean; lastUpdatedEpochMs?: number; providerName?: string | null;
@@ -347,6 +347,7 @@ function ContinueCard({ item, isBusy, disintegrating = false, onResume, onManual
   const cardContent=<>
       {!item.isNextUp && <span className="home-cw-progress"><i style={{ width: `${progress}%` }} /></span>}
       <span className="home-cw-badge">{badge}</span>
+      {item.shufflePlayback && <span className="home-cw-shuffle" role="img" aria-label="Shuffle" title="Shuffle"><Shuffle size={16} aria-hidden="true" /></span>}
       <span className="home-cw-art-copy">{item.seasonNumber!=null&&item.episodeNumber!=null&&<small>S{item.seasonNumber} E{item.episodeNumber}</small>}<strong>{item.title}</strong>{item.episodeTitle&&<small>{item.episodeTitle}</small>}</span>
   </>;
   return <article className={`home-cw-card ${menuOpen?'action-anchor-hidden':''} ${blurArtwork ? "blur-artwork" : ""} ${depthOn?'has-card-depth':''} ${disintegrating?'is-disintegrating':''}`} style={depthOn ? depthVars(appearance?.cardDepth) : undefined} data-flip-key={`${item.parentMetaId}:${item.videoId}`}>

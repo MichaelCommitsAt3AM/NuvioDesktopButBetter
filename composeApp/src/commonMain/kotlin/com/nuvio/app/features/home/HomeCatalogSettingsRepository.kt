@@ -184,8 +184,20 @@ object HomeCatalogSettingsRepository {
         }
         normalizePreferences()
         enforcePinnedCollectionsAtTop()
+        selectFirstHeroSourceIfNone()
         publish()
         persist()
+    }
+
+    /**
+     * After the add-on catalogs change, an empty hero selection would leave the featured carousel with
+     * nothing to show. Pick the first catalog in Home order; with no catalogs there is nothing to pick.
+     */
+    private fun selectFirstHeroSourceIfNone() {
+        if (selectedHeroSourceCount() > 0) return
+        val catalogKeys = definitions.mapTo(mutableSetOf()) { it.key }
+        val first = preferences.values.filter { it.key in catalogKeys }.minByOrNull { it.order } ?: return
+        preferences = preferences + (first.key to first.copy(heroSourceEnabled = true))
     }
 
     suspend fun syncCollections(

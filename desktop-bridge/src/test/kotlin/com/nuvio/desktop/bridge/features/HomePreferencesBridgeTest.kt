@@ -38,4 +38,37 @@ class HomePreferencesBridgeTest {
             HomeCatalogSettingsRepository.onProfileChanged()
         }
     }
+
+    private fun addon(id: String, vararg catalogs: AddonCatalog) = ManagedAddon("https://$id.test/manifest.json", manifest = AddonManifest(
+        id = id, name = id, description = "", version = "1", resources = emptyList(),
+        types = listOf("movie", "series"), transportUrl = "https://$id.test/manifest.json", catalogs = catalogs.toList(),
+    ))
+
+    @Test fun changingAddonsSelectsTheFirstHeroCatalogWhenNoneIsSelected() = runBlocking {
+        val store = DesktopStorage.store("nuvio_home_catalog_settings")
+        val key = ProfileScopedKey.of("home_catalog_settings")
+        val original = store.getString(key)
+        val first = addon("first-addon", AddonCatalog("movie", "trending", "Trending"), AddonCatalog("series", "trending", "Trending"))
+        try {
+            HomeCatalogSettingsRepository.onProfileChanged()
+            // Hero sources come from a second add-on; the first add-on's catalogs are switched off.
+            val second = addon("second-addon", AddonCatalog("movie", "new", "New"))
+            AppearanceBridge.synchronizeHomeCatalogs(listOf(first, second), emptyList())
+            HomeCatalogSettingsRepository.uiState.value.items.forEach { HomeCatalogSettingsRepository.setHeroSourceEnabled(it.key, it.key.startsWith("second-addon")) }
+            assertEquals(1, HomeCatalogSettingsRepository.uiState.value.items.count { it.heroSourceEnabled })
+
+            // Removing that add-on leaves 0 selected, so the first remaining catalog is picked.
+            AppearanceBridge.synchronizeHomeCatalogs(listOf(first), emptyList())
+            val items = HomeCatalogSettingsRepository.uiState.value.items
+            assertEquals(listOf(items.minBy { it.order }.key), items.filter { it.heroSourceEnabled }.map { it.key }, "only the first catalog in Home order is selected")
+
+            // An add-on set with no Home catalogs has nothing to select.
+            HomeCatalogSettingsRepository.onProfileChanged()
+            AppearanceBridge.synchronizeHomeCatalogs(listOf(addon("search-only", AddonCatalog("movie", "search", "Search", listOf(AddonExtraProperty("search", isRequired = true))))), emptyList())
+            assertEquals(0, HomeCatalogSettingsRepository.uiState.value.items.count { it.heroSourceEnabled })
+        } finally {
+            store.putString(key, original)
+            HomeCatalogSettingsRepository.onProfileChanged()
+        }
+    }
 }

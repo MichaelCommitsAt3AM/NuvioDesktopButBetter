@@ -13,7 +13,8 @@ import { SkipSegmentSettings } from './SkipSegmentSettings';
 
 type PlaybackSnapshot = {
   showLoadingOverlay: boolean; showPlayerLoadingStatus: boolean; pauseOverlayEnabled: boolean; showParentalGuide: boolean;
-  decoderPriority: number; chaptersEnabled: boolean; subtitleAutoSync: SubtitleAutoSyncPreferences;
+  decoderPriority: number; chaptersEnabled: boolean; chapterTitleEnabled: boolean; rememberAudioDelayPerDevice: boolean;
+  streamAutoPlayFallbackOnFailure: boolean; streamAutoPlayFallbackMaxSources: number; streamAutoPlayFallbackStartupTimeoutSeconds: number; streamAutoPlayFallbackBlockedByEngineSwitch: boolean; subtitleAutoSync: SubtitleAutoSyncPreferences;
   availableLanguages: string[];
   preferredAudioLanguage: string; secondaryPreferredAudioLanguage: string | null; preferredSubtitleLanguage: string; secondaryPreferredSubtitleLanguage: string | null;
   subtitleStyle: { textColor: string; backgroundColor: string; outlineColor: string; outlineEnabled: boolean; outlineWidth: number; bold: boolean; fontSizeSp: number; bottomOffset: number; stripSdh: boolean; useForcedSubtitles: boolean; showOnlyPreferredLanguages: boolean; fontId?: string; backgroundRadius?: number; shadowEnabled?: boolean; shadowOpacity?: number; shadowSize?: number };
@@ -109,6 +110,7 @@ export function PlaybackSettingsPage() {
     <SettingCard icon={Volume2} title="Subtitle and audio">
       <LanguageField title="Preferred Audio Language" value={s.preferredAudioLanguage} choices={['default', 'device', 'original', ...s.availableLanguages]} onSave={(value) => set('preferredAudioLanguage', value)} />
       <LanguageField title="Secondary Audio Language" value={s.secondaryPreferredAudioLanguage} choices={[null, 'original', ...s.availableLanguages]} onSave={(value) => set('secondaryPreferredAudioLanguage', value)} />
+      <Toggle title="Remember Audio Delay per Device" description="Restore the audio delay set in the player whenever the same audio output plays again, such as speakers, wired headphones or each Bluetooth device." checked={s.rememberAudioDelayPerDevice ?? false} onChange={(value) => set('rememberAudioDelayPerDevice', value)} />
       <LanguageField title="Preferred Language" value={s.preferredSubtitleLanguage} choices={['none', 'device', 'forced', ...s.availableLanguages]} onSave={(value) => set('preferredSubtitleLanguage', value)} />
       <LanguageField title="Secondary Preferred Language" value={s.secondaryPreferredSubtitleLanguage} choices={[null, 'forced', ...s.availableLanguages]} onSave={(value) => set('secondaryPreferredSubtitleLanguage', value)} />
       <Toggle title="Strip SDH Subtitles" description="Hide sound descriptions and speaker labels from text subtitles." checked={style.stripSdh} onChange={(value) => updateSubtitle({ stripSdh: value })} />
@@ -141,11 +143,19 @@ export function PlaybackSettingsPage() {
       <Select title="Auto-play mode" value={s.streamAutoPlayMode} values={['MANUAL', 'FIRST_STREAM', 'REGEX_MATCH']} labels={['Manual selection', 'First available stream', 'Match a pattern']} onChange={(value) => set('streamAutoPlayMode', value)} />
       {s.streamAutoPlayMode !== 'MANUAL' && <><Select title="Stream sources" value={s.streamAutoPlaySource} values={['ALL_SOURCES', 'INSTALLED_ADDONS_ONLY', 'ENABLED_PLUGINS_ONLY']} labels={['All sources', 'Installed add-ons', 'Enabled plugins']} onChange={(value) => set('streamAutoPlaySource', value)} /><Select title="Stream wait timeout" value={String(s.streamAutoPlayTimeoutSeconds)} values={timeoutValues.map(String)} labels={timeoutValues.map((value) => value === 2147483647 ? 'No timeout' : `${value} sec`)} onChange={(value) => set('streamAutoPlayTimeoutSeconds', Number(value))} /></>}
       {s.streamAutoPlayMode === 'REGEX_MATCH' && <TextSetting title="Match pattern" value={s.streamAutoPlayRegex} placeholder="720p|1080p" onSave={(value) => set('streamAutoPlayRegex', value)} />}
+      {s.streamAutoPlayMode !== 'MANUAL' && <>
+        <Toggle title="Fallback to next matching source on failure" description={s.streamAutoPlayFallbackBlockedByEngineSwitch ? 'Turn off auto-switch engine on playback error to use this.' : 'If the auto-selected source fails or does not start in time, quietly try the next matching sources.'} checked={s.streamAutoPlayFallbackOnFailure ?? false} disabled={s.streamAutoPlayFallbackBlockedByEngineSwitch} onChange={(value) => set('streamAutoPlayFallbackOnFailure', value)} />
+        {s.streamAutoPlayFallbackOnFailure && !s.streamAutoPlayFallbackBlockedByEngineSwitch && <>
+          <SteppedSlider title="Sources to try on failure" value={s.streamAutoPlayFallbackMaxSources} min={1} max={10} step={1} onSave={(value) => set('streamAutoPlayFallbackMaxSources', value)} />
+          <SteppedSlider title="Time for a source to start" value={s.streamAutoPlayFallbackStartupTimeoutSeconds} min={5} max={45} step={5} suffix="s" onSave={(value) => set('streamAutoPlayFallbackStartupTimeoutSeconds', value)} />
+        </>}
+      </>}
       {s.streamAutoPlayMode !== 'MANUAL' && s.streamAutoPlaySource === 'INSTALLED_ADDONS_ONLY' && addons.map((addon) => <Toggle key={addon.id} title={addon.name} checked={s.streamAutoPlaySelectedAddons.includes(addon.name)} onChange={(enabled) => set('streamAutoPlaySelectedAddons', enabled ? [...s.streamAutoPlaySelectedAddons, addon.name] : s.streamAutoPlaySelectedAddons.filter((name) => name !== addon.name))} />)}
       {s.streamAutoPlayMode !== 'MANUAL' && s.streamAutoPlaySource === 'ENABLED_PLUGINS_ONLY' && (plugins?.scrapers ?? []).filter((plugin) => plugin.enabled).map((plugin) => <Toggle key={plugin.id} title={plugin.name} checked={s.streamAutoPlaySelectedPlugins.includes(plugin.name)} onChange={(enabled) => set('streamAutoPlaySelectedPlugins', enabled ? [...s.streamAutoPlaySelectedPlugins, plugin.name] : s.streamAutoPlaySelectedPlugins.filter((name) => name !== plugin.name))} />)}
     </SettingCard>
     <SettingCard icon={Gauge} title="Decoder">
       <Toggle title="Show chapters" description="Read embedded chapters and show chapter navigation in the player." checked={s.chaptersEnabled} onChange={(value) => set('chaptersEnabled', value)} />
+      <Toggle title="Show Chapter Title" description="Show the name of the current chapter above the progress bar." checked={s.chapterTitleEnabled ?? true} disabled={!s.chaptersEnabled} onChange={(value) => set('chapterTitleEnabled', value)} />
       <Select title="Decoder Priority" value={String(s.decoderPriority)} values={['0', '1', '2']} labels={['Device decoders only', 'Prefer device decoders', 'Prefer app decoders (FFmpeg)']} onChange={(value) => set('decoderPriority', Number(value))} />
     </SettingCard>
     <SkipSegmentSettings preferences={s} run={run} />

@@ -24,7 +24,73 @@ internal fun List<ManagedAddon>.findCollectionCatalog(
             it.id == source.catalogId && it.type == source.type
         } ?: return@firstNotNullOfOrNull null
         ResolvedCollectionCatalog(addon = addon, catalog = catalog)
+    } ?: declaredAddon?.let { addon ->
+        // The declared addon is installed but its manifest doesn't list this catalog. Addons such
+        // as AIOMetadata still serve catalogs left out of a user's manifest (collections shared
+        // from another config point at them), so request it from the declared addon directly.
+        ResolvedCollectionCatalog(
+            addon = addon,
+            catalog = AddonCatalog(type = source.type, id = source.catalogId, name = readableCatalogName(source.catalogId)),
+        )
     }
+}
+
+/** Streaming-service codes used by AIOMetadata's `streaming.<code>` catalogs. */
+private val streamingServiceNames = mapOf(
+    "nfx" to "Netflix",
+    "nfk" to "Netflix Kids",
+    "hbm" to "HBO Max",
+    "dnp" to "Disney+",
+    "amp" to "Prime Video",
+    "atp" to "Apple TV+",
+    "pmp" to "Paramount+",
+    "pcp" to "Peacock",
+    "hlu" to "Hulu",
+    "cru" to "Crunchyroll",
+    "cts" to "Curiosity Stream",
+    "mgl" to "MagellanTV",
+    "hay" to "hayu",
+    "clv" to "Claro Video",
+    "gop" to "Globoplay",
+    "hst" to "Hotstar",
+    "zee" to "ZEE5",
+    "nlz" to "NLZIET",
+    "vil" to "Videoland",
+    "sst" to "SkyShowtime",
+    "blv" to "BluTV",
+    "cpd" to "Canal+",
+    "dpe" to "Discovery+",
+    "mbi" to "MUBI",
+    "stz" to "Starz",
+)
+
+private val catalogIdNoiseTokens = setOf("discover", "movie", "movies", "series", "tv", "show", "shows", "anime")
+private val catalogIdProviderTokens = setOf("tmdb", "tvdb", "mal", "imdb", "trakt", "tvmaze", "aiom")
+private val catalogIdWordCasing = mapOf("flixpatrol" to "FlixPatrol", "tv" to "TV", "us" to "US", "uk" to "UK")
+
+/**
+ * A display name for a catalog the add-on's manifest doesn't name (and so only its ID is known),
+ * e.g. `streaming.nfx` → "Netflix", `tmdb.discover.movie.action_movies.28` → "Action Movies",
+ * `flixpatrol.netflix.world.movie` → "FlixPatrol Netflix World". Type, numeric and provider
+ * segments are dropped while something else remains; the ID itself is the last resort.
+ */
+internal fun readableCatalogName(catalogId: String): String {
+    val segments = catalogId.substringBefore(",").split('.').map { it.trim() }.filter { it.isNotEmpty() }
+    if (segments.isEmpty()) return catalogId
+    if (segments.size == 2 && segments[0].equals("streaming", ignoreCase = true)) {
+        streamingServiceNames[segments[1].lowercase()]?.let { return it }
+    }
+    val meaningful = segments.filterNot { segment ->
+        segment.all(Char::isDigit) || segment.lowercase() in catalogIdNoiseTokens
+    }.ifEmpty { return catalogId }
+    val withoutProvider = meaningful.filterNot { it.lowercase() in catalogIdProviderTokens }.ifEmpty { meaningful }
+    return withoutProvider
+        .flatMap { it.split('_', '-') }
+        .filter { it.isNotBlank() }
+        .joinToString(" ") { word ->
+            catalogIdWordCasing[word.lowercase()] ?: word.replaceFirstChar { it.uppercase() }
+        }
+        .ifBlank { catalogId }
 }
 
 internal fun List<AvailableCatalog>.findAvailableCatalog(

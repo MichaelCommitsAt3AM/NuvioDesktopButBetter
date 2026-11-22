@@ -41,23 +41,37 @@ it('Back restores a saved top-of-list position instead of inheriting details scr
   expect(scroller.scrollTop).toBe(0);
 });
 
+/** Reports every observed element as visible at once, so an entity rail's end loads its next page. */
+class VisibleObserver {
+  constructor(private readonly callback: (entries: Array<{ isIntersecting: boolean }>) => void) {}
+  observe() { this.callback([{ isIntersecting: true }]); }
+  unobserve() {}
+  disconnect() {}
+}
+
 it('does not merge an old company page into a newly opened company', async () => {
+  const previousObserver = globalThis.IntersectionObserver;
+  globalThis.IntersectionObserver = VisibleObserver as unknown as typeof IntersectionObserver;
+  try {
   const media = (id: string) => ({ id, type: 'movie', name: id, poster: null, background: null, logo: null, description: null, releaseInfo: null, rating: null, genres: [] });
   let release!: (value: unknown) => void;
   const delayed = new Promise(resolve => { release = resolve; });
   bridge.call.mockImplementation(async (method, params) => {
-    if (method === 'details.entity.page') return delayed;
+    // Only Studio 1's next page is held back; Studio 2's own rail end asks for an empty page.
+    if (method === 'details.entity.page') return (params as { entityId: number }).entityId === 1 ? delayed : { page: 2, hasMore: false, items: [] };
     const id = (params as { entityId: number }).entityId;
     return { header: { name: `Studio ${id}`, kind: 'company' }, rails: [{ mediaType: 'movie', railType: 'popular', currentPage: 1, hasMore: true, items: [media(`Studio ${id} movie`)] }] };
   });
   render(<MemoryRouter initialEntries={['/entity/company/1']}><Link to="/entity/company/2">Next studio</Link><Routes><Route path="/entity/:kind/:entityId" element={<EntityPage />} /></Routes></MemoryRouter>);
   await screen.findByRole('heading', { name: 'Studio 1' });
-  fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+  // The rail's end is visible at once, so its next page is requested (and held by `delayed`).
+  expect(bridge.call.mock.calls.some(([method]) => method === 'details.entity.page')).toBe(true);
   fireEvent.click(screen.getByRole('link', { name: 'Next studio' }));
   await screen.findByRole('heading', { name: 'Studio 2' });
   await act(async () => release({ page: 2, hasMore: false, items: [media('Late Studio 1 movie')] }));
   expect(screen.queryByRole('button', { name: 'Open Late Studio 1 movie' })).toBeNull();
   expect(screen.getByRole('button', { name: 'Open Studio 2 movie' })).toBeInTheDocument();
+  } finally { globalThis.IntersectionObserver = previousObserver; }
 });
 
 it('does not save the collection after its latest title commit failed', async () => {

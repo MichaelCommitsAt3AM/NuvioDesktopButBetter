@@ -3,6 +3,11 @@ package com.nuvio.desktop.bridge
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.home.HomeRepository
+import com.nuvio.app.features.profiles.ProfileRepository
+import com.nuvio.app.features.shuffle.EpisodeShuffleRepository
+import com.nuvio.app.features.shuffle.ShuffleSurface
+import com.nuvio.app.features.shuffle.shuffleEpisodeProgress
+import com.nuvio.app.features.shuffle.watchedShuffleEpisodes
 import com.nuvio.app.features.watched.WatchedRepository
 import com.nuvio.app.features.watching.application.WatchingActions
 import com.nuvio.app.features.watching.application.canMarkWatched
@@ -20,6 +25,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -59,7 +65,9 @@ object HomeBridge {
         // should not wait for the potentially slow Next Up metadata lookups.
         // The UI requests `home.extras.refresh` separately for that enrichment.
         "home.extras.snapshot" -> snapshot()
-        "home.extras.refresh" -> refreshSnapshot()
+        // Each Home activation is a new shuffle visit, so shuffled series pick a fresh episode the
+        // way Kotlin's rememberShuffleHomeItems does on re-activation.
+        "home.extras.refresh" -> { shuffleVisit += 1; refreshSnapshot() }
         "home.continueWatching.remove" -> {
             WatchProgressRepository.removeProgress(
                 contentId = params.str("contentId"),
@@ -137,13 +145,17 @@ object HomeBridge {
             // Remote sync enriches local data and may fail or remain offline;
             // it must not prevent displaying entries or settling an empty profile.
             put("loading", false)
-            put("continueWatching", JsonArray(progress.map(::progressJson)))
-            put("upcoming", JsonArray(upcoming.state.value.filterNot { item ->
-                val id = item["parentMetaId"]?.jsonPrimitive?.contentOrNull ?: return@filterNot false
-                val season = item["nextUpSeedSeasonNumber"]?.jsonPrimitive?.intOrNull ?: -1
-                val episode = item["nextUpSeedEpisodeNumber"]?.jsonPrimitive?.intOrNull ?: -1
-                "$id|$season|$episode" in prefs.dismissedNextUpKeys
-            }))
+            val (continueWatching, upNext) = applyEpisodeShuffle(
+                progress.map(::progressJson),
+                upcoming.state.value.filterNot { item ->
+                    val id = item["parentMetaId"]?.jsonPrimitive?.contentOrNull ?: return@filterNot false
+                    val season = item["nextUpSeedSeasonNumber"]?.jsonPrimitive?.intOrNull ?: -1
+                    val episode = item["nextUpSeedEpisodeNumber"]?.jsonPrimitive?.intOrNull ?: -1
+                    "$id|$season|$episode" in prefs.dismissedNextUpKeys
+                },
+            )
+            put("continueWatching", JsonArray(continueWatching))
+            put("upcoming", JsonArray(upNext))
             put("preferences", buildJsonObject {
                 put("isVisible", prefs.isVisible)
                 put("style", prefs.style.name)
@@ -198,6 +210,8 @@ object HomeBridge {
             .sortedByDescending(Seed::updated)
             .take(16)
         val now = LocalDate.now().toString()
+        EpisodeShuffleRepository.ensureLoaded()
+        val shuffleProfile = EpisodeShuffleRepository.uiState.value
         return seeds.mapNotNull { seed ->
             val meta = MetaDetailsRepository.fetch(seed.type, seed.id) ?: return@mapNotNull null
             val next = meta.videos.asSequence()
@@ -205,7 +219,12 @@ object HomeBridge {
                 .filter { video -> compareEpisode(video, seed.season, seed.episode) > 0 }
                 .filter { video -> showUnaired || video.released.isNullOrBlank() || video.released.take(10) <= now }
                 .sortedWith(compareBy<MetaVideo> { it.season }.thenBy { it.episode })
-                .firstOrNull() ?: return@mapNotNull null
+                .firstOrNull()
+                // A finished series stays on Home while shuffle is on (Kotlin's completed-series
+                // shuffle seeds); applyEpisodeShuffle replaces this placeholder with a random pick.
+                ?: meta.videos.firstOrNull { it.season != null && it.episode != null }
+                    ?.takeIf { shuffleProfile.settings(seed.id, seed.type).enabled }
+                ?: return@mapNotNull null
             val key = "${seed.id}|${seed.season}|${seed.episode}"
             if (key in dismissed) return@mapNotNull null
             buildJsonObject {
@@ -227,9 +246,83 @@ object HomeBridge {
         }
     }
 
+    /**
+     * Kotlin's applyHomeShuffle for the bridge's JSON rows: a shuffle-enabled series keeps only its
+     * most recent in-progress episode, otherwise its Up Next row becomes a randomly picked episode.
+     * Both are marked `shufflePlayback` for the card badge. Picks need the series' episode list,
+     * which resolveUpNext has already cached; until it has, the series has no shuffled row.
+     */
+    internal fun applyEpisodeShuffle(
+        continueWatching: List<JsonObject>,
+        upNext: List<JsonObject>,
+    ): Pair<List<JsonObject>, List<JsonObject>> {
+        EpisodeShuffleRepository.ensureLoaded()
+        val profile = EpisodeShuffleRepository.uiState.value
+        fun JsonObject.text(key: String) = this[key]?.jsonPrimitive?.contentOrNull.orEmpty()
+        fun JsonObject.enabled() = profile.settings(text("parentMetaId"), text("parentMetaType")).enabled
+        if ((continueWatching + upNext).none { it.enabled() }) return continueWatching to upNext
+        fun JsonObject.with(vararg fields: Pair<String, JsonElement>) = JsonObject(this + fields)
+
+        val resumable = continueWatching.filter { it.enabled() }
+            .groupBy { it.text("parentMetaId") }
+            .mapValues { (_, rows) -> rows.maxBy { it["lastUpdatedEpochMs"]?.jsonPrimitive?.longOrNull ?: 0L } }
+        val shuffledProgress = continueWatching.mapNotNull { item ->
+            when {
+                !item.enabled() -> item
+                item === resumable[item.text("parentMetaId")] -> item.with("shufflePlayback" to JsonPrimitive(true))
+                else -> null
+            }
+        }
+
+        val profileId = ProfileRepository.activeProfileId
+        val entries = WatchProgressRepository.uiState.value.entries
+        val watchedKeys = WatchedRepository.uiState.value.watchedKeys
+        val now = LocalDate.now().toString()
+        val shuffledUpNext = upNext.mapNotNull { item ->
+            if (!item.enabled()) return@mapNotNull item
+            val id = item.text("parentMetaId")
+            val type = item.text("parentMetaType")
+            if (id in resumable) return@mapNotNull null
+            val videos = MetaDetailsRepository.peek(type, id)?.videos ?: return@mapNotNull null
+            val watched = watchedShuffleEpisodes(id, type, videos, watchedKeys)
+            val progress = shuffleEpisodeProgress(id, entries)
+            val selected = EpisodeShuffleRepository.shuffle.select(
+                profileId, id, videos, profile.settings(id, type).includeWatched,
+                watched, progress, ShuffleSurface.HOME, visit = shuffleVisit,
+            ) ?: return@mapNotNull null
+            val season = selected.season
+            val episode = selected.episode
+            val artwork = selected.thumbnail ?: item.text("background").ifBlank { null } ?: item.text("poster").ifBlank { null }
+            val subtitle = if (season != null && episode != null) {
+                "S$season · E$episode" + (selected.title.takeIf(String::isNotBlank)?.let { " · $it" } ?: "")
+            } else selected.title
+            val isWatched = (season != null && episode != null && (season to episode) in watched) ||
+                (season != null && episode != null && progress[season to episode]?.isEffectivelyCompleted == true)
+            item.with(
+                "videoId" to JsonPrimitive(selected.id),
+                "seasonNumber" to (season?.let(::JsonPrimitive) ?: JsonNull),
+                "episodeNumber" to (episode?.let(::JsonPrimitive) ?: JsonNull),
+                "episodeTitle" to JsonPrimitive(selected.title),
+                "episodeThumbnail" to (selected.thumbnail?.let(::JsonPrimitive) ?: JsonNull),
+                "pauseDescription" to (selected.overview?.let(::JsonPrimitive) ?: JsonNull),
+                "imageUrl" to (artwork?.let(::JsonPrimitive) ?: JsonNull),
+                "subtitle" to JsonPrimitive(subtitle),
+                "released" to (selected.released?.let(::JsonPrimitive) ?: JsonNull),
+                "isWatched" to JsonPrimitive(isWatched),
+                "isReleaseAlert" to JsonPrimitive(false),
+                "isNewSeasonRelease" to JsonPrimitive(false),
+                "canMarkWatched" to JsonPrimitive(isReleasedBy(now, selected.released)),
+                "shufflePlayback" to JsonPrimitive(true),
+            )
+        }.distinctBy { if (it.enabled()) it.text("parentMetaId") else it.text("parentMetaId") + ":" + it.text("videoId") }
+        return shuffledProgress to shuffledUpNext
+    }
+
     private fun compareEpisode(video: MetaVideo, season: Int, episode: Int): Int =
         compareValues(video.season ?: 0, season).takeIf { it != 0 }
             ?: compareValues(video.episode ?: 0, episode)
+
+    private var shuffleVisit = System.currentTimeMillis()
 
     fun reset() { upcoming.reset() }
 

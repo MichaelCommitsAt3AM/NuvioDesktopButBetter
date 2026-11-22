@@ -197,7 +197,19 @@ export function HoverTrailer({ ownerId, type, id, soundEnabled, startSeconds, on
     const video = videoRef.current;
     const audio = audioRef.current;
     if (!video || !audio || owner !== ownerId) return;
-    if (Math.abs(audio.currentTime - video.currentTime) > 0.25) audio.currentTime = video.currentTime;
+    // Seeking the audio element is audible (a dropout while it refetches), so only do it
+    // for a large gap, and never while it is already seeking or short of data. Small drift
+    // is absorbed by nudging the playback rate instead, which is inaudible.
+    const drift = audio.currentTime - video.currentTime;
+    const size = Math.abs(drift);
+    if (size > (audio.paused ? 0.15 : 0.6) && !audio.seeking) {
+      audio.currentTime = video.currentTime;
+      audio.playbackRate = 1;
+    } else if (size > 0.08 && !audio.paused) {
+      audio.playbackRate = drift > 0 ? 0.97 : 1.03;
+    } else if (size <= 0.04 || audio.paused) {
+      audio.playbackRate = 1;
+    }
     audio.volume = video.volume;
     // `video.paused` flips to false the moment play() is called, while the video
     // may still be buffering. Starting the audio then plays sound with no picture

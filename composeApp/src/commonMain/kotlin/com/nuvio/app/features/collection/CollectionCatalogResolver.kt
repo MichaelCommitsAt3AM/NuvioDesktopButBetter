@@ -71,7 +71,8 @@ private val catalogIdWordCasing = mapOf("flixpatrol" to "FlixPatrol", "tv" to "T
 /**
  * A display name for a catalog the add-on's manifest doesn't name (and so only its ID is known),
  * e.g. `streaming.nfx` → "Netflix", `tmdb.discover.movie.action_movies.28` → "Action Movies",
- * `flixpatrol.netflix.world.movie` → "FlixPatrol Netflix World". Type, numeric and provider
+ * `flixpatrol.netflix.world.movie` → "FlixPatrol Netflix World",
+ * `tmdb.discover.movie.dreamworks.mp42jyh6` → "Dreamworks". Type, numeric, provider and generated-code
  * segments are dropped while something else remains; the ID itself is the last resort.
  */
 internal fun readableCatalogName(catalogId: String): String {
@@ -81,7 +82,7 @@ internal fun readableCatalogName(catalogId: String): String {
         streamingServiceNames[segments[1].lowercase()]?.let { return it }
     }
     val meaningful = segments.filterNot { segment ->
-        segment.all(Char::isDigit) || segment.lowercase() in catalogIdNoiseTokens
+        segment.all(Char::isDigit) || segment.lowercase() in catalogIdNoiseTokens || segment.isGeneratedIdCode()
     }.ifEmpty { return catalogId }
     val withoutProvider = meaningful.filterNot { it.lowercase() in catalogIdProviderTokens }.ifEmpty { meaningful }
     return withoutProvider
@@ -91,6 +92,17 @@ internal fun readableCatalogName(catalogId: String): String {
             catalogIdWordCasing[word.lowercase()] ?: word.replaceFirstChar { it.uppercase() }
         }
         .ifBlank { catalogId }
+}
+
+/**
+ * AIOMetadata suffixes custom discover catalogs with a random code (`dreamworks.mp42jyh6`). Such codes mix
+ * letters and digits back and forth; words like `top250` or `4k` switch at most once and are kept.
+ */
+private fun String.isGeneratedIdCode(): Boolean {
+    if (length < 6 || none(Char::isLetter) || none(Char::isDigit) || !all(Char::isLetterOrDigit)) return false
+    // AIOMetadata's codes are 8 lowercase characters (mp42jyh6, mlyccp2c, mp44ukea); a code can switch only once.
+    if (length == 8 && all { it.isDigit() || it in 'a'..'z' }) return true
+    return zipWithNext().count { (a, b) -> a.isDigit() != b.isDigit() } >= 2
 }
 
 internal fun List<AvailableCatalog>.findAvailableCatalog(

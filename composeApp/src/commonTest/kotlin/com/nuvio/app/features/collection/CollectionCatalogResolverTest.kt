@@ -59,6 +59,14 @@ class CollectionCatalogResolverTest {
         assertEquals("Top", readableCatalogName("tmdb.top"))
         assertEquals("Tmdb", readableCatalogName("tmdb.movie"))
         assertEquals("28", readableCatalogName("28"))
+        // AIOMetadata custom discover catalogs end in a random code that must not become part of the title.
+        assertEquals("Dreamworks", readableCatalogName("tmdb.discover.movie.dreamworks.mp42jyh6"))
+        assertEquals("Warner Bros", readableCatalogName("tmdb.discover.tv.warner_bros.k3x9q2"))
+        assertEquals("Best Movies Of 80s", readableCatalogName("tmdb.discover.movie.best_movies_of_80s.mlyccp2c"))
+        assertEquals("Best TV Shows Of The 80s", readableCatalogName("tmdb.discover.tv.best_tv_shows_of_the_80s.mp44ukea"))
+        assertEquals("Classics", readableCatalogName("tmdb.discover.movie.classics.abcdefg1"))
+        assertEquals("Top250", readableCatalogName("imdb.top250"))
+        assertEquals("4k Movies", readableCatalogName("tmdb.4k_movies"))
     }
 
     @Test

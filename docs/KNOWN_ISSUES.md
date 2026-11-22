@@ -42,6 +42,10 @@ Where to look if it recurs:
 Debugging aid: the local value lives in `%APPDATA%\Nuvio\nuvio_debrid_settings.properties` as
 `debrid_enabled_1`.
 
+## Shared collection folders show the same titles for custom catalogs
+
+Added 2026-11-22. Studio and decade folders from a shared collection point at AIOMetadata custom discover catalogs (`tmdb.discover.movie.dreamworks.mp42jyh6`, `…best_movies_of_80s.mlyccp2c`). Their filters live in the collection author's AIOMetadata configuration, not in the ID. When the user's own configuration lacks them, `findCollectionCatalog`'s unlisted-catalog fallback (`collection/CollectionCatalogResolver.kt`) still requests them, and AIOMetadata 4.1.0 answers any unknown ID, even an invented one, with the same default list (Iron Man, The Odyssey, …). So every such folder row shows identical, unrelated titles. Verified against the add-on directly. Options: limit the fallback to IDs AIOMetadata knows globally (`streaming.*`, built-in `tmdb.*` lists) and show "not in your add-on configuration" for the rest, or detect identical default responses. Not changed yet, pending a decision.
+
 ## Upstream 0.1.38 features not yet in the React shell
 
 Added 2026-11-22.

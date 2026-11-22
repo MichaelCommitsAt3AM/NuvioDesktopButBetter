@@ -134,7 +134,11 @@ private const val ADDON_MANIFEST_PREFETCH_DELAY_MS = 2_000L
 
 /** Runtime for the local-only bridge consumed by the Tauri shell. */
 class DesktopBridgeRuntime {
-    private data class StreamRecord(val stream: StreamItem, val meta: MetaDetails?, val videoId: String?)
+    /** [authorized] is the (type, id) the kids check already approved when the streams were loaded. */
+    private data class StreamRecord(val stream: StreamItem, val meta: MetaDetails?, val videoId: String?, val authorized: Pair<String, String>? = null) {
+        val kidsType: String? get() = authorized?.first ?: meta?.type
+        val kidsId: String? get() = authorized?.second ?: meta?.id
+    }
     private val lifecycle = Mutex()
     private val rpcMutex = Mutex()
     private val eventMutex = Mutex()
@@ -751,6 +755,7 @@ class DesktopBridgeRuntime {
             val season = params.optionalInt("season") ?: video?.season
             val episode = params.optionalInt("episode") ?: video?.episode
             streamContext[requestId] = meta to videoId
+            if (parentId != null) streamAuthorized[requestId] = type to parentId
             // Every rewrite entry (manual or autoplay) starts a new source search,
             // cancelling the previous one and bypassing unchanged-request reuse.
             StreamsRepository.reload(type, videoId, parentId, season, episode, manualSelection = params["manualSelection"]?.jsonPrimitive?.booleanOrNull ?: false, contentTitle = streamContext[requestId]?.first?.name)
@@ -764,13 +769,13 @@ class DesktopBridgeRuntime {
         }
         "streams.resolve" -> {
             val record = synchronized(streamRegistry) { streamRegistry[params.str("streamId")] } ?: error("Stream is no longer available")
-            KidsBridge.requireMedia(record.meta?.type, record.meta?.id)
+            KidsBridge.requireMedia(record.kidsType, record.kidsId)
             resolveStream(params.str("streamId"))
         }
         "playback.start" -> {
             val record = synchronized(streamRegistry) { streamRegistry[params.str("streamId")] }
                 ?: error("Stream is no longer available")
-            KidsBridge.requireMedia(record.meta?.type, record.meta?.id)
+            KidsBridge.requireMedia(record.kidsType, record.kidsId)
             val result = (playbackAdapter ?: error("Native playback is unavailable"))
                 .start(
                     record.stream,
@@ -924,7 +929,7 @@ class DesktopBridgeRuntime {
 
     private suspend fun enqueueRecord(record: StreamRecord, replaceConfirmed: Boolean): JsonObject {
         val meta = record.meta ?: error("Load title details before downloading")
-        KidsBridge.requireMedia(meta.type, meta.id)
+        KidsBridge.requireMedia(record.kidsType ?: meta.type, record.kidsId ?: meta.id)
         val video = meta.videos.firstOrNull { it.id == record.videoId }
         val stream = if (!DirectDebridPlaybackResolver.shouldResolveToPlayableStream(record.stream)) record.stream else {
             val result = DirectDebridPlaybackResolver.resolveToPlayableStream(record.stream, video?.season, video?.episode)
@@ -1039,12 +1044,14 @@ class DesktopBridgeRuntime {
 
     private val latestRequest = java.util.concurrent.ConcurrentHashMap<String, String>()
     private val streamContext = java.util.concurrent.ConcurrentHashMap<String, Pair<MetaDetails?, String?>>()
+    private val streamAuthorized = java.util.concurrent.ConcurrentHashMap<String, Pair<String, String>>()
     private fun prepareRequest(feature: String, requestId: String) {
         require(requestId.isNotBlank())
         requestJobs.remove(feature)?.cancel()
         if (feature == "streams") {
             synchronized(streamRegistry) { streamRegistry.clear() }
             streamContext.clear()
+            streamAuthorized.clear()
         }
     }
 
@@ -1064,6 +1071,7 @@ class DesktopBridgeRuntime {
         latestRequest.clear()
         requestQueries.clear()
         streamContext.clear()
+        streamAuthorized.clear()
         requestJobs.values.forEach(Job::cancel)
         requestJobs.clear()
         synchronized(streamRegistry) { streamRegistry.clear() }
@@ -1128,6 +1136,13 @@ class DesktopBridgeRuntime {
         }
         runtimeScope?.launch {
             if (emittedEpoch != epoch || sourceVersions[topic] != version) return@launch
+            if (topic == "details") {
+                // Show the verified title without waiting for every related title's rating check.
+                KidsBridge.publishDetails(data, { emittedEpoch == epoch && sourceVersions[topic] == version }) { safe ->
+                    deliverEvent(topic, safe, emittedEpoch, version)
+                }
+                return@launch
+            }
             val safeData = KidsBridge.sanitizeTopic(topic, data)
             deliverEvent(topic, safeData, emittedEpoch, version)
         }
@@ -1336,7 +1351,7 @@ class DesktopBridgeRuntime {
                     val digest = MessageDigest.getInstance("SHA-256").digest(stream.toString().toByteArray(Charsets.UTF_8)).take(12).joinToString("") { "%02x".format(it) }
                     val streamId = "s-${requestId ?: epoch}-$digest"
                     val (meta, videoId) = requestId?.let(streamContext::get) ?: (lastDetails to loadedVideoId)
-                    streamRegistry[streamId] = StreamRecord(stream, meta, videoId)
+                    streamRegistry[streamId] = StreamRecord(stream, meta, videoId, requestId?.let(streamAuthorized::get))
                     buildJsonObject {
                         put("id", streamId); put("name", stream.streamLabel); put("description", stream.description.orEmpty())
                         put("url", JsonNull); put("source", stream.addonName)

@@ -70,6 +70,14 @@ Validation: all 561 frontend tests passed, the frontend production build and bri
 
 Acceptance limit: this verifies reduced redundant work, not elimination of the reported hitch in a running Tauri build. Native repeated-switch frame timings with real artwork/backend activity remain to be measured. Large-grid/shelf viewport virtualization is deferred until that trace demonstrates remaining layout/paint cost; the current change preserves existing DOM, scroll restoration, keyboard navigation and removal animations.
 
+### Faster KidsScreen checks and kids playback verification — 2026-11-22
+
+Kids-profile playback, stream resolution and downloads now re-check the title id that was approved when its streams loaded, instead of the id in the addon's returned metadata. When an addon rewrote that id, a PG title could fail at play time with "could not be verified for this kids profile".
+
+`KidsBridge` saves decided rating verdicts to `kidsscreen_verdicts` (keyed by a SHA-256 of the policy, so the configuration id is not written there): allowed for 12 hours, denied for 10 minutes. Previously verdicts were memory-only (allowed 5 minutes, denied 15 seconds), so every launch and profile switch re-checked every visible title. A failed `/check` request, or an item the service marks `unavailable`, is kept for 5 seconds as "unavailable" and never saved. Title operations then report `KIDSSCREEN_UNAVAILABLE` instead of a block. Check batches of 200 run in parallel. Details events show the verified title first and add related titles once their check returns; unchecked titles are still never shown.
+
+The matching KidsScreen service change (separate repository) raises its TMDB concurrency from 5/4 to 12/10 and retries one 429. It caches decided verdicts in Upstash Redis for 24 hours by rating policy and title, so cold serverless instances no longer start empty. TMDB outages are returned as `unavailable` rather than denials. On Vercel, rate limiting now uses `x-real-ip`. Tests: 3 new `KidsBridgeTest` cases (all 79 bridge tests pass) and 4 new KidsScreen tests (34/34 pass). Not yet measured in a running build or against the deployed service.
+
 ### KidsScreen setup key in TMDB settings — 2026-10-30
 
 The rewrite TMDB settings page recognizes either a local API key or an active KidsScreen proxy configuration as a saved key. Proxy-backed kids profiles show the shared “Key saved” card and setup-specific description. Replace key opens the active profile editor so the server-held setup key is replaced through KidsScreen, rather than offering a local override that the proxy transport would ignore. Default/built-in TMDB access still does not count as a saved personal key. A regression test covers a proxy-enabled profile with no local key and its replacement route.

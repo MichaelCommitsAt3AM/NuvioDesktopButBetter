@@ -102,6 +102,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 **React/Tauri desktop interface**
 - Saved integration credentials show a “Key saved” card with a replacement action. Cancel keeps the saved key.
 - Kids profiles also show “Key saved” for the TMDB key stored during KidsScreen setup; replacement opens that profile’s setup editor.
+- Kids profiles load faster: rating checks are remembered between launches, and a title's page appears before its related titles finish checking. Allowed titles no longer fail at play time with "could not be verified", and a KidsScreen outage now says to try again instead of blocking the title.
 - Details display IMDb once, with the correct labels and score formats for other ratings. Season text/poster modes crossfade and resize smoothly, with room for the selected poster’s full outline.
 - Actor portraits retain the clicked cast photo and return to its restored position; horizontal arrows hide at their scroll edges.
 - Home publishes verified titles progressively, and slow content checks no longer hold the bridge’s event-delivery lock. Pending integration edits survive restarts and cannot be overwritten by an older profile sync.

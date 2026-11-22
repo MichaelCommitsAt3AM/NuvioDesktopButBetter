@@ -15,6 +15,9 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.rpc
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.runInterruptible
 import kotlinx.serialization.json.*
@@ -30,10 +33,57 @@ object KidsBridge {
     private val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build()
     private val json = Json { ignoreUnknownKeys = true }
     private val management = DesktopStorage.store("kidsscreen_management")
-    private data class Verdict(val allowed: Boolean, val expires: Long)
+    /** Decided verdicts survive restarts so a kids profile does not re-check every visible title on launch. */
+    internal interface VerdictStore { fun getString(key: String): String?; fun putString(key: String, value: String?); fun remove(key: String) }
+    /** Replaceable so tests never write into the user's real app data. */
+    internal var verdictStore: VerdictStore = object : VerdictStore {
+        private val store by lazy { DesktopStorage.store("kidsscreen_verdicts") }
+        override fun getString(key: String) = store.getString(key)
+        override fun putString(key: String, value: String?) { store.putString(key, value) }
+        override fun remove(key: String) { store.remove(key) }
+    }
+    /** Drops in-memory verdicts, as on a fresh launch. */
+    internal fun forgetVerdictsInMemory() { verdicts.clear(); loadedPolicies.clear() }
+    /** [unavailable] marks a failed check: it hides the title briefly but is never treated as a rating decision. */
+    private data class Verdict(val allowed: Boolean, val expires: Long, val unavailable: Boolean = false)
     private val verdicts = ConcurrentHashMap<String, Verdict>()
+    // Ratings rarely change and the server caches decisions for a day; a denial expires sooner so a
+    // title that gains a certification appears without a restart.
+    internal const val ALLOWED_TTL_MS = 12 * 60 * 60_000L
+    internal const val DENIED_TTL_MS = 10 * 60_000L
+    internal const val UNAVAILABLE_TTL_MS = 5_000L
+    private const val MAX_VERDICTS = 4000
     private fun policyKey(profile: NuvioProfile) = "${profile.userId}|${profile.kidsServiceUrl}|${profile.kidsConfigId}|${profile.kidsMaxRating}"
     private fun verdictKey(profile: NuvioProfile, ref: Ref) = "${policyKey(profile)}|${ref.type}|${ref.id}"
+    /** The disk copy is keyed by a hash so the configuration id (a capability) is not written in another file. */
+    private fun storedPolicy(profile: NuvioProfile) = java.security.MessageDigest.getInstance("SHA-256")
+        .digest(policyKey(profile).toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+    private val loadedPolicies = ConcurrentHashMap.newKeySet<String>()
+
+    /** Loads this policy's saved verdicts into memory once per process. */
+    private fun restoreVerdicts(profile: NuvioProfile) {
+        val policy = policyKey(profile)
+        if (!loadedPolicies.add(policy)) return
+        val saved = runCatching { verdictStore.getString(storedPolicy(profile))?.let { json.parseToJsonElement(it).jsonObject } }.getOrNull() ?: return
+        val now = System.currentTimeMillis()
+        saved.forEach { (ref, value) ->
+            val entry = value as? JsonArray ?: return@forEach
+            val allowed = entry.getOrNull(0)?.jsonPrimitive?.booleanOrNull ?: return@forEach
+            val expires = entry.getOrNull(1)?.jsonPrimitive?.longOrNull ?: return@forEach
+            if (expires > now) verdicts.putIfAbsent("$policy|$ref", Verdict(allowed, expires))
+        }
+    }
+
+    private fun saveVerdicts(profile: NuvioProfile) {
+        val prefix = policyKey(profile) + "|"
+        val now = System.currentTimeMillis()
+        val entries = verdicts.entries.filter { (key, verdict) -> key.startsWith(prefix) && !verdict.unavailable && verdict.expires > now }
+            .sortedByDescending { it.value.expires }.take(MAX_VERDICTS)
+        val payload = buildJsonObject {
+            entries.forEach { (key, verdict) -> put(key.removePrefix(prefix), buildJsonArray { add(verdict.allowed); add(verdict.expires) }) }
+        }
+        runCatching { verdictStore.putString(storedPolicy(profile), payload.toString()) }
+    }
     val active: NuvioProfile? get() = ProfileRepository.state.value.activeProfile?.takeIf { it.kidsEnabled }
     internal fun normalizeService(raw: String): String {
         val uri = runCatching { URI(raw.trim().trimEnd('/')) }.getOrElse { throw BridgeFeatureException("INVALID_KIDS_SERVER", "Enter a valid KidsScreen server address") }
@@ -121,6 +171,8 @@ object KidsBridge {
             if (profile.kidsConfigId != null && profile.kidsConfigId != configId) revoke(profile)
             if (!enabled) revoke(profile)
             verdicts.clear()
+            loadedPolicies.clear()
+            runCatching { verdictStore.remove(storedPolicy(profile)) }
             return ProfilesBridge.snapshot()
         } catch (error: Exception) {
             if (!policySaved) {
@@ -183,8 +235,13 @@ object KidsBridge {
     suspend fun requireMedia(type: String?, id: String?) {
         val profile = active ?: return
         val ref = mediaRef(type, id) ?: throw BridgeFeatureException("KIDS_TITLE_BLOCKED", "This title is unavailable in this kids profile")
-        if (!check(profile, setOf(ref)).contains(ref)) throw BridgeFeatureException("KIDS_TITLE_BLOCKED", "This title could not be verified for this kids profile")
+        val result = checkDetailed(profile, setOf(ref))
+        if (ref in result.allowed) return
+        if (ref in result.unavailable) throw BridgeFeatureException("KIDSSCREEN_UNAVAILABLE", "KidsScreen could not check this title right now. Try again in a moment")
+        throw BridgeFeatureException("KIDS_TITLE_BLOCKED", "This title could not be verified for this kids profile")
     }
+
+    internal data class CheckResult(val allowed: Set<Ref>, val unavailable: Set<Ref>)
 
     internal data class Ref(val type: String, val id: String)
     private fun mediaRef(type: String?, id: String?): Ref? = if (type in setOf("movie", "series") && !id.isNullOrBlank()) Ref(type!!, id) else null
@@ -197,25 +254,59 @@ object KidsBridge {
         val type = (value["type"] as? JsonPrimitive)?.contentOrNull ?: return null
         return Ref(type, id)
     }
-    internal suspend fun check(profile: NuvioProfile, refs: Set<Ref>): Set<Ref> {
+    internal suspend fun check(profile: NuvioProfile, refs: Set<Ref>): Set<Ref> = checkDetailed(profile, refs).allowed
+
+    /**
+     * Fails closed: only titles the service explicitly allowed are returned as allowed. A failed request,
+     * or an item the service marks `unavailable`, is kept apart so callers can say "try again" and so it
+     * is never remembered as a block.
+     */
+    internal suspend fun checkDetailed(profile: NuvioProfile, refs: Set<Ref>): CheckResult {
+        restoreVerdicts(profile)
         val now = System.currentTimeMillis()
         fun key(ref: Ref) = verdictKey(profile, ref)
         val missing = refs.filter { it.type in setOf("movie", "series") }.filter { verdicts[key(it)]?.expires?.let { expiry -> expiry > now } != true }
-        for (batch in missing.chunked(200)) {
-            val allowed = try {
-                val result = request(profile.kidsServiceUrl!!, "/${profile.kidsConfigId}/check", buildJsonObject {
-                    put("items", JsonArray(batch.map { buildJsonObject { put("type", it.type); put("id", it.id) } }))
-                })
-                (result["items"] as? JsonArray).orEmpty().mapNotNull { item ->
-                    val row = item.jsonObject
-                    if (row["allowed"]?.jsonPrimitive?.booleanOrNull == true) mediaRef(row["type"]?.jsonPrimitive?.content, row["id"]?.jsonPrimitive?.content) else null
-                }.toSet()
-            } catch (error: CancellationException) { throw error } catch (_: Exception) { emptySet() }
-            if (verdicts.size > 4000) verdicts.clear()
-            batch.forEach { ref -> verdicts[key(ref)] = Verdict(ref in allowed, now + if (ref in allowed) 300_000 else 15_000) }
+        if (missing.isNotEmpty()) {
+            // Batches are independent; send them together instead of waiting on each in turn.
+            val outcomes = coroutineScope {
+                missing.chunked(200).map { batch -> async { batch to requestVerdicts(profile, batch) } }.awaitAll()
+            }
+            if (verdicts.size > MAX_VERDICTS) verdicts.clear()
+            val decidedAt = System.currentTimeMillis()
+            var decided = false
+            outcomes.forEach { (batch, rows) ->
+                batch.forEach { ref ->
+                    val verdict = when (rows?.get(ref)) {
+                        true -> Verdict(true, decidedAt + ALLOWED_TTL_MS).also { decided = true }
+                        false -> Verdict(false, decidedAt + DENIED_TTL_MS).also { decided = true }
+                        // No answer for this title, or the whole request failed.
+                        null -> Verdict(false, decidedAt + UNAVAILABLE_TTL_MS, unavailable = true)
+                    }
+                    verdicts[key(ref)] = verdict
+                }
+            }
+            if (decided) saveVerdicts(profile)
         }
-        return refs.filter { verdicts[key(it)]?.let { verdict -> verdict.allowed && verdict.expires > System.currentTimeMillis() } == true }.toSet()
+        val current = System.currentTimeMillis()
+        val live = refs.mapNotNull { ref -> verdicts[key(ref)]?.takeIf { it.expires > current }?.let { ref to it } }
+        return CheckResult(
+            allowed = live.filter { it.second.allowed }.map { it.first }.toSet(),
+            unavailable = live.filter { it.second.unavailable }.map { it.first }.toSet(),
+        )
     }
+
+    /** Returns allowed/denied per title, omitting titles the service could not decide; null when the request failed. */
+    private suspend fun requestVerdicts(profile: NuvioProfile, batch: List<Ref>): Map<Ref, Boolean>? = try {
+        val result = request(profile.kidsServiceUrl!!, "/${profile.kidsConfigId}/check", buildJsonObject {
+            put("items", JsonArray(batch.map { buildJsonObject { put("type", it.type); put("id", it.id) } }))
+        })
+        (result["items"] as? JsonArray).orEmpty().mapNotNull { item ->
+            val row = item as? JsonObject ?: return@mapNotNull null
+            val ref = mediaRef(row["type"]?.jsonPrimitive?.contentOrNull, row["id"]?.jsonPrimitive?.contentOrNull) ?: return@mapNotNull null
+            if (row["unavailable"]?.jsonPrimitive?.booleanOrNull == true) return@mapNotNull null
+            ref to (row["allowed"]?.jsonPrimitive?.booleanOrNull == true)
+        }.toMap()
+    } catch (error: CancellationException) { throw error } catch (_: Exception) { null }
 
     /** A blocked root becomes null; blocked list entries disappear without placeholders. */
     internal fun filter(value: JsonElement, allowed: Set<Ref>): JsonElement? = when (value) {
@@ -234,6 +325,7 @@ object KidsBridge {
     suspend fun publishHome(data: JsonObject, isCurrent: () -> Boolean, publish: suspend (JsonObject) -> Unit) {
         val profile = active
         if (profile == null) { if (isCurrent()) publish(data); return }
+        restoreVerdicts(profile)
         val now = System.currentTimeMillis()
         val allowed = verdicts.entries.filter { (key, verdict) -> key.startsWith(policyKey(profile) + "|") && verdict.allowed && verdict.expires > now }
             .mapNotNull { (key, _) -> val parts = key.split('|'); if (parts.size < 2) null else Ref(parts[parts.size - 2], parts.last()) }.toSet()
@@ -245,8 +337,43 @@ object KidsBridge {
         value is JsonObject && method == "search.historySnapshot" -> sanitizeTopic("searchHistory", value)
         else -> sanitize(value)
     }
+    /**
+     * Details events: publish the title as soon as it is verified, then add related titles once they are.
+     * The title's own check usually hits the cache from the details.load authorization.
+     */
+    suspend fun publishDetails(data: JsonObject, isCurrent: () -> Boolean, publish: suspend (JsonObject) -> Unit) {
+        val profile = active
+        if (profile == null) { if (isCurrent()) publish(data); return }
+        publishDetailsFor(profile, data, { isCurrent() && active == profile }, publish)
+    }
+
+    internal suspend fun publishDetailsFor(profile: NuvioProfile, data: JsonObject, isCurrent: () -> Boolean, publish: suspend (JsonObject) -> Unit) {
+        val refs = linkedSetOf<Ref>()
+        fun collect(node: JsonElement) { when (node) { is JsonObject -> { reference(node)?.let(refs::add); node.values.forEach(::collect) }; is JsonArray -> node.forEach(::collect); else -> Unit } }
+        collect(data)
+        val main = (data["media"] as? JsonObject)?.let(::reference)
+        val allowed = (main?.let { check(profile, setOf(it)) } ?: emptySet()).toMutableSet()
+        val now = System.currentTimeMillis()
+        refs.filterTo(allowed) { verdicts[verdictKey(profile, it)]?.let { verdict -> verdict.allowed && verdict.expires > now } == true }
+        val pending = refs - allowed - setOfNotNull(main)
+        fun render() = (sanitizeDetails(filter(data, allowed)) as? JsonObject) ?: JsonObject(emptyMap())
+        if (!isCurrent()) return
+        publish(render())
+        if (pending.isEmpty()) return
+        allowed.addAll(check(profile, pending))
+        if (isCurrent()) publish(render())
+    }
+
+    private fun sanitizeDetails(filtered: JsonElement?): JsonElement {
+        val value = filtered ?: JsonNull
+        return if (value is JsonObject && value.containsKey("media") && value["media"] == JsonNull) JsonObject(value + mapOf(
+            "episodes" to JsonArray(emptyList()), "cast" to JsonArray(emptyList()), "related" to JsonArray(emptyList()),
+        )) else value
+    }
+
     private fun cachedHome(data: JsonObject): JsonObject {
         val profile = active ?: return data
+        restoreVerdicts(profile)
         val refs = mutableSetOf<Ref>()
         fun collect(node: JsonElement) { when (node) { is JsonObject -> { reference(node)?.let(refs::add); node.values.forEach(::collect) }; is JsonArray -> node.forEach(::collect); else -> Unit } }
         collect(data)
@@ -261,9 +388,6 @@ object KidsBridge {
         val refs = mutableSetOf<Ref>()
         fun collect(node: JsonElement) { when (node) { is JsonObject -> { reference(node)?.let(refs::add); node.values.forEach(::collect) }; is JsonArray -> node.forEach(::collect); else -> Unit } }
         collect(value)
-        val filtered = filter(value, check(profile, refs)) ?: JsonNull
-        return if (filtered is JsonObject && filtered.containsKey("media") && filtered["media"] == JsonNull) JsonObject(filtered + mapOf(
-            "episodes" to JsonArray(emptyList()), "cast" to JsonArray(emptyList()), "related" to JsonArray(emptyList()),
-        )) else filtered
+        return sanitizeDetails(filter(value, check(profile, refs)))
     }
 }

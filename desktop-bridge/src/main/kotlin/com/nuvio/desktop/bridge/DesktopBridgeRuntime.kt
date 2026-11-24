@@ -476,6 +476,9 @@ class DesktopBridgeRuntime {
                         },
                         onFailure = { error ->
                             if (error is CancellationException) throw error
+                            // The shell replaces unknown codes with a generic message, so record which
+                            // call failed. Messages are omitted: they can contain add-on URLs.
+                            System.err.println("[BridgeRpc] $method failed: ${error::class.simpleName} code=${(error as? BridgeFeatureException)?.code ?: "operation_failed"}")
                             val stale = error.message == "STALE_EPOCH"
                             call.respond(if (stale) HttpStatusCode.Conflict else HttpStatusCode.OK,
                                 errorBody(id, epoch, if (stale) "stale_epoch" else (error as? BridgeFeatureException)?.code ?: "operation_failed", if (stale) "Request epoch is stale" else safeMessage(error)))
@@ -780,10 +783,15 @@ class DesktopBridgeRuntime {
             val record = synchronized(streamRegistry) { streamRegistry[params.str("streamId")] }
                 ?: error("Stream is no longer available")
             KidsBridge.requireMedia(record.kidsType, record.kidsId)
+            // Streams opened without the details page can be registered before the
+            // title's details were available. Retry the lookup once at playback time.
+            val meta = record.meta ?: record.authorized?.let { (type, id) ->
+                MetaDetailsRepository.peek(type, id) ?: MetaDetailsRepository.fetch(type, id)
+            }
             val result = (playbackAdapter ?: error("Native playback is unavailable"))
                 .start(
                     record.stream,
-                    record.meta,
+                    meta,
                     record.videoId,
                     params["startFromBeginning"]?.jsonPrimitive?.booleanOrNull ?: false,
                     params["tauriHostWindow"]?.jsonPrimitive?.longOrNull,

@@ -22,6 +22,17 @@ type Selection = {
   badges: { showFileSize: boolean; showAddonLogo: boolean; placement?: string; backgroundMode?: string };
 };
 type PlaybackSettings = { showPlayerLoadingStatus: boolean; streamAutoPlayMode?: string; streamAutoPlayRegex?: string };
+// Playback failures that do not depend on the chosen stream; auto-play must not skip past them.
+const TITLE_LEVEL_PLAYBACK_ERRORS = new Set([
+  'DETAILS_UNAVAILABLE',
+  'CAPABILITY_UNAVAILABLE',
+  'KIDS_TITLE_BLOCKED',
+  'AUTH_REQUIRED',
+  'PROFILE_PIN_REQUIRED',
+  'PROFILE_PIN_REJECTED',
+  'FORBIDDEN',
+  'UNAUTHORIZED',
+]);
 type Presentation = {
   resolvingDebrid?: boolean;
   providerLogo?: string | null;
@@ -147,7 +158,18 @@ export function StreamsPage() {
       startingStreamId.current = null;
       setPlaybackStarting(null);
       if (cause instanceof BridgeError && cause.code === 'P2P_CONSENT_REQUIRED') setConsent(streamId);
-      else { setError(cause instanceof Error ? cause.message : String(cause)); if (automatic) await call('streams.autoplay.skip', { streamId }).catch(() => {}); }
+      else {
+        setError(cause instanceof Error ? cause.message : String(cause));
+        // Only move auto-play to the next stream when this stream is the problem.
+        // Title- or account-level failures would fail every candidate the same way.
+        // Those end auto-play so the list (and this error) is shown instead of the
+        // auto-play overlay.
+        const notStreamSpecific = cause instanceof BridgeError && TITLE_LEVEL_PLAYBACK_ERRORS.has(cause.code);
+        if (automatic && notStreamSpecific) {
+          await call('streams.autoplay.consume').catch(() => {});
+          await refreshFeature('streamSelection', 'streams.snapshot').catch(() => {});
+        } else if (automatic) await call('streams.autoplay.skip', { streamId }).catch(() => {});
+      }
     } finally { pendingPlayback.current = false; setBusy(''); }
   };
   useEffect(() => { void refreshFeature('streamSelection', 'streams.snapshot').catch(() => {}); }, [streams.requestId]);

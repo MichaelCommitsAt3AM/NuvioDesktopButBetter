@@ -1067,6 +1067,7 @@ fn safe_error_code(code: &str) -> String {
         "UNKNOWN_OPERATION",
         "DOWNLOAD_OPERATION_FAILED",
         "P2P_CONSENT_REQUIRED",
+        "DETAILS_UNAVAILABLE",
         "AUTH_REQUIRED",
         "AUTH_INVALID_CREDENTIALS",
         "AUTH_EMAIL_IN_USE",
@@ -1129,6 +1130,9 @@ fn safe_error_message(code: &str) -> String {
         "PROFILE_PIN_REJECTED" => "The PIN is incorrect or temporarily locked. Try again later.",
         "P2P_CONSENT_REQUIRED" => {
             "Peer-to-peer playback must be enabled before playing this torrent."
+        }
+        "DETAILS_UNAVAILABLE" => {
+            "This title's details could not be loaded, so playback could not start. Try again."
         }
         "AUTH_INVALID_CREDENTIALS" => "The sign-in details could not be verified.",
         "AUTH_EMAIL_IN_USE" => "That email address is already in use.",
@@ -1433,6 +1437,7 @@ mod tests {
             "KIDSSCREEN_UNAVAILABLE",
             "KIDSSCREEN_REQUEST_FAILED",
             "KIDS_POLICY_SAVE_FAILED",
+            "DETAILS_UNAVAILABLE",
         ] {
             assert_eq!(safe_error_code(code), code);
             assert_ne!(

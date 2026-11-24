@@ -107,7 +107,7 @@ class NativePlayback(
         playbackError = null
         publishState()
         try {
-        requireNotNull(meta) { "Load matching title details before starting playback." }
+        if (meta == null) throw BridgeFeatureException("DETAILS_UNAVAILABLE", "Load matching title details before starting playback.")
         val selectedStream = com.nuvio.app.features.streams.YouTubeStreamResolver.Default.resolve(stream)
             ?: throw BridgeFeatureException("UNAVAILABLE", "The YouTube stream could not be resolved.")
         if (selectedStream.shouldOpenExternally) {

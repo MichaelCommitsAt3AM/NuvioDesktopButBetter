@@ -250,14 +250,33 @@ object MetaDetailsRepository {
         val manifests = findReadyMetaManifests(type = type, id = metaLookupId)
 
         for (manifest in manifests) {
-            val result = withTimeoutOrNull(FETCH_TIMEOUT_MS) {
+            // Fork: the add-on request alone is bounded by FETCH_TIMEOUT_MS. TMDB
+            // enrichment of long series can outlast it, and must then fall back to
+            // the add-on's metadata instead of discarding it (which left streams
+            // opened from Continue Watching without title details).
+            val base = withTimeoutOrNull(FETCH_TIMEOUT_MS) {
                 tryFetchMeta(
                     manifest = manifest,
                     type = type,
                     id = metaLookupId,
-                    includeTmdb = true,
+                    includeTmdb = false,
                     includeMdbList = false,
                 )
+            }
+            val result = base?.let { meta ->
+                try {
+                    withTimeoutOrNull(FETCH_TMDB_ENRICH_TIMEOUT_MS) {
+                        TmdbMetadataService.enrichMeta(
+                            meta = meta,
+                            fallbackItemId = metaLookupId,
+                            settings = TmdbSettingsRepository.snapshot(),
+                        )
+                    } ?: meta
+                } catch (error: Throwable) {
+                    if (error is CancellationException) throw error
+                    log.e(error) { "TMDB enrichment failed for $type:$metaLookupId; using add-on metadata" }
+                    meta
+                }
             }
             if (result != null) {
                 if (cacheResult) {
@@ -306,6 +325,8 @@ object MetaDetailsRepository {
     }
 
     private const val FETCH_TIMEOUT_MS = 5_000L
+    // Fork: separate budget for TMDB enrichment in fetch(); slower enrichment keeps the add-on metadata.
+    private const val FETCH_TMDB_ENRICH_TIMEOUT_MS = 8_000L
     private const val METADATA_PROVIDER_READY_TIMEOUT_MS = 10_000L
     private const val TMDB_ENRICH_TIMEOUT_MS = 30_000L
     private const val MDBLIST_ENRICH_TIMEOUT_MS = 5_000L

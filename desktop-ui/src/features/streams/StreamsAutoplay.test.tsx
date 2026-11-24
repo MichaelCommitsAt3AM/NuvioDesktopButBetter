@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { StreamsPage } from './StreamsPage';
 
@@ -57,6 +57,22 @@ it('stops auto-play on a title-level failure instead of trying every stream', as
   expect(bridge.playback).toHaveBeenCalledTimes(1);
   expect(skipCalls()).toHaveLength(0);
   expect(bridge.call).toHaveBeenCalledWith('streams.autoplay.consume');
+});
+
+it('keeps every provider chip after one provider is selected', async () => {
+  bridge.selection = { ...bridge.selection, autoPlayStreamId: null };
+  bridge.state.streams.groups = [
+    { id: 'a', name: 'Torrentio', loading: false, error: null, streams: [stream] },
+    { id: 'b', name: 'AIOStreams', loading: false, error: null, streams: [{ ...stream, id: 's2', name: 'Stream two' }] },
+  ];
+  renderStreams();
+  fireEvent.click(await screen.findByRole('button', { name: 'Torrentio' }));
+  expect(screen.getByRole('button', { name: 'Torrentio' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'AIOStreams' })).toBeInTheDocument();
+  expect(screen.queryByText('Stream two')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'AIOStreams' }));
+  expect(screen.getByRole('button', { name: 'AIOStreams' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Torrentio' })).toBeInTheDocument();
 });
 
 it('still skips to the next stream when the selected stream fails', async () => {

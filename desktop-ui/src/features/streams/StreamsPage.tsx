@@ -237,6 +237,9 @@ export function StreamsPage() {
     .filter(group => provider === 'all' || group.id === provider)
     .map(group => ({ ...group }));
   const groupsWithItems = groups.filter(group => group.streams.length || group.loading);
+  // Header chips list every provider, not just the selected one, so another
+  // provider can be picked without going back through All.
+  const providerChips = streams.groups.filter(group => group.streams.length || group.loading);
   const hasStreams = groupsWithItems.some(group => group.streams.length > 0);
   const isStreamsLoading = streams.loading || groups.some(group => group.loading);
   const autoSelectionEnabled = isAutomaticStreamSelectionEnabled(playbackLoadingSettings?.streamAutoPlayMode, playbackLoadingSettings?.streamAutoPlayRegex);
@@ -306,7 +309,7 @@ export function StreamsPage() {
           <div className="streams-provider-filters">
             <button className="streams-filter-chip streams-refresh-chip" onClick={refreshStreams} aria-label="Refresh streams" title="Refresh streams"><RefreshCw className={streams.loading ? 'spin' : ''} size={19} /></button>
             <button className={`streams-filter-chip ${provider === 'all' ? 'selected' : ''}`} aria-pressed={provider === 'all'} onClick={() => void setFilter('all')}>All</button>
-            {groupsWithItems.map(group => <button className={`streams-filter-chip ${provider === group.id ? 'selected' : ''}`} key={group.id} aria-pressed={provider === group.id} onClick={() => void setFilter(group.id)}>{group.name}</button>)}
+            {providerChips.map(group => <button className={`streams-filter-chip ${provider === group.id ? 'selected' : ''}`} key={group.id} aria-pressed={provider === group.id} onClick={() => void setFilter(group.id)}>{group.name}</button>)}
           </div>
           <div className="streams-quality-wrap">
             <button className={`streams-filter-chip ${isDataSaver ? 'selected' : ''}`} onClick={() => setQualityOpen(value => !value)} aria-expanded={qualityOpen}>

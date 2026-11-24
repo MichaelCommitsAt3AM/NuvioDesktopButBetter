@@ -26,6 +26,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- In the player's Episodes sidebar, press and hold an episode to choose its stream yourself, even with automatic stream selection on. On the streams screen, picking one provider no longer hides the others.
+- Episodes opened from Continue Watching no longer fail with "The operation could not be completed" when title details load slowly, and automatic stream selection stops after a problem that isn't caused by the stream instead of trying every stream.
 - The desktop window now reopens at the size and position you left it. Shuffled series show a random episode in Continue Watching, and Playback settings gained chapter titles, per-device audio delay and fallback to the next source.
 - Collection folders (like Streaming Services or Genres) now load catalogs that your metadata add-on serves but doesn't list, instead of showing "Addon not found", give them readable names like "Netflix" instead of IDs like streaming.nfx, and the folder page has a back button.
 - Title pages no longer jump while extra details load: new information smoothly pushes the rest of the page down.

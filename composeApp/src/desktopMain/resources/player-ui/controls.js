@@ -2011,13 +2011,48 @@ const renderSourceModal = (modalOpened = false) => {
   requestSourceVirtualRender();
 };
 
+const EPISODE_LONG_PRESS_MS = 500;
+const EPISODE_LONG_PRESS_SLOP_PX = 10;
+
 const appendEpisodeRow = (container, item) => {
   const row = document.createElement("button");
   row.type = "button";
   row.className = `track-row episode-row${item.isCurrent ? " selected" : ""}`;
   if (item.isCurrent) row.setAttribute("aria-current", "true");
+  // Long press opens this episode's stream list instead of the tap action
+  // (which plays it directly while auto-select is on).
+  let longPressTimer = 0;
+  let longPressStart = null;
+  let longPressFired = false;
+  const cancelLongPress = () => {
+    if (longPressTimer) clearTimeout(longPressTimer);
+    longPressTimer = 0;
+    longPressStart = null;
+  };
+  row.addEventListener("pointerdown", event => {
+    if (event.button !== 0) return;
+    cancelLongPress();
+    longPressFired = false;
+    longPressStart = { x: event.clientX, y: event.clientY };
+    longPressTimer = setTimeout(() => {
+      longPressTimer = 0;
+      longPressFired = true;
+      send("openEpisodeStreams", Number(item.index) || 0);
+    }, EPISODE_LONG_PRESS_MS);
+  });
+  row.addEventListener("pointermove", event => {
+    if (!longPressStart) return;
+    if (Math.hypot(event.clientX - longPressStart.x, event.clientY - longPressStart.y) > EPISODE_LONG_PRESS_SLOP_PX) cancelLongPress();
+  });
+  row.addEventListener("pointerup", cancelLongPress);
+  row.addEventListener("pointerleave", cancelLongPress);
+  row.addEventListener("pointercancel", cancelLongPress);
   row.addEventListener("click", event => {
     event.stopPropagation();
+    if (longPressFired) {
+      longPressFired = false;
+      return;
+    }
     send("selectEpisode", Number(item.index) || 0);
   });
 

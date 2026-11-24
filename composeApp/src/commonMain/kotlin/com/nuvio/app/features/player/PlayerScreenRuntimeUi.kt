@@ -1209,6 +1209,14 @@ internal fun PlayerScreenRuntime.handlePlayerControlsEvent(type: String, value: 
                 requestEpisodeStreamsForPlayerControls(episode)
             }
         }
+        "openEpisodeStreams" -> {
+            // Fork: long press on an episode always opens its stream list,
+            // even when a tap would auto-select a stream.
+            val episode = playerMetaVideos.getOrNull(value.toInt()) ?: return true
+            cancelNextEpisodeAutoPlay()
+            cancelNextEpisodePreload()
+            requestEpisodeStreamsForPlayerControls(episode)
+        }
         "selectEpisodeStream" -> {
             val episode = episodeStreamsPanelState.selectedEpisode ?: return true
             val stream = episodeStreamsRepoState.groups.flatMap { it.streams }.getOrNull(value.toInt()) ?: return true

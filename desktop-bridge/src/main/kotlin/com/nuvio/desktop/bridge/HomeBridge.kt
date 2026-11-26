@@ -20,6 +20,8 @@ import com.nuvio.app.features.watchprogress.ContinueWatchingSortMode
 import com.nuvio.app.features.watchprogress.WatchProgressEntry
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import com.nuvio.app.features.watchprogress.ResumePromptRepository
+import com.nuvio.app.features.watchprogress.calculateReleaseAlertState
+import com.nuvio.app.features.watchprogress.parseReleaseDateToEpochMs
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -165,6 +167,7 @@ object HomeBridge {
                 put("blurNextUp", prefs.blurNextUp)
                 put("showResumePromptOnLaunch", prefs.showResumePromptOnLaunch)
                 put("sortMode", prefs.sortMode.name)
+                put("clickAction", prefs.clickAction.name)
             })
             put("source", WatchProgressRepository.uiState.value.source.name)
         }
@@ -227,6 +230,22 @@ object HomeBridge {
                 ?: return@mapNotNull null
             val key = "${seed.id}|${seed.season}|${seed.episode}"
             if (key in dismissed) return@mapNotNull null
+            // Kotlin CachedNextUpItem.toContinueWatchingItem: an episode that aired after the
+            // seed was watched (within 60 days) is a "New Episode"/"New Season" alert and sorts
+            // by its release time. The shuffle placeholder is never an alert.
+            val releaseEpochMs = parseReleaseDateToEpochMs(next.released)
+            val alert = if (compareEpisode(next, seed.season, seed.episode) > 0) {
+                calculateReleaseAlertState(
+                    seedLastUpdatedEpochMs = seed.updated,
+                    seedSeasonNumber = seed.season,
+                    nextSeasonNumber = next.season,
+                    releasedIso = next.released,
+                    releaseEpochMs = releaseEpochMs,
+                )
+            } else {
+                null
+            }
+            val isReleaseAlert = alert?.isReleaseAlert == true
             buildJsonObject {
                 put("parentMetaId", seed.id); put("parentMetaType", seed.type)
                 put("videoId", next.id); put("title", meta.name)
@@ -238,9 +257,9 @@ object HomeBridge {
                 putNullable("pauseDescription", next.overview); putNullable("released", next.released)
                 put("isNextUp", true); put("nextUpSeedSeasonNumber", seed.season)
                 put("nextUpSeedEpisodeNumber", seed.episode)
-                put("lastUpdatedEpochMs", seed.updated)
+                put("lastUpdatedEpochMs", if (isReleaseAlert) releaseEpochMs ?: seed.updated else seed.updated)
                 put("resumePositionMs", 0); put("durationMs", 0); put("progressFraction", 0)
-                put("isReleaseAlert", false); put("isNewSeasonRelease", false)
+                put("isReleaseAlert", isReleaseAlert); put("isNewSeasonRelease", isReleaseAlert && alert?.isNewSeasonRelease == true)
                 put("canMarkWatched", isReleasedBy(now, next.released))
             }
         }

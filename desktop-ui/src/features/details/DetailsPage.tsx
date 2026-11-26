@@ -18,6 +18,7 @@ import type { TrailerUiState } from './useTrailerImmersion';
 import { DockedTitle } from './DockedTitle';
 import { ResumeBadge } from '../../components/ResumeBadge';
 import { DetailsRatings } from './DetailsRatings';
+import { RatingChip, RatingSheet, useUserRating } from './UserRating';
 import './details.css';
 
 /** "42 min left" / "1 h 5 min left"; null when there is nothing meaningful to show. */
@@ -56,6 +57,9 @@ export function DetailsPage() {
   const dismissNotice = useCallback(() => setNotice(null), []);
   const notify = (message: string) => setNotice({ id: ++noticeId.current, message, owner: actionOwner });
   const [watchBusy, setWatchBusy] = useState(false);
+  // Kotlin DetailRating: the user's own rating, shown only while a Tracking ratings source is connected.
+  const userRating = useUserRating(type && id ? { type, id } : null, profileId);
+  const [ratingOpen, setRatingOpen] = useState(false);
   const [extraMeta, setExtraMeta] = useState<ExtrasMeta | null>(null);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
   const requestedDetailsKey = useRef<string | null>(null);
@@ -80,7 +84,7 @@ export function DetailsPage() {
     const timeout = window.setTimeout(() => setLoadTimedOut(true), 30_000);
     return () => window.clearTimeout(timeout);
   }, [type, id, details.loading, details.requestId]);
-  useEffect(() => { setActionsOpen(false); setSavedOverride(null); setActionError(''); setNotice(null); setWatchBusy(false); setSavedBusy(false); }, [type, id, profileId]);
+  useEffect(() => { setActionsOpen(false); setRatingOpen(false); setSavedOverride(null); setActionError(''); setNotice(null); setWatchBusy(false); setSavedBusy(false); }, [type, id, profileId]);
   useEffect(() => () => { if (playHoldTimer.current !== null) window.clearTimeout(playHoldTimer.current); }, []);
   const media = details.media?.id === id && details.media.type === type ? details.media : null;
   const ageRating = (extraMeta?.id === id && extraMeta.type === type ? extraMeta.ageRating?.trim() : '') || media?.ageRating?.trim();
@@ -253,7 +257,8 @@ export function DetailsPage() {
             </span>}
             {timeLeft && <ResumeBadge>{timeLeft}</ResumeBadge>}
           </div>
-          <DetailsRatings rating={extraMeta ? extraMeta.rating : media.rating} externalRatings={extraMeta?.externalRatings ?? []} />
+          <DetailsRatings rating={extraMeta ? extraMeta.rating : media.rating} externalRatings={extraMeta?.externalRatings ?? []}>{userRating.state?.available && <RatingChip rating={userRating.state.rating} onClick={() => setRatingOpen(true)} />}</DetailsRatings>
+          {userRating.state?.available && <RatingSheet open={ratingOpen} target={{ type, id }} title={media.name} state={userRating.state} onClose={() => setRatingOpen(false)} onSaved={userRating.setState} onNotice={notify} />}
           {media.genres.length > 0 && <p className="detail-genres">{media.genres.slice(0, 4).join(' · ')}</p>}
           {media.description && <p className="detail-description">{media.description}</p>}
           <div className="detail-actions">

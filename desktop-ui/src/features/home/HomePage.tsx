@@ -37,7 +37,7 @@ type HomeExtras = {
   preferences: {
     isVisible: boolean; style: string; upNextFromFurthestEpisode: boolean;
     useEpisodeThumbnails: boolean; showUnairedNextUp: boolean; blurNextUp: boolean;
-    showResumePromptOnLaunch: boolean; sortMode: string;
+    showResumePromptOnLaunch: boolean; sortMode: string; clickAction?: string;
   };
 };
 type ContinueItem = {
@@ -45,6 +45,7 @@ type ContinueItem = {
   imageUrl?: string | null; poster?: string | null; background?: string | null; logo?: string | null;
   seasonNumber?: number | null; episodeNumber?: number | null; episodeTitle?: string | null;
   episodeThumbnail?: string | null; pauseDescription?: string | null; isNextUp?: boolean; shufflePlayback?: boolean;
+  isReleaseAlert?: boolean; isNewSeasonRelease?: boolean;
   nextUpSeedSeasonNumber?: number | null; nextUpSeedEpisodeNumber?: number | null;
   resumePositionMs: number; durationMs: number; progressFraction: number; progressPercent?: number;
   released?: string | null; canMarkWatched?: boolean; lastUpdatedEpochMs?: number; providerName?: string | null;
@@ -177,6 +178,12 @@ export function HomePage() {
     return `${path}?${query.toString()}`;
   };
   const resume = (item: ContinueItem) => navigate(playbackRoute(item, 'resume'));
+  // Kotlin onContinueWatchingClick: the "On Select" preference may open details
+  // instead; cloud library items always resume.
+  const selectContinueItem = (item: ContinueItem) => {
+    if (item.parentMetaType.toLowerCase() !== 'cloud' && continueClickOpensDetails(preferences?.clickAction, item)) openTitle(item.parentMetaType, item.parentMetaId);
+    else resume(item);
+  };
   const playManually = (item: ContinueItem) => navigate(playbackRoute(item, 'manual'));
   const runAction = async (key: string, method: string, params: Record<string, unknown>) => {
     const ticket = generation.current;
@@ -253,11 +260,11 @@ export function HomePage() {
     {continueWatchingVisible && (continueWatchingLoading || cwRemoval.visible.length > 0) && <section className="home-cw-section" aria-busy={continueWatchingLoading}>
       <div className="home-cw-heading"><h2>Continue Watching</h2></div>
       <HorizontalRail label="Continue Watching" trackRef={cwRailRef} className={`home-cw-rail style-${preferences?.style.toLowerCase() ?? 'wide'}`}>
-        {continueWatchingLoading ? Array.from({ length: 5 }, (_, index) => <PosterLoadingCard key={index} variant="poster" className="home-cw-skeleton" />) : cwRemoval.visible.map((item) => <ContinueCard key={`${item.parentMetaId}:${item.videoId}`} item={item} disintegrating={cwRemoval.bursting.has(`${item.parentMetaId}:${item.videoId}`)} blurArtwork={preferences?.blurNextUp&&!!item.isNextUp&&preferences?.useEpisodeThumbnails&&!!item.episodeThumbnail} useEpisodeThumbnails={preferences?.useEpisodeThumbnails ?? true} isBusy={busyKey === item.videoId} onResume={() => resume(item)} onManual={() => playManually(item)} onRemove={() => cwRemoval.remove(item, () => runAction(item.videoId, item.isNextUp?'home.continueWatching.dismissUpNext':'home.continueWatching.remove', { contentId: item.parentMetaId, seasonNumber: item.isNextUp?item.nextUpSeedSeasonNumber:item.seasonNumber, episodeNumber: item.isNextUp?item.nextUpSeedEpisodeNumber:item.episodeNumber }))} onDetails={()=>openTitle(item.parentMetaType,item.parentMetaId)} onMarkWatched={() => cwRemoval.remove(item, () => runAction(item.videoId, 'home.continueWatching.markWatched', { parentMetaId: item.parentMetaId, parentMetaType: item.parentMetaType, videoId: item.videoId, title: item.title, seasonNumber: item.seasonNumber, episodeNumber: item.episodeNumber, episodeTitle: item.episodeTitle, released: item.released }))} onReset={item.isNextUp?undefined:()=>navigate(playbackRoute(item, 'beginning'))} />)}
+        {continueWatchingLoading ? Array.from({ length: 5 }, (_, index) => <PosterLoadingCard key={index} variant="poster" className="home-cw-skeleton" />) : cwRemoval.visible.map((item) => <ContinueCard key={`${item.parentMetaId}:${item.videoId}`} item={item} disintegrating={cwRemoval.bursting.has(`${item.parentMetaId}:${item.videoId}`)} blurArtwork={preferences?.blurNextUp&&!!item.isNextUp&&preferences?.useEpisodeThumbnails&&!!item.episodeThumbnail} useEpisodeThumbnails={preferences?.useEpisodeThumbnails ?? true} isBusy={busyKey === item.videoId} onResume={() => selectContinueItem(item)} onManual={() => playManually(item)} onRemove={() => cwRemoval.remove(item, () => runAction(item.videoId, item.isNextUp?'home.continueWatching.dismissUpNext':'home.continueWatching.remove', { contentId: item.parentMetaId, seasonNumber: item.isNextUp?item.nextUpSeedSeasonNumber:item.seasonNumber, episodeNumber: item.isNextUp?item.nextUpSeedEpisodeNumber:item.episodeNumber }))} onDetails={()=>openTitle(item.parentMetaType,item.parentMetaId)} onMarkWatched={() => cwRemoval.remove(item, () => runAction(item.videoId, 'home.continueWatching.markWatched', { parentMetaId: item.parentMetaId, parentMetaType: item.parentMetaType, videoId: item.videoId, title: item.title, seasonNumber: item.seasonNumber, episodeNumber: item.episodeNumber, episodeTitle: item.episodeTitle, released: item.released }))} onReset={item.isNextUp?undefined:()=>navigate(playbackRoute(item, 'beginning'))} />)}
       </HorizontalRail>
     </section>}
     {preferences?.isVisible && upcomingRemoval.visible.length > 0 && <section className="home-cw-section"><div className="home-cw-heading"><h2>Upcoming</h2></div>
-      <HorizontalRail label="Upcoming" trackRef={upcomingRailRef} className={`home-cw-rail style-${preferences.style.toLowerCase()}`}>{upcomingRemoval.visible.map((item) => <ContinueCard key={`${item.parentMetaId}:next:${item.videoId}`} item={item} disintegrating={upcomingRemoval.bursting.has(`${item.parentMetaId}:next:${item.videoId}`)} blurArtwork={preferences.blurNextUp} useEpisodeThumbnails={preferences.useEpisodeThumbnails} onResume={() => resume(item)} onManual={() => playManually(item)} onDetails={()=>openTitle(item.parentMetaType,item.parentMetaId)} onMarkWatched={() => upcomingRemoval.remove(item, () => runAction(`watched:${item.parentMetaId}`, 'home.continueWatching.markWatched', { parentMetaId: item.parentMetaId, parentMetaType: item.parentMetaType, videoId: item.videoId, title: item.title, seasonNumber: item.seasonNumber, episodeNumber: item.episodeNumber, episodeTitle: item.episodeTitle, released: item.released }))} onDismiss={() => upcomingRemoval.remove(item, () => runAction(`dismiss:${item.parentMetaId}`, 'home.continueWatching.dismissUpNext', { contentId: item.parentMetaId, seasonNumber: item.nextUpSeedSeasonNumber, episodeNumber: item.nextUpSeedEpisodeNumber }))} />)}</HorizontalRail>
+      <HorizontalRail label="Upcoming" trackRef={upcomingRailRef} className={`home-cw-rail style-${preferences.style.toLowerCase()}`}>{upcomingRemoval.visible.map((item) => <ContinueCard key={`${item.parentMetaId}:next:${item.videoId}`} item={item} disintegrating={upcomingRemoval.bursting.has(`${item.parentMetaId}:next:${item.videoId}`)} blurArtwork={preferences.blurNextUp} useEpisodeThumbnails={preferences.useEpisodeThumbnails} onResume={() => selectContinueItem(item)} onManual={() => playManually(item)} onDetails={()=>openTitle(item.parentMetaType,item.parentMetaId)} onMarkWatched={() => upcomingRemoval.remove(item, () => runAction(`watched:${item.parentMetaId}`, 'home.continueWatching.markWatched', { parentMetaId: item.parentMetaId, parentMetaType: item.parentMetaType, videoId: item.videoId, title: item.title, seasonNumber: item.seasonNumber, episodeNumber: item.episodeNumber, episodeTitle: item.episodeTitle, released: item.released }))} onDismiss={() => upcomingRemoval.remove(item, () => runAction(`dismiss:${item.parentMetaId}`, 'home.continueWatching.dismissUpNext', { contentId: item.parentMetaId, seasonNumber: item.nextUpSeedSeasonNumber, episodeNumber: item.nextUpSeedEpisodeNumber }))} />)}</HorizontalRail>
     </section>}
     <HomeCollections shelves={home.shelves} />
     {showHomeEmpty && <EmptyState title="Your home is ready for content" message="Install an addon from Settings to add catalogs and discover titles here." icon={<Compass size={22} />} />}
@@ -327,6 +334,19 @@ function HomeLoadingSkeleton({ showHero }: { showHero: boolean }) {
   </div>;
 }
 
+/** Kotlin ContinueWatchingClickAction.opensDetails. */
+export function continueClickOpensDetails(action: string | undefined, item: { isNextUp?: boolean; released?: string | null }, now = Date.now()): boolean {
+  switch ((action ?? 'STREAM').toUpperCase()) {
+    case 'DETAILS': return true;
+    case 'DETAILS_FOR_UPCOMING': {
+      if (!item.isNextUp || !item.released) return false;
+      const release = new Date(item.released).getTime();
+      return Number.isFinite(release) && release > now;
+    }
+    default: return false;
+  }
+}
+
 function ContinueCard({ item, isBusy, disintegrating = false, onResume, onManual, onRemove, onReset, onDismiss, onDetails, onMarkWatched, blurArtwork = false, useEpisodeThumbnails = true }: {
   item: ContinueItem; isBusy?: boolean; disintegrating?: boolean; blurArtwork?: boolean; useEpisodeThumbnails?: boolean; onResume: () => void; onManual?: () => void; onRemove?: () => void | Promise<void>; onReset?: () => void; onDismiss?: () => void | Promise<void>; onDetails?:()=>void; onMarkWatched?: () => void | Promise<void>;
 }) {
@@ -341,7 +361,7 @@ function ContinueCard({ item, isBusy, disintegrating = false, onResume, onManual
   const progress = Math.max(0, Math.min(100, item.progressPercent ?? item.progressFraction * 100));
   const artwork = (useEpisodeThumbnails ? item.episodeThumbnail : null) || item.imageUrl || item.background || item.poster;
   const remaining=Math.max(1,Math.floor((item.durationMs-item.resumePositionMs)/60000));
-  const badge=item.isNextUp?(item.released&&new Date(item.released).getTime()>Date.now()?new Date(item.released).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'Up Next'):item.durationMs>0?(remaining>=60?`${Math.floor(remaining/60)}h ${remaining%60}m left`:`${remaining}m left`):`${Math.max(1,Math.min(99,Math.round(progress)))}% watched`;
+  const badge=item.isNextUp?(item.isReleaseAlert?(item.isNewSeasonRelease?'New Season':'New Episode'):item.released&&new Date(item.released).getTime()>Date.now()?new Date(item.released).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'Up Next'):item.durationMs>0?(remaining>=60?`${Math.floor(remaining/60)}h ${remaining%60}m left`:`${remaining}m left`):`${Math.max(1,Math.min(99,Math.round(progress)))}% watched`;
   const appearance = useFeatureSnapshot<AppearanceSnapshot>('appearance');
   const depthOn = depthActive(appearance?.cardDepth, 'continueWatching');
   const cardContent=<>

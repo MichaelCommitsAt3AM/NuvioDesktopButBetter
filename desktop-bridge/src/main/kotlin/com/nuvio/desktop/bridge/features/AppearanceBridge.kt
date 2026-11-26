@@ -21,6 +21,7 @@ import com.nuvio.app.features.settings.AppIconOption
 import com.nuvio.app.features.settings.AppIconRepository
 import com.nuvio.app.features.settings.NavBarStyle
 import com.nuvio.app.features.settings.ThemeSettingsRepository
+import com.nuvio.app.features.watchprogress.ContinueWatchingClickAction
 import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesRepository
 import com.nuvio.app.features.watchprogress.ContinueWatchingSectionStyle
 import com.nuvio.app.features.watchprogress.ContinueWatchingSortMode
@@ -119,6 +120,7 @@ object AppearanceBridge {
         "continueWatching.setShowUnairedNextUp" -> { ContinueWatchingPreferencesRepository.setShowUnairedNextUp(params.bool("enabled")); continueWatchingSnapshot() }
         "continueWatching.setBlurNextUp" -> { ContinueWatchingPreferencesRepository.setBlurNextUp(params.bool("enabled")); continueWatchingSnapshot() }
         "continueWatching.setShowResumePromptOnLaunch" -> { ContinueWatchingPreferencesRepository.setShowResumePromptOnLaunch(params.bool("enabled")); continueWatchingSnapshot() }
+        "continueWatching.setClickAction" -> { ContinueWatchingPreferencesRepository.setClickAction(enumValue<ContinueWatchingClickAction>(params.str("clickAction"))); continueWatchingSnapshot() }
         "continueWatching.setSortMode" -> { ContinueWatchingPreferencesRepository.setSortMode(enumValue<ContinueWatchingSortMode>(params.str("sortMode"))); continueWatchingSnapshot() }
         "continueWatching.dismissNextUp" -> { ContinueWatchingPreferencesRepository.addDismissedNextUpKey(params.str("key")); continueWatchingSnapshot() }
         "continueWatching.removeDismissedForContent" -> { ContinueWatchingPreferencesRepository.removeDismissedNextUpKeysForContent(params.str("contentId")); continueWatchingSnapshot() }
@@ -196,6 +198,7 @@ object AppearanceBridge {
             put("useEpisodeThumbnails", state.useEpisodeThumbnails); put("showUnairedNextUp", state.showUnairedNextUp)
             put("blurNextUp", state.blurNextUp); put("showResumePromptOnLaunch", state.showResumePromptOnLaunch)
             put("sortMode", state.sortMode.name.lowercase())
+            put("clickAction", state.clickAction.name.lowercase())
             put("dismissedNextUpKeys", JsonArray(state.dismissedNextUpKeys.sorted().map(::JsonPrimitive)))
         }
     }

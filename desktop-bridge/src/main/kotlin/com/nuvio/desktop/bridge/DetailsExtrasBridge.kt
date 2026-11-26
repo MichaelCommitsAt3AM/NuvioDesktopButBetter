@@ -38,6 +38,9 @@ import com.nuvio.app.features.trakt.TraktAuthRepository
 import com.nuvio.app.features.trakt.TraktCommentsRepository
 import com.nuvio.app.features.trakt.TraktCommentsSettings
 import com.nuvio.app.features.trakt.TraktConnectionMode
+import com.nuvio.app.core.tracking.ensureTrackingProvidersRegistered
+import com.nuvio.app.features.details.components.ratingReference
+import com.nuvio.app.features.tracking.TrackingRatings
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -133,6 +136,23 @@ object DetailsExtrasBridge {
                 put("items", JsonArray(result.items.map(::mediaJson)))
             }
         }
+        // Kotlin DetailRating / RatingSheet: the user's own rating, saved to the
+        // Tracking "Ratings" source (Simkl or MDBList). An episode is rated when
+        // videoId or season/episode is given.
+        "details.rating.snapshot" -> {
+            val (meta, episode) = ratingTarget(params)
+            ratingJson(meta, episode)
+        }
+        "details.rating.set" -> {
+            val (meta, episode) = ratingTarget(params)
+            val rating = params.optionalInt("rating")
+            require(rating == null || rating in 1..TrackingRatings.MAX) { "rating must be between 1 and ${TrackingRatings.MAX}" }
+            val saved = TrackingRatings.rate(meta.ratingReference(episode), rating)
+            buildJsonObject {
+                put("saved", saved)
+                put("rating", ratingJson(meta, episode))
+            }
+        }
         "details.watched.snapshot" -> watchedSnapshot(params.optionalStr("type"), params.optionalStr("id"))
         "details.watched.toggle" -> {
             WatchedRepository.ensureLoaded()
@@ -192,6 +212,29 @@ object DetailsExtrasBridge {
             watchedSnapshot(meta.type, meta.id)
         }
         else -> null
+    }
+
+    private suspend fun ratingTarget(params: JsonObject): Pair<MetaDetails, MetaVideo?> {
+        ensureTrackingProvidersRegistered()
+        val meta = requireMeta(params.str("type"), params.str("id"))
+        val videoId = params.optionalStr("videoId")
+        val season = params.optionalInt("season")
+        val number = params.optionalInt("episode")
+        if (videoId == null && number == null) return meta to null
+        val episode = meta.videos.firstOrNull { video ->
+            (videoId != null && video.id == videoId) ||
+                (number != null && video.season == season && video.episode == number)
+        } ?: error("Episode details are unavailable")
+        return meta to episode
+    }
+
+    private fun ratingJson(meta: MetaDetails, episode: MetaVideo?): JsonObject {
+        val state = TrackingRatings.current(meta.ratingReference(episode))
+        return buildJsonObject {
+            put("available", state.isAvailable)
+            putNullable("provider", state.provider?.displayName)
+            put("rating", state.rating?.let(::JsonPrimitive) ?: JsonNull)
+        }
     }
 
     private suspend fun requireMeta(type: String, id: String): MetaDetails {

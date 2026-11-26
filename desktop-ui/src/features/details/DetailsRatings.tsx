@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 type Rating = { source: string; value: number; certified?: boolean };
 const sources: Record<string, { name: string; color: string; format: (value: number) => string }> = {
   tmdb: { name: 'TMDB', color: '#01b4e4', format: value => String(Math.round(value)) },
@@ -9,7 +10,7 @@ const sources: Record<string, { name: string; color: string; format: (value: num
   metacritic: { name: 'Metacritic', color: '#ffcc33', format: value => String(Math.round(value)) },
 };
 
-export function DetailsRatings({ rating, externalRatings }: { rating?: string | null; externalRatings: Rating[] }) {
+export function DetailsRatings({ rating, externalRatings, children }: { rating?: string | null; externalRatings: Rating[]; children?: ReactNode }) {
   const externalImdb = externalRatings.find(item => item.source.toLowerCase() === 'imdb' && Number.isFinite(item.value) && item.value > 0);
   const imdb = externalImdb ? externalImdb.value.toFixed(1) : rating;
   return <div className="detail-ratings-row">
@@ -20,5 +21,6 @@ export function DetailsRatings({ rating, externalRatings }: { rating?: string | 
       const icon = source === 'tomatoes' && item.certified ? 'tomatoes-certified' : source;
       return <span className="detail-external-rating" key={source} style={{ color: visuals.color }} title={visuals.name}><img src={`/images/ratings/${icon}.png`} alt={visuals.name} /><strong>{visuals.format(item.value)}</strong></span>;
     })}
+    {children}
   </div>;
 }

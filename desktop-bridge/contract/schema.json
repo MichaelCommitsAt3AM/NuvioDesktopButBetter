@@ -1144,7 +1144,10 @@
             "servers.signIn.siloPassword",
             "servers.signIn.siloProfile",
             "downloads.pauseAll",
-            "downloads.resumeAll"
+            "downloads.resumeAll",
+            "details.rating.snapshot",
+            "details.rating.set",
+            "continueWatching.setClickAction"
           ]
         },
         "params": {

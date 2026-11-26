@@ -372,6 +372,9 @@ const ALLOWED_METHODS: &[&str] = &[
     "servers.signIn.siloProfile",
     "downloads.pauseAll",
     "downloads.resumeAll",
+    "details.rating.snapshot",
+    "details.rating.set",
+    "continueWatching.setClickAction",
 ];
 
 fn request_is_allowed(request: &BridgeRequest) -> bool {

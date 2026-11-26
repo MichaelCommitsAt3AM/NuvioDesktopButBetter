@@ -120,4 +120,20 @@ describe('Kotlin Tracking settings parity', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Connect Simkl' }));
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Authorization could not be started'));
   });
+  it('shows the Ratings source only with a connected service and saves it', async () => {
+    render(page());
+    expect(screen.queryByRole('button', { name: /^Ratings/ })).toBeNull();
+    cleanup();
+    bridge.snapshots.trackingSettings = { ...bridge.snapshots.trackingSettings, mdblistConnected: true, ratingSource: 'SIMKL', effectiveRatingSource: 'OFF' };
+    render(page());
+    const row = screen.getByRole('button', { name: /^Ratings/ });
+    expect(row).toHaveTextContent('Off');
+    expect(row).toHaveTextContent('Simkl is unavailable');
+    fireEvent.click(row);
+    const dialog = screen.getByRole('dialog', { name: 'Ratings' });
+    expect(within(dialog).getByRole('radio', { name: /Simkl/ })).toBeDisabled();
+    expect(within(dialog).getByRole('radio', { name: /Off/ })).toHaveAttribute('aria-checked', 'true');
+    await act(async () => { fireEvent.click(within(dialog).getByRole('radio', { name: /MDBList/ })); });
+    expect(bridge.call).toHaveBeenCalledWith('trackingSettings.set', { key: 'ratingSource', value: 'MDBLIST' });
+  });
 });

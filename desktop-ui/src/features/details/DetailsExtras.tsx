@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent } from 'react';
-import { CheckCircle, ChevronLeft, ChevronRight, CircleCheck, Download, LoaderCircle, ListChecks, Play, RotateCw } from 'lucide-react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent } from 'react';
+import { CheckCircle, ChevronLeft, ChevronRight, CircleCheck, Download, LoaderCircle, ListChecks, Play, RotateCw, Star } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import type { Media } from '../../generated/contract';
@@ -11,6 +11,8 @@ import { PosterLoadingCard } from '../../components/PosterLoadingCard';
 import { HorizontalRail } from '../../components/HorizontalRail';
 import { DropdownChip } from '../../components/DropdownChip';
 import { SeriesEpisodes } from './SeriesEpisodes';
+import { RatingSheet, formatRating, useUserRating } from './UserRating';
+import { Toast } from '../../components/Toast';
 import { QualityDownloadSheet } from '../downloads/QualityDownloadButton';
 import { DownloadProgressBadge, isDownloadInProgress, useDownloadsByVideoId } from '../downloads/DownloadProgressBadge';
 import { useActiveProfileId } from '../../navigation/scrollStore';
@@ -94,6 +96,14 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
   const [selectedTrailerCategory, setSelectedTrailerCategory] = useState('Trailer');
   const [selectedEpisode, setSelectedEpisode] = useState<Video | null>(null);
   const [downloadEpisode, setDownloadEpisode] = useState<Video | null>(null);
+  // Kotlin EpisodeWatchedActionSheet "Rate episode" row and its RatingSheet.
+  const [episodeToRate, setEpisodeToRate] = useState<Video | null>(null);
+  const [ratingSheetOpen, setRatingSheetOpen] = useState(false);
+  const ratingEpisode = selectedEpisode ?? episodeToRate;
+  const episodeRating = useUserRating(ratingEpisode ? { type, id, videoId: ratingEpisode.id } : null, profileId);
+  const ratingNoticeId = useRef(0);
+  const [ratingNotice, setRatingNotice] = useState<{ id: number; message: string } | null>(null);
+  const dismissRatingNotice = useCallback(() => setRatingNotice(null), []);
   const downloadsByVideoId = useDownloadsByVideoId(type, id);
   const afterSheetExit = useRef<(() => void) | null>(null);
   const visibleAnchors = useRef<Array<{ key: string; top: number }>>([]);
@@ -390,11 +400,14 @@ export function DetailsExtras({ type, id, primaryAction, onMetaLoaded }: { type:
         <button type="button" className="episode-action-row" disabled={mutationBusy} onClick={() => void toggleEpisode(selectedEpisode)}><span className="episode-action-icon"><CheckCircle size={20} /></span><span>{watchedVideo(selectedEpisode) ? 'Mark as unwatched' : 'Mark as watched'}</span></button>
         {previousEpisodes.length > 0 && <button type="button" className="episode-action-row" disabled={mutationBusy} onClick={() => void togglePreviousEpisodes(selectedEpisode)}><span className="episode-action-icon"><ListChecks size={20} /></span><span>Mark previous episodes {previousEpisodesWatched ? 'unwatched' : 'watched'}</span></button>}
         {selectedSeasonEpisodes.length > 0 && <button type="button" className="episode-action-row" disabled={mutationBusy} onClick={() => { setSelectedEpisode(null); void toggleSeason(selectedEpisode.season ?? 0); }}><span className="episode-action-icon"><CircleCheck size={20} /></span><span>Mark Season {selectedEpisode.season ?? 0} as {selectedSeasonWatched ? 'unwatched' : 'watched'}</span></button>}
+        {episodeRating.state?.available && <button type="button" className="episode-action-row" onClick={() => { setEpisodeToRate(selectedEpisode); afterSheetExit.current = () => setRatingSheetOpen(true); setSelectedEpisode(null); }}><span className="episode-action-icon"><Star size={20} fill={episodeRating.state.rating != null ? 'currentColor' : 'none'} /></span><span>Rate episode</span>{episodeRating.state.rating != null && <strong className="episode-action-rating">{formatRating(episodeRating.state.rating)}</strong>}</button>}
         <button type="button" className="episode-action-row" disabled={mutationBusy || !selectedEpisode.available} onClick={() => { const episode = selectedEpisode; afterSheetExit.current = () => navigate(`/details/${encodeURIComponent(meta.type)}/${encodeURIComponent(meta.id)}/streams/${encodeURIComponent(episode.id)}?manual=1`); setSelectedEpisode(null); }}><span className="episode-action-icon"><Play size={20} fill="currentColor" /></span><span>Play manually</span></button>
         <button type="button" className="episode-action-row" disabled={!selectedEpisode.available || !isReleased(selectedEpisode.released)} onClick={() => { const episode = selectedEpisode; const inProgress = isDownloadInProgress(downloadsByVideoId[episode.id]); afterSheetExit.current = () => { if (inProgress) navigate('/library/downloads'); else setDownloadEpisode(episode); }; setSelectedEpisode(null); }}><span className="episode-action-icon"><Download size={20} /></span><span>{downloadActionLabel(downloadsByVideoId[selectedEpisode.id]?.status)}</span>{downloadsByVideoId[selectedEpisode.id] && <DownloadProgressBadge state={downloadsByVideoId[selectedEpisode.id]} label={selectedEpisode.title} className="episode-action-download-state" />}</button>
       </div>
     </Dialog>}
     </BottomSheetPresence>
+    {episodeToRate && episodeRating.state?.available && <RatingSheet open={ratingSheetOpen && !selectedEpisode} target={{ type, id, videoId: episodeToRate.id }} title={episodeToRate.title} subtitle={actionEpisodeCode(episodeToRate)} state={episodeRating.state} onClose={() => setRatingSheetOpen(false)} onSaved={episodeRating.setState} onNotice={(message) => setRatingNotice({ id: ++ratingNoticeId.current, message })} />}
+    <Toast notice={ratingNotice} onDismiss={dismissRatingNotice} />
     <QualityDownloadSheet type={meta.type} id={meta.id} videoId={downloadEpisode?.id} subtitle={downloadEpisode ? `${actionEpisodeCode(downloadEpisode)} · ${downloadEpisode.title}` : undefined}
       open={downloadEpisode != null} onClose={() => setDownloadEpisode(null)}
       onBrowseStreams={() => { if (downloadEpisode) navigate(`/details/${encodeURIComponent(meta.type)}/${encodeURIComponent(meta.id)}/streams/${encodeURIComponent(downloadEpisode.id)}`); }} />

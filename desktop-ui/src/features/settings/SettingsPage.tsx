@@ -20,6 +20,7 @@ import { ContinueWatchingStyleCheck, ContinueWatchingStylePreview } from './Cont
 import './appearanceParity.css';
 import { HomeSettings } from './HomeSettings';
 import { SettingsSearchTarget } from './SettingsSearchTarget';
+import { SteppedSlider } from './SteppedSlider';
 
 const posterScreens = ['home', 'continue_watching', 'collections', 'library', 'search', 'details'];
 const screenNames: Record<string, string> = { home: 'Home', continue_watching: 'Continue Watching', collections: 'Collections', library: 'Library', search: 'Search', details: 'Details Screen' };
@@ -51,7 +52,6 @@ function AppearancePage() {
       <ControlRow title="AMOLED Black" description="Use pure black backgrounds for OLED screens." checked={snapshot?.amoledEnabled ?? true} onChange={(enabled) => run('appearance.setAmoled', { enabled })} />
       <SettingsChoice title="Desktop navigation" value={(snapshot?.navigationLayout ?? 'topbar') === 'sidebar' ? 'Sidebar' : 'Top Bar'} onClick={() => setOpenChoice('layout')} />
       <SettingsChoice title={(snapshot?.navigationLayout ?? 'topbar') === 'sidebar' ? 'Sidebar Style' : 'Top Bar Style'} value={({ adaptive: 'Adaptive', expanded: 'Always Expanded', compact: 'Always Compact', classic: 'Classic' } as Record<string, string>)[snapshot?.navBarStyle ?? 'expanded']} onClick={() => setOpenChoice('style')} />
-      {/* <AppearanceNavRow to="/settings/appearance/hover-preview" icon={Play} title="Hover Preview" description="Configure poster hover cards and their opening delay." /> */}
       {!!snapshot?.appIcon?.options.length && <SettingsChoice title="App Icon" value={snapshot.appIcon.options.find((value) => value === snapshot.appIcon?.selected)?.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) ?? 'Original'} trailing={<img className="app-icon-thumb" src={appIconAsset(snapshot.appIcon.selected)} alt="" />} onClick={() => setShowAppIcons(true)} />}
       {snapshot?.appIcon?.changeFailed && <InlineError message="The app icon could not be changed." />}
       <LanguageChoiceControl />
@@ -64,6 +64,7 @@ function AppearancePage() {
       <AppearanceNavRow to="/collections" icon={LayoutGrid} title="Collections" description="Create custom catalog groupings with folders shown on Home." />
       <AppearanceNavRow to="/settings/appearance/continue-watching" icon={Film} title="Continue Watching" description="Settings for the Continue Watching section." />
       <AppearanceNavRow to="/settings/appearance/posters" icon={Clapperboard} title="Poster Card Style" description="Tune card width and corner radius." />
+      <AppearanceNavRow to="/settings/appearance/hover-preview" icon={Play} title="Hover Preview" description="Configure poster hover cards and their opening delay." />
     </div>
     <div className="appearance-section-label">STREAMS</div><div className="settings-section appearance-link-group"><AppearanceNavRow to="/settings/appearance/streams" icon={Network} title="Streams" description="Stream result display and badge URL rules." /></div>
     <div className="appearance-section-label">DETAIL PAGE</div><div className="settings-section appearance-link-group"><AppearanceNavRow to="/settings/details" icon={Clapperboard} title="Detail Page" description="Settings for the detail and episode screens." /></div>
@@ -203,6 +204,7 @@ function PostersSettings() {
       <ControlRow title="Landscape Posters" checked={card?.catalogLandscapeModeEnabled ?? false} onChange={(enabled) => run('posters.setCardStyle', { catalogLandscapeModeEnabled: enabled })} />
       <ControlRow title="Hide poster labels" checked={card?.hideLabelsEnabled ?? false} onChange={(enabled) => run('posters.setCardStyle', { hideLabelsEnabled: enabled })} />
       <ControlRow title="Always show landscape clearlogo" checked={card?.alwaysShowLandscapeClearlogo ?? false} onChange={(enabled) => run('posters.setCardStyle', { alwaysShowLandscapeClearlogo: enabled })} />
+      <PosterPresetControl title="Animated artwork" value={(['Always', 'OnHover', 'Off'] as const).indexOf((card?.animatedArtworkMode ?? 'Always') as 'Always' | 'OnHover' | 'Off')} options={[['Always', 0], ['On hover', 1], ['Off', 2]]} onSelect={(index) => run('posters.setCardStyle', { animatedArtworkMode: (['Always', 'OnHover', 'Off'] as const)[index] })} />
     </section>
     <h2 className="settings-group-title poster-section-title">CUSTOM POSTER SOURCE{snapshot?.posters.pattern && <button className="button secondary" onClick={() => { setPattern(''); void run('posters.clearPattern', {}); }}>Clear</button>}</h2><section className="settings-section poster-custom-panel">
       <p className="muted">Provide a poster URL pattern from an external service. If a placeholder has no value for a title, the original poster is used instead.</p>
@@ -226,20 +228,22 @@ function PostersSettings() {
 }
 
 function HoverPreviewSettings() {
+  // Kotlin HoverPreviewSettingsPage: BEHAVIOR (enable + open delay) and TRAILER sections.
   const { snapshot, loading, error, refresh, update } = useAppearance();
   const run = async (params: Record<string, unknown>) => { try { await update('posters.setCardStyle', params); } catch { /* The shared error banner reports rejected settings. */ } };
   const card = snapshot?.cardStyle;
-  if (loading && !snapshot) return <SettingsSubPage title="Hover preview" back="/settings/appearance"><div className="loading-block"><span className="spin" /> Loading…</div></SettingsSubPage>;
-  return <SettingsSubPage title="Hover preview" back="/settings/appearance">{error && <InlineError message={error} onRetry={() => { void refresh(); }} />}
-    <section className="settings-section"><div className="settings-section-heading"><span className="settings-icon"><Play size={18} /></span><div><h2>Preview behavior</h2><p>Choose when the preview opens and whether trailer playback is enabled.</p></div></div>
-      <label className="profile-url-field">Animated artwork<select value={card?.animatedArtworkMode ?? 'Always'} onChange={event => void run({ animatedArtworkMode: event.target.value })}><option value="Always">Always</option><option value="OnHover">On hover</option><option value="Off">Off</option></select></label>
-      <ControlRow title="Enable hover preview" description="Show an expanded preview when a poster is hovered." checked={card?.hoverPreviewEnabled ?? true} onChange={(enabled) => run({ hoverPreviewEnabled: enabled })} />
-      <NumberSetting title="Preview delay" description="Wait before opening the preview. Changes apply in 500 ms steps." value={card?.hoverPreviewOpenDelayMillis ?? 2000} min={500} max={5000} step={500} onSave={(value) => run({ hoverPreviewOpenDelayMillis: value })} suffix="ms" />
+  const enabled = card?.hoverPreviewEnabled ?? true;
+  const trailers = card?.hoverPreviewTrailerEnabled ?? false;
+  if (loading && !snapshot) return <SettingsSubPage title="Hover Preview" back="/settings/appearance"><div className="loading-block"><span className="spin" /> Loading…</div></SettingsSubPage>;
+  return <SettingsSubPage title="Hover Preview" back="/settings/appearance">{error && <InlineError message={error} onRetry={() => { void refresh(); }} />}
+    <h2 className="settings-group-title">BEHAVIOR</h2><section className="settings-section">
+      <ControlRow title="Enable Hover Preview" description="Show a larger preview after hovering over a poster." checked={enabled} onChange={(value) => run({ hoverPreviewEnabled: value })} />
+      <SteppedSlider title="Open Delay" description="How long a poster must be hovered before its preview opens." value={(card?.hoverPreviewOpenDelayMillis ?? 2000) / 1000} min={0.5} max={5} step={0.5} suffix="s" disabled={!enabled} onSave={(seconds) => run({ hoverPreviewOpenDelayMillis: Math.round(seconds * 1000) })} />
     </section>
-    <section className="settings-section"><div className="settings-section-heading"><span className="settings-icon"><Film size={18} /></span><div><h2>Trailer playback</h2><p>Trailer controls require an enabled hover preview.</p></div></div>
-      <ControlRow title="Play trailer previews" description="Play a trailer in the hover preview when one is available." checked={card?.hoverPreviewTrailerEnabled ?? false} disabled={!(card?.hoverPreviewEnabled ?? true)} onChange={(enabled) => run({ hoverPreviewTrailerEnabled: enabled })} />
-      <ControlRow title="Trailer preview sound" description="Allow trailer audio. Turn this off to keep previews muted." checked={card?.hoverPreviewTrailerSoundEnabled ?? false} disabled={!(card?.hoverPreviewEnabled ?? true) || !(card?.hoverPreviewTrailerEnabled ?? false)} onChange={(enabled) => run({ hoverPreviewTrailerSoundEnabled: enabled })} />
-      <NumberSetting title="Trailer start time" description="Choose how far into the trailer playback begins (0–5 seconds)." value={card?.hoverPreviewTrailerStartSeconds ?? 0} min={0} max={5} onSave={(value) => run({ hoverPreviewTrailerStartSeconds: value })} suffix="s" />
+    <h2 className="settings-group-title">TRAILER</h2><section className="settings-section">
+      <ControlRow title="Preview Trailers" description="Play a trailer in the hover preview when one is available." checked={trailers} disabled={!enabled} onChange={(value) => run({ hoverPreviewTrailerEnabled: value })} />
+      <ControlRow title="Play with Sound" description="Play hover preview trailers with audio. Turn this off to keep previews muted." checked={card?.hoverPreviewTrailerSoundEnabled ?? false} disabled={!enabled || !trailers} onChange={(value) => run({ hoverPreviewTrailerSoundEnabled: value })} />
+      <SteppedSlider title="Trailer Start Time" description="Choose how far into the trailer the hover preview begins." value={card?.hoverPreviewTrailerStartSeconds ?? 0} min={0} max={5} step={1} suffix="s" disabled={!enabled || !trailers} onSave={(seconds) => run({ hoverPreviewTrailerStartSeconds: seconds })} />
     </section>
   </SettingsSubPage>;
 }
@@ -307,11 +311,16 @@ function PosterPresetControl({ title, value, options, onSelect }: { title: strin
 function ContinueWatchingSettings() {
   const { snapshot, loading, error, refresh, update } = useAppearance();
   const [sortDialog, setSortDialog] = useState(false);
+  const [clickActionDialog, setClickActionDialog] = useState(false);
   const run = async (method: string, params: Record<string, unknown>) => { try { await update(method, params); } catch { /* banner */ } };
   if (loading && !snapshot) return <SettingsSubPage title="Continue Watching" back="/settings/appearance"><div className="loading-block"><span className="spin" /> Loading…</div></SettingsSubPage>;
   const cw = snapshot?.continueWatching;
   const style = cw?.style ?? 'card';
   const sortMode = cw?.sortMode ?? 'default';
+  const clickAction = cw?.clickAction ?? 'stream';
+  // Kotlin ContinueWatchingClickAction labels and descriptions.
+  const clickActionTitles = { stream: 'Open Stream', details: 'Open Details', details_for_upcoming: 'Details for Upcoming Only' } as const;
+  const clickActionDescriptions = { stream: 'Pick a source or resume playback', details: 'Open the details page of the title', details_for_upcoming: 'Open details for episodes that have not aired yet, the stream for the rest' } as const;
   const sortTitles = { default: 'Default', streaming_style: 'Streaming Style', split_upcoming: 'Separate Upcoming Row' } as const;
   const sortDescriptions = { default: 'Sort all items by recency', streaming_style: 'Released items first, upcoming at the end', split_upcoming: 'Move unaired episodes to a separate Upcoming row' } as const;
   return <SettingsSubPage title="Continue Watching" back="/settings/appearance">{error && <InlineError message={error} onRetry={() => { void refresh(); }} />}
@@ -322,9 +331,11 @@ function ContinueWatchingSettings() {
       <ControlRow title="Next Up From Furthest Episode" description="Show next episode based on the furthest watched episode. Disable for rewatches to use the most recently watched episode instead." checked={cw?.upNextFromFurthestEpisode ?? false} onChange={(enabled) => run('continueWatching.setUpNextFromFurthestEpisode', { enabled })} />
       <ControlRow title="Show Unaired Next Up Episodes" description="Include upcoming episodes in Continue Watching before they air." checked={cw?.showUnairedNextUp ?? false} onChange={(enabled) => run('continueWatching.setShowUnairedNextUp', { enabled })} />
       {style !== 'poster' && (cw?.useEpisodeThumbnails ?? true) && <ControlRow title="Blur Unwatched in Continue Watching" description="Blur unwatched episode thumbnails in Continue Watching to avoid spoilers." checked={cw?.blurNextUp ?? false} onChange={(enabled) => run('continueWatching.setBlurNextUp', { enabled })} />}
+      <SettingsChoice title="On Select" value={clickActionTitles[clickAction]} onClick={() => setClickActionDialog(true)} />
     </section>
     <h2 className="settings-group-title">ON LAUNCH</h2><section className="settings-section"><ControlRow title="Resume prompt on launch" description="Show a popup to continue where you left off when opening the app after leaving from the player." checked={cw?.showResumePromptOnLaunch ?? false} onChange={(enabled) => run('continueWatching.setShowResumePromptOnLaunch', { enabled })} /></section>
     <h2 className="settings-group-title">SORT ORDER</h2><section className="settings-section"><SettingsChoice title="Sort Order" value={sortTitles[sortMode]} onClick={() => setSortDialog(true)} /></section>
+    {clickActionDialog && <Dialog label="On Select" onClose={() => setClickActionDialog(false)}><h2>On Select</h2><div className="settings-choice-list">{(['stream', 'details', 'details_for_upcoming'] as const).map((action) => <button key={action} type="button" className={`settings-choice-option ${clickAction === action ? 'selected' : ''}`} onClick={() => { void run('continueWatching.setClickAction', { clickAction: action }); setClickActionDialog(false); }}><strong>{clickActionTitles[action]}</strong><small>{clickActionDescriptions[action]}</small>{clickAction === action && <small>Selected</small>}</button>)}</div></Dialog>}
     {sortDialog && <Dialog label="Sort Order" onClose={() => setSortDialog(false)}><h2>Sort Order</h2><div className="settings-choice-list">{(['default', 'streaming_style', 'split_upcoming'] as const).map((mode) => <button key={mode} className={`settings-choice-option ${sortMode === mode ? 'selected' : ''}`} onClick={() => { void run('continueWatching.setSortMode', { sortMode: mode }); setSortDialog(false); }}><strong>{sortTitles[mode]}</strong><small>{sortDescriptions[mode]}</small>{sortMode === mode && <small>Selected</small>}</button>)}</div></Dialog>}
   </SettingsSubPage>;
 }
@@ -371,11 +382,6 @@ function AccountSettings() {
 
 function ControlRow({ title, description, checked, onChange, icon: Icon, disabled = false }: { title: string; description?: string; checked: boolean; onChange: (checked: boolean) => void; icon?: typeof Moon; disabled?: boolean }) {
   return <div className={`settings-control-row${disabled ? ' disabled' : ''}`}>{Icon && <span className="settings-icon"><Icon size={16} /></span>}<span className="settings-control-copy"><strong>{title}</strong>{description && <span>{description}</span>}</span><label className="switch" aria-label={title}><input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} /><span /></label></div>;
-}
-function NumberSetting({ title, description, value, min, max, step = 1, suffix, onSave }: { title: string; description?: string; value: number; min: number; max: number; step?: number; suffix?: string; onSave: (value: number) => void }) {
-  const [draft, setDraft] = useState(String(value));
-  useEffect(() => setDraft(String(value)), [value]);
-  return <div className="settings-control-row"><span className="settings-control-copy"><strong>{title}</strong>{description && <span>{description}</span>}</span><span className="settings-number-wrap"><input className="settings-inline-number" type="number" value={draft} min={min} max={max} step={step} onChange={(event) => setDraft(event.target.value)} onBlur={() => { const next = Number(draft); if (Number.isFinite(next) && next >= min && next <= max && next !== value) onSave(next); else setDraft(String(value)); }} />{suffix && <small>{suffix}</small>}</span></div>;
 }
 
 function SettingsContent() {

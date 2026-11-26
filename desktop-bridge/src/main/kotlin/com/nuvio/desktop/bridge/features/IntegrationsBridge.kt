@@ -27,6 +27,7 @@ import com.nuvio.app.features.watchprogress.WatchProgressSourceCoordinator
 import com.nuvio.app.features.tmdb.TmdbConfig
 import com.nuvio.app.features.tmdb.TmdbSettingsRepository
 import com.nuvio.app.features.tracking.TrackingSettingsRepository
+import com.nuvio.app.features.tracking.TrackingRatings
 import com.nuvio.app.features.tracking.WatchProgressSource
 import com.nuvio.app.features.tracking.effectiveLibrarySourceMode
 import com.nuvio.app.features.tracking.effectiveWatchProgressSource
@@ -479,6 +480,12 @@ object IntegrationsBridge {
             put("watchProgressSource", state.watchProgressSource.name); put("effectiveWatchProgressSource", effectiveProgress.name)
             put("moreLikeThisSource", state.moreLikeThisSource.name); put("effectiveMoreLikeThisSource", effectiveMoreLikeThis.name)
             put("simklAnimeIdPreference", state.simklAnimeIdPreference.name)
+            // Kotlin TrackingSettingsPage RATINGS row: a saved source whose account is
+            // disconnected falls back to Off.
+            put("ratingSource", state.ratingSource?.name ?: "OFF")
+            put("effectiveRatingSource", state.ratingSource?.takeIf { source ->
+                (source == TrackingProviderId.SIMKL && simklConnected) || (source == TrackingProviderId.MDBLIST && mdbConnected)
+            }?.name ?: "OFF")
             put("simklConnected", simklConnected); put("mdblistConnected", mdbConnected); put("traktAvailable", false)
             val transition = WatchProgressSourceCoordinator.uiState.value
             put("isRefreshingProgress", transition.isRefreshing)
@@ -510,6 +517,17 @@ object IntegrationsBridge {
                 if (source == MoreLikeThisSourcePreference.TRAKT) unsupported("Trakt recommendations are disabled in this app build")
                 if (source == MoreLikeThisSourcePreference.SIMKL && !simklConnected) throw BridgeFeatureException("ACCOUNT_REQUIRED", "Connect Simkl before choosing it as a recommendation source")
                 TrackingSettingsRepository.setMoreLikeThisSource(source)
+            }
+            "ratingSource" -> {
+                val raw = value.asString(key)
+                val source = if (raw == "OFF") null else enumValue<TrackingProviderId>(raw)
+                when (source) {
+                    null -> Unit
+                    TrackingProviderId.SIMKL -> if (!simklConnected) throw BridgeFeatureException("ACCOUNT_REQUIRED", "Connect Simkl before choosing it as the ratings source")
+                    TrackingProviderId.MDBLIST -> if (!mdbConnected) throw BridgeFeatureException("ACCOUNT_REQUIRED", "Connect an MDBList account before choosing it as the ratings source")
+                    TrackingProviderId.TRAKT -> unsupported("Trakt ratings are disabled in this app build")
+                }
+                TrackingRatings.setSource(source)
             }
             "simklAnimeIdPreference" -> {
                 if (!simklConnected) throw BridgeFeatureException("ACCOUNT_REQUIRED", "Connect Simkl before changing anime ID preference")

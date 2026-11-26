@@ -13,6 +13,7 @@ type Tracking = {
   librarySourceMode: string; effectiveLibrarySourceMode: string;
   watchProgressSource: string; effectiveWatchProgressSource: string;
   moreLikeThisSource: string; effectiveMoreLikeThisSource: string;
+  ratingSource?: string; effectiveRatingSource?: string;
   simklAnimeIdPreference: string; simklConnected: boolean; mdblistConnected: boolean;
   isRefreshingProgress: boolean; lastProgressRefreshSucceeded: boolean | null;
 };
@@ -20,8 +21,18 @@ type Simkl = { connected: boolean; mode: string; username: string | null; creden
 type MdbAccount = { connected: boolean; mode: string; username: string | null; credentialsConfigured: boolean; isBusy: boolean; userCode: string | null; error: string | null; revokeFailed: boolean; isSyncing: boolean; lastSyncedAtEpochMs: number | null };
 type Option = { value: string; title: string; description: string; unavailable?: string };
 type Picker = { key: string; title: string; subtitle: string; selected: string; options: Option[] };
-const sourceLabel = (value: string) => ({ LOCAL: 'Nuvio Library', NUVIO_SYNC: 'Nuvio Sync', SIMKL: 'Simkl', MDBLIST: 'MDBList', TMDB: 'TMDB', TRAKT: 'Trakt' }[value] ?? value);
+const sourceLabel = (value: string) => ({ OFF: 'Off', LOCAL: 'Nuvio Library', NUVIO_SYNC: 'Nuvio Sync', SIMKL: 'Simkl', MDBLIST: 'MDBList', TMDB: 'TMDB', TRAKT: 'Trakt' }[value] ?? value);
 const animeLabel = (value: string) => t('settings_tracking_anime_id_' + value.toLowerCase());
+
+// Kotlin strings_ratings.xml (not part of the generated locale catalog, which reads strings.xml only).
+const RATINGS_COPY = {
+  title: 'Ratings',
+  description: 'Where your ratings are saved and shown from',
+  pickerSubtitle: 'Rate titles from their details page. Your ratings are saved to and shown from the service you pick.',
+  off: 'Hide the rate button.',
+  simkl: "Rate movies and shows. Rating a title that isn't in your Simkl lists adds it to them.",
+  mdblist: 'Rate movies, shows and episodes.',
+};
 
 export function TrackingSettingsPage() {
   const s = useFeatureSnapshot<Tracking>('trackingSettings');
@@ -76,6 +87,11 @@ export function TrackingSettingsPage() {
         { value: 'TMDB', title: 'TMDB', description: t('settings_tracking_tmdb_recommendations_description') },
         { value: 'TRAKT', title: 'Trakt', description: t('settings_tracking_trakt_recommendations_description'), unavailable: t('settings_tracking_connect_first', 'Trakt') },
         { value: 'SIMKL', title: 'Simkl', description: t('settings_tracking_simkl_recommendations_description') },
+      ] })} />}
+      {(s.simklConnected || s.mdblistConnected) && <PreferenceRow title={RATINGS_COPY.title} description={RATINGS_COPY.description} value={sourceLabel(s.effectiveRatingSource ?? 'OFF')} supporting={fallback(s.ratingSource ?? 'OFF', s.effectiveRatingSource ?? 'OFF')} onClick={() => setPicker({ key: 'ratingSource', title: RATINGS_COPY.title, subtitle: RATINGS_COPY.pickerSubtitle, selected: s.effectiveRatingSource ?? 'OFF', options: [
+        { value: 'OFF', title: 'Off', description: RATINGS_COPY.off },
+        { value: 'SIMKL', title: 'Simkl', description: RATINGS_COPY.simkl, unavailable: s.simklConnected ? undefined : t('settings_tracking_connect_first', 'Simkl') },
+        { value: 'MDBLIST', title: 'MDBList', description: RATINGS_COPY.mdblist, unavailable: s.mdblistConnected ? undefined : t('settings_tracking_connect_first', 'MDBList') },
       ] })} />}
     </section>
     {s.simklConnected && <><h2 className="settings-group-title">{t('settings_tracking_anime_section')}</h2><section className="settings-section"><PreferenceRow title={t('settings_tracking_anime_id_title')} description={t('settings_tracking_anime_id_subtitle')} value={animeLabel(s.simklAnimeIdPreference)} onClick={() => setPicker({ key: 'simklAnimeIdPreference', title: t('settings_tracking_anime_id_dialog_title'), subtitle: t('settings_tracking_anime_id_dialog_subtitle'), selected: s.simklAnimeIdPreference, options: ['IMDB', 'MAL', 'KITSU', 'TVDB'].map((value) => ({ value, title: animeLabel(value), description: t('settings_tracking_anime_id_' + value.toLowerCase() + '_description') })) })} /></section></>}

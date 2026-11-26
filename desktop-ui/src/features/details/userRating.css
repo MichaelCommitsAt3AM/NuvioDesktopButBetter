@@ -1,0 +1,33 @@
+/* Kotlin RatingChip: MetaBadge shape, accent tint once rated. */
+.user-rating-chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 9px;border:0;border-radius:7px;background:#ffffff14;color:#bdbdbd;font:inherit;font-size:13px;line-height:1;cursor:pointer;transition:background-color 240ms ease,color 240ms ease}
+.user-rating-chip:hover{background:#ffffff22}
+.user-rating-chip:focus-visible{outline:2px solid var(--app-accent);outline-offset:2px}
+.user-rating-chip.rated{background:color-mix(in srgb,var(--app-accent) 16%,transparent);color:#fff;font-weight:700}
+.user-rating-chip.rated .user-rating-chip-star{color:var(--app-accent);animation:user-rating-twirl 620ms cubic-bezier(.34,1.56,.64,1)}
+@keyframes user-rating-twirl{0%{transform:rotate(0) scale(1)}50%{transform:rotate(72deg) scale(1.3)}100%{transform:rotate(144deg) scale(1)}}
+
+/* Kotlin RatingSheet: centred column inside the shared bottom sheet. */
+.user-rating-dialog .dialog-surface{width:min(520px,calc(100vw - 40px))!important}
+.user-rating-panel{display:flex;flex-direction:column;align-items:center;padding:0 16px 14px;color:#f2f2f2;text-align:center}
+.user-rating-panel .episode-actions-handle{align-self:center}
+.user-rating-eyebrow{margin-top:4px;color:#979ba1;font-size:14px;font-weight:500}
+.user-rating-title{display:-webkit-box;margin:6px 0 0;overflow:hidden;font-size:22px;line-height:28px;font-weight:600;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.user-rating-subtitle{margin-top:2px;color:#979ba1;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.user-rating-score{display:flex;align-items:flex-end;margin-top:20px;color:#707479}
+.user-rating-score strong{font-size:56px;line-height:60px;font-weight:300;transition:color 200ms ease;animation:user-rating-score-in 220ms ease}
+.user-rating-score.set strong{color:#fff;font-weight:700}
+.user-rating-score span{margin:0 0 10px 4px;font-size:16px;font-weight:600}
+@keyframes user-rating-score-in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.user-rating-stars{display:flex;gap:6px;margin-top:16px;padding:2px;border-radius:10px;touch-action:none;cursor:pointer;user-select:none}
+.user-rating-stars:focus-visible{outline:2px solid var(--app-accent);outline-offset:3px}
+.user-rating-star{position:relative;display:block;width:44px;height:44px}
+.user-rating-star svg{width:44px;height:44px;display:block}
+.user-rating-star-empty{color:#ffffff1f}
+.user-rating-star-fill{position:absolute;inset:0 auto 0 0;overflow:hidden;color:var(--app-accent);transition:width 160ms ease}
+[dir="rtl"] .user-rating-star-fill{inset:0 0 0 auto}
+[dir="rtl"] .user-rating-star-fill svg{margin-left:auto}
+.user-rating-syncs{margin:16px 0 0;color:#707479;font-size:12px}
+.user-rating-actions{display:flex;gap:10px;width:100%;margin-top:24px}
+.user-rating-actions>.button{flex:1;min-height:44px}
+@media(prefers-reduced-motion:reduce){.user-rating-chip.rated .user-rating-chip-star,.user-rating-score strong{animation:none}.user-rating-star-fill{transition:none}}
+.episode-action-rating{margin-left:auto;color:var(--app-accent);font-size:15px;font-weight:700}

@@ -1766,6 +1766,9 @@ private fun PlayerControlsState.toControlsJson(isFullscreen: Boolean, onImageRea
         append(',')
         appendJsonField("isInPip", DesktopPlayerPictureInPicture.isEnabled)
         append(',')
+        // Fork: the overlay's gamepad.js stays off while the Compose app polls the controller itself.
+        appendJsonField("nativeControllerInput", com.nuvio.app.controller.DesktopControllerInput.isPolling)
+        append(',')
         appendJsonField("controlsVisible", controlsVisible)
         append(',')
         appendJsonArrayField("parentalWarnings", parentalWarnings) { appendParentalWarningJson(it) }

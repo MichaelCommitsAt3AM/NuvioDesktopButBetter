@@ -50,14 +50,14 @@ Added 2026-11-22. Studio and decade folders from a shared collection point at AI
 
 Added 2026-11-22.
 
-- **Gamepad navigation.** Upstream 0.1.38 adds spatial keyboard/gamepad navigation, focus rings, a controller hint toolbar and navigation sounds, all built on Compose focus (`composeApp/.../controller/`, `NuvioFocusable.kt`, `PlatformKeyboardNavigation.desktop.kt`). The React shell has its own keyboard navigation but reads no gamepad input. A port would use the browser Gamepad API in `desktop-ui` and map it to the existing focus handling; Compose's engine cannot be reused.
+- **Gamepad navigation.** Done 2026-11-26 with the browser Gamepad API in the React shell and `player-ui/gamepad.js` in the player overlay; not yet tried with a physical controller. See FORK_CHANGES.md.
 - **Plex and Silo sign-in were not tried against real servers.** The guided dialog drives upstream's unchanged sign-in flows and is covered by unit tests only. Check a real plex.tv approval, Plex Home PIN and a Silo code/password sign-in before relying on it.
 
 ## Upstream 0.1.37 features not yet in the React shell
 
 Added 2026-11-17. The Kotlin code is merged and compiled, but these have no bridge or React flow:
 
-- **User ratings.** Upstream's rating chip on the detail hero, the rating sheet and episode ratings (Trakt, Simkl and MDBList) are not shown. Needs bridge snapshot fields and commands over `TrackingRatings`, then a React chip and sheet.
+- **User ratings.** Done 2026-11-26 (rating chip, sheet, Rate episode and the Tracking Ratings source); see FORK_CHANGES.md.
 - **Audio amplification, audio delay and center mix.** The player runtime supports them; the native overlay and React settings were not checked for controls, so assume they are missing.
 - **Mpv subtitle auto-sync.** The coordinator is wired into the desktop player surface; the rewrite's auto-sync settings and result messaging were not re-reviewed against it.
 

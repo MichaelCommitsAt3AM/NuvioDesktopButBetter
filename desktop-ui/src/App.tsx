@@ -18,6 +18,8 @@ import { EntityPage } from './features/details/EntityPage';
 import { StreamsPage } from './features/streams/StreamsPage';
 import { PlaybackSurfacePage } from './features/player/PlaybackSurfacePage';
 import { UpdateBanner } from './features/updater/UpdateBanner';
+import { GamepadNavigation } from './gamepad/GamepadNavigation';
+import { GAMEPAD_SEARCH_EVENT } from './gamepad/mainTabEvent';
 import { ProfileEditorPage } from './features/profiles/ProfileEditorPage';
 import { ProfileChooser } from './features/profiles/ProfileChooser';
 import { ProfileLoadingScreen } from './features/profiles/ProfileLoadingScreen';
@@ -59,6 +61,13 @@ const Shell = memo(function Shell({ offlineDownloads = false, welcomePending = f
   const [focusSearch, setFocusSearch] = useState(false);
   const requestSearchFocus = useCallback(() => setFocusSearch(true), []);
   const searchFocusHandled = useCallback(() => setFocusSearch(false), []);
+  const shellNavigate = useNavigate();
+  // Gamepad Y with no search field on screen: open Search with its field focused.
+  useEffect(() => {
+    const open = () => { setFocusSearch(true); shellNavigate('/search'); };
+    window.addEventListener(GAMEPAD_SEARCH_EVENT, open);
+    return () => window.removeEventListener(GAMEPAD_SEARCH_EVENT, open);
+  }, [shellNavigate]);
   useEffect(() => {
     // A pending double-click focus must not fire when Search is opened later
     // for an unrelated reason.
@@ -193,6 +202,7 @@ function AppContent() {
     {state.status === 'disconnected' && <ConnectionNotice status="disconnected" />}
     {state.status === 'starting' && import.meta.env.DEV && <ConnectionNotice status="starting" />}
     <UpdateBanner />
+    <GamepadNavigation />
     <DownloadNotifications key={state.session.activeProfile} />
     {offlineDownloads && state.status === 'ready'
       ? <Shell offlineDownloads welcomePending={welcome.pending} />

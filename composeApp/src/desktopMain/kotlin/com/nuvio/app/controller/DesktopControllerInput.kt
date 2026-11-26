@@ -45,6 +45,10 @@ internal object DesktopControllerInput {
     @Volatile
     private var running = false
 
+    /** Fork: true while this poller runs (Compose app), so the player overlay ignores the Gamepad API. */
+    val isPolling: Boolean
+        get() = running
+
     private var worker: Thread? = null
 
     fun start() {

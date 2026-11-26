@@ -59,6 +59,8 @@ Status: **pending** = not implemented; **partial** = real subset, remaining orig
 
 Every area previously marked partial was rechecked against the current code: the bridge contract, the React screens, and the Kotlin screens' actions and desktop platform gates (`isDesktop`, `AppFeaturePolicy.desktop.kt`). Addons, Plugins, Integrations, Cloud Library, P2P and Native player are now **built**. Every Kotlin route and desktop-visible settings page has a rewrite counterpart; Notifications and Playback buffer are hidden on desktop in Kotlin too. This was a source comparison, not a side-by-side visual check. Later the same day, the playback settings rows, Continue Watching shuffle and window geometry were implemented (see FORK_CHANGES.md); Audio downmix stays out because only the Android engine applies it.
 
+Gamepad navigation (upstream 0.1.38) was added to the React shell and player overlay on 2026-11-26. On 2026-11-26 user ratings, the Continue Watching "On Select" action, New Episode/New Season badges and the Hover Preview page were added (see FORK_CHANGES.md).
+
 Rarely visited screens, dialogs and sheets still need a layout comparison against Kotlin; the checklist is [DESKTOP_NICHE_SCREENS_AUDIT.md](DESKTOP_NICHE_SCREENS_AUDIT.md).
 
 Still open:

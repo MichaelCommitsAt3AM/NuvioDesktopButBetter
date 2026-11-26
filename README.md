@@ -26,6 +26,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- Use a game controller to browse the app and control the player: the D-pad moves between items, A selects, B goes back, LB/RB switch tabs or seasons, and a hint bar shows what each button does (with PlayStation symbols when you use a PlayStation controller).
+- Rate movies, shows and episodes from their details page, saved to Simkl or MDBList (choose under Settings → Tracking → Ratings). Continue Watching shows "New Episode" and "New Season" when something new has aired, and can open the title page instead of the stream (Settings → Continue Watching → On Select). Hover Preview settings are back under Appearance.
 - In the player's Episodes sidebar, press and hold an episode to choose its stream yourself, even with automatic stream selection on. On the streams screen, picking one provider no longer hides the others.
 - Episodes opened from Continue Watching no longer fail with "The operation could not be completed" when title details load slowly, and automatic stream selection stops after a problem that isn't caused by the stream instead of trying every stream.
 - The desktop window now reopens at the size and position you left it. Shuffled series show a random episode in Continue Watching, and Playback settings gained chapter titles, per-device audio delay and fallback to the next source.

@@ -33,6 +33,7 @@ export function SearchPage({ focusRequested = false, onFocusHandled }: { focusRe
   const [scrolled, setScrolled] = useState(false);
   const [openFilter, setOpenFilter] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const historyRef = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     if (!focusRequested) return;
     if (!active) return;
@@ -131,6 +132,15 @@ export function SearchPage({ focusRequested = false, onFocusHandled }: { focusRe
   const activeCatalog = discover?.catalogOptions.find((option) => option.key === discover.selectedCatalogKey);
   const normalizedQuery = query.trim();
   const waitingForSearch = queryPending || (Boolean(normalizedQuery) && search.query.trim() !== normalizedQuery);
+  // History stays open while focus is in the field or the list itself, so a controller (or Tab)
+  // can move down into it instead of closing it.
+  const releaseFocus = () => {
+    window.setTimeout(() => {
+      const active = document.activeElement;
+      if (active === inputRef.current || (active && historyRef.current?.contains(active))) return;
+      setFocused(false);
+    }, 120);
+  };
   const showHistory = focused && !query.trim() && history?.enabled && (history.items.length ?? 0) > 0;
   const displayType = (value: string) => ({ movie: 'Movies', series: 'Series', anime: 'Anime', channel: 'Channels', tv: 'TV' }[value.toLowerCase()] ?? value.replace(/^./, (letter) => letter.toUpperCase()));
   const select = async (method: string, params: Record<string, unknown>) => {
@@ -159,7 +169,7 @@ export function SearchPage({ focusRequested = false, onFocusHandled }: { focusRe
           placeholder="Search movies, shows..."
           aria-label="Search movies and shows"
           onFocus={() => setFocused(true)}
-          onBlur={() => { window.setTimeout(() => setFocused(false), 120); }}
+          onBlur={releaseFocus}
           onChange={(event) => updateQuery(event.target.value)}
           onKeyDown={(event) => { if (event.key === 'Escape') { if (query) updateQuery(''); else inputRef.current?.blur(); } }}
         />
@@ -167,10 +177,10 @@ export function SearchPage({ focusRequested = false, onFocusHandled }: { focusRe
       </div>
     </header>
 
-    {showHistory && <section className="search-history" aria-label="Recent searches">
+    {showHistory && <section ref={historyRef} className="search-history" aria-label="Recent searches" onFocus={() => setFocused(true)} onBlur={releaseFocus}>
       <h2>Recent searches</h2>
       {history!.items.slice(0, MAX_RECENT_SEARCHES).map((item) => <div className="search-history-row" key={item}>
-        <button type="button" className="search-history-query" onMouseDown={(event) => event.preventDefault()} onClick={() => { updateQuery(item); void call('search.historyUse', { query: item }).catch(() => {}); }}>{item}</button>
+        <button type="button" className="search-history-query" onMouseDown={(event) => event.preventDefault()} onClick={() => { updateQuery(item); inputRef.current?.focus({ preventScroll: true }); void call('search.historyUse', { query: item }).catch(() => {}); }}>{item}</button>
         <button type="button" className="search-history-remove" aria-label={`Remove ${item} from recent searches`} onMouseDown={(event) => event.preventDefault()} onClick={() => { void call('search.historyRemove', { query: item }).then(() => refreshFeature('searchHistory', 'search.historySnapshot')).catch(() => {}); }}><X size={16} /></button>
       </div>)}
     </section>}

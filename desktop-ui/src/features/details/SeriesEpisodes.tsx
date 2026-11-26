@@ -109,7 +109,7 @@ export function SeriesEpisodes({ rememberKey, videos, preferredSeason, poster, b
     <div className="series-episodes-heading"><h2>Episodes</h2><span>{videos.length}</span></div>
     {seasons.length > 1 && <div className="series-season-selector">
       <div className="series-season-selector-heading"><h3>Seasons</h3>{hasSeasonPosters && <button type="button" className="series-season-view-toggle" onClick={() => setView(seasonView === 'posters' ? 'text' : 'posters')}>{seasonView === 'posters' ? 'Posters' : 'Text'}</button>}</div>
-      <div ref={seasonViewport} className="series-season-view-transition"><div ref={seasonTrack} className={`series-season-options ${hasSeasonPosters && seasonView === 'posters' ? 'poster-mode' : 'text-mode'}`}>
+      <div ref={seasonViewport} className="series-season-view-transition"><div ref={seasonTrack} data-gamepad-tabs className={`series-season-options ${hasSeasonPosters && seasonView === 'posters' ? 'poster-mode' : 'text-mode'}`}>
         {seasons.map((season) => {
           const selected = season === currentSeason;
           const image = resolveSeasonPoster(season, grouped, seasonPosters) || poster || background;

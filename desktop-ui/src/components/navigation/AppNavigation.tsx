@@ -9,6 +9,7 @@ import { LiquidNavigation, type LiquidNavigationController } from './LiquidNavig
 import { KotlinNavigationIcon } from './KotlinNavigationIcon';
 import { sidebarExpanded } from './sidebarState';
 import { translate, useLocale } from '../../i18n/strings';
+import { MAIN_TAB_EVENT } from '../../gamepad/mainTabEvent';
 
 const navItems = [
   { to: '/', key: 'compose_nav_home', Icon: Home },
@@ -34,6 +35,17 @@ export const AppNavigation = memo(function AppNavigation({ onSearchFocus }: { on
     if (liquid.current) liquid.current.select(index, commit);
     else navigate(item.to);
   }, [navigate]);
+  // Gamepad LB/RB (GamepadNavigation) step through the main tabs.
+  useEffect(() => {
+    const onMainTab = (event: Event) => {
+      const delta = (event as CustomEvent<{ delta: number }>).detail?.delta ?? 0;
+      const current = navItems.findIndex(item => item.to === location.pathname || (item.to !== '/' && location.pathname.startsWith(`${item.to}/`)));
+      const next = Math.max(0, Math.min(navItems.length - 1, (current < 0 ? 0 : current) + delta));
+      if (next !== current) selectTab(next);
+    };
+    window.addEventListener(MAIN_TAB_EVENT, onMainTab);
+    return () => window.removeEventListener(MAIN_TAB_EVENT, onMainTab);
+  }, [location.pathname, selectTab]);
   const clickTab = useCallback((event: MouseEvent<HTMLAnchorElement>, index: number) => {
     if (!liquid.current || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
     event.preventDefault();

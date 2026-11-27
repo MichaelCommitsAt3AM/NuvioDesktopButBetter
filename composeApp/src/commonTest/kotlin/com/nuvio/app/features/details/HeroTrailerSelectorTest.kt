@@ -57,9 +57,9 @@ class HeroTrailerSelectorTest {
     @Test
     fun `original selector prefers the earliest official trailer over later cuts`() {
         val trailers = listOf(
-            trailer(id = "international", type = "Trailer", official = true, publishedAt = "2026-04-02T10:00:00.000Z"),
-            trailer(id = "trailer-2", type = "Trailer", official = true, publishedAt = "2026-03-01T10:00:00.000Z"),
-            trailer(id = "original", type = "Trailer", official = true, publishedAt = "2026-01-15T10:00:00.000Z"),
+            trailer(id = "international", name = "International Trailer", type = "Trailer", official = true, publishedAt = "2026-04-02T10:00:00.000Z"),
+            trailer(id = "trailer-2", name = "Official Trailer 2", type = "Trailer", official = true, publishedAt = "2026-03-01T10:00:00.000Z"),
+            trailer(id = "original", name = "Official Trailer", type = "Trailer", official = true, publishedAt = "2026-01-15T10:00:00.000Z"),
             trailer(id = "early-teaser", type = "Teaser", official = true, publishedAt = "2025-12-01T10:00:00.000Z"),
         )
 
@@ -80,6 +80,19 @@ class HeroTrailerSelectorTest {
     }
 
     @Test
+    fun `original selector prefers a real trailer name over earlier promos`() {
+        val trailers = listOf(
+            trailer(id = "first-look", name = "Comic-Con First Look", official = true, publishedAt = "2015-07-11"),
+            trailer(id = "official-1", name = "Official Trailer 1", official = true, publishedAt = "2016-01-19"),
+            trailer(id = "blitz", name = "Blitz Trailer", official = true, publishedAt = "2016-03-15"),
+            trailer(id = "imax", name = "Suicide Squad IMAX® Trailer #2", official = true, publishedAt = "2016-04-01"),
+            trailer(id = "remix", name = "Official Comic-Con Soundtrack Remix", official = true, publishedAt = "2015-07-12"),
+        )
+
+        assertEquals("official-1", selectOriginalTrailer(trailers)?.id)
+    }
+
+    @Test
     fun `original ordering lists oldest first with undated last`() {
         val sorted = listOf(
             trailer(id = "c", publishedAt = "2026-03-01"),
@@ -93,6 +106,7 @@ class HeroTrailerSelectorTest {
     private fun trailer(
         id: String,
         key: String = id,
+        name: String = id,
         site: String = "YouTube",
         type: String = "Trailer",
         official: Boolean = false,
@@ -102,7 +116,7 @@ class HeroTrailerSelectorTest {
         MetaTrailer(
             id = id,
             key = key,
-            name = id,
+            name = name,
             site = site,
             type = type,
             official = official,

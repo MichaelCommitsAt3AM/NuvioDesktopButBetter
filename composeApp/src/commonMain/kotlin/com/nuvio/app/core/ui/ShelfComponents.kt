@@ -49,6 +49,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -118,7 +119,7 @@ fun <T> NuvioShelfSection(
     val shelfInteractionSource = remember { MutableInteractionSource() }
     val shelfHovered by shelfInteractionSource.collectIsHoveredAsState()
     val shelfScope = rememberCoroutineScope()
-    val shelfGroupKey = remember { "shelf_${nextShelfGroupId++}" }
+    val shelfGroupKey = rememberSaveable { "shelf_${nextShelfGroupId++}" }
 
     ScreenActivityEffect(state) { active ->
         if (!active) state.stopScroll()
@@ -427,18 +428,24 @@ fun NuvioPosterCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(shape.aspectRatio)
-                .clip(cardShape)
-                .background(tokens.colors.surface)
-                .nuvioCardDepth(
-                    shape = cardShape,
-                    surface = NuvioCardDepthSurface.Posters,
-                )
+                // Compose focus is used on Compose-driven routes (details rails), where the spatial
+                // engine defers navigation. The border must be applied *before* the clickable so it
+                // can observe the focus target that clickable creates.
+                .nuvioFocusBorder(cardShape)
+                // The engine's focus ring is drawn by posterCardClickable and must sit outside the
+                // clip so the rounded card clip cannot cut it away.
                 .posterCardClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,
                     zoomImageUrl = imageUrl,
                     zoomCornerRadius = posterCardStyle.cornerRadiusDp.dp,
                     hoverScaleEnabled = false,
+                )
+                .clip(cardShape)
+                .background(tokens.colors.surface)
+                .nuvioCardDepth(
+                    shape = cardShape,
+                    surface = NuvioCardDepthSurface.Posters,
                 ),
             contentAlignment = Alignment.Center,
         ) {

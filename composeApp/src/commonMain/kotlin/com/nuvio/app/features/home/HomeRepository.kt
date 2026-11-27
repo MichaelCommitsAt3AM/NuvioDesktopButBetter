@@ -76,7 +76,9 @@ object HomeRepository {
             cachedSections = cachedSections.filterKeys(requestCacheKeys::contains)
             cachedSectionTimestamps = cachedSectionTimestamps.filterKeys(requestCacheKeys::contains)
         }
-        val requestKey = requests.joinToString(separator = "|", transform = HomeCatalogDefinition::cacheKey)
+        // Sorted: the server's addon list can come back in another order, which does not change
+        // what the home has to load (rows are ordered by the home settings when published).
+        val requestKey = requests.map(HomeCatalogDefinition::cacheKey).sorted().joinToString(separator = "|")
         currentRequestKey = requestKey
 
         if (!force && activeRequestKey == requestKey && _uiState.value.isLoading) return
@@ -274,6 +276,9 @@ object HomeRepository {
                 val customTitle = preference?.customTitle.orEmpty()
                 val processedSection = section.copy(
                     title = customTitle.ifBlank { definition.titleFor(snapshot.showCatalogType) },
+                    // The addon name is not part of the cache key, so a rename shows up here.
+                    subtitle = definition.addonName,
+                    addonName = definition.addonName,
                 )
                 // Reuse the previously published instance when nothing about it actually
                 // changed. publishCurrentState runs repeatedly while a batch is still loading

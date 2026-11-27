@@ -44,7 +44,7 @@ internal suspend fun copyDesktopDownload(
         output.write(buffer, 0, count)
         transferred += count
         val now = nanoTime()
-        if (now - lastReport >= 250_000_000L) {
+        if (now - lastReport >= ProgressIntervalNanos) {
             onProgress(transferred, totalBytes)
             reported = transferred
             lastReport = now
@@ -211,6 +211,7 @@ internal actual object DownloadsPlatformDownloader {
                 output.flush()
             }
         }
+        onProgress(downloadedBytes, totalBytes)
 
         // A server that ends the stream early would otherwise leave a truncated file marked as completed.
         if (totalBytes != null && downloadedBytes < totalBytes) {
@@ -258,6 +259,7 @@ private class DesktopDownloadsTaskHandle(
 }
 
 private const val MaxTransientRetries = 10
+private const val ProgressIntervalNanos = 1_000_000_000L
 private const val MaxRetryDelayMs = 30_000L
 
 /** 2s, 4s, 8s, 16s, then capped at 30s. */

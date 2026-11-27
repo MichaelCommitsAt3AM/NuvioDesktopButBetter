@@ -44,10 +44,10 @@ it('shows the Kotlin sort chip with the selected label and reports the choice', 
   bridge.items = [media('one', 'movie', 'One')];
   bridge.extras = extras({ sortOptions: ['default', 'added_desc', 'title_asc'], orderedKeys: ['movie|one'], items: [{ id: 'one', type: 'movie', category: 'movie', savedAt: 1, listKeys: [] }] });
   renderPage();
-  const chip = screen.getByRole('button', { name: 'Sort library' });
-  expect(chip).toHaveTextContent('Recently added');
+  const chip = screen.getByRole('button', { name: 'Sort Library' });
+  expect(chip).toHaveTextContent('Recently Added');
   fireEvent.click(chip);
-  expect(screen.getByRole('option', { name: 'Tracker order' })).toBeInTheDocument();
+  expect(screen.getByRole('option', { name: 'Tracker Order' })).toBeInTheDocument();
   fireEvent.click(screen.getByRole('option', { name: 'Title A–Z' }));
   await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('library.setSort', { sort: 'title_asc' }));
 });
@@ -56,14 +56,14 @@ it('shows the tracker list chip for remote sources in grid mode only', () => {
   bridge.items = [media('one', 'movie', 'One')];
   bridge.extras = extras({ source: 'trakt', sections: [{ type: 'movies', title: 'Movies', items: ['movie|one'] }], items: [{ id: 'one', type: 'movie', category: 'movie', savedAt: 1, listKeys: [] }], orderedKeys: ['movie|one'] });
   renderPage();
-  expect(screen.getByRole('button', { name: 'Select list' })).toHaveTextContent('Movies');
+  expect(screen.getByRole('button', { name: 'Select List' })).toHaveTextContent('Movies');
 });
 
 it('hides the tracker list chip for the local source', () => {
   bridge.items = [media('one', 'movie', 'One')];
   bridge.extras = extras({ source: 'local', sections: [{ type: 'movies', title: 'Movies', items: ['movie|one'] }], items: [{ id: 'one', type: 'movie', category: 'movie', savedAt: 1, listKeys: [] }], orderedKeys: ['movie|one'] });
   renderPage();
-  expect(screen.queryByRole('button', { name: 'Select list' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Select List' })).toBeNull();
 });
 
 it('filters the grid by type through the Kotlin type chip', () => {
@@ -79,7 +79,7 @@ it('filters the grid by type through the Kotlin type chip', () => {
   renderPage();
   expect(screen.getByRole('button', { name: 'Open One' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Open Two' })).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Select type' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Select Type' }));
   fireEvent.click(screen.getByRole('option', { name: 'Movies' }));
   expect(screen.getByRole('button', { name: 'Open One' })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Open Two' })).toBeNull();

@@ -88,8 +88,10 @@ object PlaybackSettingsBridge {
             put("streamAutoPlayFallbackOnFailure", state.streamAutoPlayFallbackOnFailure)
             put("streamAutoPlayFallbackMaxSources", state.streamAutoPlayFallbackMaxSources)
             put("streamAutoPlayFallbackStartupTimeoutSeconds", state.streamAutoPlayFallbackStartupTimeoutSeconds)
-            // Kotlin locks the fallback switch while the (Android-only) engine switch on error is on.
-            put("streamAutoPlayFallbackBlockedByEngineSwitch", state.autoSwitchPlaybackEngineOnError && !state.streamAutoPlayFallbackOnFailure)
+            // The engine switch on error is Android-only; since upstream 0.1.39 desktop never locks
+            // source fallback behind it (PlaybackStreamSettings / PlayerScreenRuntimeSourceFallback).
+            // Kept in the snapshot for contract stability.
+            put("streamAutoPlayFallbackBlockedByEngineSwitch", false)
             put("subtitleAutoSync", buildJsonObject {
                 put("enabled", AutoSyncPreferencesRepository.preferredSubtitleAutoSyncOnStart.value)
                 put("aggressiveMode", AutoSyncPreferencesRepository.aggressiveMode.value)

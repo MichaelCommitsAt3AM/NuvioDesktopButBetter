@@ -4,6 +4,18 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Upstream 0.1.39-alpha integration — 2026-11-27
+
+The sync branch `codex/sync-upstream-0.1.39-alpha` merges upstream 0.1.39-alpha. The new pieces are subtitle shadow blur, RTX HDR for SDR sources only, mouse-wheel volume in the player, foreground-only controller input, once-per-second download progress, a registered-session guard on addon pushes, Traditional Chinese and the desktop source-fallback unlock.
+
+Home loading keeps the fork's pipeline (TTL cache, progressive previews, sliding window) instead of upstream's equivalent row-continuation rework. From upstream it takes the sorted request key and addon renames on publish; `DesktopHomeRows.kt` is reference only. The release workflow keeps the fork's Tauri matrix, and upstream's JDK 25 packaging is deferred for the private runtime.
+
+Bridge and React changes:
+- The playback snapshot no longer locks source fallback behind the Android-only engine switch.
+- `generate-locales.mjs` maps `values-b+zh+Hant` to `zh-Hant` (the code `AppLanguage` saves) and treats `iw` as RTL.
+
+See [the batch report](UPSTREAM_SYNC_2026-11-27.md).
+
 ### Gamepad navigation in the React shell and the player — 2026-11-26
 
 Upstream 0.1.38's controller support is built on Compose focus, so the rewrite had no gamepad input. The React shell now reads controllers with the browser Gamepad API (`desktop-ui/src/gamepad/`), tuned like upstream's `DesktopControllerInput`: Xbox layout (W3C standard mapping), D-pad and left stick with 320 ms first repeat then 105 ms, stick hysteresis 0.50/0.32, triggers as buttons past 0.55, right stick scrolling past 0.28. Polling runs only while a pad is connected and the window is focused and visible.

@@ -12,6 +12,9 @@ describe('locale resolution', () => {
   it('maps saved and device languages to catalog codes with English fallback', () => {
     expect(pickLocale('es', [])).toBe('es');
     expect(pickLocale('pt-BR', [])).toBe('pt-BR');
+    // Saved by AppLanguage.CHINESE_TRADITIONAL; generated from values-b+zh+Hant.
+    expect(pickLocale('zh-Hant', [])).toBe('zh-Hant');
+    expect(pickLocale('zh', [])).toBe('zh');
     expect(pickLocale('xx', [])).toBe('en');
     expect(pickLocale('device', ['fr-CA', 'en'])).toBe('fr');
     expect(pickLocale(undefined, [])).toBe('en');

@@ -46,6 +46,14 @@ Debugging aid: the local value lives in `%APPDATA%\Nuvio\nuvio_debrid_settings.p
 
 Added 2026-11-22. Studio and decade folders from a shared collection point at AIOMetadata custom discover catalogs (`tmdb.discover.movie.dreamworks.mp42jyh6`, `…best_movies_of_80s.mlyccp2c`). Their filters live in the collection author's AIOMetadata configuration, not in the ID. When the user's own configuration lacks them, `findCollectionCatalog`'s unlisted-catalog fallback (`collection/CollectionCatalogResolver.kt`) still requests them, and AIOMetadata 4.1.0 answers any unknown ID, even an invented one, with the same default list (Iron Man, The Odyssey, …). So every such folder row shows identical, unrelated titles. Verified against the add-on directly. Options: limit the fallback to IDs AIOMetadata knows globally (`streaming.*`, built-in `tmdb.*` lists) and show "not in your add-on configuration" for the rest, or detect identical default responses. Not changed yet, pending a decision.
 
+## Upstream 0.1.39 items deferred for the React shell
+
+Added 2026-11-27. See `UPSTREAM_SYNC_2026-11-27.md`.
+
+- **JDK 25 private runtime.** Upstream packages with JDK 25 and adds `--enable-native-access=ALL-UNNAMED`. The rewrite still jlinks its private runtime from the CI JDK 17 (`scripts/desktop-ui/bundle-java.mjs`, `desktop-release.yml`), and `supervisor.rs` does not pass the flag. Move both together and recheck native loading (player bridge, JNA, Skiko) on all three platforms.
+- **Bridge JVM heap flags.** Upstream's `-Xms128m -Xmx2g`, G1 free-ratio and periodic-GC flags only reach the Compose launcher. The Kotlin bridge started by `supervisor.rs` still sizes its heap from machine RAM. Measure the bridge's idle and peak memory before adopting them.
+- **Device-language Traditional Chinese.** A saved `zh-Hant` choice now resolves correctly, but `pickLocale` maps device languages such as `zh-TW` or `zh-HK` to Simplified `zh` (it only matches the base language).
+
 ## Upstream 0.1.38 features not yet in the React shell
 
 Added 2026-11-22.

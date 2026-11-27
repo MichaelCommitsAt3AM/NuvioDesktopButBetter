@@ -123,6 +123,13 @@ node scripts/desktop-ui/generate-locales.mjs --check
 node scripts/desktop-ui/inventory-parity.mjs --check
 ```
 
+Check the locale list `generate-locales.mjs` prints for every new resource folder. Each code
+must match what `AppLanguage` saves: the 0.1.39 sync added `values-b+zh+Hant`, which needed
+BCP-47 folder mapping to `zh-Hant`. Upstream also edits English copy (0.1.39 switched Library
+labels to Title Case), and React tests that look elements up by English label then fail.
+Update the tests to the new copy, including negative `queryBy…` checks that would otherwise
+pass trivially.
+
 Repeated generation exposed intermittent Windows write-sharing errors on unchanged
 outputs. Contract/validator generators now skip identical content; keep generation
 steps sequential and inspect their own exits if this recurs.

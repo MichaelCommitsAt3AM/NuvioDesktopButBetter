@@ -10,7 +10,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const resDir = path.join(root, 'composeApp/src/commonMain/composeResources');
 const outDir = path.join(root, 'desktop-ui/src/generated/locales');
 
-const RTL = new Set(['ar', 'he', 'ur']);
+// iw is the legacy code for Hebrew (upstream ships values-iw beside values-he).
+const RTL = new Set(['ar', 'he', 'iw', 'ur']);
 
 function unescapeXml(value) {
   return value
@@ -38,7 +39,10 @@ const entries = await readdir(resDir, { withFileTypes: true });
 const locales = {};
 for (const entry of entries) {
   if (!entry.isDirectory() || !entry.name.startsWith('values')) continue;
-  const suffix = entry.name.slice('values'.length).replace(/^-/, '').replace(/-r([A-Z]{2})$/, (_, region) => `-${region.toLowerCase()}`);
+  // BCP-47 folders (values-b+zh+Hant) become the code AppLanguage saves (zh-Hant).
+  const suffix = entry.name.slice('values'.length).replace(/^-/, '')
+    .replace(/^b\+(.+)$/, (_, tags) => tags.split('+').join('-'))
+    .replace(/-r([A-Z]{2})$/, (_, region) => `-${region.toLowerCase()}`);
   const code = suffix === '' ? 'en' : suffix;
   try {
     const xml = await readFile(path.join(resDir, entry.name, 'strings.xml'), 'utf8');

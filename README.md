@@ -42,6 +42,8 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 - A download that a debrid source swaps for a short placeholder clip now shows as failed with an explanation, instead of finishing at a few KB.
 
+- Synced with upstream 0.1.39: Traditional Chinese is available as an app language, subtitle shadows look softer, RTX Video HDR only kicks in for non-HDR videos, the mouse wheel changes volume in the player, a controller no longer steers the app while it's in the background, and "Fallback to next matching source" can be turned on again.
+
 - Synced with upstream 0.1.38: Plex and Silo servers can be added under Media servers, NVIDIA RTX Video HDR can be turned on for Windows, seeking and resuming land on the exact second, and Downloads shows speed, artwork and what you've already watched, with Pause all/Resume all.
 
 - Synced with upstream 0.1.37: stream searches are shared between the stream list, the player and next-episode search, tracking add-ons ask for your consent before installing, and post-credits scenes can be skipped to again.

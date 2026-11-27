@@ -1,10 +1,10 @@
 {
-  "baseline": "35bdb2a77ca86b4141588832a3fc3ca0c80bfc4d",
+  "baseline": "04c94b54334c6ad2a1b18f48393d2a31e0dda2fc",
   "description": "Source inventory, not a reachability proof. Desktop policy/conditions must be audited in the companion checklist. Regenerate after upstream merges and review added/changed controls.",
   "entries": [
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/AppGate.kt",
-      "sha256": "a9378efaa3277f6132dea0aa578bae1f168c74db4846a4d5ee7380f4aae30fd1",
+      "sha256": "56ceb50c4b29e59424153a6a830a445a4224bb135fa656fc0888b25f19fecef1",
       "composables": [
         "AppGate"
       ],
@@ -152,7 +152,7 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/BottomSheet.kt",
-      "sha256": "a1889233e15e08c28ddf77e2980b1d5d82cf289b4d6780a866107dec354b564e",
+      "sha256": "4fdeec6244af64623d8c6a8cae6d089e328cea7e7d3f3e186f29f07ccddb7120",
       "composables": [
         "NuvioModalBottomSheet",
         "NuvioBottomSheetDivider",
@@ -160,9 +160,11 @@
         "NuvioBottomSheetDragHandle"
       ],
       "actions": [
+        "onBack",
         "onClick",
         "onDismiss",
-        "onDismissRequest"
+        "onDismissRequest",
+        "onSelect"
       ],
       "referencedLabels": []
     },
@@ -200,7 +202,7 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/Components.kt",
-      "sha256": "8f21e7a4bc9ba79da7b3c620cdc336987fd21407bb5428432d5b1e1f4fbd208a",
+      "sha256": "acb9969a62c9ed5abfed8e6d469a519a5d597c1506c790dadc43e2fe53d79cc3",
       "composables": [
         "NuvioScreen",
         "NuvioSurfaceCard",
@@ -228,6 +230,13 @@
         "action_back",
         "action_ok"
       ]
+    },
+    {
+      "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/ComposePopupFocus.kt",
+      "sha256": "53c3afa54410ec3cc44878f5ce49141753cfa85d7a9c8fee7811e8f8eb94db62",
+      "composables": [],
+      "actions": [],
+      "referencedLabels": []
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/ContinueWatchingActionSheet.kt",
@@ -291,7 +300,7 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/DesktopNavigationBar.kt",
-      "sha256": "ed49000508fc954777fe87406fca02cc026cc4c6130e0d38f68fd44c43035591",
+      "sha256": "7a2e08922fc3ccfe9bf8c894abd248d0eb5382c00e20562616e65718f123d25a",
       "composables": [
         "DesktopNavigationBar"
       ],
@@ -347,15 +356,17 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/DropdownChip.kt",
-      "sha256": "a4562ff33c46539e8563b9559981986c65879cb355848a4838d5c1bb38be2a38",
+      "sha256": "8bddda562557d538e560887a093c0323072e8a2496ac2c5b533d72fc8ab6c6f5",
       "composables": [
         "NuvioDropdownChip",
         "NuvioDropdownOptionsSheet"
       ],
       "actions": [
+        "onBack",
         "onClick",
         "onDismiss",
         "onDismissRequest",
+        "onSelect",
         "onSelected"
       ],
       "referencedLabels": []
@@ -537,7 +548,7 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/NuvioFocusable.kt",
-      "sha256": "0816b0e93d5fa262a6fdd1fbfb2ad29a009693e6cff6578e810b41a51624696d",
+      "sha256": "077bb95ccdded75612e852a06474e33f18f7913866cd6b0adddc006432c2fc76",
       "composables": [],
       "actions": [],
       "referencedLabels": []
@@ -664,7 +675,7 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/PosterLift.kt",
-      "sha256": "89f2ef3adc8f39f8119e6619a3c41546613aede5dbe0021ec8ee891b27203a2b",
+      "sha256": "1cabac84a24e724610c8158efa8d7dc336eb04997ff1c5bf0776a4fb4d5d8fcf",
       "composables": [],
       "actions": [
         "onClick",
@@ -684,16 +695,18 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/PosterZoomActionOverlay.kt",
-      "sha256": "72d714696d757bda7bd69aa0b39d7b0b01f4e96c498a95e4c7c610ab2581e476",
+      "sha256": "860bcacb748657629f512642eed02a2fb174ba07155b1bdcf6582715475fd3d5",
       "composables": [
         "NuvioPosterZoomActionOverlay",
         "PosterZoomMenuRow"
       ],
       "actions": [
+        "onBack",
         "onClick",
         "onDisintegrated",
         "onDisintegrationStarted",
         "onDismissed",
+        "onSelect",
         "onSelected"
       ],
       "referencedLabels": []
@@ -750,7 +763,7 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/ShelfComponents.kt",
-      "sha256": "5f3be84bad5ee6f3f5705ac23e94e7c7b2dcd9025e1fb602cc3f3bcf769286f9",
+      "sha256": "fb538d1dea54bab4e7278ca9e0272c3e4b0df9d1d1e25a5b3e92adc62086dbe2",
       "composables": [
         "NuvioAnimatedShelfPageControl",
         "NuvioShelfPageControl",
@@ -907,7 +920,7 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/jelly/JellyNavigationBar.kt",
-      "sha256": "8f389101c76bb9ec25747d9730acad9b5f1d4b4432fd3c978e8be621bedf6903",
+      "sha256": "47eced59254b5b2226e1f99d6e0b1b4850dd897bdb6046502527bae53d92deed",
       "composables": [
         "JellyNavigationBar"
       ],
@@ -923,14 +936,15 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/jelly/JellyTabs.kt",
-      "sha256": "6f5fd4ab8bfc40234f34415e340e0e2ca4bfc1239ec599854a74da9bbb464598",
+      "sha256": "ee31a1cda4da50fd8bb5c62130e732e58bcdcbc03d8d8d265dcd7b2f42756ef2",
       "composables": [
         "JellyTabRow",
         "JellyTabTargets",
         "JellyTabContent"
       ],
       "actions": [
-        "onClick"
+        "onClick",
+        "onSelect"
       ],
       "referencedLabels": []
     },
@@ -1169,7 +1183,7 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/features/catalog/CatalogScreen.kt",
-      "sha256": "0385183caadf7518cd0df76e23240f176f38d0e84ac0faa0f6b6bf2f44ba8b99",
+      "sha256": "62868041c5e721fb617e4aa5abb9862c57ea2d1072e740c461e8c9f70873fda1",
       "composables": [
         "CatalogScreen",
         "CatalogHeader",
@@ -2494,7 +2508,7 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerScreenModalHosts.kt",
-      "sha256": "217425338b1a0b150fc041a078746749477070450d026865eb7b0b5f8bd0de7a",
+      "sha256": "c8c05575a5c5b37567a1d9c90b125c01967c0ba081c4d0234cedf1c98e44859c",
       "composables": [
         "PlayerScreenModalHosts"
       ],
@@ -2588,7 +2602,7 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerScreenRuntimeEffects.kt",
-      "sha256": "dbe364511fdbc4649679c4e4ed908630fb6ca36fcdf1ebcd1dc58bc4ab88410f",
+      "sha256": "8187553f7195e58647044b8babd19b62c55dc191b8679d5e44a251c4c0e4c1b8",
       "composables": [],
       "actions": [],
       "referencedLabels": [
@@ -2754,14 +2768,14 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerScreenRuntimeSourceFallback.kt",
-      "sha256": "479a87ed738ef0d3480b49299fb2a7715971f9f10cf27087a78c28f62f67a2ea",
+      "sha256": "f81349354851f261040f5f166fbec3776cd2e83b9ec07de85edba3795744be40",
       "composables": [],
       "actions": [],
       "referencedLabels": []
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerScreenRuntimeState.kt",
-      "sha256": "1e80f34b38901f23738f6d91b08ebeea57417a1838604a2b4a43537fabe652b8",
+      "sha256": "b84a730eda106af95ae71277b97e8456c0cd7e51446f1174fa78c8dff62d72ae",
       "composables": [],
       "actions": [],
       "referencedLabels": []
@@ -2779,14 +2793,14 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerScreenRuntimeTrackActions.kt",
-      "sha256": "e343600631ef71d8d6e9bcf44a276a2b1fdb09357b8b6119311cc973f5748298",
+      "sha256": "52bba0681013705b7c3172c2c5732d005d1b187a98d0e3740954aa94d56a494e",
       "composables": [],
       "actions": [],
       "referencedLabels": []
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerScreenRuntimeUi.kt",
-      "sha256": "a3c748a4aa4648bae3b3d4bfab7c9d2ccc091854e72a730c9fd98048a73301f9",
+      "sha256": "4d3182d164a7654569f083c5afbd4eeaec99fa8060f6f0fcea5c1524669110d5",
       "composables": [],
       "actions": [
         "onAddonSubtitleSelected",
@@ -3016,7 +3030,7 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/SubtitleAppearanceControls.kt",
-      "sha256": "cd200fd288277bb15fd9407b3b78c536d44a0098cc89c734ebc56f6cac73749f",
+      "sha256": "424b39e06cdf32962a9750526a6d85ab2b0116f69f16487e808977a8de958a4e",
       "composables": [
         "SubtitleAppearanceControls",
         "SubtitleValueControl",
@@ -3049,6 +3063,7 @@
         "settings_playback_subtitle_background_color",
         "subtitle_background_opacity",
         "subtitle_background_roundness",
+        "subtitle_customize_ass",
         "subtitle_font",
         "subtitle_outline_width",
         "subtitle_shadow",
@@ -3058,13 +3073,14 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/SubtitleModal.kt",
-      "sha256": "ece63f5b30f52e1dc606af7338fdfbd36a7522c0669cd256773b65a6d6a39e94",
+      "sha256": "e227fe8f119104f408b3b32e18f6552d2b949d6539f3b150550f128f8dbb2c57",
       "composables": [
         "SubtitleModal",
         "SubtitleRail",
         "SubtitleLanguageRow",
         "SubtitleOptionRow",
         "SubtitleSourceChip",
+        "SubtitleFormatChip",
         "SubtitleRailEmptyState"
       ],
       "actions": [
@@ -3226,7 +3242,7 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/features/profiles/ProfileSelectionScreen.kt",
-      "sha256": "c90567bf98a7817f7518f634c91e00ab6c4003917b1ce2c0b4dd04042a6da721",
+      "sha256": "4243eb2d110c5eef793393d954b217d25e7aafdcd36d2184b79d508554817bab",
       "composables": [
         "ProfileSelectionScreen",
         "ProfileAvatarCard",
@@ -3256,7 +3272,7 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/features/search/SearchScreen.kt",
-      "sha256": "ac1b440f3eea78cad39f4230172772da0778214eb66445cc0f1400cd0a9f4a6e",
+      "sha256": "80da20fa37e840ca584a5820720f10a6b67329bab0ee2b4ad7d1c2f41c929dd6",
       "composables": [
         "SearchScreen",
         "SearchEmptyStateCard",
@@ -3274,6 +3290,7 @@
         "onRemoveSearch",
         "onRetry",
         "onSearchPress",
+        "onSelect",
         "onTypeSelected",
         "onValueChange"
       ],
@@ -4483,7 +4500,7 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/features/settings/SettingsScreen.kt",
-      "sha256": "e2053f5b83244b7dadfd6ac49f1678efdfa51885573f7236b1c32694f05ee7b9",
+      "sha256": "4167db81160420a2c6b76ea780a2ea552a202032516ec60b08fcf81332725bb5",
       "composables": [
         "SettingsScreen",
         "MobileSettingsScreen",
@@ -5055,19 +5072,26 @@
     },
     {
       "source": "composeApp/src/desktopMain/resources/player-ui/controls.html",
-      "sha256": "1a59904fd97ad5b8cebe5882b26976703910577507121fc9037af82e5ce5cb2b",
+      "sha256": "bbae156dcbc21a80115a6e5120034a2a38d1f0da4652df306f09416194da338a",
       "composables": [],
       "actions": [],
       "referencedLabels": []
     },
     {
       "source": "composeApp/src/desktopMain/resources/player-ui/controls.js",
-      "sha256": "16419571eb9cedb2557ea5d74778c7005bfc152d067067de052bd7083decd097",
+      "sha256": "cc8bce56e32034d3edb9d269a0a62c46c9be2d2f775ad03d495ff570610f9c02",
       "composables": [],
       "actions": [
         "onEpisodesModalClosed",
         "onLabel"
       ],
+      "referencedLabels": []
+    },
+    {
+      "source": "composeApp/src/desktopMain/resources/player-ui/gamepad.js",
+      "sha256": "27a4e68126a9afee666e67f2f14054e13ac926e2993d616d4deaf3e528fcd968",
+      "composables": [],
+      "actions": [],
       "referencedLabels": []
     },
     {

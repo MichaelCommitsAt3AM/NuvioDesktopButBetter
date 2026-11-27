@@ -39,7 +39,7 @@ Audited automatic merges: `NativePlayerBridge.setSubtitleAppearance` gained `sha
 - Method sync, contract, locale and UI inventory generators plus `--check`: passed. No new bridge methods. The inventory records the new and changed Compose sources; regenerating it acknowledges the review above, not parity.
 - Desktop Kotlin compile: passed after removing the duplicate imports.
 - Windows desktop suite (`stageBridgeRuntime` + `desktopTest`): 2,321 tests, 1 skipped, 0 failures. This includes the bridge tests, the merged download-progress tests (3), `DesktopHomeRowsTest`, `ControllerForegroundGateTest` and the real JNI/mpv/WebView2 `WindowsPlayerPresentationTest`.
-- Frontend: the full Vitest run found the 3 Library label failures above. After the test update, the affected Library and i18n files (6 files, 23 tests) pass. `contract:check` and the production build passed. The lockfile is unchanged, so `npm ci` was not rerun.
+- Frontend: the full Vitest run found the 3 Library label failures above. After the test update the full suite passes: 111 files, 700 tests, 1 skipped. `contract:check` and the production build passed. The lockfile is unchanged, so `npm ci` was not rerun.
 - Rust: `cargo fmt --check`, 12 tests and the embedded shell build (`cargo build --locked --features custom-protocol`) passed. No Rust changed in this batch.
 - Launcher/release tests: 10 passed, 1 explicit host skip.
 - `git diff --check`: clean.

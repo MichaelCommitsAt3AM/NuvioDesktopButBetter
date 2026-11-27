@@ -37,8 +37,8 @@ function Loading({ title }: { title: string }) { return <SubPage title={title}><
 
 export function IntegrationsLanding() {
   const { snapshot: _snapshot, loading, error, refresh } = useDomain<{ tmdb: { enabled: boolean; hasApiKey: boolean }; mdblist: { isActive: boolean; hasAccount: boolean }; debrid: { enabled: boolean; hasAnyApiKey: boolean } }>('integrations');
-  if (loading && !_snapshot) return <div className="page settings-page"><PageHeader title="Integrations" /><div className="loading-block"><LoaderCircle size={17} className="spin" /> Loading integrations…</div></div>;
-  return <div className="page settings-page"><PageHeader title="Integrations" />{error && <SettingsError error={error} refresh={refresh} />}<h2 className="settings-group-title">INTEGRATIONS</h2><div className="settings-nav-card">
+  if (loading && !_snapshot) return <div className="page settings-page"><Link to="/settings" className="back-button settings-page-back" aria-label="Settings"><ArrowLeft size={15} /></Link><PageHeader title="Integrations" /><div className="loading-block"><LoaderCircle size={17} className="spin" /> Loading integrations…</div></div>;
+  return <div className="page settings-page"><Link to="/settings" className="back-button settings-page-back" aria-label="Settings"><ArrowLeft size={15} /></Link><PageHeader title="Integrations" />{error && <SettingsError error={error} refresh={refresh} />}<h2 className="settings-group-title">INTEGRATIONS</h2><div className="settings-nav-card">
     <IntegrationLink to="servers" title="Media servers" detail="Connect Jellyfin or Emby libraries" />
     <IntegrationLink to="tmdb" logoSrc="/images/attributions/tmdb.png" icon={<Film size={18} />} title="TMDB Enrichment" detail="Metadata enrichment controls" />
     <IntegrationLink to="mdblist" logoSrc="/images/attributions/mdblist.svg" icon={<Link2 size={18} />} title="MDBList Ratings" detail="External ratings providers" />

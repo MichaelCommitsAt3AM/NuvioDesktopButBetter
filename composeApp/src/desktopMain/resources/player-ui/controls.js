@@ -1604,8 +1604,8 @@ const renderFontPicker = () => {
     if (!isBuiltInFont(font.id)) {
       const remove = document.createElement("button");
       remove.type = "button";
-      remove.className = "panel-button";
-      remove.textContent = "×";
+      remove.className = "font-option-remove";
+      remove.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
       remove.setAttribute("aria-label", (state.fontRemoveLabel || "Remove {name}").replace("{name}", font.label));
       remove.addEventListener("click", event => {
         event.stopPropagation();

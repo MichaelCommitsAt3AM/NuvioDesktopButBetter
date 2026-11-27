@@ -4,6 +4,14 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Player font picker, Library sort, settings back buttons and profile avatar fixes — 2026-11-27
+
+- **Font picker** (`player-ui/controls.html`, `controls.css`, `controls.js`): upstream's native-overlay Font popup used the overlay's track-panel look (centred labels, solid accent selection, centred compact buttons, hint text outside the padding). It now copies the Compose `SubtitleFontPicker` dialog built on `core/ui/Dialog.kt`: 460px max width, 28px radius, 20px padding, gradient edge, 12px-radius rows tinted 6% (accent 15% when selected, SemiBold label, accent check), the import hint inside the padded column in muted 12px, two equal 48px secondary buttons, and a 48px trash icon button for imported fonts. All rules are scoped to `.font-picker-panel`. Expect a conflict here if upstream restyles this popup.
+- **Library sort** (`LibraryPage.tsx`, `Shelf.tsx`, `HorizontalRail.tsx`): changing the sort kept each horizontal row at its old scroll position. Shelves now take a `scrollResetKey` (the sort), and `HorizontalRail` scrolls back to the first item when it changes. Covered by `HorizontalRail.test.tsx`.
+- **Settings back buttons** (`IntegrationSettings.tsx`, `MediaServersSettings.tsx`): the Integrations page and the Media servers list were the only settings pages without the top-left back arrow. Integrations now links to `/settings` (like the other General pages), and the Media servers list links to `/settings/integrations`; an opened server keeps its existing arrow back to the list.
+- **Profile switch avatar flash** (`bridge.ts`): choosing a profile cleared every feature snapshot, including `profiles` (the avatar URLs), while the chooser was still on screen, so the chosen card briefly showed its initial letter. `changeProfileEpoch` now takes `keepFeatures`; `selectProfile` keeps `profiles` through the switch (as does the epoch reset in `reconcile` while a profile transition is active) and refreshes it once the new session lands. Covered in `bridge.test.tsx`.
+- **Round avatar picker** (`profileEditorParity.css`): the editor's avatar tiles inherited the older `.avatar-choice` `min-height` (100px × UI scale) from `features.css`, which stretched the narrow grid tiles into ovals. The parity rule now resets `min-height`/`height`, so `aspect-ratio: 1` keeps them circular.
+
 ### Upstream 0.1.39-alpha integration — 2026-11-27
 
 The sync branch `codex/sync-upstream-0.1.39-alpha` merges upstream 0.1.39-alpha. The new pieces are subtitle shadow blur, RTX HDR for SDR sources only, mouse-wheel volume in the player, foreground-only controller input, once-per-second download progress, a registered-session guard on addon pushes, Traditional Chinese and the desktop source-fallback unlock.

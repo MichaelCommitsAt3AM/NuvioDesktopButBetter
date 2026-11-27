@@ -9,6 +9,7 @@ import { GuidedServerSignIn, type GuidedSignIn } from './GuidedServerSignIn';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { call, refreshFeature, useFeatureSnapshot, useSelector } from '../../bridge';
 import { PageHeader } from '../../components/ui';
+import { Link } from 'react-router-dom';
 import { InlineError } from '../../components/Status';
 
 type Connection = { id: string; provider?: string; name: string; address: string; username: string; enabled: boolean; useCatalogMetadata: boolean; importWatchState: boolean; libraries: { id: string; name: string; selected: boolean }[] };
@@ -90,7 +91,9 @@ export function MediaServersSettings() {
   };
   const providerName = snapshot?.providers.find(item => item.id === provider)?.name ?? provider;
   return <div className="page settings-page media-servers-page">
-    {selected && <button className="back-button settings-page-back" aria-label="Back to media servers" onClick={() => setSelected(null)}><ArrowLeft /></button>}
+    {selected
+      ? <button className="back-button settings-page-back" aria-label="Back to media servers" onClick={() => setSelected(null)}><ArrowLeft /></button>
+      : <Link to="/settings/integrations" className="back-button settings-page-back" aria-label="Integrations"><ArrowLeft /></Link>}
     <PageHeader title={selected ? 'Server' : 'Media servers'} />
     {error && !signIn && <InlineError message={error} />}
     {!snapshot && !error && <p>Loading media servers…</p>}

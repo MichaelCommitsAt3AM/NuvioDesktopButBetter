@@ -129,3 +129,11 @@ it('closes the guided dialog when Kotlin reports the connection and cancels when
   fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
   await waitFor(() => expect(bridge.call).toHaveBeenCalledWith('servers.signIn.cancel', {}));
 });
+
+it('links back to Integrations from the server list and to the list from a server', () => {
+  render(page());
+  expect(screen.getByRole('link', { name: 'Integrations' })).toHaveAttribute('href', '/settings/integrations');
+  fireEvent.click(screen.getByRole('button', { name: /Home server/ }));
+  expect(screen.queryByRole('link', { name: 'Integrations' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Back to media servers' })).toBeInTheDocument();
+});

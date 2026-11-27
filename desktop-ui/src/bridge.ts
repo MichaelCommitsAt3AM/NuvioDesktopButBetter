@@ -305,7 +305,9 @@ async function reconcile() {
       reportDiagnostic(`Session snapshot accepted (generation=${generation}, epoch=${activeEpoch}, status=${session.status}, profiles=${session.profiles.length})`);
       if (changedEpoch) {
         revisions.clear();
-        publish({ ...emptyState, profileTransition: state.profileTransition, status: state.status, session });
+        // During a profile switch keep the profile list, as changeProfileEpoch does.
+        const keptProfiles = state.profileTransition && state.featureSnapshots.profiles ? { profiles: state.featureSnapshots.profiles } : {};
+        publish({ ...emptyState, featureSnapshots: keptProfiles, profileTransition: state.profileTransition, status: state.status, session });
       } else {
         publish({ ...state, session });
       }
@@ -360,7 +362,7 @@ async function snapshot(method: string, key: 'home' | 'library' | 'settings' | '
   }
 }
 
-async function changeProfileEpoch(action: () => Promise<unknown>, showLoading = true) {
+async function changeProfileEpoch(action: () => Promise<unknown>, showLoading = true, keepFeatures: string[] = []) {
   const previousState = state;
   const previousSession = state.session;
   ++reconcileGeneration;
@@ -368,7 +370,10 @@ async function changeProfileEpoch(action: () => Promise<unknown>, showLoading = 
   sessionEpochReady = false;
   revisions.clear();
   earlyEvents.length = 0;
-  publish({ ...emptyState, profileTransition: state.profileTransition, status: state.status, session: showLoading ? { ...state.session, status: 'loading', error: null } : { ...state.session, error: null } });
+  // Account-wide snapshots named in keepFeatures stay visible through the switch (for
+  // example the profile list with its avatar images, which the chooser still shows).
+  const keptFeatures = Object.fromEntries(keepFeatures.filter(topic => topic in state.featureSnapshots).map(topic => [topic, state.featureSnapshots[topic]]));
+  publish({ ...emptyState, featureSnapshots: keptFeatures, profileTransition: state.profileTransition, status: state.status, session: showLoading ? { ...state.session, status: 'loading', error: null } : { ...state.session, error: null } });
   try {
     await action();
     await reconcile();
@@ -413,7 +418,10 @@ export const actions = {
     const record = profiles?.items.find(item => item.id === id);
     if (profile) update(current => ({ ...current, profileTransition: { profile, backgroundUrl: record?.backgroundUrl, ready: false } }));
     try {
-      await changeProfileEpoch(() => call('profiles.select', { id, ...(pin ? { pin } : {}) }), false);
+      // Keep the profile list (and its avatar URLs) so the chosen card does not fall back
+      // to its initial letter while the new profile loads; refresh it once the switch lands.
+      await changeProfileEpoch(() => call('profiles.select', { id, ...(pin ? { pin } : {}) }), false, ['profiles']);
+      if (state.featureSnapshots.profiles) void refreshFeature('profiles').catch(() => {});
       update(current => ({ ...current, profileTransition: current.profileTransition ? { ...current.profileTransition, ready: true } : null }));
     } catch (error) {
       update(current => ({ ...current, profileTransition: null }));

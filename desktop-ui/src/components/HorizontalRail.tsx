@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-export function HorizontalRail({ label, className = 'shelf-track', children, trackRef }: { label: string; className?: string; children: ReactNode; trackRef?: React.RefObject<HTMLDivElement | null> }) {
+export function HorizontalRail({ label, className = 'shelf-track', children, trackRef, scrollResetKey }: { label: string; className?: string; children: ReactNode; trackRef?: React.RefObject<HTMLDivElement | null>; scrollResetKey?: string }) {
   const track = useRef<HTMLDivElement>(null);
   const resolved = trackRef ?? track;
   const nearViewport = useRef(true);
@@ -24,6 +24,15 @@ export function HorizontalRail({ label, className = 'shelf-track', children, tra
     measure();
     return () => { observer.disconnect(); visibility?.disconnect(); };
   }, [children]);
+  // A new reset key (for example a changed Library sort) means the row holds a different
+  // order, so return it to its first item instead of keeping the old scroll offset.
+  const lastResetKey = useRef(scrollResetKey);
+  useLayoutEffect(() => {
+    if (lastResetKey.current === scrollResetKey) return;
+    lastResetKey.current = scrollResetKey;
+    const element = resolved.current;
+    if (element) { element.scrollLeft = 0; measure(); }
+  }, [scrollResetKey]);
   const page = (direction: number) => { const element = resolved.current; if (element) element.scrollBy({ left:direction * element.clientWidth * .85,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }); };
   const handleArrowClick = (direction: number) => (event: React.MouseEvent<HTMLButtonElement>) => {
     page(direction);

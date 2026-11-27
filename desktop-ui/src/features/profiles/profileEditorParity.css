@@ -30,7 +30,7 @@
 .profile-editor-page .profile-accent-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:calc(14px * var(--profile-scale));color:var(--muted,#aaa)}
 .profile-accent-row input{width:42px;height:32px;padding:0;border:0;border-radius:8px;background:transparent;cursor:pointer}
 .profile-editor-page .avatar-choice-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(calc(58px * var(--profile-scale)),1fr));gap:calc(10px * var(--profile-scale))}
-.profile-editor-page .avatar-choice{position:relative;display:block;aspect-ratio:1;width:100%;padding:0;overflow:hidden;border:1px solid #ffffff26;border-radius:50%;background:transparent;color:var(--text)}
+.profile-editor-page .avatar-choice{position:relative;display:block;aspect-ratio:1;width:100%;min-height:0;height:auto;padding:0;overflow:hidden;border:1px solid #ffffff26;border-radius:50%;background:transparent;color:var(--text)}
 .profile-editor-page .avatar-choice.selected{border:3px solid var(--app-accent,#fff);box-shadow:none}
 .profile-editor-page .avatar-choice-image{display:grid;place-items:center;width:100%;height:100%;border:0;border-radius:50%;font-size:24px}
 .profile-editor-page .avatar-choice-image img{width:100%;height:100%;object-fit:cover}

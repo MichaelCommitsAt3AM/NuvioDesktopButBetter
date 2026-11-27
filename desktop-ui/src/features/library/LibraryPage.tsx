@@ -161,7 +161,7 @@ export function LibraryPage() {
       {!library.loading && !hasContent && <EmptyState title="No saved titles" message="Save titles from their details page to add them here." icon={<LibraryBig />} />}
       {!library.loading && hasContent && <>
         {savedControls}
-        {layout === 'horizontal' && shelfSections.map(section => <Shelf className="library-shelf" key={section.type} showPosterRating={false} shelf={{ key: `library:${section.type}`, title: sectionTitle(section), subtitle: '', items: projectLibraryItems(library.items, section.items), hasMore: false }} />)}
+        {layout === 'horizontal' && shelfSections.map(section => <Shelf className="library-shelf" key={section.type} scrollResetKey={extras?.sort ?? 'added_desc'} showPosterRating={false} shelf={{ key: `library:${section.type}`, title: sectionTitle(section), subtitle: '', items: projectLibraryItems(library.items, section.items), hasMore: false }} />)}
         {layout === 'vertical' && <div className="library-grid" ref={gridRef} style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>{removalPaged.map(item => { const key = mediaKey(item.type, item.id); const bursting = removal.bursting.has(key); return <div key={key} data-flip-key={key} className={bursting ? 'is-disintegrating' : undefined}>{bursting && <span className="disintegration-burst" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/></span>}<Poster item={item} onRemoveAction={(entry, operation) => void removal.remove(entry, operation).catch((cause) => setError(String(cause)))} /></div>; })}{Array.from({ length: pendingCount }, (_, index) => <div key={`skeleton-${index}`}><PosterLoadingCard variant="poster" /></div>)}</div>}
       </>}
     </>}

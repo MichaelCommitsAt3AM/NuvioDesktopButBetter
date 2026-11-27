@@ -547,6 +547,17 @@ describe('desktop bridge UI workflow', () => {
     expect(snapshots.at(-1)?.epoch).toBe(bridgeMock.epoch);
   });
 
+  it('keeps the profile list (and avatars) visible while a profile switch loads', async () => {
+    render(<AppRoot />);
+    await screen.findByText('Your home is ready for content');
+    await act(async () => { await refreshFeature('profiles'); });
+    const missing: string[] = [];
+    const stop = subscribe(() => { if (!getSnapshot().featureSnapshots.profiles) missing.push('profiles'); });
+    try { await act(async () => { await actions.selectProfile(7); }); } finally { stop(); }
+    expect(missing).toEqual([]);
+    await waitFor(() => expect(bridgeMock.requests.filter(request => request.method === 'profiles.snapshot').length).toBeGreaterThan(1));
+  });
+
   it('dismisses the profile overlay and preserves the session on selection failure', async () => {
     render(<AppRoot />);
     await screen.findByText('Your home is ready for content');

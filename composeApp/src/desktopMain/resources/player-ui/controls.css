@@ -2497,34 +2497,174 @@ button:disabled {
   font-size: 22px;
 }
 
+/*
+ * Font picker: mirrors the Compose dialog (core/ui/Dialog.kt DialogSurface, DialogOption,
+ * DialogButtons and features/player/SubtitleFontPicker.kt) token for token. 460px max width,
+ * 28px radius, 20px padding, 12px gaps, gradient edge, 12px-radius option rows tinted 6% /
+ * accent 15%, and two equal 48px secondary buttons.
+ */
 .font-picker-panel {
-  width: min(460px, 92vw);
+  width: min(460px, 100%);
   max-height: 80vh;
   gap: 12px;
+  padding: 20px;
+  border-radius: 28px;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--theme-surface-elevated), var(--theme-surface-elevated)) padding-box,
+    linear-gradient(to bottom, rgba(255, 255, 255, .16), rgba(255, 255, 255, .04)) border-box;
+  color: var(--theme-text-primary);
+  box-shadow: none;
 }
 
-.font-picker-panel .panel-actions {
-  justify-content: center;
+.font-picker-panel .track-header-row {
+  padding: 0;
+}
+
+.font-picker-panel .track-title {
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+}
+
+.font-picker-body {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.font-picker-panel .track-list {
+  flex: 0 0 auto;
+  gap: 8px;
+  padding: 0;
+  overflow: visible;
 }
 
 .font-option {
   display: flex;
   align-items: center;
-  gap: 8px;
 }
 
-.font-option .track-row {
-  flex: 1;
+.font-picker-panel .font-option .track-row {
+  flex: 1 1 auto;
+  min-height: 0;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--theme-text-primary) 6%, transparent);
+  color: var(--theme-text-primary);
+  font-weight: 400;
+}
+
+.font-picker-panel .font-option .track-row.selected {
+  background: color-mix(in srgb, var(--theme-accent) 15%, transparent);
+  color: var(--theme-text-primary);
+}
+
+.font-picker-panel .font-option .track-row:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
+}
+
+.font-picker-panel .font-option .track-row:active:not(:disabled),
+.font-picker-panel .font-option .track-row.is-pressed:not(:disabled) {
+  transform: none;
+  box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--theme-text-primary) 10%, transparent);
 }
 
 .font-option-sample {
-  display: inline-block;
-  width: 32px;
-  font-size: 18px;
+  flex: 0 0 auto;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 400;
+}
+
+.font-picker-panel .track-label {
+  flex: 1 1 auto;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.font-picker-panel .track-row.selected .track-label {
+  font-weight: 600;
+}
+
+.font-picker-panel .track-check {
+  width: 20px;
+  height: 20px;
+  color: var(--theme-accent);
+}
+
+.font-option-remove {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--theme-text-primary);
+}
+
+.font-option-remove svg {
+  width: 24px;
+  height: 24px;
+}
+
+.font-option-remove:hover {
+  background: color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
+}
+
+.font-picker-hint {
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: .4px;
+  color: var(--theme-text-muted);
 }
 
 .font-picker-error {
-  color: #ff6b6b;
+  color: var(--theme-danger, #e36a8a);
+}
+
+.font-picker-panel .panel-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.font-picker-panel .panel-button,
+.font-picker-panel .panel-button.primary {
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
+  color: var(--theme-text-primary);
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.font-picker-panel .panel-button:hover:not(:disabled),
+.font-picker-panel .panel-button.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--theme-text-primary) 16%, transparent);
+  color: var(--theme-text-primary);
+}
+
+.font-picker-panel .panel-button:active:not(:disabled),
+.font-picker-panel .panel-button.is-pressed:not(:disabled) {
+  transform: none;
 }
 
 .style-control-row {

@@ -40,7 +40,8 @@ export function DataSaverPage() {
   const lowestFirst = [...(s?.resolutions ?? [])].reverse();
   const targetTiers = (s?.resolutions ?? []).filter(tier => (RANK[tier] ?? 0) <= (RANK[s?.maxResolution ?? ''] ?? 0));
   return <div className="page settings-page download-filter-page data-saver-page">
-    <Link to={returnTo ?? '/settings/playback'} className="back-button settings-page-back" aria-label={returnTo ? 'Back' : 'Back to Playback'}><ArrowLeft /></Link>
+    {/* Back goes to Settings, where Data Saver is listed, unless the opener passed { returnTo } (Playback, Streams). */}
+    <Link to={returnTo ?? '/settings'} className="back-button settings-page-back" aria-label={returnTo ? 'Back' : 'Back to Settings'}><ArrowLeft /></Link>
     <PageHeader title="Data Saver" />
     {error && <InlineError message={error} />}
     {!s ? <div className="loading-block">Loading Data Saver…</div> : <>

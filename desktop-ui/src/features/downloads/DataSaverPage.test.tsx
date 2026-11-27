@@ -20,10 +20,16 @@ beforeEach(() => { bridge.snapshot = undefined; bridge.call.mockClear(); });
 afterEach(cleanup);
 const page = () => render(<MemoryRouter initialEntries={['/settings/data-saver']}><DataSaverPage /></MemoryRouter>);
 
-it('turns Data Saver on and goes back to Playback', () => {
+it('goes back to the page that opened it', () => {
+  bridge.snapshot = snapshot();
+  render(<MemoryRouter initialEntries={[{ pathname: '/settings/data-saver', state: { returnTo: '/settings/playback' } }]}><DataSaverPage /></MemoryRouter>);
+  expect(screen.getByRole('link', { name: 'Back' })).toHaveAttribute('href', '/settings/playback');
+});
+
+it('turns Data Saver on and goes back to Settings by default', () => {
   bridge.snapshot = snapshot();
   page();
-  expect(screen.getByRole('link', { name: 'Back to Playback' })).toHaveAttribute('href', '/settings/playback');
+  expect(screen.getByRole('link', { name: 'Back to Settings' })).toHaveAttribute('href', '/settings');
   fireEvent.click(screen.getByRole('checkbox', { name: 'Data Saver' }));
   expect(bridge.call).toHaveBeenCalledWith('dataSaver.setEnabled', { enabled: true });
 });

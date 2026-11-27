@@ -92,7 +92,41 @@ data class DownloadFilterConfig(
     val bitrateLimitEnabled: Boolean = true,
     val maxBitrateKbps: Int = DEFAULT_MAX_BITRATE_KBPS,
     val scaleBitrateByCodec: Boolean = true,
+    /**
+     * Bitrate limits the user set for 4K, 720p or SD. A resolution without one scales from
+     * [maxBitrateKbps] (the 1080p limit) by [resolutionBitrateFactor], as before there were rows.
+     */
+    val bitrateOverridesKbps: Map<StreamResolutionTier, Int> = emptyMap(),
+    /** The data use level last chosen for the bitrate limits (see [dataUsePreset]). */
+    val dataUse: DataUsePreset = DataUsePreset.BALANCED,
 ) {
+    /** The level the current limits match; Custom when they were set per resolution. */
+    fun dataUsePreset(): DataUsePreset = effectivePreset(dataUse, ::tierBitrateKbps, ::defaultTierBitrateKbps)
+
+    /**
+     * Every resolution's limit set to [preset]'s level. Custom starts from the Balanced limits,
+     * unless the limits are already Custom, which are kept.
+     */
+    fun withDataUse(preset: DataUsePreset): DownloadFilterConfig {
+        if (preset == DataUsePreset.CUSTOM) {
+            val start = if (dataUsePreset() == preset) this else withDataUse(DataUsePreset.BALANCED)
+            return start.copy(dataUse = preset)
+        }
+        return copy(
+            dataUse = preset,
+            maxBitrateKbps = preset.scale(defaultTierBitrateKbps(StreamResolutionTier.FHD_1080)),
+            bitrateOverridesKbps = presetTiers
+                .filter { it != StreamResolutionTier.FHD_1080 }
+                .associateWith { preset.scale(defaultTierBitrateKbps(it)) },
+        )
+    }
+
+    /** The H.264 bitrate limit for [tier], before the HEVC / AV1 allowance. */
+    fun tierBitrateKbps(tier: StreamResolutionTier): Int = when (tier) {
+        StreamResolutionTier.FHD_1080, StreamResolutionTier.UNKNOWN -> maxBitrateKbps
+        else -> bitrateOverridesKbps[tier] ?: (maxBitrateKbps * resolutionBitrateFactor(tier)).toInt()
+    }
+
     /**
      * @param runtimeSeconds runtime of the title/episode being downloaded, or null
      * when unknown (the bitrate ceiling is then skipped).
@@ -124,16 +158,16 @@ data class DownloadFilterConfig(
     /** Effective ceiling in kbps for a stream of the given [resolution] and [codec]. */
     fun bitrateCeilingKbps(resolution: StreamResolutionTier, codec: StreamCodec): Double {
         val codecFactor = if (scaleBitrateByCodec) codec.bitrateFactor else 1.0
-        return maxBitrateKbps * resolutionBitrateFactor(resolution) * codecFactor
+        return tierBitrateKbps(resolution) * codecFactor
     }
 
     companion object {
         val DEFAULT_ALLOWED_SOURCES: Set<StreamSourceType> =
             setOf(StreamSourceType.WEBDL, StreamSourceType.WEBRIP)
 
-        const val MIN_MAX_SIZE_BYTES: Long = 1L * 1024 * 1024 * 1024
+        const val MIN_MAX_SIZE_BYTES: Long = 3L * 1024 * 1024 * 1024
         const val MAX_MAX_SIZE_BYTES: Long = 20L * 1024 * 1024 * 1024
-        const val DEFAULT_MAX_SIZE_BYTES: Long = 8L * 1024 * 1024 * 1024
+        const val DEFAULT_MAX_SIZE_BYTES: Long = 15L * 1024 * 1024 * 1024
 
         /** Roughly Netflix's 1080p average (about 5-6 Mbps, with headroom). */
         const val DEFAULT_MAX_BITRATE_KBPS: Int = 6_000
@@ -145,6 +179,10 @@ data class DownloadFilterConfig(
          * HEVC, which then takes the codec cut: 6 Mbps x 4.5 x 0.6 is about 16 Mbps, Netflix's 4K level. (At 2.5x
          * a 4K HEVC file was held to 9 Mbps and real 4K web releases, typically 15-30 Mbps, never fit.)
          */
+        /** The default (Balanced) limit for [tier]: the 1080p default scaled by [resolutionBitrateFactor]. */
+        fun defaultTierBitrateKbps(tier: StreamResolutionTier): Int =
+            (DEFAULT_MAX_BITRATE_KBPS * resolutionBitrateFactor(tier)).toInt()
+
         fun resolutionBitrateFactor(tier: StreamResolutionTier): Double = when (tier) {
             StreamResolutionTier.SD -> 0.35
             StreamResolutionTier.HD_720 -> 0.4

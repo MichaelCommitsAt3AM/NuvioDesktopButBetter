@@ -126,7 +126,8 @@ export const settingsSearchEntries: SettingsSearchEntry[] = [
     ['description-template', 'Description template', 'Customize stream result description formatting.'],
   ].map(([key, title, description]) => row(key, title, description, 'Connected Services', 'Integrations', '/settings/integrations/debrid')),
   page('media-servers', 'Media servers', 'Connect Jellyfin and Emby server libraries.', '/settings/integrations/servers'),
-  page('downloads', 'Downloads', 'Download filters, automatic download rules, data saver and allowed sources.', '/settings/downloads'),
+  page('downloads', 'Download filter', 'Bitrate and size limits for the Download button: data use level, per-resolution limits and maximum file size.', '/settings/downloads'),
+  page('data-saver', 'Data Saver', 'Smaller streams, auto-pick targets, maximum resolution, data use, allowed file types and no autoplaying trailers.', '/settings/data-saver'),
   page('peer-to-peer', 'Peer-to-peer', 'P2P torrent streaming, uploads, cache size and streaming profile.', '/settings/peer-to-peer'),
   ...['Enable peer-to-peer streaming', 'Allow uploads', 'Hide torrent stats', 'Streaming profile', 'Cache size', 'Peer cache'].map(title => row(`p2p-${title.toLowerCase().replaceAll(' ', '-')}`, title, 'Torrent peer-to-peer streaming settings.', 'Peer-to-peer', 'Peer-to-peer streaming', '/settings/peer-to-peer')),
   ...[

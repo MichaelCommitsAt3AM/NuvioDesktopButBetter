@@ -100,3 +100,71 @@
 .downloads-empty{display:grid;gap:6px;padding:40px 20px;text-align:center}
 .downloads-empty .downloads-empty-text{padding:0}
 .downloads-empty-message{margin:0;color:#8d9197;font-size:14px}
+/* Download filter and Data Saver, matching NuvioMobileButBetter's DownloadFilterSettingsPage.kt
+   (SettingsGroup cards and switches come from settingsParity.css). */
+.download-filter-page .filter-page-intro{margin:-8px 0 23px;color:#989da2;font-size:16px;line-height:22px}
+.data-saver-page .filter-page-intro{margin:24px 0 0}
+.filter-section-note{margin:-4px 4px 12px;color:#989da2;font-size:14px;line-height:20px}
+.filter-settings-group{margin-bottom:22px}
+.filter-dropdown-row{display:flex;min-height:64px;align-items:center;gap:13px;padding:12px 21.6px;border-bottom:1px solid #ffffff04;color:var(--text,#eee)}
+.filter-dropdown-row:last-child{border-bottom:0}
+.filter-dropdown-row>span{flex:1;min-width:0;font-size:16px;font-weight:500;line-height:22px}
+.filter-dropdown-chip{display:flex;align-items:center;gap:6px;max-width:60%;padding:8px 12px;border:1px solid #ffffff2e;border-radius:12px;background:var(--settings-surface,var(--app-surface,#191919));color:var(--text,#f5f7f8);font:inherit;font-size:14px;font-weight:600;line-height:20px;cursor:pointer}
+.filter-dropdown-chip>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.filter-dropdown-chip>svg{flex:none;color:#969ca3}
+.filter-dropdown-chip:hover:not(:disabled){border-color:#ffffff52}
+.filter-dropdown-chip:disabled{cursor:default;opacity:.6}
+.filter-selectable-row{display:flex;min-height:52px;align-items:center;gap:8px;padding:6px 21.6px;color:var(--text,#eee);font-size:16px;font-weight:500;cursor:pointer}
+.filter-selectable-row>span{flex:1}
+.filter-selectable-row:hover{background:#ffffff08}
+.filter-selectable-row input{width:20px;height:20px;margin:0 6px 0 0;accent-color:var(--app-accent,#fff);cursor:pointer}
+.settings-desktop .filter-reset-row{width:100%;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.settings-desktop .filter-reset-row:hover:not(:disabled){background:#ffffff08}
+.filter-reset-row>svg{flex:none;color:#969ca3}
+.settings-control-row.disabled{opacity:.55}
+/* The options sheet (NuvioDropdownOptionsSheet) and the reset sheet (ResetFilterConfirmSheet). */
+.filter-options-sheet .nuvio-bottom-sheet-content,.filter-reset-sheet .nuvio-bottom-sheet-content{gap:0}
+.filter-options-sheet .dialog-surface,.filter-reset-sheet .dialog-surface{padding:10px 0 16px!important}
+.filter-options-sheet h2{padding:14px 20px;font-size:22px;font-weight:400;line-height:28px}
+.filter-sheet-divider{margin:0 20px;border:0;border-top:1px solid #ffffff1f}
+.filter-sheet-options{display:grid;max-height:min(60vh,520px);overflow:auto;padding-top:4px}
+.filter-sheet-row,.filter-sheet-action{display:flex;min-height:56px;align-items:center;gap:14px;margin:0 8px;padding:8px;border:0;border-radius:12px;background:transparent;color:var(--text,#f5f7f8);font:inherit;font-size:16px;line-height:24px;text-align:left;cursor:pointer}
+.filter-sheet-row>span,.filter-sheet-action>span:last-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.filter-sheet-row.selected{background:color-mix(in srgb,var(--app-accent,#fff) 8%,transparent);font-weight:600}
+.filter-sheet-row>svg{flex:none;color:var(--app-accent,#fff)}
+.filter-sheet-row:hover,.filter-sheet-action:hover{background:#ffffff0f}
+.filter-sheet-row.selected:hover{background:color-mix(in srgb,var(--app-accent,#fff) 12%,transparent)}
+.filter-reset-sheet-copy{display:grid;gap:6px;padding:4px 20px 8px}
+.filter-reset-sheet-copy h2{font-size:22px;font-weight:700;line-height:28px}
+.filter-sheet-action-icon{display:grid;width:36px;height:36px;flex:none;place-items:center;border-radius:12px;background:color-mix(in srgb,var(--app-accent,#fff) 15%,transparent);color:var(--app-accent,#fff)}
+/* Bitrate controls (BitrateQualityCards.kt). */
+.bitrate-card{display:grid;gap:12px;padding:16px 21.6px;border-bottom:1px solid #ffffff04}
+.bitrate-card:last-child{border-bottom:0}
+.bitrate-card-heading{margin:0;color:var(--text,#f5f7f8);font-size:16px;font-weight:600;line-height:24px}
+.bitrate-data-use{display:grid;gap:10px}
+.bitrate-data-use-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.bitrate-data-use-tile{display:grid;gap:2px;padding:14px 16px;border:1px solid #ffffff2e;border-radius:16px;background:transparent;color:var(--text,#f5f7f8);font:inherit;text-align:left;cursor:pointer}
+.bitrate-data-use-tile strong{font-size:16px;font-weight:600;line-height:24px}
+.bitrate-data-use-tile span{overflow:hidden;color:#b8bec5;font-size:14px;line-height:20px;text-overflow:ellipsis;white-space:nowrap}
+.bitrate-data-use-tile:hover:not(:disabled){border-color:#ffffff5c}
+.bitrate-data-use-tile.selected{border-color:var(--text,#f5f7f8);background:var(--text,#f5f7f8);color:var(--settings-surface,#191919)}
+.bitrate-data-use-tile.selected span{color:color-mix(in srgb,var(--settings-surface,#191919) 75%,transparent)}
+.bitrate-custom-rows{display:grid;padding:12px 0 4px;border-radius:16px;background:#ffffff0d}
+.bitrate-custom-rows>p{margin:0;padding:0 16px;color:#b8bec5;font-size:14px;line-height:20px}
+.bitrate-custom-rows .filter-dropdown-row{min-height:0;padding:12px 16px;border:0}
+.bitrate-scale{position:relative;padding-top:4px}
+.bitrate-scale-labels{position:relative;height:20px}
+.bitrate-scale-labels span{position:absolute;transform:translateX(-50%);color:#b8bec5;font-size:12px;line-height:16px;white-space:nowrap}
+.bitrate-scale-labels span.end{transform:translateX(-100%)}
+.bitrate-scale-track{position:relative;height:8px;border-radius:4px;background:#ffffff2e}
+.bitrate-scale-fill{height:100%;border-radius:4px;background:var(--app-accent-gradient,var(--app-accent,#fff))}
+.bitrate-scale-track i{position:absolute;top:-3px;width:2px;height:14px;margin-left:-1px;background:#b8bec5}
+.bitrate-scale-track i:last-child{margin-left:-2px}
+.bitrate-scale small{display:block;margin-top:4px;color:#969ca3;font-size:12px}
+.bitrate-resolution-segments{position:relative;display:grid;grid-auto-columns:minmax(0,1fr);grid-auto-flow:column;gap:4px;padding:4px;border-radius:16px;background:#ffffff0f}
+.bitrate-resolution-highlight{position:absolute;top:4px;bottom:4px;left:4px;width:calc((100% - 8px - (var(--segment-count) - 1) * 4px) / var(--segment-count));border-radius:12px;background:var(--text,#f5f7f8);transform:translateX(calc(var(--segment-index) * (100% + 4px)));transition:transform .32s cubic-bezier(.2,.8,.2,1.05)}
+.bitrate-resolution-segments button{position:relative;padding:12px 0;border:0;border-radius:12px;background:transparent;color:#b8bec5;font:inherit;font-size:16px;font-weight:600;line-height:24px;cursor:pointer;transition:color .2s ease}
+.bitrate-resolution-segments button.selected{color:var(--settings-surface,#191919)}
+@media(prefers-reduced-motion:reduce){.bitrate-resolution-highlight{transition:none}}
+.bitrate-data-use-tile:disabled,.bitrate-resolution-segments button:disabled{cursor:default;opacity:.6}
+@media(max-width:650px){.bitrate-card,.filter-dropdown-row,.filter-selectable-row{padding-inline:16px}}

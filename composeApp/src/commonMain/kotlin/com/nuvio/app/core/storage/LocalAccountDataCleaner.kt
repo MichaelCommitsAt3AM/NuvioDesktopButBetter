@@ -79,6 +79,8 @@ internal object LocalAccountDataCleaner {
         PlayerSettingsRepository.clearLocalState()
         StreamBadgeSettingsRepository.clearLocalState()
         com.nuvio.app.features.downloads.DownloadFilterSettingsRepository.clearLocalState()
+        com.nuvio.app.features.datasaver.DataSaverSettingsRepository.clearLocalState()
+        com.nuvio.app.features.datasaver.DataSaverPlaybackRepository.clearLocalState()
         P2pSettingsRepository.clearLocalState()
         CatalogRepository.clear()
         StreamsRepository.clear()

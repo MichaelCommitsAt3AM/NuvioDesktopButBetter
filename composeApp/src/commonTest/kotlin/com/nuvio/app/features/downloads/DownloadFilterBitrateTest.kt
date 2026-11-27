@@ -73,7 +73,7 @@ class DownloadFilterBitrateTest {
         val huge = stream("Movie.1080p.WEB-DL.x264", 7_900_000_000L)
         assertTrue(config.allows(huge, null))
         assertTrue(config.allows(huge, 0L))
-        assertFalse(config.allows(stream("Movie.1080p.WEB-DL.x264", 9 * gb + 1_000_000_000L), null))
+        assertFalse(config.allows(stream("Movie.1080p.WEB-DL.x264", 17 * gb), null))
     }
 
     @Test
@@ -125,5 +125,21 @@ class DownloadFilterBitrateTest {
         assertEquals(45L * 60, DownloadRuntimeResolver.runtimeSeconds(meta, null))
         assertNull(DownloadRuntimeResolver.runtimeSeconds(null, null))
         assertNull(DownloadRuntimeResolver.runtimeSeconds(meta.copy(runtime = null), "tt1:1:2"))
+    }
+
+    @Test
+    fun perResolutionLimitsScaleFromTheTenEightyPLimitUntilSet() {
+        assertEquals(6_000, config.tierBitrateKbps(StreamResolutionTier.FHD_1080))
+        assertEquals(2_400, config.tierBitrateKbps(StreamResolutionTier.HD_720))
+        assertEquals(27_000, config.tierBitrateKbps(StreamResolutionTier.UHD_4K))
+
+        val custom = config.copy(bitrateOverridesKbps = mapOf(StreamResolutionTier.HD_720 to 4_000))
+        assertEquals(4_000, custom.tierBitrateKbps(StreamResolutionTier.HD_720))
+        // Others keep scaling from 1080p.
+        assertEquals(27_000, custom.tierBitrateKbps(StreamResolutionTier.UHD_4K))
+        // H.264 720p at 3.5 Mbps for an hour: over the scaled 2.4, within the custom 4.
+        val hd = stream("Movie.720p.WEB-DL.x264", 1_575_000_000L)
+        assertFalse(config.allows(hd, 3_600L))
+        assertTrue(custom.allows(hd, 3_600L))
     }
 }

@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.toArgb
 import com.nuvio.desktop.bridge.features.ProfilesBridge
 import com.nuvio.desktop.bridge.features.AppearanceBridge
 import com.nuvio.desktop.bridge.features.BridgeFeatureException
+import com.nuvio.desktop.bridge.features.DataSaverBridge
 import com.nuvio.desktop.bridge.features.DownloadsBridge
 import com.nuvio.desktop.bridge.features.PluginsBridge
 import com.nuvio.desktop.bridge.features.PlaybackSettingsBridge
@@ -380,6 +381,17 @@ class DesktopBridgeRuntime {
         scope.launch { SearchHistoryRepository.uiState.collect { emit("searchHistory", CatalogBridge.snapshot("searchHistory")!!) } }
         scope.launch { SearchHistoryRepository.enabled.collect { emit("searchHistory", CatalogBridge.snapshot("searchHistory")!!) } }
         scope.launch { DownloadsRepository.uiState.collect { emit("downloads", DownloadsBridge.snapshot()) } }
+        // Data Saver: its page, the open streams list (Data Saver mode filters by its rules) and trailer autoplay.
+        scope.launch {
+            kotlinx.coroutines.flow.combine(
+                com.nuvio.app.features.datasaver.DataSaverPlaybackRepository.uiState,
+                com.nuvio.app.features.datasaver.DataSaverSettingsRepository.uiState,
+            ) { playback, rules -> playback to rules }.collect {
+                emit("dataSaver", DataSaverBridge.snapshot())
+                latestRequest["streams"]?.let { id -> runCatching { emit("streams", streamsJson(id)) } }
+            }
+        }
+        scope.launch { com.nuvio.app.features.downloads.DownloadFilterSettingsRepository.uiState.collect { emit("downloads", DownloadsBridge.snapshot()) } }
         // Download rows show watch progress/watched marks (upstream 0.1.38), so republish when those change.
         scope.launch { WatchProgressRepository.uiState.collect { if (DownloadsRepository.uiState.value.items.isNotEmpty()) emit("downloads", DownloadsBridge.snapshot()) } }
         scope.launch { com.nuvio.app.features.watched.WatchedRepository.uiState.collect { if (DownloadsRepository.uiState.value.items.isNotEmpty()) emit("downloads", DownloadsBridge.snapshot()) } }
@@ -978,6 +990,7 @@ class DesktopBridgeRuntime {
             ?: AppearanceBridge.dispatch(method, params)
             ?: CatalogBridge.dispatch(method, params)
             ?: DownloadsBridge.dispatch(method, params)
+            ?: DataSaverBridge.dispatch(method, params)
             ?: PluginsBridge.dispatch(method, params)
             ?: DetailsExtrasBridge.dispatch(method, params)
             ?: ServersBridge.dispatch(method, params)
@@ -1013,6 +1026,7 @@ class DesktopBridgeRuntime {
             "homePreferences" -> AppearanceBridge.homePreferencesSnapshot()
             "continueWatching" -> AppearanceBridge.continueWatchingSnapshot()
             "downloads" -> DownloadsBridge.snapshot()
+            "dataSaver" -> DataSaverBridge.snapshot()
             "plugins" -> PluginsBridge.snapshot()
             "cloud" -> LibraryExtrasBridge.cloudSnapshot()
             "servers" -> ServersBridge.snapshot()
@@ -1111,6 +1125,7 @@ class DesktopBridgeRuntime {
             "playback" to buildJsonObject { put("playing", false) },
             "profiles" to ProfilesBridge.snapshot(), "appearance" to AppearanceBridge.snapshot(),
             "downloads" to DownloadsBridge.snapshot(),
+            "dataSaver" to DataSaverBridge.snapshot(),
             "plugins" to PluginsBridge.snapshot(),
             "servers" to ServersBridge.snapshot(), "libraryExtras" to LibraryExtrasBridge.snapshot(), "cloud" to LibraryExtrasBridge.cloudSnapshot(),
             "homeExtras" to HomeBridge.snapshot(),
@@ -1346,7 +1361,8 @@ class DesktopBridgeRuntime {
             val (filterMeta, filterVideoId) = requestId?.let(streamContext::get) ?: (lastDetails to loadedVideoId)
             com.nuvio.app.features.downloads.DownloadStreamFilter.apply(
                 state.groups,
-                com.nuvio.app.features.downloads.DownloadFilterSettingsRepository.snapshot(),
+                // Data Saver's own rules, with bitrate limits taken from its targets (as on mobile).
+                com.nuvio.app.features.datasaver.DataSaverDesktopAccess.streamListRules(),
                 com.nuvio.app.features.downloads.DownloadRuntimeResolver.runtimeSeconds(filterMeta, filterVideoId),
             ).groups
         } else state.groups

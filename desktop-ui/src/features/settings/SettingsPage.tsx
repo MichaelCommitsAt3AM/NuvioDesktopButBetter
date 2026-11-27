@@ -16,6 +16,7 @@ import { AboutSettingsPage, CommunitySettingsPage, LicensesSettingsPage, Languag
 import { AdvancedSettingsPage } from './AdvancedSettings';
 import { Dialog } from '../../components/Dialog';
 import { DownloadFiltersPage } from '../downloads/DownloadFilters';
+import { DataSaverPage } from '../downloads/DataSaverPage';
 import { ContinueWatchingStyleCheck, ContinueWatchingStylePreview } from './ContinueWatchingStylePreview';
 import './appearanceParity.css';
 import { HomeSettings } from './HomeSettings';
@@ -398,6 +399,7 @@ function SettingsContent() {
   if (path === 'playback') return <PlaybackSettingsPage />;
   if (path === 'details') return <MetadataSettingsPage />;
   if (path === 'downloads') return <DownloadFiltersPage />;
+  if (path === 'data-saver') return <DataSaverPage />;
   if (path === 'peer-to-peer') return <P2PSettingsPage />;
   if (path === 'content') return <ContentSettings />;
   if (path === 'content/addons') return <AddonsSettings />;

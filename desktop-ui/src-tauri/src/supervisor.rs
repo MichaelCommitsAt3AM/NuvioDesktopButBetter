@@ -74,6 +74,8 @@ enum BridgeTopic {
     #[serde(rename = "continueWatching")]
     ContinueWatching,
     Downloads,
+    #[serde(rename = "dataSaver")]
+    DataSaver,
     Plugins,
     #[serde(rename = "libraryExtras")]
     LibraryExtras,

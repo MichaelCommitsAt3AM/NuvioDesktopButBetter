@@ -144,6 +144,7 @@ open class MainActivity : AppCompatActivity() {
         CollectionStorage.initialize(applicationContext)
         DownloadsStorage.initialize(applicationContext)
         DownloadFilterSettingsStorage.initialize(applicationContext)
+        com.nuvio.app.features.datasaver.DataSaverSettingsStorage.initialize(applicationContext)
         DownloadsPlatformDownloader.initialize(applicationContext)
         DownloadsLiveStatusPlatform.initialize(applicationContext)
         AndroidAppUpdaterPlatform.initialize(applicationContext)

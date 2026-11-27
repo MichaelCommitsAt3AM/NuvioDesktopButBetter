@@ -78,8 +78,8 @@ class DownloadQualityPickerTest {
         val option = pick(big).single()
         assertSame(big, option.stream)
         assertFalse(option.overBudget)
-        // The 4K size cap is 2.5x the 8 GB cap (20 GiB): a 25 GB remux is never offered.
-        assertTrue(pick(stream("Movie.2160p.BluRay.Remux.x265", 25_000_000_000L)).isEmpty())
+        // The 4K size cap is 2.5x the 15 GB cap (37.5 GiB): a 45 GB remux is never offered.
+        assertTrue(pick(stream("Movie.2160p.BluRay.Remux.x265", 45_000_000_000L)).isEmpty())
     }
 
     @Test

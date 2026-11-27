@@ -1147,7 +1147,18 @@
             "downloads.resumeAll",
             "details.rating.snapshot",
             "details.rating.set",
-            "continueWatching.setClickAction"
+            "continueWatching.setClickAction",
+            "dataSaver.snapshot",
+            "dataSaver.setEnabled",
+            "dataSaver.setDataUse",
+            "dataSaver.setTargetKbps",
+            "dataSaver.setMaxResolution",
+            "dataSaver.setSourceAllowed",
+            "dataSaver.setMaxSizeBytes",
+            "dataSaver.setShowUnknownSize",
+            "dataSaver.reset",
+            "downloads.filter.setDataUse",
+            "downloads.filter.setTierBitrateKbps"
           ]
         },
         "params": {
@@ -1232,7 +1243,8 @@
             "advanced",
             "streamSelection",
             "servers",
-            "party"
+            "party",
+            "dataSaver"
           ]
         },
         "epoch": {

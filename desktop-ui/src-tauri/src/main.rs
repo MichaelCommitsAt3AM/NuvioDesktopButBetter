@@ -375,6 +375,17 @@ const ALLOWED_METHODS: &[&str] = &[
     "details.rating.snapshot",
     "details.rating.set",
     "continueWatching.setClickAction",
+    "dataSaver.snapshot",
+    "dataSaver.setEnabled",
+    "dataSaver.setDataUse",
+    "dataSaver.setTargetKbps",
+    "dataSaver.setMaxResolution",
+    "dataSaver.setSourceAllowed",
+    "dataSaver.setMaxSizeBytes",
+    "dataSaver.setShowUnknownSize",
+    "dataSaver.reset",
+    "downloads.filter.setDataUse",
+    "downloads.filter.setTierBitrateKbps",
 ];
 
 fn request_is_allowed(request: &BridgeRequest) -> bool {

@@ -15,6 +15,7 @@ import '../theme/cardDepth.css';
 import { depthActive, depthVars } from '../theme/cardDepth';
 import { posterMetrics } from './posterMetrics';
 import { useCardHold } from './useCardHold';
+import { useDataSaverEnabled } from '../features/downloads/useDataSaverEnabled';
 
 // Route changes unmount poster cards. Remember successful image loads across those
 // remounts so already-seen artwork stays visible instead of flashing a skeleton.
@@ -50,6 +51,8 @@ export const Poster = memo(function Poster({ item, compact = false, onClick, sho
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const appearance = useFeatureSnapshot<AppearanceSnapshot>('appearance');
+  // Data Saver stops trailers playing on their own, including hover previews.
+  const dataSaverOn = useDataSaverEnabled();
   const homeWatched = useFeatureSnapshot<{watchedKeys:string[]}>('homeWatched');
   const saved=useSelector(current=>current.library.items.some(row=>row.id===item.id&&row.type===item.type));
   const cardStyle = appearance?.cardStyle;
@@ -127,7 +130,7 @@ export const Poster = memo(function Poster({ item, compact = false, onClick, sho
       {!cardStyle?.hideLabelsEnabled && <><span className="card-title">{item.name}</span><span className="card-meta">{item.releaseInfo??item.type}</span></>}
     </button>
     {screen !== 'search' && screen !== 'library' && screen !== 'details' && screen !== 'collections' && !pathname.startsWith('/entity/') && <button className="poster-menu-button" aria-label={`Actions for ${item.name}`} onClick={openActions}><MoreHorizontal size={18}/></button>}
-    {rect&&<PosterHoverPreview anchorRef={button} visible={hover} item={item} rect={rect} saved={saved} watched={watched||isWatchedOnCard} trailer={appearance?.trailerPlaybackMode === 'in_app' && cardStyle?.hoverPreviewTrailerEnabled ? { enabled: true, soundEnabled: cardStyle.hoverPreviewTrailerSoundEnabled, startSeconds: cardStyle.hoverPreviewTrailerStartSeconds } : null} onOpen={open} onToggleWatched={()=>void markWatched()} onToggleSaved={()=>void toggleSaved()} onMouseEnter={()=>clearTimeout(timer.current)} onMouseLeave={hidePreview} />}
+    {rect&&<PosterHoverPreview anchorRef={button} visible={hover} item={item} rect={rect} saved={saved} watched={watched||isWatchedOnCard} trailer={appearance?.trailerPlaybackMode === 'in_app' && cardStyle?.hoverPreviewTrailerEnabled && !dataSaverOn ? { enabled: true, soundEnabled: cardStyle.hoverPreviewTrailerSoundEnabled, startSeconds: cardStyle.hoverPreviewTrailerStartSeconds } : null} onOpen={open} onToggleWatched={()=>void markWatched()} onToggleSaved={()=>void toggleSaved()} onMouseEnter={()=>clearTimeout(timer.current)} onMouseLeave={hidePreview} />}
     {menu&&<HomeActionDialog title={item.name} poster={poster} subtitle={item.releaseInfo??undefined} sourceKey={sourceKey} sourceRect={sourceRect} onClose={()=>setMenu(false)}>{error&&<p role="alert">{error}</p>}<button className={saved?'destructive':''} onClick={()=>{setMenu(false);void toggleSaved();}}><span>{saved?'Remove from library':'Add to library'}</span>{saved?<Trash2 size={19}/>:<Plus size={19}/>}</button><button className={watched || isWatchedOnCard ? 'active' : undefined} onClick={()=>{setMenu(false);void markWatched();}}><span>{watched||isWatchedOnCard?'Mark as unwatched':'Mark as watched'}</span><CircleCheck size={19}/></button></HomeActionDialog>}
   </div>;
 })

@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import { Bug, CloudDownload, Heart, Info, Link2, Palette, Play, Puzzle, RefreshCw, Search, Shield, SlidersHorizontal, UserCircle, Users, X } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Bug, CloudDownload, Gauge, Heart, Info, Link2, Palette, Play, Puzzle, RefreshCw, Search, Shield, SlidersHorizontal, UserCircle, Users, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import { call } from '../../bridge';
+import { call, refreshFeature, useFeatureSnapshot } from '../../bridge';
 import { showTestBanner } from '../updater/updateBannerTest';
 import { checkForUpdates } from '../updater/updater';
 import { PageHeader } from '../../components/ui';
@@ -19,6 +19,8 @@ const entries = [
   {category:'general',path:'/settings/content',title:'Content & Discovery',description:'Manage addons and discovery sources.',icon:Puzzle,filled:true},
   {category:'general',path:'/settings/playback',title:'Playback',description:'Player, subtitles, and auto-play',icon:Play,filled:true},
   {category:'general',path:'/settings/integrations',title:'Integrations',description:'Manage available integrations',icon:Link2},
+  // Last in General, with its on/off switch beside the way into its page (mobile's Data Saver shortcut).
+  {category:'general',path:'/settings/data-saver',title:'Data Saver',description:'Smaller streams and no autoplaying trailers',icon:Gauge,toggle:true},
   {category:'about',path:'/settings/community',title:'Supporters & Contributors',description:'Open recognition and project credits',icon:Heart},
   {category:'about',path:'privacy',title:'Privacy Policy',description:'Learn how Nuvio handles your data',icon:Shield},
   {category:'about',path:'/settings/licenses',title:'Licenses & Attribution',description:'Data sources, acknowledgements, and platform licenses',icon:Info},
@@ -63,8 +65,25 @@ export function SettingsLanding() {
       const Icon=entry.icon;
       const filledIcon='filled' in entry&&entry.filled;
       const content=<><span className="settings-nav-icon"><Icon size={28} fill={filledIcon?'currentColor':'none'} strokeWidth={entry.path==='/settings/integrations'?3:2}/></span><span className="settings-nav-copy"><strong>{entry.title}</strong><span>{entry.description}</span></span></>;
+      if('toggle' in entry&&entry.toggle)return <DataSaverNavRow key={entry.key} path={entry.path}>{content}</DataSaverNavRow>;
       return entry.path==='privacy'||entry.path==='updates'||entry.path==='updates-test'?<button key={entry.key} className="settings-nav-row" onClick={()=>runRowAction(entry.path)}>{content}</button>:<Link key={entry.key} className="settings-nav-row" to={entry.path}>{content}</Link>;
     })}</div>{searching&&!rows.length&&<p className="muted">No settings found.</p>}
     {updateMessage&&<Dialog label="Check for Updates" onClose={()=>setUpdateMessage(null)}><h2>Check for Updates</h2><p>{updateMessage}</p><div className="dialog-actions"><button className="button secondary" disabled={checking} onClick={()=>setUpdateMessage(null)}>Close</button></div></Dialog>}
+  </div>;
+}
+
+/** The Data Saver row: opens its page, with the switch on the right turning it on or off. */
+function DataSaverNavRow({ path, children }: { path: string; children: ReactNode }) {
+  const enabled = useFeatureSnapshot<{ enabled?: boolean }>('dataSaver')?.enabled ?? false;
+  const [busy, setBusy] = useState(false);
+  const toggle = async (value: boolean) => {
+    setBusy(true);
+    try { await call('dataSaver.setEnabled', { enabled: value }); await refreshFeature('dataSaver'); }
+    catch { /* The switch stays as Kotlin reports it. */ }
+    finally { setBusy(false); }
+  };
+  return <div className="settings-nav-row settings-nav-row-toggle">
+    <Link className="settings-nav-row-link" to={path}>{children}</Link>
+    <label className="switch" aria-label="Data Saver"><input type="checkbox" checked={enabled} disabled={busy} onChange={event => void toggle(event.target.checked)} /><span /></label>
   </div>;
 }

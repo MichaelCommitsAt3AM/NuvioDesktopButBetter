@@ -139,6 +139,9 @@ export function PlaybackSettingsPage() {
       <Toggle title="Reuse the last stream link" checked={s.streamReuseLastLinkEnabled} onChange={(value) => set('streamReuseLastLinkEnabled', value)} />
       {s.streamReuseLastLinkEnabled && <Select title="Remember link for" value={String(s.streamReuseLastLinkCacheHours)} values={['1', '2', '3', '6', '12', '24', '48', '72', '168']} labels={['1 hour', '2 hours', '3 hours', '6 hours', '12 hours', '24 hours', '2 days', '3 days', '7 days']} onChange={(value) => set('streamReuseLastLinkCacheHours', Number(value))} />}
     </SettingCard>
+    <SettingCard icon={Gauge} title="Data Saver" description="Smaller streams and no autoplaying trailers.">
+      <Link className="settings-choice-row" to="/settings/data-saver"><span><strong>Data Saver settings</strong><span>Resolution, data use and file types</span></span><ChevronRight size={17} /></Link>
+    </SettingCard>
     <SettingCard icon={Gauge} title="Stream auto-play">
       <Select title="Auto-play mode" value={s.streamAutoPlayMode} values={['MANUAL', 'FIRST_STREAM', 'REGEX_MATCH']} labels={['Manual selection', 'First available stream', 'Match a pattern']} onChange={(value) => set('streamAutoPlayMode', value)} />
       {s.streamAutoPlayMode !== 'MANUAL' && <><Select title="Stream sources" value={s.streamAutoPlaySource} values={['ALL_SOURCES', 'INSTALLED_ADDONS_ONLY', 'ENABLED_PLUGINS_ONLY']} labels={['All sources', 'Installed add-ons', 'Enabled plugins']} onChange={(value) => set('streamAutoPlaySource', value)} /><Select title="Stream wait timeout" value={String(s.streamAutoPlayTimeoutSeconds)} values={timeoutValues.map(String)} labels={timeoutValues.map((value) => value === 2147483647 ? 'No timeout' : `${value} sec`)} onChange={(value) => set('streamAutoPlayTimeoutSeconds', Number(value))} /></>}

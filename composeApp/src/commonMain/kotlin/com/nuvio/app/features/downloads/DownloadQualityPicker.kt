@@ -125,22 +125,44 @@ object DownloadQualityPicker {
             ?.option
     }
 
-    private fun pickForTier(
-        streams: List<StreamItem>,
-        tier: StreamResolutionTier,
-        config: DownloadFilterConfig,
-        runtimeSeconds: Long,
-    ): QualityDownloadOption? {
-        // Everything except cam/telesync rips is allowed here: the bitrate ceiling already
-        // rejects remuxes and other oversized files, and old titles often only exist as Blu-ray
-        // or HDTV encodes. The size cap scales with the tier so 4K is not blocked by a 1080p cap.
-        val tierConfig = config.copy(
+    /**
+     * The filter rules for one quality: everything except cam/telesync rips is allowed, since the
+     * bitrate ceiling already rejects remuxes and other oversized files and old titles often only
+     * exist as Blu-ray or HDTV encodes. The size cap scales with the tier so 4K is not blocked by a
+     * 1080p cap.
+     */
+    private fun tierConfig(config: DownloadFilterConfig, tier: StreamResolutionTier): DownloadFilterConfig =
+        config.copy(
             maxResolution = tier,
             allowedSources = StreamSourceType.entries.toSet() - StreamSourceType.CAM,
             maxSizeBytes = (config.maxSizeBytes * DownloadFilterConfig.resolutionSizeFactor(tier))
                 .toLong().coerceAtLeast(config.maxSizeBytes),
             bitrateLimitEnabled = true,
         )
+
+    /**
+     * Whether [stream] fits the user's filter limits for its own quality, as the quality options do
+     * within budget: size cap and source rules always, the bitrate budget for all but 4K (which,
+     * as in [pick4k], only has the size cap).
+     */
+    fun fitsLimits(stream: StreamItem, config: DownloadFilterConfig, runtimeSeconds: Long?): Boolean {
+        val tier = StreamQualityClassifier.resolutionOf(stream)
+        val runtime = runtimeSeconds?.takeIf { it > 0L } ?: ASSUMED_RUNTIME_SECONDS
+        val rules = if (tier == StreamResolutionTier.UNKNOWN) {
+            config.copy(allowedSources = StreamSourceType.entries.toSet() - StreamSourceType.CAM, bitrateLimitEnabled = true)
+        } else {
+            tierConfig(config, tier).let { if (tier == StreamResolutionTier.UHD_4K) it.copy(bitrateLimitEnabled = false) else it }
+        }
+        return rules.allows(stream, runtime)
+    }
+
+    private fun pickForTier(
+        streams: List<StreamItem>,
+        tier: StreamResolutionTier,
+        config: DownloadFilterConfig,
+        runtimeSeconds: Long,
+    ): QualityDownloadOption? {
+        val tierConfig = tierConfig(config, tier)
         val ofTier = streams.filter { StreamQualityClassifier.resolutionOf(it) == tier }
         if (tier == StreamResolutionTier.UHD_4K) return pick4k(ofTier, tierConfig, config, runtimeSeconds)
         // 480p tries each SD line count in preference order, so a real 480p file beats a 576p one. All groups are

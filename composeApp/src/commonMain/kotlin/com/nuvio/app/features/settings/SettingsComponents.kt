@@ -248,7 +248,6 @@ internal fun SettingsNavigationRow(
     onClick: () -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
-    val iconSize = if (isTablet) 42.dp else 36.dp
     val verticalPadding = if (isTablet) 16.dp else 14.dp
     val horizontalPadding = if (isTablet) 20.dp else 16.dp
 
@@ -270,33 +269,7 @@ internal fun SettingsNavigationRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (icon != null || iconPainter != null) {
-                Surface(
-                    modifier = Modifier.size(iconSize),
-                    color = tokens.colors.accent.copy(alpha = tokens.opacity.pressed),
-                    shape = tokens.shapes.compactCard,
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (iconPainter != null) {
-                            androidx.compose.foundation.Image(
-                                painter = iconPainter,
-                                contentDescription = null,
-                                modifier = Modifier.size(if (isTablet) 28.dp else 24.dp),
-                                contentScale = ContentScale.Fit,
-                            )
-                        } else if (icon != null) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                tint = tokens.colors.accent,
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.width(if (isTablet) 16.dp else 14.dp))
+                SettingsRowIcon(icon = icon, iconPainter = iconPainter, isTablet = isTablet)
             }
             Column {
                 Text(
@@ -320,6 +293,43 @@ internal fun SettingsNavigationRow(
     }
 }
 
+/** A row's leading icon on its tinted tile, with the gap to the text after it. */
+@Composable
+private fun SettingsRowIcon(
+    icon: ImageVector?,
+    iconPainter: Painter?,
+    isTablet: Boolean,
+) {
+    val tokens = MaterialTheme.nuvio
+    Surface(
+        modifier = Modifier.size(if (isTablet) 42.dp else 36.dp),
+        color = tokens.colors.accent.copy(alpha = tokens.opacity.pressed),
+        shape = tokens.shapes.compactCard,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (iconPainter != null) {
+                androidx.compose.foundation.Image(
+                    painter = iconPainter,
+                    contentDescription = null,
+                    modifier = Modifier.size(if (isTablet) 28.dp else 24.dp),
+                    contentScale = ContentScale.Fit,
+                )
+            } else if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = tokens.colors.accent,
+                )
+            }
+        }
+    }
+    Spacer(modifier = Modifier.width(if (isTablet) 16.dp else 14.dp))
+}
+
 @Composable
 internal fun SettingsSwitchRow(
     title: String,
@@ -328,6 +338,7 @@ internal fun SettingsSwitchRow(
     enabled: Boolean = true,
     isTablet: Boolean,
     horizontalPadding: Dp = if (isTablet) 20.dp else 16.dp,
+    icon: ImageVector? = null,
     onCheckedChange: (Boolean) -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
@@ -342,6 +353,9 @@ internal fun SettingsSwitchRow(
         horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (icon != null) {
+            SettingsRowIcon(icon = icon, iconPainter = null, isTablet = isTablet)
+        }
         Column(
             modifier = Modifier
                 .weight(1f)

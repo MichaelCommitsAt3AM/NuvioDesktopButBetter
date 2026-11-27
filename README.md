@@ -26,6 +26,7 @@ Nuvio Desktop is a media client for browsing metadata, managing collections and 
 
 ## What's different from upstream
 
+- New Data Saver (Settings → Data Saver, or Playback): one switch that auto-picks a good-sized stream for each resolution, opens the streams list in Data Saver mode with its own rules, and stops trailers playing on their own. The Download filter now offers Low, Balanced, High or Custom limits per resolution, from 3 to 20 GB. Same as the mobile app.
 - Use a game controller to browse the app and control the player: the D-pad moves between items, A selects, B goes back, LB/RB switch tabs or seasons, and a hint bar shows what each button does (with PlayStation symbols when you use a PlayStation controller).
 - Rate movies, shows and episodes from their details page, saved to Simkl or MDBList (choose under Settings → Tracking → Ratings). Continue Watching shows "New Episode" and "New Season" when something new has aired, and can open the title page instead of the stream (Settings → Continue Watching → On Select). Hover Preview settings are back under Appearance.
 - In the player's Episodes sidebar, press and hold an episode to choose its stream yourself, even with automatic stream selection on. On the streams screen, picking one provider no longer hides the others.

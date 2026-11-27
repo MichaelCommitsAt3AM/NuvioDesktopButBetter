@@ -248,6 +248,8 @@ object ProfileRepository {
         CollectionMobileSettingsRepository.onProfileChanged()
         DownloadsRepository.onProfileChanged()
         com.nuvio.app.features.downloads.DownloadFilterSettingsRepository.onProfileChanged()
+        com.nuvio.app.features.datasaver.DataSaverSettingsRepository.onProfileChanged()
+        com.nuvio.app.features.datasaver.DataSaverPlaybackRepository.onProfileChanged()
         ServerRepository.onProfileChanged()
         ProfileSettingsSync.onProfileChanged()
     }

@@ -1,6 +1,8 @@
 package com.nuvio.app.features.streams
 
 import com.nuvio.app.core.build.AppFeaturePolicy
+import com.nuvio.app.features.datasaver.DataSaverPlaybackRepository
+import com.nuvio.app.features.datasaver.DataSaverStreamRanking
 
 object StreamAutoPlaySelector {
 
@@ -85,6 +87,15 @@ object StreamAutoPlaySelector {
         activeResolverProviderId: String? = null,
         contentTitle: String? = null,
         preferMatchingReleaseTitles: Boolean = false,
+        /** Moves streams labelled Dolby Vision only after the rest; on by default without a DV decoder. */
+        demoteDolbyVisionOnly: Boolean = !platformDecodesDolbyVision(),
+        /** While Data Saver is on: the bitrate to aim for at each resolution (see [DataSaverStreamRanking]); null leaves the order alone. */
+        dataSaverTargets: com.nuvio.app.features.datasaver.DataSaverPlaybackConfig? = DataSaverPlaybackRepository.activeTargets(),
+        /** The title's runtime, to turn file sizes into bitrates for Data Saver; null assumes a feature film. */
+        runtimeSeconds: Long? = null,
+        /** Data Saver's maximum resolution: higher and untagged files are not auto-picked while it is on. */
+        dataSaverMaxResolution: com.nuvio.app.features.downloads.StreamResolutionTier =
+            com.nuvio.app.features.datasaver.DataSaverSettingsRepository.snapshot().maxResolution,
     ): StreamAutoPlayEvaluation {
         if (streams.isEmpty()) return StreamAutoPlayEvaluation()
 
@@ -195,7 +206,18 @@ object StreamAutoPlaySelector {
                 .filter { it.isAutoPlayable(debridEnabled, activeResolverProviderId) }
                 .filterNot { it == preferredStream }
                 .forEach(::add)
-        }, contentTitle, preferMatchingReleaseTitles)
+        }, contentTitle, preferMatchingReleaseTitles).let { ordered ->
+            if (dataSaverTargets == null) {
+                ordered
+            } else {
+                // The binge group's stream stays first if Data Saver allows it, so a series keeps its source.
+                val ranked = DataSaverStreamRanking.order(ordered, dataSaverTargets::targetFor, runtimeSeconds, dataSaverMaxResolution)
+                val (kept, rest) = ranked.partition { it == preferredStream }
+                kept + rest
+            }
+        }.let { ordered ->
+            if (demoteDolbyVisionOnly) StreamDolbyVision.orderForDeviceWithoutDolbyVision(ordered) else ordered
+        }
         val selected = readyStreams.firstOrNull()
         if (selected != null) {
             return StreamAutoPlayEvaluation(

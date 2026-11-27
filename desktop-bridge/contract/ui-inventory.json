@@ -1897,37 +1897,38 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/features/downloads/DownloadFilterSettingsPage.kt",
-      "sha256": "cc82a5d1ed83fe3da444b81e746edd15db50cbef8c54ba467cdf005b3731458f",
+      "sha256": "41bca52392fe5525a412063274ae760d1d0c7a107d6cac132a8e043ff0cce9b5",
       "composables": [
+        "FilterDropdownRow",
+        "ResetFilterConfirmSheet",
         "SelectableRow"
       ],
       "actions": [
         "onCheckedChange",
         "onClick",
-        "onValueChange"
+        "onDismiss",
+        "onDismissRequest",
+        "onReset",
+        "onResetExtra",
+        "onSelected"
       ],
       "referencedLabels": [
-        "download_filter_bitrate_codec_desc",
-        "download_filter_bitrate_codec_title",
-        "download_filter_bitrate_enabled_desc",
-        "download_filter_bitrate_enabled_title",
-        "download_filter_bitrate_value",
+        "action_cancel",
+        "data_saver_reset_confirm_title",
+        "download_filter_downloads_header_desc",
+        "download_filter_downloads_reset_confirm_desc",
+        "download_filter_downloads_reset_desc",
         "download_filter_header_desc",
         "download_filter_reset",
+        "download_filter_reset_confirm_action",
+        "download_filter_reset_confirm_desc",
+        "download_filter_reset_confirm_title",
         "download_filter_reset_desc",
-        "download_filter_resolution_1080",
-        "download_filter_resolution_2160",
-        "download_filter_resolution_480",
-        "download_filter_resolution_720",
-        "download_filter_section_bitrate",
-        "download_filter_section_bitrate_desc",
-        "download_filter_section_resolution",
-        "download_filter_section_resolution_desc",
         "download_filter_section_size",
-        "download_filter_section_size_desc",
         "download_filter_section_sources",
         "download_filter_section_sources_desc",
-        "download_filter_size_value",
+        "download_filter_size_dropdown_title",
+        "download_filter_size_option",
         "download_filter_source_bluray",
         "download_filter_source_cam",
         "download_filter_source_dvd",
@@ -4960,7 +4961,7 @@
     },
     {
       "source": "composeApp/src/commonMain/kotlin/com/nuvio/app/features/streams/StreamsScreen.kt",
-      "sha256": "a4d759643dd336cea46c870e49511e3a27849c60a1db534d076425bfb26f2f62",
+      "sha256": "f11f7359b79b9a06ff1b965f839a09471fd4ec894ec39292b3b8244623f7b5a8",
       "composables": [
         "StreamsScreen",
         "MobileStreamsLayout",
@@ -5065,21 +5066,21 @@
     },
     {
       "source": "composeApp/src/desktopMain/resources/player-ui/controls.css",
-      "sha256": "8f11aa57ea029d2955c75406d32315eb7ff6836b5fa8a788d171a6fa25a876d5",
+      "sha256": "b862ded34edac83156b4298d841b70e11f4409ab2b71f855cb0a883459b0f2d5",
       "composables": [],
       "actions": [],
       "referencedLabels": []
     },
     {
       "source": "composeApp/src/desktopMain/resources/player-ui/controls.html",
-      "sha256": "bbae156dcbc21a80115a6e5120034a2a38d1f0da4652df306f09416194da338a",
+      "sha256": "deaef41a84b1204bcad477634e3b4e004a914dd8b8d3a52fa42acd5b4e5a4b9d",
       "composables": [],
       "actions": [],
       "referencedLabels": []
     },
     {
       "source": "composeApp/src/desktopMain/resources/player-ui/controls.js",
-      "sha256": "cc8bce56e32034d3edb9d269a0a62c46c9be2d2f775ad03d495ff570610f9c02",
+      "sha256": "b554cc1210df363bdf4e13e3dc17f0682360442fe7bfee7ff315cae08e350b49",
       "composables": [],
       "actions": [
         "onEpisodesModalClosed",

@@ -320,8 +320,13 @@ data class StreamsUiState(
     val groups: List<AddonStreamGroup> = emptyList(),
     val activeAddonIds: Set<String> = emptySet(),
     val selectedFilter: String? = null,
+    // Opens in Data Saver mode while the Data Saver switch is on.
     val downloadFilterMode: com.nuvio.app.features.downloads.DownloadStreamFilterMode =
-        com.nuvio.app.features.downloads.DownloadStreamFilterMode.BEST_QUALITY,
+        if (com.nuvio.app.features.datasaver.DataSaverPlaybackRepository.snapshot().enabled) {
+            com.nuvio.app.features.downloads.DownloadStreamFilterMode.DATA_SAVER
+        } else {
+            com.nuvio.app.features.downloads.DownloadStreamFilterMode.BEST_QUALITY
+        },
     val isAnyLoading: Boolean = false,
     val emptyStateReason: StreamsEmptyStateReason? = null,
     val autoPlayStream: StreamItem? = null,

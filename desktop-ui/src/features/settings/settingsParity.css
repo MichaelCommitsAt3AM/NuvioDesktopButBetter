@@ -163,3 +163,8 @@ body:has(.settings-desktop:where([data-tab-active="true"])) .debrid-size-custom-
 body:has(.settings-desktop:where([data-tab-active="true"])) .debrid-size-dialog .debrid-size-options{max-height:min(320px,40vh);margin-top:14px}
 @media(max-width:520px){body:has(.settings-desktop:where([data-tab-active="true"])) .debrid-size-range-fields{grid-template-columns:minmax(0,1fr)}}
 
+/* Data Saver's landing row: the link fills the row, its switch sits on the right (mobile's shortcut). */
+.settings-desktop .settings-nav-row-toggle{padding:0 21.6px 0 0}
+.settings-desktop .settings-nav-row-toggle .settings-nav-row-link{display:flex;flex:1;min-width:0;align-items:center;gap:17.28px;align-self:stretch;padding:17.28px 0 17.28px 21.6px;color:inherit;text-decoration:none}
+.settings-desktop .settings-nav-row-toggle:hover{background:none}
+.settings-desktop .settings-nav-row-toggle .settings-nav-row-link:hover .settings-nav-copy strong{text-decoration:none}

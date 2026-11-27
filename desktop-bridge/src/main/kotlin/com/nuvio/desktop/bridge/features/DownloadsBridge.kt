@@ -88,6 +88,17 @@ object DownloadsBridge {
             DownloadFilterSettingsRepository.setMaxBitrateKbps(kbps.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
             filterSnapshot()
         }
+        "downloads.filter.setDataUse" -> {
+            DownloadFilterSettingsRepository.setDataUse(DataSaverBridge.preset(params.str("preset")))
+            filterSnapshot()
+        }
+        "downloads.filter.setTierBitrateKbps" -> {
+            DownloadFilterSettingsRepository.setTierBitrateKbps(
+                DataSaverBridge.settingTier(params.str("tier")),
+                DataSaverBridge.positiveKbps(params.long("kbps")),
+            )
+            filterSnapshot()
+        }
         "downloads.filter.setScaleBitrateByCodec" -> {
             DownloadFilterSettingsRepository.setScaleBitrateByCodec(params.bool("enabled"))
             filterSnapshot()
@@ -119,13 +130,24 @@ object DownloadsBridge {
             put("allowedSources", JsonArray(config.allowedSources.map { JsonPrimitive(it.name.lowercase()) }.sortedBy { it.content }))
             put("maxSizeBytes", config.maxSizeBytes)
             put("showUnknownSizeStreams", config.showUnknownSizeStreams)
-            put("minMaxSizeBytes", DownloadFilterConfig.MIN_MAX_SIZE_BYTES)
+            put("minMaxSizeBytes", DownloadFilterSettingsRepository.minMaxSizeBytes)
             put("maxMaxSizeBytes", DownloadFilterConfig.MAX_MAX_SIZE_BYTES)
             put("bitrateLimitEnabled", config.bitrateLimitEnabled)
             put("maxBitrateKbps", config.maxBitrateKbps)
             put("scaleBitrateByCodec", config.scaleBitrateByCodec)
             put("minMaxBitrateKbps", DownloadFilterConfig.MIN_MAX_BITRATE_KBPS)
             put("maxMaxBitrateKbps", DownloadFilterConfig.MAX_MAX_BITRATE_KBPS)
+            // Data use levels and per-resolution limits (ported from NuvioMobileButBetter).
+            val tiers = com.nuvio.app.features.datasaver.DataSaverDesktopAccess.settingResolutions
+            put("dataUse", config.dataUsePreset().name.lowercase())
+            put("resolutions", JsonArray(tiers.map { JsonPrimitive(it.name.lowercase()) }))
+            put("tierLimitsKbps", buildJsonObject { tiers.forEach { put(it.name.lowercase(), config.tierBitrateKbps(it)) } })
+            put("levelKbps", buildJsonObject {
+                com.nuvio.app.features.downloads.DataUsePreset.levels.forEach {
+                    put(it.name.lowercase(), it.scale(DownloadFilterConfig.defaultTierBitrateKbps(StreamResolutionTier.FHD_1080)))
+                }
+            })
+            put("choicesKbps", DataSaverBridge.choices(tiers))
         }
     }
 

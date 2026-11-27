@@ -27,3 +27,14 @@ describe('SettingsLanding about tools', () => {
     expect(screen.queryByRole('region', { name: 'Preview update banner' })).toBeNull();
   });
 });
+
+describe('SettingsLanding general rows', () => {
+  it('lists Data Saver last, with its own on/off switch beside the link to its page', () => {
+    render(<MemoryRouter initialEntries={['/settings?category=general']}><SettingsLanding /></MemoryRouter>);
+    const rows = Array.from(document.querySelectorAll('.settings-nav-card > .settings-nav-row'));
+    const last = rows.at(-1) as HTMLElement;
+    expect(last.querySelector('a')).toHaveAttribute('href', '/settings/data-saver');
+    expect(last.querySelector('input[type="checkbox"]')).not.toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Data Saver' })).not.toBeChecked();
+  });
+});

@@ -320,7 +320,7 @@ export function StreamsPage() {
                 {mode === (isDataSaver ? 'data_saver' : 'best_quality') && <Check size={16} />}{mode === 'best_quality' ? 'Best quality' : 'Data saver'}
               </button>)}
               <div className="streams-quality-divider" role="separator" />
-              <button onClick={() => { setQualityOpen(false); navigate('/settings/downloads', { state: { returnTo: `${location.pathname}${location.search}` } }); }}><Settings2 size={16} /> Filter settings</button>
+              <button onClick={() => { setQualityOpen(false); navigate('/settings/data-saver', { state: { returnTo: `${location.pathname}${location.search}` } }); }}><Settings2 size={16} /> Data Saver settings</button>
             </div>}
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { useDataSaverEnabled } from '../downloads/useDataSaverEnabled';
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useNavigate, useNavigationType, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
@@ -203,7 +204,9 @@ export function DetailsPage() {
   const backgroundMode = (metadataSettings?.backgroundMode ?? 'dominant_color').toLowerCase();
   const showBackdrop = backgroundMode !== 'normal';
   // Default on until the Kotlin snapshot says otherwise.
-  const heroTrailerAutoplay = metadataSettings?.heroTrailerPlayback ?? true;
+  const dataSaverOn = useDataSaverEnabled();
+  // Data Saver stops trailers playing on their own.
+  const heroTrailerAutoplay = (metadataSettings?.heroTrailerPlayback ?? true) && !dataSaverOn;
   const [trailerUi, setTrailerUi] = useState<TrailerUiState>('shown');
   const [dominant, setDominant] = useState<string | null>(null);
   useEffect(() => {

@@ -1,28 +1,28 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, RotateCcw } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { call, refreshFeature, useFeatureSnapshot } from '../../bridge';
 import { InlineError } from '../../components/Status';
 import { PageHeader } from '../../components/ui';
-import { SteppedSlider } from '../settings/SteppedSlider';
+import { BitrateCustomRows, BitrateScale, DataUseGrid, type DataUse } from './BitrateControls';
+import { ResetRow, SettingsGroup, SettingsSection, SizeSection, SwitchRow } from './FilterSettingsShared';
 import './downloads.css';
 
 export type DownloadFilter = {
   maxResolution: string; maxSizeBytes: number; showUnknownSizeStreams: boolean; allowedSources: string[]; minMaxSizeBytes: number; maxMaxSizeBytes: number;
   bitrateLimitEnabled: boolean; maxBitrateKbps: number; scaleBitrateByCodec: boolean; minMaxBitrateKbps: number; maxMaxBitrateKbps: number;
+  dataUse?: DataUse; resolutions?: string[]; tierLimitsKbps?: Record<string, number>; levelKbps?: Record<string, number>; choicesKbps?: Record<string, number[]>;
 };
 type Snapshot = { filter: DownloadFilter };
-const RESOLUTIONS = [
-  ['uhd_4k', '2160p (4K)'], ['fhd_1080', '1080p'], ['hd_720', '720p'], ['sd', '480p & below'],
-] as const;
-const SOURCES = [
-  ['webdl', 'WEB-DL'], ['webrip', 'WEBRip'], ['hdtv', 'HDTV'], ['dvd', 'DVD'], ['cam', 'Cam / TS'], ['bluray', 'Blu-ray'], ['remux', 'Remux'],
-] as const;
-const GB = 1024 ** 3;
 
-/** Pages that open the filter (Downloads, Streams) pass `{ returnTo }` so Back leads there instead of Settings. */
+/** Pages that open the filter (Downloads) pass `{ returnTo }` so Back leads there instead of Settings. */
 export type DownloadFiltersLocationState = { returnTo?: string };
 
+/**
+ * Limits for the Download button's quality options (ported from NuvioMobileButBetter): a data use
+ * level for every resolution at once, or a limit per resolution under Custom, plus a size cap.
+ * The streams list's Data Saver mode has its own rules on the Data Saver page.
+ */
 export function DownloadFiltersPage() {
   const returnTo = (useLocation().state as DownloadFiltersLocationState | null)?.returnTo;
   const snapshot = useFeatureSnapshot<Snapshot>('downloads');
@@ -36,65 +36,31 @@ export function DownloadFiltersPage() {
     catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setBusy(false); }
   };
-  const maxGb = filter ? Math.max(1, Math.min(20, Math.round(filter.maxSizeBytes / GB))) : 8;
-  const maxMbps = filter ? filter.maxBitrateKbps / 1000 : 6;
+  const dataUse = filter?.dataUse ?? 'balanced';
+  const limits = filter?.tierLimitsKbps ?? {};
   return <div className="page settings-page download-filter-page">
     <Link to={returnTo ?? '/settings'} className="back-button settings-page-back" aria-label={returnTo ? 'Back' : 'Back to Settings'}><ArrowLeft /></Link>
     <PageHeader title="Download filter" />
-    <p className="download-filter-intro">Data Saver filters the streams list down to smaller, download-friendly files. Customize what counts as data-friendly below.</p>
+    <p className="filter-page-intro">Limits for the Download button's quality options.</p>
     {error && <InlineError message={error} />}
     {!filter ? <div className="loading-block">Loading download filters…</div> : <>
-      <section className="download-filter-section">
-        <h2>Maximum resolution</h2>
-        <p>Hide streams above this resolution while Data Saver is on.</p>
-        <div className="download-filter-group" role="radiogroup" aria-label="Maximum resolution">
-          {RESOLUTIONS.map(([value, label]) => <label className="download-filter-option" key={value}>
-            <span>{label}</span><input type="radio" name="max-resolution" checked={filter.maxResolution === value} disabled={busy} onChange={() => void save('downloads.filter.setMaxResolution', { tier: value })} />
-          </label>)}
-        </div>
-      </section>
-      <section className="download-filter-section">
-        <h2>Allowed file types</h2>
-        <p>Only show these source types while Data Saver is on.</p>
-        <div className="download-filter-group" aria-label="Allowed file types">
-          {SOURCES.map(([value, label]) => <label className="download-filter-option" key={value}>
-            <span>{label}</span><input type="checkbox" checked={filter.allowedSources.includes(value)} disabled={busy} onChange={event => void save('downloads.filter.setSourceAllowed', { source: value.toUpperCase(), allowed: event.target.checked })} />
-          </label>)}
-        </div>
-      </section>
-      <section className="download-filter-section">
-        <h2>Quality limit (bitrate)</h2>
-        <p>File size alone can’t tell a lean encode from a bloated one, because a long film needs more bytes than a short one. This limit compares each file’s average bitrate (size ÷ runtime) instead. The default of 6 Mbps for 1080p is close to what Netflix streams.</p>
-        <div className="download-filter-group">
-          <label className="download-filter-option download-filter-unknown">
-            <span><strong>Limit by bitrate</strong><small>Needs the title’s runtime. When the runtime is unknown, only the maximum size below applies.</small></span>
-            <input type="checkbox" checked={filter.bitrateLimitEnabled} disabled={busy} onChange={event => void save('downloads.filter.setBitrateLimitEnabled', { enabled: event.target.checked })} />
-          </label>
+      <SettingsSection title="Quality">
+        <SettingsGroup>
+          <SwitchRow title="Limit by bitrate" description="Compares file size to runtime, so long films aren't penalised." checked={filter.bitrateLimitEnabled} disabled={busy} onChange={enabled => void save('downloads.filter.setBitrateLimitEnabled', { enabled })} />
           {filter.bitrateLimitEnabled && <>
-            <div className="download-filter-slider">
-              <SteppedSlider title="Maximum bitrate (1080p)" description="Other resolutions scale from this: 720p about 40%, 4K about 4.5×." value={maxMbps} min={filter.minMaxBitrateKbps / 1000} max={filter.maxMaxBitrateKbps / 1000} step={0.5} suffix="Mbps" disabled={busy} onSave={value => void save('downloads.filter.setMaxBitrateKbps', { kbps: Math.round(value * 1000) })} />
+            <div className="bitrate-card">
+              <DataUseGrid selected={dataUse} levelKbps={filter.levelKbps ?? {}} disabled={busy} onSelect={preset => void save('downloads.filter.setDataUse', { preset: preset.toUpperCase() })} />
+              {dataUse === 'custom' && <BitrateCustomRows heading="Largest bitrate · click to change" tiers={filter.resolutions ?? []} values={limits} choices={filter.choicesKbps ?? {}} disabled={busy}
+                onChange={(tier, kbps) => void save('downloads.filter.setTierBitrateKbps', { tier: tier.toUpperCase(), kbps })} />}
+              <BitrateScale kbps={limits.fhd_1080 ?? filter.maxBitrateKbps} />
             </div>
-            <label className="download-filter-option download-filter-unknown">
-              <span><strong>Allow less for HEVC / AV1</strong><small>HEVC (x265) and AV1 look as good as H.264 at a lower bitrate, so their limit is 60% / 50% of the setting above.</small></span>
-              <input type="checkbox" checked={filter.scaleBitrateByCodec} disabled={busy} onChange={event => void save('downloads.filter.setScaleBitrateByCodec', { enabled: event.target.checked })} />
-            </label>
+            <SwitchRow title="Allow less for HEVC / AV1" description="HEVC and AV1 get a lower limit, since they look as good at less bitrate." checked={filter.scaleBitrateByCodec} disabled={busy} onChange={enabled => void save('downloads.filter.setScaleBitrateByCodec', { enabled })} />
           </>}
-        </div>
-      </section>
-      <section className="download-filter-section">
-        <h2>Maximum size</h2>
-        <p>Hard cap that always applies, whatever the bitrate. Hide streams larger than this size while Data Saver is on.</p>
-        <div className="download-filter-group">
-          <div className="download-filter-slider">
-            <SteppedSlider title="Maximum file size" value={maxGb} min={Math.ceil(filter.minMaxSizeBytes / GB)} max={Math.floor(filter.maxMaxSizeBytes / GB)} suffix="GB" disabled={busy} onSave={value => void save('downloads.filter.setMaxSizeBytes', { bytes: value * GB })} />
-          </div>
-          <label className="download-filter-option download-filter-unknown">
-            <span><strong>Show streams with unknown size</strong><small>Off by default. When off, streams that don’t report a file size are hidden while Data Saver is on.</small></span>
-            <input type="checkbox" checked={filter.showUnknownSizeStreams} disabled={busy} onChange={event => void save('downloads.filter.setShowUnknownSize', { enabled: event.target.checked })} />
-          </label>
-        </div>
-      </section>
-      <button className="download-filter-reset" disabled={busy} onClick={() => void save('downloads.filter.reset')}><span><strong>Reset to defaults</strong><small>Restore the Netflix-like 1080p WEB-DL / WEBRip defaults.</small></span><RotateCcw size={19} /></button>
+        </SettingsGroup>
+      </SettingsSection>
+      <SizeSection maxSizeBytes={filter.maxSizeBytes} minBytes={filter.minMaxSizeBytes} maxBytes={filter.maxMaxSizeBytes} showUnknown={filter.showUnknownSizeStreams} disabled={busy}
+        onSize={bytes => void save('downloads.filter.setMaxSizeBytes', { bytes })} onShowUnknown={enabled => void save('downloads.filter.setShowUnknownSize', { enabled })} />
+      <ResetRow description="Restore the default bitrate and size limits." confirmTitle="Reset download filter?" confirmDescription="The bitrate and size limits go back to 6 Mbps at 1080p and 15 GB." disabled={busy} onReset={() => void save('downloads.filter.reset')} />
     </>}
   </div>;
 }

@@ -4,6 +4,13 @@ A detailed reference of everything this fork (`MichaelCommitsAt3AM/NuvioDesktopB
 compared to upstream [`NuvioMedia/NuvioDesktop`](https://github.com/NuvioMedia/NuvioDesktop).
 It's meant for maintainers. The user-facing summary belongs in `README.md`.
 
+### Torrentio streams in Data Saver, stuck auto-play and slow add-ons — 2026-11-27
+
+- **Torrentio sizes** (`StreamQualityClassifier.sizeOf` in `DownloadFilterModels.kt`, shared with mobile): Torrentio sends no structured size (`behaviorHints.videoSize`); it prints it in the title ("👤 4 💾 24.3 GB ⚙️ EXT"). Every Torrentio stream therefore counted as size-less, so Data Saver's list (and the download filter) hid all of them, since "Include files with no size" is off by default. `sizeOf` now falls back to the size in the stream's text (the 💾 value first, then the first plain "N GB/MB"). Covered by `StreamTextSizeTest`. Mobile has the same gap.
+- **Stuck "Finding streams…"** (`DesktopBridgeRuntime.streamsJson`): in Data Saver mode the bridge registered only the streams its list shows, but auto-play picks from every add-on. When the pick was hidden, React got no stream id while the overlay stayed visible, forever. The pick and its fallbacks are now registered too (not listed), via `streamRecordId`.
+- **Slow add-ons** (`StreamsRepository`): once any add-on has returned a playable stream while another is still loading, auto-play waits `AUTO_PLAY_STRAGGLER_GRACE_MS` (10 s) and then continues with the best stream available, whatever the auto-play timeout (including unlimited, which otherwise waited 60 s, and pending debrid candidates, which otherwise waited for every add-on).
+- **Isolated desktop tests** (`composeApp/build.gradle.kts`): `desktopTest` now points `APPDATA`, `LOCALAPPDATA`, `XDG_CONFIG_HOME` and `XDG_CACHE_HOME` at a fresh `build/desktop-test-home`. Tests had been reading and writing the developer's real Nuvio settings, and Data Saver being on there broke `StreamAutoPlaySelectorTest`.
+
 ### Data Saver and the reworked Download filter, ported from mobile — 2026-11-27
 
 Ported from NuvioMobileButBetter `03331c200` ("Add Data Saver, simpler download limits and Dolby Vision fallbacks"). Desktop's copies of the shared files matched mobile's parent commit exactly (line endings aside), so the shared logic was applied as is:

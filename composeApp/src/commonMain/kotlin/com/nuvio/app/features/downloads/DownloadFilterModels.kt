@@ -241,7 +241,29 @@ object StreamQualityClassifier {
             ?: stream.clientResolve?.stream?.raw?.size
             ?: stream.clientResolve?.stream?.raw?.folderSize
             ?: stream.debridCacheStatus?.cachedSize
+            ?: textSizeOf(stream)
         return size?.takeIf { it > 0L }
+    }
+
+    /**
+     * The size an add-on wrote into the stream's text when it sends no structured size. Torrentio,
+     * for one, only puts it in the title ("👤 4 💾 24.3 GB ⚙️ EXT"); without this every Torrentio
+     * stream counts as size-less, so Data Saver and the download filter hide it.
+     */
+    private fun textSizeOf(stream: StreamItem): Long? = sizeInText(haystack(stream))
+
+    /** "💾 24.3 GB" first, then the first plain size ("1.66 GB", "700 MB"); binary units, as add-ons print them. */
+    internal fun sizeInText(text: String): Long? {
+        val match = Regex("""💾\s*(\d+(?:[.,]\d+)?)\s*(tib|tb|gib|gb|mib|mb)\b""", RegexOption.IGNORE_CASE).find(text)
+            ?: Regex("""(?<![\w.])(\d+(?:[.,]\d+)?)\s*(tib|tb|gib|gb|mib|mb)\b""", RegexOption.IGNORE_CASE).find(text)
+            ?: return null
+        val amount = match.groupValues[1].replace(',', '.').toDoubleOrNull() ?: return null
+        val unit = when (match.groupValues[2].lowercase()) {
+            "tib", "tb" -> 1024.0 * 1024 * 1024 * 1024
+            "gib", "gb" -> 1024.0 * 1024 * 1024
+            else -> 1024.0 * 1024
+        }
+        return (amount * unit).toLong().takeIf { it > 0L }
     }
 
     fun codecOf(stream: StreamItem): StreamCodec =

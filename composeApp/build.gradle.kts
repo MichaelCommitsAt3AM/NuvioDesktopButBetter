@@ -1066,6 +1066,15 @@ tasks.withType<KotlinCompilationTask<*>>().configureEach {
 
 tasks.withType<org.gradle.api.tasks.testing.Test>().matching { it.name == "desktopTest" }.configureEach {
     jvmArgs("--add-opens=java.desktop/java.awt.event=ALL-UNNAMED")
+    // Keep tests out of the developer's real Nuvio settings and caches (DesktopStorage / DesktopCachePaths
+    // resolve these on Windows and Linux): saved state such as Data Saver being on changed test results,
+    // and tests wrote into the real folders. A fresh folder per run keeps results independent of the machine.
+    val isolatedHome = layout.buildDirectory.dir("desktop-test-home")
+    doFirst { isolatedHome.get().asFile.let { it.deleteRecursively(); it.mkdirs() } }
+    environment("APPDATA", isolatedHome.get().dir("Roaming").asFile.absolutePath)
+    environment("LOCALAPPDATA", isolatedHome.get().dir("Local").asFile.absolutePath)
+    environment("XDG_CONFIG_HOME", isolatedHome.get().dir("config").asFile.absolutePath)
+    environment("XDG_CACHE_HOME", isolatedHome.get().dir("cache").asFile.absolutePath)
 }
 
 kotlin {

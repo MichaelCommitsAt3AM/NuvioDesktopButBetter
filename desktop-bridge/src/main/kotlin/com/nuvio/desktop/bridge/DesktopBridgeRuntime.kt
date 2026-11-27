@@ -1373,11 +1373,17 @@ class DesktopBridgeRuntime {
             val shared = partySharedStreamFor(currentMeta?.id, currentVideoId)
             val rows = listOfNotNull(shared?.let { ShownGroup("party-shared", it.first, false, null, listOf(it.second)) }) +
                 groups.map { ShownGroup(it.addonId, it.addonName, it.isLoading, it.error, it.streams) }
+            // Auto-play picks from every add-on's results, but Data Saver mode lists only what its rules allow.
+            // Register the pick and its fallbacks even when hidden, so React gets an id for them instead of
+            // waiting on "Finding streams…" forever. They are not added to the visible list.
+            (listOfNotNull(state.autoPlayStream) + state.autoPlayCandidates).forEach { stream ->
+                streamRegistry[streamRecordId(requestId, stream)] =
+                    StreamRecord(stream, currentMeta, currentVideoId, requestId?.let(streamAuthorized::get))
+            }
             put("groups", JsonArray(rows.map { group -> buildJsonObject {
                 put("id", group.id); put("name", group.name); put("loading", group.loading); putNullable("error", group.error)
                 put("streams", JsonArray(group.streams.map { stream ->
-                    val digest = MessageDigest.getInstance("SHA-256").digest(stream.toString().toByteArray(Charsets.UTF_8)).take(12).joinToString("") { "%02x".format(it) }
-                    val streamId = "s-${requestId ?: epoch}-$digest"
+                    val streamId = streamRecordId(requestId, stream)
                     val (meta, videoId) = requestId?.let(streamContext::get) ?: (lastDetails to loadedVideoId)
                     streamRegistry[streamId] = StreamRecord(stream, meta, videoId, requestId?.let(streamAuthorized::get))
                     buildJsonObject {
@@ -1405,6 +1411,12 @@ class DesktopBridgeRuntime {
         if (videoId != null && videoId != (party.media.videoId ?: party.media.metaId)) return null
         val host = party.members.firstOrNull { it.id == party.hostMemberId }?.displayName
         return "Shared by ${host ?: "the host"}" to shared.toStreamItem()
+    }
+
+    /** A stream's id for this request: stable for the same stream, so listed and auto-play entries match. */
+    private fun streamRecordId(requestId: String?, stream: StreamItem): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(stream.toString().toByteArray(Charsets.UTF_8)).take(12).joinToString("") { "%02x".format(it) }
+        return "s-${requestId ?: epoch}-$digest"
     }
 
     private fun streamSelectionJson(): JsonObject {

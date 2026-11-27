@@ -265,6 +265,8 @@ object StreamsRepository {
             val installedAddonIds = streamAddons.map { it.addonId }.toSet()
             var autoSelectTriggered = false
             var timeoutElapsed = false
+            // Started once some add-on has a playable stream while another is still loading (see below).
+            var stragglerJob: Job? = null
             fun evaluateAutoPlay(bingeGroupOnly: Boolean = false): StreamAutoPlayEvaluation =
                 StreamAutoPlaySelector.evaluateAutoPlayStream(
                     streams = _uiState.value.groups.flatMap { it.streams },
@@ -359,6 +361,22 @@ object StreamsRepository {
                     )
                 ) {
                     settleAutoPlay(evaluateAutoPlay())
+                    return
+                }
+
+                // An add-on that hangs (or answers very slowly) must not hold auto-play when another has
+                // already returned a playable stream: give the rest a grace period, then go with the best
+                // stream available. This applies whatever the auto-play timeout is, including unlimited.
+                if (stragglerJob == null && _uiState.value.groups.any { !it.isLoading && it.streams.isNotEmpty() }) {
+                    stragglerJob = launch {
+                        delay(AUTO_PLAY_STRAGGLER_GRACE_MS)
+                        if (autoSelectTriggered || _uiState.value.groups.none { it.isLoading }) return@launch
+                        val evaluation = evaluateAutoPlay()
+                        if (evaluation.stream != null) {
+                            log.i { "Auto-play continuing without slow add-ons: video=$videoId waiting=${_uiState.value.groups.filter { it.isLoading }.joinToString { it.addonName }}" }
+                            settleAutoPlay(evaluation)
+                        }
+                    }
                 }
             }
 
@@ -529,6 +547,7 @@ object StreamsRepository {
                 settleAutoPlay(evaluateAutoPlay())
             }
             timeoutJob?.cancel()
+            stragglerJob?.cancel()
         }
         activeJob = searchJob
         searchJob.invokeOnCompletion { failure ->
@@ -625,3 +644,6 @@ object StreamsRepository {
         _uiState.update { it.copy(showDirectAutoPlayOverlay = visible, overlayMessage = message) }
     }
 }
+
+/** How long auto-play waits for slower add-ons once another has returned a playable stream. */
+internal const val AUTO_PLAY_STRAGGLER_GRACE_MS = 10_000L
